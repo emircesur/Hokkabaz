@@ -59,7 +59,7 @@ Rules:
 | P1.4 📜 | B | `hk-llm`: `Provider` trait, `ChatRequest`, `StreamEvent`, `ModelInfo`, cancellation, usage/cost types | P0.1 | M | none | trait compiles, docs on each type | done — check+clippy clean; deps: async-trait, futures, serde, serde_json, thiserror, tokio-util |
 | P1.5 | B | DeepSeek adapter: chat + reasoner, SSE parsing, `reasoning_content`, tool-call deltas, cache-hit usage, errors/retry | P1.4 | M | fixture | fixtures for text, reasoning, tool calls, error pass | done | `hk_llm::deepseek::DeepSeek`; 16 tests pass, clippy clean. Retry connect-phase only. FIM + dsh headers not done. |
 | P1.6 | B | OpenAI-compatible adapter (base_url + headers config) | P1.4 | M | fixture | works vs fixture; reused by later providers | todo |
-| P1.7 📜 | A | `hk-tools`: registry, JSON-Schema arg validation, pipeline events `tools/pre-execute|execute|post-execute`, output truncation/spill | P1.1 | M | unit | guard reject + spill paths tested | todo |
+| P1.7 📜 | A | `hk-tools`: registry, JSON-Schema arg validation, pipeline events `tools/pre-execute|execute|post-execute`, output truncation/spill | P1.1 | M | unit | guard reject + spill paths tested | done |
 | P1.8 | A | Builtin tools: read, write, edit, glob, grep, bash (portable-pty), web_fetch, todo | P1.7 | L | unit (edit only) | each tool callable via registry | todo |
 | P1.9 | A | `hk-agent` loop: turn/step per DESIGN §3.5, inbox, inject, cancellation, missing tool results on failure, max steps | P1.3, P1.4, P1.7 | L | unit | state machine tests w/ fake provider | todo |
 | P1.10 | A | Modes `build` / `plan` + approval events (`approval/request|response`) | P1.9 | M | unit | plan mode blocks write, asks for bash | todo |
