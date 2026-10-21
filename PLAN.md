@@ -75,7 +75,7 @@ Rules:
 | P2.3 | B | Anthropic adapter (thinking, caching) | P1.4 | M | fixture | fixtures pass | todo |
 | P2.4 | B | Gemini adapter | P1.4 | M | fixture | fixtures pass | todo |
 | P2.5 | B | Router: per-agent model, fallback chain, retry/backoff, token meter + cost projection | P2.1 | M | unit | fallback on 5xx/timeout tested | todo |
-| P2.6 | B | `hk-mcp` via rmcp: stdio + streamable HTTP, tools into registry, resources/prompts listing | P1.7 | M | none | filesystem MCP server usable in chat | todo |
+| P2.6 | B | `hk-mcp` via rmcp: stdio + streamable HTTP, tools into registry, resources/prompts listing | P1.7 | M | none | filesystem MCP server usable in chat | done — tool names `mcp.<srv>.<tool>`: dots invalid for OpenAI-style APIs, map before send; rmcp pulls reqwest 0.13 (check android) |
 | P2.7 | A | `hk-sandbox`: policy model, landlock backend, seatbelt backend, none+allowlist; bash wraps argv | P1.8 | L | unit (policy) | write outside root denied on Linux | done — hk-tools bash wiring pending; hosts call maybe_run_helper() |
 | P2.8 | A | Subagents (`task` tool), parallel limit, linked child sessions | P1.9 | M | unit | parent receives child result | todo |
 | P2.9 | A | Compaction + guards (repeat-tool, timeouts, cost cap) | P1.9 | M | unit | compaction keeps log replayable | todo |

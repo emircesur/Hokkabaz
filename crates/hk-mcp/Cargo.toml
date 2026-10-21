@@ -10,4 +10,25 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+default = ["stdio", "http"]
+# stdio transport spawns a child process. Code is additionally cfg(not(android)); the feature
+# only pulls tokio/process + process-wrap, no landlock/acp.
+stdio = ["rmcp/transport-child-process"]
+# streamable HTTP transport (rustls). Works everywhere incl. android.
+http = ["rmcp/transport-streamable-http-client-reqwest", "rmcp/reqwest", "dep:http"]
+
 [dependencies]
+hk-core = { version = "0.0.0", path = "../hk-core" }
+hk-tools = { version = "0.0.0", path = "../hk-tools" }
+async-trait = "0.1.92"
+http = { version = "1", optional = true }
+rmcp = { version = "3.6.0", default-features = false, features = ["client"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2"
+tokio = { version = "1.54.0", features = ["process", "rt", "sync", "time"] }
+tracing = "0.1.44"
+
+[dev-dependencies]
+tokio = { version = "1.54.0", features = ["rt", "macros", "time"] }
