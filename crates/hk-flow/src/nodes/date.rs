@@ -2,7 +2,7 @@
 
 use chrono::{
     DateTime, Datelike, Duration, FixedOffset, LocalResult, NaiveDate, NaiveDateTime, NaiveTime,
-    Offset, TimeZone, Timelike, Utc,
+    Offset, TimeZone, Timelike,
 };
 use chrono_tz::Tz;
 use serde_json::Value;
@@ -308,8 +308,4 @@ pub(crate) fn format_luxon(d: &DateTime<Tz>, fmt: &str) -> String {
         out.push_str(&s);
     }
     out
-}
-
-pub(crate) fn utc(ms: i64) -> Option<DateTime<Utc>> {
-    DateTime::from_timestamp_millis(ms)
 }

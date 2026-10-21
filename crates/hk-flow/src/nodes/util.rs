@@ -162,16 +162,6 @@ pub(crate) fn to_display(v: &Value) -> String {
     }
 }
 
-pub(crate) fn truthy(v: &Value) -> bool {
-    match v {
-        Value::Null => false,
-        Value::Bool(b) => *b,
-        Value::Number(n) => n.as_f64().is_some_and(|f| f != 0.0),
-        Value::String(s) => !s.is_empty(),
-        _ => true,
-    }
-}
-
 /// Canonical text of a value with object keys sorted: equal JSON gives equal keys.
 pub(crate) fn canonical(v: &Value) -> String {
     let mut out = String::new();
@@ -303,16 +293,4 @@ pub(crate) fn remove_path(m: &mut Map<String, Value>, path: &str, dot: bool) {
         };
     }
     cur.shift_remove(last);
-}
-
-/// Recursive object merge; `b` wins on scalar/array clashes.
-pub(crate) fn deep_merge(a: &mut Map<String, Value>, b: &Map<String, Value>) {
-    for (k, bv) in b {
-        match (a.get_mut(k), bv) {
-            (Some(Value::Object(ao)), Value::Object(bo)) => deep_merge(ao, bo),
-            _ => {
-                a.insert(k.clone(), bv.clone());
-            }
-        }
-    }
 }

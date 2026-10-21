@@ -90,7 +90,7 @@ fn coerce(ty: &str, v: Value, name: &str) -> Result<Value, String> {
             Ok(v @ Value::Object(_)) => v,
             _ => return Err(bad()),
         },
-        ("string" | "number" | "boolean" | "array" | "object", _) => return Err(bad()),
+        ("number" | "boolean" | "array" | "object", _) => return Err(bad()),
         (_, other) => other,
     })
 }

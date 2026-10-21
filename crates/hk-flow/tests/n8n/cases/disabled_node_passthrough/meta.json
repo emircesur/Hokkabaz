@@ -1,6 +1,6 @@
 {
   "description": "A disabled node is skipped: its input passes straight to the next node untouched.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "set",
     "noOp"

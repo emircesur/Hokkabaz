@@ -1,6 +1,6 @@
 {
   "description": "Merge combine all: every input 1 item paired with every input 2 item, input 1 outer loop.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "merge"
   ],

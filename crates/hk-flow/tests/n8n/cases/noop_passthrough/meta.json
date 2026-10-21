@@ -1,6 +1,6 @@
 {
   "description": "No Operation node forwards items unchanged, in order.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "noOp"
   ],

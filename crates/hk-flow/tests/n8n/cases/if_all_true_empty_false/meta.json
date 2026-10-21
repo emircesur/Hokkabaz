@@ -1,6 +1,6 @@
 {
   "description": "If where every item matches: false output is an empty array and its downstream node never runs.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "if"
   ],

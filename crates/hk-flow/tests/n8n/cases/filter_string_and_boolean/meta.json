@@ -1,6 +1,6 @@
 {
   "description": "Filter AND of string notEquals and boolean true.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "filter"
   ],

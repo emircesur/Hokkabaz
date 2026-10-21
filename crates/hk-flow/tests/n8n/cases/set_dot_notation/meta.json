@@ -1,6 +1,6 @@
 {
   "description": "Set field names with dots build nested objects by default; options.dotNotation=false keeps literal keys.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "set"
   ],

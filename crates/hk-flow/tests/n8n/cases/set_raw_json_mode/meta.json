@@ -1,6 +1,6 @@
 {
   "description": "Set in JSON mode: jsonOutput string parsed into the output item.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "set"
   ],

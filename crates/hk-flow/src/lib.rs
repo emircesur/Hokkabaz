@@ -6,6 +6,9 @@
 //!
 //! Clean-room: shapes derived from the public n8n docs and exported JSON only.
 
+// n8n node descriptions are large `json!` literals
+#![recursion_limit = "512"]
+
 pub mod description;
 pub mod error;
 pub mod executor;

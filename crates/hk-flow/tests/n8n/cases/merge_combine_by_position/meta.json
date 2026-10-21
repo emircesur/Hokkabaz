@@ -1,6 +1,6 @@
 {
   "description": "Merge combine by position: item i of input 1 merged with item i of input 2.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "merge"
   ],

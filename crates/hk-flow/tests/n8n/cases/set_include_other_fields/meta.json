@@ -1,6 +1,6 @@
 {
   "description": "Set with includeOtherFields: input fields kept, assigned ones added or overwritten.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "set"
   ],

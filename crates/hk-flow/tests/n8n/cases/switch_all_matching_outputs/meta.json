@@ -1,6 +1,6 @@
 {
   "description": "Switch allMatchingOutputs=true: an item satisfying several rules is sent to every matching output.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "switch"
   ],

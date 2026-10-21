@@ -1,8 +1,11 @@
 {
   "description": "Set values as expressions over $json; a lone {{ }} keeps its native type, embedded stays string.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "set"
   ],
-  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.set/"
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.set/",
+  "CHANGES": [
+    "P4.3c: workflow.json `label` value lacked the leading `=`; in n8n only `=`-prefixed strings are expressions, so the seed value was a literal. Fixed the fixture to `=item {{ $json.qty }}x`, expectation unchanged."
+  ]
 }

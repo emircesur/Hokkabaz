@@ -1,6 +1,6 @@
 {
   "description": "Merge append: all input 1 items followed by all input 2 items.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "merge"
   ],

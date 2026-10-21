@@ -1,6 +1,6 @@
 {
   "description": "If routes items by condition: true output 0, false output 1, input order kept.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "if"
   ],

@@ -1,6 +1,6 @@
 {
   "description": "Switch fallbackOutput=extra adds a final output that receives items matching no rule.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "switch"
   ],

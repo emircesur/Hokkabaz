@@ -313,8 +313,8 @@ fn combine_by_fields(
     let mut used2: HashSet<usize> = HashSet::new();
     let mut unmatched1 = Vec::new();
     let mut matched = Vec::new();
-    for (i, x) in a.iter().enumerate() {
-        let m = matches_of(&k1[i], &k2);
+    for (i, k) in k1.iter().enumerate() {
+        let m = matches_of(k, &k2);
         if m.is_empty() {
             unmatched1.push(i);
             continue;

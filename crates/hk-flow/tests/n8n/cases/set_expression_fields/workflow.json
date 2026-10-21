@@ -32,7 +32,7 @@
             {
               "id": "a-label",
               "name": "label",
-              "value": "item {{ $json.qty }}x",
+              "value": "=item {{ $json.qty }}x",
               "type": "string"
             }
           ]

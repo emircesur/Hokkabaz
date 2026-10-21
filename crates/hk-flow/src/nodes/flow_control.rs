@@ -298,7 +298,7 @@ impl FlowNode for RespondToWebhookNode {
                 let v = param_or(ctx, "responseBody", 0, Value::Null)?;
                 match v {
                     Value::String(s) => serde_json::from_str::<Value>(&s)
-                        .map(|v| wrap(v))
+                        .map(wrap)
                         .map_err(|e| node_err(ctx, format!("Invalid JSON in 'Response Body': {e}")))?
                         .into(),
                     other => wrap(other).into(),

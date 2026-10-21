@@ -1,6 +1,6 @@
 {
   "description": "Merge chooseBranch waitForBoth outputting input 2: only input 2 items pass.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "merge"
   ],

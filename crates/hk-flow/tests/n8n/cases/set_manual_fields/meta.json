@@ -1,6 +1,6 @@
 {
   "description": "Set manual mode, includeOtherFields off: output holds only assigned fields, typed.",
-  "status": "pending_executor",
+  "status": "active",
   "nodes": [
     "set"
   ],
