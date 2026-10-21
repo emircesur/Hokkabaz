@@ -75,6 +75,7 @@ Rules:
 | P2.3 | B | Anthropic adapter (thinking, caching) | P1.4 | M | fixture | fixtures pass | done — thinking signatures kept in adapter memory only; persisting needs Message/StreamEvent field + hk-session/hk-agent change |
 | P2.4 | B | Gemini adapter | P1.4 | M | fixture | fixtures pass | done — signatures in-memory only; skip_thought_signature_validator value unverified; not wired into registry |
 | P2.5 | B | Router: per-agent model, fallback chain, retry/backoff, token meter + cost projection | P2.1 | M | unit | fallback on 5xx/timeout tested | done — no route-answered signal in StreamEvent (log only via tracing) |
+| P2.5b | B | `hk-llm` provider registry: build providers from config + `KeyResolver`, router builder, aggregated model list | P2.5, P2.4 | S | unit | missing key / unknown kind errors, model merge | done |
 | P2.6 | B | `hk-mcp` via rmcp: stdio + streamable HTTP, tools into registry, resources/prompts listing | P1.7 | M | none | filesystem MCP server usable in chat | done — tool names `mcp.<srv>.<tool>`: dots invalid for OpenAI-style APIs, map before send; rmcp pulls reqwest 0.13 (check android) |
 | P2.7 | A | `hk-sandbox`: policy model, landlock backend, seatbelt backend, none+allowlist; bash wraps argv | P1.8 | L | unit (policy) | write outside root denied on Linux | done — hk-tools bash wiring pending; hosts call maybe_run_helper() |
 | P2.8 | A | Subagents (`task` tool), parallel limit, linked child sessions | P1.9 | M | unit | parent receives child result | done — child approvals deny by default, 1 level deep |
