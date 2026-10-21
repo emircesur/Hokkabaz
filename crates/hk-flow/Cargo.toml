@@ -15,7 +15,7 @@ workspace = true
 testing = []
 default = ["expr"]
 # n8n expression engine (QuickJS via rquickjs; bundled C, cross-compiles to Android)
-expr = ["dep:rquickjs", "tokio/rt"]
+expr = ["dep:rquickjs", "dep:chrono", "dep:chrono-tz", "dep:jmespath", "dep:sha1", "dep:sha2", "dep:md-5"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -27,6 +27,19 @@ async-trait = "0.1"
 # retry back-off sleeps
 tokio = { version = "1", features = ["time"] }
 rquickjs = { version = "0.14", optional = true, default-features = false }
+# IANA zones for Luxon-like DateTime in expressions (workflow timezone)
+chrono = { version = "0.4", optional = true, default-features = false, features = ["std"] }
+chrono-tz = { version = "0.10", optional = true }
+# `$jmespath(...)`
+jmespath = { version = "0.5", optional = true }
+# String.hash() extension
+sha1 = { version = "0.10", optional = true }
+sha2 = { version = "0.10", optional = true }
+md-5 = { version = "0.10", optional = true }
+
+# rquickjs-sys ships no prebuilt bindings for android targets
+[target.'cfg(target_os = "android")'.dependencies]
+rquickjs = { version = "0.14", optional = true, default-features = false, features = ["bindgen"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "time", "test-util"] }
