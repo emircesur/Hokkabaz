@@ -1,0 +1,2 @@
+{"id":"a1","object":"chat.completion.chunk","created":1,"model":"deepseek-chat","system_fingerprint":"fp_x","choices":[{"index":0,"delta":{"content":"par"},"finish_reason":null}]}
+{"error":{"message":"upstream exploded","type":"server_error"}}

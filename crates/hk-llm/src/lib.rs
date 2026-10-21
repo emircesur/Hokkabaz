@@ -5,6 +5,7 @@
 //! the types in this crate.
 // port: dsh packages/core/llm (stream vocabulary), opencode packages/opencode/src/provider
 
+pub mod deepseek;
 mod error;
 mod event;
 mod model;
@@ -16,8 +17,6 @@ pub use error::{LlmError, Result};
 pub use event::{FinishReason, StreamEvent};
 pub use model::{Capabilities, ModelCost, ModelInfo};
 pub use provider::{EventStream, Provider};
-pub use request::{
-    ChatRequest, Message, ReasoningEffort, Role, ToolCall, ToolChoice, ToolSpec,
-};
+pub use request::{ChatRequest, Message, ReasoningEffort, Role, ToolCall, ToolChoice, ToolSpec};
 pub use tokio_util::sync::CancellationToken;
 pub use usage::{Cost, Usage};

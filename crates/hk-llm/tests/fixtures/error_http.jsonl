@@ -1,0 +1,6 @@
+{"case":"rate_limit","status":429,"retry_after":"2","body":{"error":{"message":"Rate limit reached for requests","type":"rate_limit_error","code":"rate_limit_reached"}},"expect":"http_retryable"}
+{"case":"auth","status":401,"body":{"error":{"message":"Authentication Fails (governor)","type":"authentication_error"}},"expect":"auth"}
+{"case":"balance","status":402,"body":{"error":{"message":"Insufficient Balance","type":"unknown_error"}},"expect":"http_fatal"}
+{"case":"bad_request","status":422,"body":{"error":{"message":"Invalid parameter: messages[0].role","type":"invalid_request_error"}},"expect":"invalid_request"}
+{"case":"context","status":400,"body":{"error":{"message":"This model's maximum context length is 131072 tokens. However, you requested 140000 tokens.","type":"invalid_request_error"}},"expect":"context_length"}
+{"case":"busy","status":503,"body":{"error":{"message":"Server is busy","type":"server_error"}},"expect":"http_retryable"}
