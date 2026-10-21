@@ -1,0 +1,13 @@
+[
+  {"role": "system", "content": "You are hk."},
+  {"role": "user", "content": "list files"},
+  {"role": "assistant", "content": "", "reasoning": "need ls", "tool_calls": [
+    {"id": "c1", "name": "bash", "arguments": {"cmd": "ls"}},
+    {"id": "c2", "name": "read", "arguments": {"path": "a.txt"}}
+  ]},
+  {"role": "tool", "content": "a.txt\nb.txt", "tool_call_id": "c1"},
+  {"role": "tool", "content": "hello", "tool_call_id": "c2"},
+  {"role": "assistant", "content": "Two files."},
+  {"role": "user", "content": "thanks"},
+  {"role": "assistant", "content": "welcome"}
+]
