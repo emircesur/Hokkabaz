@@ -45,7 +45,7 @@ Rules:
 |---|---|---|---|---|---|---|---|
 | P0.1 | F | Cargo workspace skeleton with all crates (empty lib + `todo!()`-free stubs), edition 2024, shared lints, `rust-toolchain.toml` | – | S | none | `cargo check --workspace` green | todo |
 | P0.2 | F | CI: `fmt`, `clippy`, `check` on Linux; tests only on changed crates (path filters); Android build job stub | P0.1 | S | none | CI green on main | todo |
-| P0.3 | F | `docs/UPSTREAM.md` (pinned SHAs, concept map from DESIGN §2), `THIRD_PARTY_NOTICES.md`, `LICENSE-MIT`, `LICENSE-APACHE` | – | S | none | files exist | wip — UPSTREAM.md done; licenses wait D10 |
+| P0.3 | F | `docs/UPSTREAM.md` (pinned SHAs, concept map), `THIRD_PARTY_NOTICES.md`; license files deferred (D10) | – | S | none | files exist | wip — UPSTREAM.md done; license deferred |
 | P0.4 | C | Flutter app skeleton (`apps/flutter`), go_router + Riverpod, theme tokens from DESIGN §4.7, empty screens for 7 tabs | – | M | none | `flutter analyze` clean, runs on Linux desktop | todo |
 | P0.5 | C | flutter_rust_bridge v2 wiring: `hk-ffi` exposes `core_version()` + a demo stream | P0.1, P0.4 | S | none | desktop app shows version from Rust | todo |
 
@@ -94,35 +94,40 @@ Rules:
 | P3.6 | C | Models screen: providers, keys, local models (Ollama pull), routing | P2.1, P2.5 | M | none | – | todo |
 | P3.7 | C | Command palette, keyboard shortcuts, light/dark | P3.2 | S | none | – | todo |
 
-## Phase 4 — Flow engine, server, instances  (milestone **M4: webhook → agent → action flow runs on hokkabazd**)
+## Phase 4 — n8n-compatible flow engine, server, instances  (milestone **M4: n8n webhook → AI agent → HTTP flow imports and runs on hokkabazd**)
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
-| P4.1 📜 | D | `hk-flow` model: workflow JSON schema, node trait, items model, node registry, versioning | P1.1, P1.12 | M | unit (schema) | schema + registry documented | todo |
-| P4.2 | D | Executor: DAG scheduling, per-item/batch, retries, continue-on-fail, timeouts, execution persistence | P4.1 | L | unit | branch/merge/retry cases tested | todo |
-| P4.3 | D | Expressions (`minijinja`) + Code node (`rhai`) + control nodes (If, Switch, Merge, Batch, Loop, Wait, Sub-flow, Error trigger) | P4.2 | L | unit (expr, wait) | – | todo |
-| P4.4 | D | Triggers: manual, cron/interval, app event, file watch; durable waits survive restart | P4.2 | M | unit (cron) | – | todo |
-| P4.5 | D | AI nodes: Agent, LLM Prompt, Classifier, Extract (JSON schema), Embed | P4.2, P1.9 | M | none | agent node runs with tools | todo |
-| P4.6 📜 | D | `hk-server` (axum): webhook routes + HMAC presets, REST v1, WS event/command mux, token scopes, rate limit | P4.2 | L | unit (auth) | OpenAPI doc generated | todo |
+| P4.1 📜 | D | `hk-flow` model = n8n workflow JSON (lossless serde incl. unknown fields), node trait keyed by `(type, typeVersion)`, n8n items `{json, binary, pairedItem}`, node description schema, versions | P1.1, P1.12 | M | unit (round-trip) | n8n export → import → export equivalent (normalized) | todo |
+| P4.1b | D | n8n compat corpus harness: fixture format (workflow + payload → expected runData), runner, 20 seed cases | P4.1 | M | fixture | harness runs, per-node diff | todo |
+| P4.2 | D | Executor: n8n v1 execution order, multi in/out, `executeOnce`, `alwaysOutputData`, `retryOnFail`, `onError`, disabled nodes, pinData, staticData; runData persistence | P4.1 | L | fixture | seed corpus passes | todo |
+| P4.3 | D | Expression engine: `rquickjs` + n8n runtime shim (`$json`, `$input`, `$('Name')`, `$node`, `$items`, `$workflow`, `$execution`, `$env`, `$vars`, `$now`/Luxon DateTime, `$jmespath`, extension methods); sandbox limits | P4.2 | L | unit (expr corpus) | n8n doc expression examples evaluate identically | todo |
+| P4.3b | D | Code node (JS, run-once + per-item) on same engine | P4.3 | M | fixture | – | todo |
+| P4.3c | D | Core n8n nodes: Set/Edit Fields, If, Switch, Filter, Merge (all modes), Loop Over Items, Wait (durable), Execute Workflow (+Trigger), Error Trigger, NoOp, Respond to Webhook, HTTP Request, Date & Time, Aggregate/Split Out, Sort, Limit, Remove Duplicates | P4.3 | L | fixture | corpus cases per node pass | todo |
+| P4.4 | D | Triggers (n8n types): Manual, Schedule, Webhook, Form, Chat, Execute Workflow Trigger + native app event, file watch; durable waits survive restart | P4.2 | M | unit (cron) | – | todo |
+| P4.5 | D | n8n LangChain nodes on hk-llm/hk-agent: AI Agent, chat model sub-nodes (DeepSeek, OpenAI, Anthropic, Gemini, Ollama, OpenRouter), memory, tool sub-nodes, output parsers, Basic LLM Chain, Text Classifier, Information Extractor; + native Hokkabaz Agent node | P4.3, P1.9 | L | fixture | n8n AI agent template imports and runs on DeepSeek | todo |
+| P4.6 📜 | D | `hk-server` (axum): n8n-shaped webhooks (`/webhook`, `/webhook-test`, response modes) + HMAC presets, REST v1 mirroring n8n public API (workflows, executions, credentials), WS event/command mux, token scopes, rate limit | P4.2 | L | unit (auth) | OpenAPI doc generated | todo |
 | P4.7 | D | `hokkabazd`: daemon profile, systemd unit, Dockerfile, pairing QR endpoint | P4.6 | M | none | docker run → webhook triggers flow | todo |
 | P4.8 | C | `RemoteCore` impl of `CoreHandle` (WS/REST) + Instances screen + pairing | P4.6, P3.1 | M | none | desktop controls remote daemon | todo |
-| P4.9 | C | Flows screen: list, canvas (pan/zoom, ports, bezier edges), node picker, params form from JSON Schema | P4.1, P3.1 | L | unit (canvas model) | build & save flow | todo |
+| P4.9 | C | Flows screen: list, canvas (pan/zoom, ports, bezier edges), node picker, params form from node description, n8n paste/copy/import, ⚠ placeholder for unsupported nodes | P4.1, P3.1 | L | unit (canvas model) | n8n workflow pasted, edited, exported | todo |
 | P4.10 | C | Test-run mode, pinned data, execution overlay; Runs screen | P4.9, P4.2 | M | none | – | todo |
 | P4.11 | A | `flow_run` + `flow_author` agent tools | P4.2, P1.8 | S | none | agent drafts flow, user opens in canvas | todo |
 
-## Phase 5 — Plugins + integrations  (milestone **M5: plugin SDK + T1 integrations**)
+## Phase 5 — Plugins + integrations as n8n nodes  (milestone **M5: plugin SDK + T1 integrations, top n8n template coverage**)
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
 | P5.1 📜 | E | WIT world `hokkabaz-plugin`: tools, nodes, triggers, hooks, settings; capability manifest `plugin.toml` | P1.7, P4.1 | M | none | WIT reviewed by A + D leads | todo |
 | P5.2 | E | `hk-plugin` host on wasmtime: load, capability-scoped imports (http, kv, secrets, log, fs, emit), unload | P5.1 | L | unit (caps) | sample plugin adds tool + node | todo |
 | P5.3 | E | Rust plugin SDK crate + template + `hk plugin new/build/install` | P5.2 | M | none | – | todo |
-| P5.4 | E | Integration framework: credential schemas, node/trigger helpers, polling trigger base | P4.2 | M | none | – | todo |
+| P5.4 | E | Integration framework: n8n credential types, node/trigger helpers matching n8n node descriptions, polling trigger base | P4.3c | M | none | – | todo |
 | P5.5 | E | T1 batch A: HTTP Request, GitHub, Gitea/Forgejo, Git, n8n | P5.4 | L | none | – | todo |
 | P5.6 | E | T1 batch B: Telegram, Matrix, ntfy, Gotify, Email IMAP/SMTP, RSS | P5.4 | L | none | – | todo |
 | P5.7 | E | T1 batch C: SQLite, PostgreSQL, Redis, S3/MinIO, SearXNG (+ `web_search` tool), Ollama node | P5.4 | L | none | – | todo |
 | P5.8 | C | Plugins screen: installed, MCP servers (trust prompt), integrations, credentials editor | P5.2, P5.4 | M | none | – | todo |
-| P5.9 | D | n8n JSON importer (best-effort, common nodes) | P4.3, P5.5 | M | unit (fixture) | sample n8n flows import | todo |
+| P5.9 | D | n8n instance sync: pull/push workflows + credential metadata via n8n API; credential import mapping | P4.6 | M | none | flows pulled from live n8n run locally | todo |
+| P5.10 | D | Remote delegation: run unimplemented node types on configured n8n instance | P5.9 | M | none | flow with unsupported node runs end-to-end | todo |
+| P5.11 | D | Coverage report: rank node types by usage in n8n public templates, track % supported in `docs/N8N_COVERAGE.md`; drives integration order | P4.1b | S | none | report generated | todo |
 
 ## Phase 6 — Android APK  (milestone **M6: signed APK on device**)
 
@@ -140,7 +145,8 @@ Rules:
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
 | P7.1 | B | On-device LLM (`local-llm`, llama-cpp-2, GGUF manager) desktop + Android | P2.5, P6.1 | L | none | offline chat on phone | todo |
-| P7.2 | E | T2 integrations (GitLab, Home Assistant, Nextcloud, Discord, Docker, Qdrant, …) | P5.4 | L | none | – | todo |
+| P7.2 | E | T2 integrations as n8n node types, ordered by P5.11 report (GitLab, Home Assistant, Nextcloud, Discord, Docker, Qdrant, …) | P5.4 | L | fixture | ≥ 80% of top-500 template node usages supported | todo |
+| P7.2b | D | Code node Python mode | P4.3b | M | fixture | – | todo |
 | P7.3 | E | JS/Python plugin SDK docs (jco, componentize-py) | P5.3 | S | none | – | todo |
 | P7.4 | A | Security pass: redaction audit, injection tagging, webhook fuzz (one-off) | P4.6 | M | unit | – | todo |
 | P7.5 | F | Desktop packaging: AppImage/deb, dmg, msi; auto-update channel | P3.7 | M | none | – | todo |
@@ -150,7 +156,9 @@ Rules:
 
 ## Critical path
 
-`P0.1 → P1.1 → P1.3/P1.7 → P1.9 → P1.11 (M1) → P3.1 → P3.2 (M3) → P4.1 → P4.2 → P4.6 → P4.7 (M4) → P6.1 → P6.3 (M6)`
+`P0.1 → P1.1 → P1.3/P1.7 → P1.9 → P1.11 (M1) → P3.1 → P3.2 (M3) → P4.1 → P4.2 → P4.3 → P4.3c → P4.6 → P4.7 (M4) → P6.1 → P6.3 (M6)`
+
+n8n compat is the largest lane-D workload: P4.1–P4.3 may start right after P1.1 + P1.12, parallel to M1–M3.
 
 Parallel early: B lane (P1.4–P1.6, P2.x adapters) and C lane (P0.4, P0.5) run alongside A lane from day one.
 
@@ -167,4 +175,7 @@ Parallel early: B lane (P1.4–P1.6, P2.x adapters) and C lane (P0.4, P0.5) run 
 | Flutter canvas performance on large flows | Viewport culling, cached node layers; cap visible nodes |
 | Android background limits kill local triggers | Phone = remote controller by default; foreground service opt-in |
 | Provider API drift | Fixture tests per adapter; catalog-driven capabilities |
+| n8n semantics large, partly undocumented (execution order, expression extensions) | Fixture corpus recorded from real n8n runs; coverage report; remote delegation fallback |
+| n8n Sustainable Use License | Clean-room from docs/JSON formats; no n8n source; legal check before shipping node descriptions |
+| QuickJS perf on heavy expressions | Cache compiled expressions; reuse context per execution |
 | Token spend during development | CLAUDE.md lean test policy, caveman comms, ≤3 parallel workers |

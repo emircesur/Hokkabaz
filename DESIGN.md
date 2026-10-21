@@ -12,7 +12,7 @@ Hokkabaz is a native, open-source AI agent harness and automation workbench.
 
 - **Any model**: hosted APIs (DeepSeek first, then OpenAI-compatible, Anthropic, Gemini, OpenRouter, Mistral, Groq, xAI, …) and local runtimes (Ollama, llama.cpp server, LM Studio, vLLM, LocalAI; on-device llama.cpp later).
 - **Agentic chat**: coding/ops agent with tools, subagents, plans, approvals, MCP.
-- **Automations**: n8n-style node graphs with triggers (webhook, cron, event, manual), executions, retries, and an *agent node*.
+- **Automations**: n8n-compatible node graphs. Full n8n workflow compatibility: import/export n8n workflow JSON, same node types/params, same expression syntax, same items semantics. Plus Hokkabaz-native *agent node*.
 - **Instances**: run headless `hokkabazd` on a server/VPS/home box, receive webhooks, manage several instances from one app (desktop or phone).
 - **Plugins**: sandboxed WASM plugins + MCP servers + built-in integrations for open-source services.
 - **Native, not web**: Rust core; Flutter UI on desktop (Linux/macOS/Windows) and Android APK. Plus `hk` CLI/TUI.
@@ -22,7 +22,7 @@ Hokkabaz is a native, open-source AI agent harness and automation workbench.
 - Web UI / hosted SaaS.
 - iOS (architecture allows it; not planned).
 - Running TypeScript upstream code inside the app on Android.
-- Full n8n workflow compatibility (import is best-effort).
+- Running n8n itself in-app (we reimplement the engine; we don't embed n8n).
 - Multi-user RBAC on instances beyond token scopes.
 
 ### Personas
@@ -167,16 +167,35 @@ Client via `rmcp` (official Rust MCP SDK). Transports: stdio (desktop/daemon onl
 
 ### 3.9 hk-flow (automation engine)
 
-n8n-inspired, Rust-native.
+Rust-native engine, **fully n8n-compatible**. Goal: an n8n workflow JSON imports, runs with the same results, and exports back to n8n unchanged.
 
-- **Workflow** = versioned JSON doc: `nodes[]`, `connections[]`, `settings`, `pinned_data`. Stored in SQLite; export/import as `.hkflow.json`. Best-effort n8n JSON importer for common nodes.
-- **Node** = `{ id, type, version, params, credentials_ref, position }`. Types come from registry (builtin, integrations, WASM plugins, MCP tools-as-nodes).
-- **Items model**: nodes pass `Vec<Item>` (JSON + binary refs), like n8n. Each node runs per item or per batch.
-- **Expressions**: `minijinja` templates in params (`{{ $json.title }}`, `{{ $node["Fetch"].json.id }}`); **Code node** uses `rhai` (sandboxed, Android-safe).
-- **Control nodes**: If, Switch, Merge, Split/Batch, Loop, Wait (durable timer), Error Trigger, Sub-workflow.
-- **AI nodes**: Agent (runs `hk-agent` with chosen model/mode/tools, returns final + transcript ref), LLM Prompt, Classifier, Extract (JSON schema), Embed.
-- **Triggers**: Webhook (via `hk-server`), Cron (`tokio-cron-scheduler`), Interval, Manual, App event (session/agent events), File watch (desktop), Integration triggers (polling or webhook).
-- **Executions**: each run persisted (status, per-node input/output, timings, error). Retry per node (count, backoff), continue-on-fail, timeout. Queue with concurrency limit per instance. Durable waits survive restart.
+**Compatibility contract**
+
+| Area | Requirement |
+|---|---|
+| Workflow format | Native format *is* n8n workflow JSON (`nodes`, `connections`, `settings`, `pinData`, `staticData`, `meta`, `tags`). Hokkabaz-only data lives under `meta.hokkabaz`. Lossless round-trip. |
+| Node identity | Same `type` strings (`n8n-nodes-base.httpRequest`, `@n8n/n8n-nodes-langchain.agent`, …), `typeVersion`, `parameters` shape incl. versioned param migrations. |
+| Data model | n8n items: `{ json, binary, pairedItem }`, multiple outputs/inputs, `alwaysOutputData`, `executeOnce`, `retryOnFail`, `continueOnFail`/`onError`, `disabled`. |
+| Execution semantics | n8n v1 execution order (per-branch, depth-first), Merge modes, Wait/resume, sub-workflows (`executeWorkflow`), error workflows, static data, pinned data. |
+| Expressions | Full n8n expression syntax: `={{ … }}` JS with `$json`, `$input`, `$node`, `$('Name')`, `$items`, `$prevNode`, `$workflow`, `$execution`, `$env`, `$vars`, `$now`/`$today` (Luxon semantics), `$jmespath`, n8n extension methods (`.isEmpty()`, `.toDateTime()`, …). |
+| Code node | JavaScript (n8n Code node API: `$input.all()`, `items`, run-once / per-item modes). Python mode later. |
+| Credentials | Same credential type names and fields; import maps n8n credential refs to Hokkabaz secrets (values re-entered or imported from n8n export). |
+| Webhooks | Same webhook URL shape (`/webhook/:path`, `/webhook-test/:path`, `webhookId`), response modes (`onReceived`, `lastNode`, `responseNode`). |
+| Node coverage | Tiered: core + AI/LangChain nodes first, then top integrations by n8n usage, then long tail. Unsupported node → imported as placeholder, flow saves/exports intact, run fails clearly at that node. |
+| Community nodes | Out of scope for native; may run via WASM-wrapped node or remote n8n delegation (below). |
+
+**Engine pieces**
+
+- **Workflow** stored as n8n JSON in SQLite + versions; file ext `.json` (n8n) — no separate Hokkabaz format.
+- **Node trait** keyed by `(type, typeVersion)`; descriptions (params schema, credentials, inputs/outputs) generated from n8n node description JSON so the canvas forms match n8n.
+- **Expression engine**: embedded JS via `rquickjs` (QuickJS; small, runs on Android) with a Rust-implemented n8n runtime shim (`$json`, `$('…')`, Luxon-compatible `DateTime`, extension methods). Same engine runs the Code node, sandboxed (no fs/net, memory + time limits).
+- **Simple templating** for Hokkabaz-native nodes also goes through the same engine (one expression language).
+- **Compat test corpus**: recorded n8n executions (input workflow + trigger payload → expected per-node output) used as fixture tests per node. This is the main test investment.
+- **Remote delegation (fallback)**: a node Hokkabaz doesn't implement can be delegated to a configured real n8n instance via n8n API, so imported flows still run end-to-end.
+- **Control nodes** (n8n types): If, Switch, Filter, Merge, Split In Batches/Loop Over Items, Wait, Execute Workflow, Error Trigger, Set/Edit Fields, Code, NoOp, Respond to Webhook.
+- **AI nodes**: n8n LangChain node types (`@n8n/n8n-nodes-langchain.agent`, chat model sub-nodes, memory, tools, output parsers, vector stores) mapped onto `hk-llm`/`hk-agent`, so n8n AI flows run on any Hokkabaz provider. Native extras: Hokkabaz Agent (full `hk-agent` with modes/tools/approvals, returns final + transcript ref).
+- **Triggers**: n8n trigger types — Webhook (via `hk-server`), Schedule (cron/interval, `tokio-cron-scheduler`), Manual, Form, Chat, Execute Workflow Trigger, Error Trigger, integration triggers; plus native App event (session/agent events), File watch (desktop), Integration triggers (polling or webhook).
+- **Executions**: each run persisted in n8n execution data shape (`runData` per node, status, timings, error) so the n8n-style execution viewer and export work. Retry per node (count, backoff), continue-on-fail, timeout. Queue with concurrency limit per instance. Durable waits survive restart.
 - **Agent ↔ flow**: flows can be exposed as agent tools (`flow_run`); agents can draft flows (`flow_author` writes a draft that the user reviews in canvas).
 
 ### 3.10 hk-server + instances
@@ -186,11 +205,12 @@ n8n-inspired, Rust-native.
 - Auth: instance tokens with scopes (`read`, `chat`, `flows`, `admin`); webhook paths have own secret/HMAC verification (GitHub/Gitea style signature presets).
 - Pairing: desktop/phone pairs with an instance via QR code (URL + one-time token).
 - Deploy targets documented: systemd, Docker image, Railway/Fly template, Raspberry Pi (aarch64).
-- n8n interop: `n8n` integration node calls n8n webhooks/REST; Hokkabaz webhooks can be targets of n8n.
+- n8n interop: n8n-compatible webhook URLs, workflow import/export (file, clipboard paste of n8n nodes, pull from n8n instance via API), remote delegation of unimplemented nodes to a real n8n instance, n8n node to call n8n webhooks/REST.
+- Public API mirrors n8n public API (`/api/v1/workflows`, `/executions`, `/credentials`) where feasible so n8n tooling/scripts can target `hokkabazd`.
 
 ### 3.11 hk-integrations (built-in OSS connectors)
 
-Each integration = credential schema + nodes (actions/triggers) + optional agent tools. Feature-gated `int-<name>`.
+Each integration = credential schema + nodes (actions/triggers) + optional agent tools. Feature-gated `int-<name>`. Integrations that exist in n8n are implemented **as the n8n node type** (same `type`, params, credentials, output shape) so imported workflows run unchanged.
 
 | Tier | Integrations |
 |---|---|
@@ -272,6 +292,7 @@ Mobile: sessions list → conversation full screen; inspector as bottom sheet; a
 - Nodes: rounded rectangles, category color stripe, input/output ports, item count badges after test run.
 - Edges: bezier, animated dashes while executing; red on error.
 - Add node: `Tab` / long-press opens searchable node picker (builtin, integrations, plugins, MCP).
+- n8n interop in canvas: paste n8n nodes from clipboard, copy nodes as n8n JSON, import from file/URL/n8n instance, unsupported nodes shown with a ⚠ placeholder badge.
 - Node panel: params form generated from node JSON Schema; expression editor with live preview against pinned data.
 - Test mode runs from a selected node with pinned input. Execution overlay shows per-node in/out.
 - Mobile: canvas view + edit params, pan/zoom; full graph editing desktop-first, mobile supported later.
@@ -321,20 +342,20 @@ Cards: name, URL, version, status dot, active flows, queue depth. Actions: pair 
 | # | Decision | Why | Alternatives rejected |
 |---|---|---|---|
 | D1 | Port dsh/opencode semantics to Rust; no TS runtime in-app | Android APK, single binary, perf | Bundling Node (impossible/heavy on Android) |
-| D2 | Flutter UI for desktop **and** Android via flutter_rust_bridge | One UI codebase; native rendering, not web | Separate Rust GUI (egui/Slint) + Flutter mobile = 2 UIs to maintain |
+| D2 | Flutter UI for desktop **and** Android via flutter_rust_bridge — **confirmed by owner** | One UI codebase; native rendering, not web | Separate Rust GUI (egui/Slint) + Flutter mobile = 2 UIs to maintain |
 | D3 | `hk` TUI (ratatui) as the pure-Rust app surface | Fast dev loop, servers, SSH | — |
 | D4 | dsh-style event-log session as source of truth | Replay, fork, audit, remote sync | Mutable message arrays |
 | D5 | WASM component plugins + MCP; no native dylib plugins | Sandboxed, portable to Android | dylibs (unsafe, ABI pain), Lua |
-| D6 | `minijinja` expressions + `rhai` code node | Pure Rust, sandboxable, Android-safe | Embedded JS (boa/quickjs) — keep as later option |
+| D6 | Embedded JS (`rquickjs`) + Rust n8n runtime shim for expressions and Code node | Full n8n compatibility needs n8n's JS expression semantics; QuickJS is small and runs on Android | `minijinja`/`rhai` (incompatible with n8n), `boa` (slower, less complete), V8/deno_core (too heavy for Android) |
+| D11 | n8n workflow JSON is the native flow format; full n8n compatibility is a v1 goal | Owner requirement; reuse n8n ecosystem of workflows/templates | Own format + best-effort importer |
 | D7 | SQLite + JSONL logs | Local-first, zero ops | Postgres (daemon may add later) |
 | D8 | ACP bridge to real dsh/opencode on desktop | Day-one parity, comparison | — |
 | D9 | DeepSeek is default provider and first adapter | User priority, cost | — |
-| D10 | License MIT OR Apache-2.0 | Rust norm, compatible with MIT upstreams | — (open question for owner) |
+| D10 | License: deferred (owner: not important now). Placeholder MIT OR Apache-2.0 | Compatible with MIT upstreams | — |
 
 ## 7. Open questions
 
-1. Desktop GUI: confirm Flutter (D2) vs pure-Rust GUI (Slint/egui) for desktop.
-2. License: MIT/Apache dual OK?
-3. On-device LLM on Android in v1 or v2?
-4. Plugin registry hosting (git index on GitHub vs self-hosted).
-5. n8n import scope: which node types matter most.
+1. On-device LLM on Android in v1 or v2?
+2. Plugin registry hosting (git index on GitHub vs self-hosted).
+3. n8n node coverage order after core + AI nodes: which integrations first.
+4. n8n licensing: n8n is Sustainable Use License (fair-code). We reimplement behavior from public docs/JSON formats; no n8n source copied. Node description JSON reuse needs legal check before shipping.

@@ -12,5 +12,5 @@ Lane D worker. Scope: hk-flow, hk-server, apps/hk-daemon.
 - Verify per task Test budget. Default: `cargo check -p <crate>` + clippy on touched crate.
 - Update own row in PLAN.md (status, notes). Nothing else in PLAN.md.
 - Blocked after 2 attempts → stop, report BLOCKED + exact error.
-- n8n is inspiration, not spec. Execution data must never contain secrets.
+- Full n8n compatibility is the spec (DESIGN §3.9 contract): n8n JSON format, node types/params, expressions, execution order. Never copy n8n source (Sustainable Use License); implement from docs + JSON formats. Execution data must never contain secrets.
 Final report: caveman report format, ≤10 lines.

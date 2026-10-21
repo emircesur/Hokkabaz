@@ -27,7 +27,8 @@ User wants minimal test spend.
 
 - Default verification: `cargo check -p <crate>` + `cargo clippy -p <crate> -- -D warnings`. Not whole workspace.
 - Run tests only for crate touched: `cargo test -p <crate> <filter>`. Never full `cargo test --workspace` locally unless task says so.
-- Write tests only for: session log replay, turn/step state machine, tool pipeline guards, flow engine scheduling, provider stream parsers (fixture-based), sandbox policy. Skip tests for UI glue, FFI wrappers, trivial adapters.
+- Write tests only for: session log replay, turn/step state machine, tool pipeline guards, flow engine scheduling, n8n expression shim, provider stream parsers (fixture-based), sandbox policy. Skip tests for UI glue, FFI wrappers, trivial adapters.
+- n8n compat: fixture corpus (`crates/hk-flow/tests/n8n/`: workflow + trigger payload → expected runData). Main test investment; run only cases for nodes touched.
 - Provider tests use recorded fixtures (`tests/fixtures/*.jsonl`). No live API calls in tests.
 - Flutter: `flutter analyze` only. Widget tests only for flow canvas model logic.
 - CI runs the full matrix; agents don't duplicate it.
@@ -44,7 +45,7 @@ crates/
   hk-sandbox/       policy, approvals, landlock/seatbelt/none
   hk-mcp/           MCP client (rmcp)
   hk-plugin/        WASM plugin runtime (wasmtime component model, WIT)
-  hk-flow/          workflow engine: graph, nodes, triggers, executions
+  hk-flow/          n8n-compatible workflow engine: n8n JSON, nodes, JS expressions, executions
   hk-integrations/  built-in OSS integration nodes (feature-gated)
   hk-store/         SQLite (sqlx), secrets, migrations
   hk-server/        axum: webhooks, REST + WS API, instance auth
