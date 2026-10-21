@@ -1,0 +1,67 @@
+[
+  {
+    "name": "no_host_globals",
+    "expression": "={{ [typeof process, typeof require, typeof fetch, typeof XMLHttpRequest, typeof setTimeout, typeof std, typeof os, typeof H].join(',') }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined"
+  },
+  {
+    "name": "infinite_loop_times_out",
+    "expression": "={{ (() => { while (true) {} })() }}",
+    "context": {
+      "json": {}
+    },
+    "error": "timed out",
+    "limits": {
+      "timeout_ms": 200
+    }
+  },
+  {
+    "name": "memory_hog_is_stopped",
+    "expression": "={{ (() => { const a = []; while (true) a.push('x'.repeat(1000000)); })() }}",
+    "context": {
+      "json": {}
+    },
+    "error": "memory",
+    "limits": {
+      "memory_mb": 16
+    }
+  },
+  {
+    "name": "runaway_recursion_is_an_error",
+    "expression": "={{ (function f() { return f() + 1; })() }}",
+    "context": {
+      "json": {}
+    },
+    "error": "call stack"
+  },
+  {
+    "name": "syntax_error",
+    "expression": "={{ 1 + }}",
+    "context": {
+      "json": {}
+    },
+    "error": ""
+  },
+  {
+    "name": "undefined_identifier",
+    "expression": "={{ foo }}",
+    "context": {
+      "json": {}
+    },
+    "error": "foo"
+  },
+  {
+    "name": "engine_survives_after_timeout",
+    "expression": "={{ 1 + 1 }}",
+    "context": {
+      "json": {}
+    },
+    "expected": 2,
+    "limits": {
+      "timeout_ms": 200
+    }
+  }
+]

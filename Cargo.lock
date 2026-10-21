@@ -1555,9 +1555,19 @@ dependencies = [
 name = "hk-ffi"
 version = "0.0.0"
 dependencies = [
+ "async-trait",
  "flutter_rust_bridge",
+ "futures",
+ "hk-llm",
+ "hk-server",
+ "hk-session",
+ "hk-store",
+ "serde",
+ "serde_json",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

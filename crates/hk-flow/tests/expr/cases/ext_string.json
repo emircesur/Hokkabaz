@@ -1,0 +1,130 @@
+[
+  {
+    "name": "title_case",
+    "expression": "={{ \"hello wORLD\".toTitleCase() }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "Hello World"
+  },
+  {
+    "name": "is_empty_string",
+    "expression": "={{ [\"\".isEmpty(), \"a\".isEmpty(), \"a\".isNotEmpty()] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      true,
+      false,
+      true
+    ]
+  },
+  {
+    "name": "snake_and_sentence_case",
+    "expression": "={{ [\"Quick Brown fox\".toSnakeCase(), \"hELLO. wORLD\".toSentenceCase()] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      "quick_brown_fox",
+      "Hello. World"
+    ]
+  },
+  {
+    "name": "extract_domain_email_url",
+    "expression": "={{ [\"https://example.com/a/b?x=1\".extractDomain(), \"mail bob@x.org now\".extractEmail(), \"see https://n8n.io/docs ok\".extractUrl(), \"https://example.com/a/b?x=1\".extractUrlPath()] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      "example.com",
+      "bob@x.org",
+      "https://n8n.io/docs",
+      "/a/b"
+    ]
+  },
+  {
+    "name": "is_email_url_numeric",
+    "expression": "={{ [\"a@b.co\".isEmail(), \"nope\".isEmail(), \"http://x.io\".isUrl(), \"12.5\".isNumeric(), \"x1\".isNumeric()] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  {
+    "name": "url_encode_decode",
+    "expression": "={{ [\"a b&c\".urlEncode(), \"a%20b\".urlDecode()] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      "a%20b%26c",
+      "a b"
+    ]
+  },
+  {
+    "name": "base64_roundtrip",
+    "expression": "={{ [\"hello\".base64Encode(), \"aGVsbG8=\".base64Decode(), \"héllo €\".base64Encode().base64Decode()] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      "aGVsbG8=",
+      "hello",
+      "héllo €"
+    ]
+  },
+  {
+    "name": "hash_md5_sha256",
+    "expression": "={{ [\"hello\".hash(), \"hello\".hash(\"sha256\")] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      "5d41402abc4b2a76b9719d911017c592",
+      "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    ]
+  },
+  {
+    "name": "remove_tags_quote_special",
+    "expression": "={{ [\"<b>hi</b> <i>x</i>\".removeTags(), \"say\".quote(), \"Café Ñandú\".replaceSpecialChars()] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      "hi x",
+      "\"say\"",
+      "Cafe Nandu"
+    ]
+  },
+  {
+    "name": "string_conversions",
+    "expression": "={{ [\"42\".toInt(), \"3.5\".toFloat(), \"yes\".toBoolean(), \"0\".toBoolean(), '{\"a\":1}'.parseJson()] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      42,
+      3.5,
+      true,
+      false,
+      {
+        "a": 1
+      }
+    ]
+  },
+  {
+    "name": "to_float_rejects_text",
+    "expression": "={{ \"abc\".toFloat() }}",
+    "context": {
+      "json": {}
+    },
+    "error": "Unable to convert"
+  }
+]

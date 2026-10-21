@@ -1,0 +1,221 @@
+[
+  {
+    "name": "array_sum_avg_min_max",
+    "expression": "={{ [[1,2,3,4].sum(), [1,2,3,4].average(), [4,2,9].max(), [4,2,9].min()] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      10,
+      2.5,
+      9,
+      2
+    ]
+  },
+  {
+    "name": "array_first_last_isempty",
+    "expression": "={{ [[1,2,3].first(), [1,2,3].last(), [].isEmpty(), [0].isNotEmpty()] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      1,
+      3,
+      true,
+      true
+    ]
+  },
+  {
+    "name": "array_unique_and_by_key",
+    "expression": "={{ [[1,2,2,3,1].unique(), [{a:1,b:1},{a:1,b:2},{a:2,b:3}].unique('a')] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        {
+          "a": 1,
+          "b": 1
+        },
+        {
+          "a": 2,
+          "b": 3
+        }
+      ]
+    ]
+  },
+  {
+    "name": "array_compact_chunk",
+    "expression": "={{ [[1,null,'',2,undefined].compact(), [1,2,3,4,5].chunk(2)] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          5
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "array_set_ops",
+    "expression": "={{ [[1,2,3].difference([2]), [1,2,3].intersection([3,4,2]), [1,2].union([2,3]), [1].append(2, 3)] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      [
+        1,
+        3
+      ],
+      [
+        2,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "array_pluck",
+    "expression": "={{ $json.rows.pluck('name') }}",
+    "context": {
+      "json": {
+        "rows": [
+          {
+            "name": "a",
+            "x": 1
+          },
+          {
+            "name": "b",
+            "x": 2
+          }
+        ]
+      }
+    },
+    "expected": [
+      "a",
+      "b"
+    ]
+  },
+  {
+    "name": "array_sum_rejects_text",
+    "expression": "={{ [1, 'x'].sum() }}",
+    "context": {
+      "json": {}
+    },
+    "error": "non-number"
+  },
+  {
+    "name": "number_rounding_parity",
+    "expression": "={{ [(3.7).floor(), (-3.2).ceil(), (3.14159).round(2), (10).isEven(), (5).isOdd(), (0).toBoolean()] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      3,
+      -3,
+      3.14,
+      true,
+      true,
+      false
+    ]
+  },
+  {
+    "name": "number_format",
+    "expression": "={{ [(1234567.891).format(\"en-US\"), (5).format(\"en-US\", {minimumFractionDigits: 2})] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      "1,234,567.891",
+      "5.00"
+    ]
+  },
+  {
+    "name": "object_predicates",
+    "expression": "={{ [$json.o.isEmpty(), $json.p.isEmpty(), $json.p.hasField('k'), $json.p.isNotEmpty()] }}",
+    "context": {
+      "json": {
+        "o": {},
+        "p": {
+          "k": 1
+        }
+      }
+    },
+    "expected": [
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  {
+    "name": "object_field_ops",
+    "expression": "={{ [$json.p.removeField('a'), $json.p.keys(), $json.p.values(), {a: null, b: 'x', c: ''}.compact()] }}",
+    "context": {
+      "json": {
+        "p": {
+          "a": 1,
+          "b": 2
+        }
+      }
+    },
+    "expected": [
+      {
+        "b": 2
+      },
+      [
+        "a",
+        "b"
+      ],
+      [
+        1,
+        2
+      ],
+      {
+        "b": "x"
+      }
+    ]
+  },
+  {
+    "name": "extensions_not_enumerable",
+    "expression": "={{ (() => { const r = []; for (const k in $json.o) r.push(k); return r; })() }}",
+    "context": {
+      "json": {
+        "o": {
+          "x": 1
+        }
+      }
+    },
+    "expected": [
+      "x"
+    ]
+  }
+]

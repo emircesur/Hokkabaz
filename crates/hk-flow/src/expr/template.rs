@@ -83,7 +83,10 @@ mod tests {
 
     #[test]
     fn splits() {
-        assert_eq!(parse_template("a {{ $json.x }} b"), [t("a "), e("$json.x"), t(" b")]);
+        assert_eq!(
+            parse_template("a {{ $json.x }} b"),
+            [t("a "), e("$json.x"), t(" b")]
+        );
         assert_eq!(parse_template("{{1}}{{2}}"), [e("1"), e("2")]);
         assert_eq!(parse_template("plain"), [t("plain")]);
         assert_eq!(parse_template("open {{ x"), [t("open {{ x")]);

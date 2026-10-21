@@ -2,8 +2,10 @@
 // public Luxon API docs as exposed by n8n expressions. Shares one closure with
 // ext.js and core.js (see engine.rs); `H` is the host dispatcher.
 
-const hostCall = (op, a, b, c) => {
-  const r = H(op, a, b, c);
+// Optional host args must be absent, not `undefined`, to take the `Opt<String>` path.
+const hostCall = (op, ...args) => {
+  while (args.length && args[args.length - 1] === undefined) args.pop();
+  const r = H(op, ...args.map(String));
   if (r.charCodeAt(0) === 1) throw new Error(r.slice(1));
   return r;
 };
@@ -427,8 +429,9 @@ class DateTime {
     if (!dayGiven) c.day = Math.min(c.day, daysInMonth(c.year, c.month));
     return new DateTime(wallToTs(c, this.zone), this.zone);
   }
-  plus(dur) { return this.shift(Duration.fromDurationLike(dur), 1); }
-  minus(dur) { return this.shift(Duration.fromDurationLike(dur), -1); }
+  // n8n docs also show `plus(1, 'day')`; plain Luxon would read the number as milliseconds.
+  plus(dur, unit) { return this.shift(Duration.fromDurationLike(typeof unit === 'string' ? { [unit]: dur } : dur), 1); }
+  minus(dur, unit) { return this.shift(Duration.fromDurationLike(typeof unit === 'string' ? { [unit]: dur } : dur), -1); }
   shift(dur, sign) {
     if (!this.isValid) return this;
     const v = dur.values;

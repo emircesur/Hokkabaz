@@ -1,0 +1,232 @@
+[
+  {
+    "name": "json_field",
+    "expression": "={{ $json.name }}",
+    "context": {
+      "json": {
+        "name": "Ann"
+      }
+    },
+    "expected": "Ann"
+  },
+  {
+    "name": "json_nested_arithmetic_is_typed",
+    "expression": "={{ $json.a.b + 1 }}",
+    "context": {
+      "json": {
+        "a": {
+          "b": 2
+        }
+      }
+    },
+    "expected": 3
+  },
+  {
+    "name": "json_bracket_notation",
+    "expression": "={{ $json[\"my field\"] }}",
+    "context": {
+      "json": {
+        "my field": "v"
+      }
+    },
+    "expected": "v"
+  },
+  {
+    "name": "mixed_template",
+    "expression": "=Hello {{ $json.name }}, you are {{ $json.age }}!",
+    "context": {
+      "json": {
+        "name": "Ann",
+        "age": 30
+      }
+    },
+    "expected": "Hello Ann, you are 30!"
+  },
+  {
+    "name": "equals_prefix_without_braces_is_text",
+    "expression": "=plain text",
+    "context": {
+      "json": {}
+    },
+    "expected": "plain text"
+  },
+  {
+    "name": "no_equals_prefix_stays_literal",
+    "expression": "{{ $json.a }}",
+    "context": {
+      "json": {
+        "a": 1
+      }
+    },
+    "expected": "{{ $json.a }}"
+  },
+  {
+    "name": "object_result_is_typed",
+    "expression": "={{ $json.user }}",
+    "context": {
+      "json": {
+        "user": {
+          "id": 1,
+          "tags": [
+            "a"
+          ]
+        }
+      }
+    },
+    "expected": {
+      "id": 1,
+      "tags": [
+        "a"
+      ]
+    }
+  },
+  {
+    "name": "array_map",
+    "expression": "={{ $json.list.map(x => x * 2) }}",
+    "context": {
+      "json": {
+        "list": [
+          1,
+          2,
+          3
+        ]
+      }
+    },
+    "expected": [
+      2,
+      4,
+      6
+    ]
+  },
+  {
+    "name": "ternary",
+    "expression": "={{ $json.n > 5 ? \"big\" : \"small\" }}",
+    "context": {
+      "json": {
+        "n": 9
+      }
+    },
+    "expected": "big"
+  },
+  {
+    "name": "object_literal",
+    "expression": "={{ {a: 1, b: $json.x} }}",
+    "context": {
+      "json": {
+        "x": "y"
+      }
+    },
+    "expected": {
+      "a": 1,
+      "b": "y"
+    }
+  },
+  {
+    "name": "missing_field_is_null",
+    "expression": "={{ $json.missing }}",
+    "context": {
+      "json": {}
+    },
+    "expected": null
+  },
+  {
+    "name": "missing_field_in_text_is_empty",
+    "expression": "=a{{ $json.missing }}b",
+    "context": {
+      "json": {}
+    },
+    "expected": "ab"
+  },
+  {
+    "name": "two_blocks_concatenate_as_string",
+    "expression": "={{ 1 }}{{ 2 }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "12"
+  },
+  {
+    "name": "nested_braces",
+    "expression": "={{ {a:{b:1}}.a.b }}",
+    "context": {
+      "json": {}
+    },
+    "expected": 1
+  },
+  {
+    "name": "closing_braces_inside_string",
+    "expression": "=x {{ \"}}\" }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "x }}"
+  },
+  {
+    "name": "object_in_text_is_json",
+    "expression": "=data: {{ $json.o }}",
+    "context": {
+      "json": {
+        "o": {
+          "k": 1
+        }
+      }
+    },
+    "expected": "data: {\"k\":1}"
+  },
+  {
+    "name": "zero_in_text_kept",
+    "expression": "=n={{ $json.n }}",
+    "context": {
+      "json": {
+        "n": 0
+      }
+    },
+    "expected": "n=0"
+  },
+  {
+    "name": "math_and_json_builtins",
+    "expression": "={{ Math.max(...$json.nums) + JSON.stringify($json.o).length }}",
+    "context": {
+      "json": {
+        "nums": [
+          1,
+          7,
+          3
+        ],
+        "o": {
+          "a": 1
+        }
+      }
+    },
+    "expected": 14
+  },
+  {
+    "name": "js_date_builtin",
+    "expression": "={{ new Date(0).toISOString() }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "1970-01-01T00:00:00.000Z"
+  },
+  {
+    "name": "multi_item_binary",
+    "expression": "={{ $binary.data.fileName }}",
+    "context": {
+      "input": [
+        [
+          {
+            "json": {},
+            "binary": {
+              "data": {
+                "data": "aGk=",
+                "mimeType": "text/plain",
+                "fileName": "a.txt"
+              }
+            }
+          }
+        ]
+      ]
+    },
+    "expected": "a.txt"
+  }
+]

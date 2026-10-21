@@ -5,12 +5,14 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use async_trait::async_trait;
+use serde_json::Value;
 
 use crate::description::NodeTypeDescription;
 use crate::error::FlowError;
+use crate::expr::{ExprEnv, ExprError, ExprScope, ExpressionEvaluator, ScopeBase, resolve_value};
 use crate::item::Item;
 use crate::run_data::{RunSource, SharedRunData, StaticData};
 use crate::version::{NodeKey, Version};
@@ -35,6 +37,10 @@ pub struct NodeContext {
     pub run_data: SharedRunData,
     /// `getWorkflowStaticData`; scopes `global` and `node:<name>` (see [`node_scope`](crate::run_data::node_scope)).
     pub static_data: StaticData,
+    /// Expression engine inputs (`$env`, `$vars`, evaluator override, ...). Set before the
+    /// first `eval_param`: the scope snapshot is taken once per context.
+    pub expr: ExprEnv,
+    expr_base: OnceLock<Arc<ScopeBase>>,
 }
 
 impl NodeContext {
@@ -50,7 +56,101 @@ impl NodeContext {
             source: Vec::new(),
             run_data: SharedRunData::new(),
             static_data: StaticData::default(),
+            expr: ExprEnv::default(),
+            expr_base: OnceLock::new(),
         }
+    }
+
+    /// Expression scope for `item_index`. The heavy part (input items, run data handle)
+    /// is built once per context and shared, so evaluating per item stays O(1) to set up.
+    pub fn expr_scope(&self, item_index: usize) -> ExprScope {
+        let base = self.expr_base.get_or_init(|| {
+            let e = &self.expr;
+            Arc::new(ScopeBase {
+                node_name: self.node.name.clone(),
+                node_params: Value::Object(self.node.parameters.clone()),
+                input: self.input.clone(),
+                source: self.source.clone(),
+                run_index: self.run_index,
+                run_data: self.run_data.clone(),
+                workflow_id: self.workflow_id.clone(),
+                workflow_name: self.workflow_name.clone(),
+                workflow_active: e.workflow_active,
+                execution_id: self.execution_id.clone(),
+                mode: e.mode.clone().unwrap_or_else(|| "manual".into()),
+                resume_url: e.resume_url.clone(),
+                env: Arc::clone(&e.env),
+                vars: Arc::clone(&e.vars),
+                node_params_all: Arc::clone(&e.node_params),
+                timezone: e.timezone.clone().unwrap_or_else(|| "UTC".into()),
+                now_ms: e.now_ms,
+            })
+        });
+        ExprScope::new(Arc::clone(base), item_index)
+    }
+
+    fn evaluator(&self) -> Result<Arc<dyn ExpressionEvaluator>, ExprError> {
+        if let Some(e) = &self.expr.evaluator {
+            return Ok(Arc::clone(e));
+        }
+        #[cfg(feature = "expr")]
+        {
+            Ok(crate::expr::default_evaluator())
+        }
+        #[cfg(not(feature = "expr"))]
+        {
+            Err(ExprError::Unavailable(
+                "hk-flow built without the `expr` feature".into(),
+            ))
+        }
+    }
+
+    /// Resolve a raw parameter value for one input item: strings starting with `=` are
+    /// n8n expressions (`={{ $json.a }}`, `=Hi {{ $json.name }}`), objects/arrays are
+    /// resolved recursively, everything else passes through.
+    pub fn eval_param(&self, value: &Value, item_index: usize) -> Result<Value, FlowError> {
+        let scope = self.expr_scope(item_index);
+        let mut engine: Option<Arc<dyn ExpressionEvaluator>> = None;
+        resolve_value(value, &mut |tpl| {
+            if engine.is_none() {
+                engine = Some(self.evaluator()?);
+            }
+            match &engine {
+                Some(e) => e.evaluate(tpl, &scope),
+                None => Err(ExprError::Unavailable("no evaluator".into())),
+            }
+        })
+        .map_err(|e| FlowError::Node {
+            node: self.node.name.clone(),
+            message: e.to_string(),
+        })
+    }
+
+    /// Evaluated parameter at a dotted `path` in `node.parameters` (`options.timeout`).
+    /// `None` when the parameter is absent.
+    pub fn eval_param_at(&self, path: &str, item_index: usize) -> Result<Option<Value>, FlowError> {
+        let mut parts = path.split('.');
+        let Some(first) = parts.next() else {
+            return Ok(None);
+        };
+        let mut cur = match self.node.parameters.get(first) {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+        for p in parts {
+            cur = match cur {
+                Value::Object(m) => match m.get(p) {
+                    Some(v) => v,
+                    None => return Ok(None),
+                },
+                Value::Array(a) => match p.parse::<usize>().ok().and_then(|i| a.get(i)) {
+                    Some(v) => v,
+                    None => return Ok(None),
+                },
+                _ => return Ok(None),
+            };
+        }
+        self.eval_param(cur, item_index).map(Some)
     }
 }
 

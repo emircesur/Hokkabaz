@@ -1,0 +1,222 @@
+[
+  {
+    "name": "now_toformat",
+    "expression": "={{ $now.toFormat(\"yyyy-MM-dd HH:mm:ss\") }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "2024-01-15 10:30:45"
+  },
+  {
+    "name": "now_toiso_utc",
+    "expression": "={{ $now.toISO() }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "2024-01-15T10:30:45.123Z"
+  },
+  {
+    "name": "today_in_zone",
+    "expression": "={{ $today.toISO() }}",
+    "context": {
+      "json": {},
+      "timezone": "America/New_York"
+    },
+    "expected": "2024-01-15T00:00:00.000-05:00"
+  },
+  {
+    "name": "plus_days",
+    "expression": "={{ $now.plus({days: 7}).toFormat(\"yyyy-LL-dd\") }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "2024-01-22"
+  },
+  {
+    "name": "minus_months",
+    "expression": "={{ $now.minus({months: 2}).toISODate() }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "2023-11-15"
+  },
+  {
+    "name": "plus_month_clamps_day",
+    "expression": "={{ DateTime.fromISO(\"2024-01-31\").plus({months: 1}).toISODate() }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "2024-02-29"
+  },
+  {
+    "name": "diff_days",
+    "expression": "={{ DateTime.fromISO(\"2024-03-01\").diff(DateTime.fromISO(\"2024-01-01\"), \"days\").days }}",
+    "context": {
+      "json": {}
+    },
+    "expected": 60
+  },
+  {
+    "name": "diff_multiple_units",
+    "expression": "={{ DateTime.fromISO(\"2024-01-01T00:00:00Z\").diff(DateTime.fromISO(\"2023-12-25T00:00:00Z\"), [\"days\",\"hours\"]).toObject() }}",
+    "context": {
+      "json": {}
+    },
+    "expected": {
+      "days": 7,
+      "hours": 0
+    }
+  },
+  {
+    "name": "from_format",
+    "expression": "={{ DateTime.fromFormat(\"15/01/2024 14:05\", \"dd/MM/yyyy HH:mm\").toISO() }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "2024-01-15T14:05:00.000Z"
+  },
+  {
+    "name": "long_format_words",
+    "expression": "={{ $now.toFormat(\"cccc, LLLL d, yyyy\") }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "Monday, January 15, 2024"
+  },
+  {
+    "name": "start_and_end_of",
+    "expression": "={{ [$now.endOf('month').toISODate(), $now.startOf('week').toISODate(), $now.startOf('year').toISODate()] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      "2024-01-31",
+      "2024-01-15",
+      "2024-01-01"
+    ]
+  },
+  {
+    "name": "week_number_and_weekday",
+    "expression": "={{ [$now.weekNumber, $now.weekday, $now.quarter, $now.ordinal] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      3,
+      1,
+      1,
+      15
+    ]
+  },
+  {
+    "name": "string_to_datetime",
+    "expression": "={{ \"2024-02-03\".toDateTime().toFormat(\"MMM d\") }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "Feb 3"
+  },
+  {
+    "name": "invalid_datetime",
+    "expression": "={{ DateTime.fromISO(\"nope\").isValid }}",
+    "context": {
+      "json": {}
+    },
+    "expected": false
+  },
+  {
+    "name": "duration_as",
+    "expression": "={{ Duration.fromObject({hours: 3}).as('minutes') }}",
+    "context": {
+      "json": {}
+    },
+    "expected": 180
+  },
+  {
+    "name": "datetime_comparison",
+    "expression": "={{ $now > DateTime.fromISO(\"2024-01-01\") }}",
+    "context": {
+      "json": {}
+    },
+    "expected": true
+  },
+  {
+    "name": "set_zone_offset_format",
+    "expression": "={{ $now.setZone(\"Europe/Istanbul\").toFormat(\"HH:mm ZZ\") }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "13:30 +03:00"
+  },
+  {
+    "name": "locale_string_preset",
+    "expression": "={{ $now.toLocaleString(DateTime.DATETIME_MED) }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "Jan 15, 2024, 10:30 AM"
+  },
+  {
+    "name": "date_extensions",
+    "expression": "={{ [$now.extract('month'), $now.isWeekend(), $now.beginningOf('year').toISODate()] }}",
+    "context": {
+      "json": {}
+    },
+    "expected": [
+      1,
+      false,
+      "2024-01-01"
+    ]
+  },
+  {
+    "name": "number_to_datetime_seconds",
+    "expression": "={{ (1700000000).toDateTime(\"s\").toISO() }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "2023-11-14T22:13:20.000Z"
+  },
+  {
+    "name": "fromformat_with_zone_option",
+    "expression": "={{ DateTime.fromFormat('2024-07-01 12:00', 'yyyy-MM-dd HH:mm', {zone: 'Europe/Istanbul'}).toUTC().toISO() }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "2024-07-01T09:00:00.000Z"
+  },
+  {
+    "name": "plus_number_and_unit",
+    "expression": "={{ \"2024-05-05T10:00:00\".toDateTime().plus(1, 'day').toISODate() }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "2024-05-06"
+  },
+  {
+    "name": "dst_plus_day_keeps_wall_clock",
+    "expression": "={{ DateTime.fromISO('2024-03-10T12:00:00', {zone: 'America/New_York'}).plus({days: 1}).toISO() }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "2024-03-11T12:00:00.000-04:00"
+  },
+  {
+    "name": "diff_months_days",
+    "expression": "={{ DateTime.fromISO('2024-03-15').diff(DateTime.fromISO('2024-01-10'), ['months','days']).toObject() }}",
+    "context": {
+      "json": {}
+    },
+    "expected": {
+      "months": 2,
+      "days": 5
+    }
+  },
+  {
+    "name": "from_iso_set_zone",
+    "expression": "={{ DateTime.fromISO('2024-03-31T12:00:00+02:00', {setZone: true}).toISO() }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "2024-03-31T12:00:00.000+02:00"
+  }
+]

@@ -253,9 +253,7 @@ defAll(Number.prototype, {
   abs() { return Math.abs(this); },
   round(decimals) {
     const f = Math.pow(10, decimals === undefined ? 0 : decimals);
-    const v = Number(this) * f;
-    // symmetrical rounding of exact .5 like toFixed users expect for money
-    return Math.round(v + (v < 0 ? -Number.EPSILON * Math.abs(v) : Number.EPSILON * Math.abs(v))) / f;
+    return Math.round(Number(this) * f) / f;
   },
   isEven() { return Number.isInteger(Number(this)) && Number(this) % 2 === 0; },
   isOdd() { return Number.isInteger(Number(this)) && Math.abs(Number(this) % 2) === 1; },
@@ -321,13 +319,6 @@ defAll(Object.prototype, {
   keys() { return objKeys(this); },
   values() { return objKeys(this).map((k) => this[k]); },
 });
-// Arrays inherit Object.prototype; native keys()/values() iterators must win again.
-def(Array.prototype, 'keys', Array.prototype.keys);
-def(Array.prototype, 'values', Array.prototype.values);
-for (const [name, native] of [['keys', Array.prototype.keys], ['values', Array.prototype.values]]) {
-  def(Array.prototype, name, native);
-}
-
 // Date + DateTime extensions
 const dateExt = (wrap) => ({
   beginningOf(unit) { return wrap(this, toDT(this).startOf(unit)); },
@@ -362,7 +353,10 @@ const dateExt = (wrap) => ({
   toTimeFromNow() { return toDT(this).toRelative(); },
 });
 defAll(Date.prototype, dateExt((orig, dt) => dt.toJSDate()));
-defAll(DateTime.prototype, dateExt((orig, dt) => dt));
-// Luxon already has native plus/minus/toFormat semantics: keep them (Date ext above is separate).
-def(DateTime.prototype, 'plus', DateTime.prototype.plus);
-def(DateTime.prototype, 'minus', DateTime.prototype.minus);
+{
+  // Luxon's own plus/minus (duration arg) stay; the rest of the extensions are added.
+  const t = dateExt((orig, dt) => dt);
+  delete t.plus;
+  delete t.minus;
+  defAll(DateTime.prototype, t);
+}

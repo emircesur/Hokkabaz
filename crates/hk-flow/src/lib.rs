@@ -9,6 +9,7 @@
 pub mod description;
 pub mod error;
 pub mod executor;
+pub mod expr;
 pub mod item;
 pub mod node;
 pub mod raw;
@@ -24,6 +25,9 @@ pub use description::{
 };
 pub use error::FlowError;
 pub use executor::{ExecuteInput, ExecutionOrder, ExecutionResult, Executor, ExecutorConfig};
+pub use expr::{ExprEnv, ExprError, ExprLimits, ExprScope, ExpressionEvaluator};
+#[cfg(feature = "expr")]
+pub use expr::QuickJsEvaluator;
 pub use item::{BinaryData, Item, PairedItem, PairedSource};
 pub use node::{FlowNode, NodeContext, NodeOutput, NodeRegistry};
 pub use run_data::{

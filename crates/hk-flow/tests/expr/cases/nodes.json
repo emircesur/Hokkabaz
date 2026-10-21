@@ -1,0 +1,1306 @@
+[
+  {
+    "name": "input_first",
+    "expression": "={{ $input.first().json.v }}",
+    "context": {
+      "input": [
+        [
+          {
+            "json": {
+              "v": 1
+            }
+          },
+          {
+            "json": {
+              "v": 2
+            }
+          }
+        ]
+      ]
+    },
+    "expected": 1
+  },
+  {
+    "name": "input_last",
+    "expression": "={{ $input.last().json.v }}",
+    "context": {
+      "input": [
+        [
+          {
+            "json": {
+              "v": 1
+            }
+          },
+          {
+            "json": {
+              "v": 2
+            }
+          }
+        ]
+      ]
+    },
+    "expected": 2
+  },
+  {
+    "name": "input_all_length",
+    "expression": "={{ $input.all().length }}",
+    "context": {
+      "input": [
+        [
+          {
+            "json": {}
+          },
+          {
+            "json": {}
+          },
+          {
+            "json": {}
+          }
+        ]
+      ]
+    },
+    "expected": 3
+  },
+  {
+    "name": "input_item_follows_item_index",
+    "expression": "={{ $input.item.json.v }}",
+    "context": {
+      "input": [
+        [
+          {
+            "json": {
+              "v": 1
+            }
+          },
+          {
+            "json": {
+              "v": 2
+            }
+          }
+        ]
+      ],
+      "item_index": 1
+    },
+    "expected": 2
+  },
+  {
+    "name": "json_follows_item_index",
+    "expression": "={{ $json.v }}",
+    "context": {
+      "input": [
+        [
+          {
+            "json": {
+              "v": "a"
+            }
+          },
+          {
+            "json": {
+              "v": "b"
+            }
+          }
+        ]
+      ],
+      "item_index": 1
+    },
+    "expected": "b"
+  },
+  {
+    "name": "item_and_run_index",
+    "expression": "={{ $itemIndex + ':' + $runIndex }}",
+    "context": {
+      "json": {},
+      "item_index": 0,
+      "run_index": 3
+    },
+    "expected": "0:3"
+  },
+  {
+    "name": "items_fn_returns_input",
+    "expression": "={{ $items().length }}",
+    "context": {
+      "input": [
+        [
+          {
+            "json": {}
+          },
+          {
+            "json": {}
+          }
+        ]
+      ]
+    },
+    "expected": 2
+  },
+  {
+    "name": "items_fn_named_node",
+    "expression": "={{ $items('Trigger').map(i => i.json.id) }}",
+    "context": {
+      "node": "Code",
+      "input": [
+        [
+          {
+            "json": {
+              "a": 10
+            },
+            "pairedItem": 0
+          },
+          {
+            "json": {
+              "a": 20
+            },
+            "pairedItem": 1
+          }
+        ]
+      ],
+      "source": [
+        {
+          "previousNode": "Set"
+        }
+      ],
+      "item_index": 1,
+      "nodes": {
+        "Trigger": {
+          "runs": [
+            {
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "id": 1
+                      }
+                    },
+                    {
+                      "json": {
+                        "id": 2
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "path": "hook"
+          }
+        },
+        "Set": {
+          "runs": [
+            {
+              "source": [
+                {
+                  "previousNode": "Trigger"
+                }
+              ],
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "a": 10
+                      },
+                      "pairedItem": 0
+                    },
+                    {
+                      "json": {
+                        "a": 20
+                      },
+                      "pairedItem": 1
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "mode": "manual"
+          }
+        }
+      }
+    },
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "node_ref_item_pairs_back_through_chain",
+    "expression": "={{ $('Trigger').item.json.id }}",
+    "context": {
+      "node": "Code",
+      "input": [
+        [
+          {
+            "json": {
+              "a": 10
+            },
+            "pairedItem": 0
+          },
+          {
+            "json": {
+              "a": 20
+            },
+            "pairedItem": 1
+          }
+        ]
+      ],
+      "source": [
+        {
+          "previousNode": "Set"
+        }
+      ],
+      "item_index": 1,
+      "nodes": {
+        "Trigger": {
+          "runs": [
+            {
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "id": 1
+                      }
+                    },
+                    {
+                      "json": {
+                        "id": 2
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "path": "hook"
+          }
+        },
+        "Set": {
+          "runs": [
+            {
+              "source": [
+                {
+                  "previousNode": "Trigger"
+                }
+              ],
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "a": 10
+                      },
+                      "pairedItem": 0
+                    },
+                    {
+                      "json": {
+                        "a": 20
+                      },
+                      "pairedItem": 1
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "mode": "manual"
+          }
+        }
+      }
+    },
+    "expected": 2
+  },
+  {
+    "name": "node_ref_item_direct_parent",
+    "expression": "={{ $('Set').item.json.a }}",
+    "context": {
+      "node": "Code",
+      "input": [
+        [
+          {
+            "json": {
+              "a": 10
+            },
+            "pairedItem": 0
+          },
+          {
+            "json": {
+              "a": 20
+            },
+            "pairedItem": 1
+          }
+        ]
+      ],
+      "source": [
+        {
+          "previousNode": "Set"
+        }
+      ],
+      "item_index": 1,
+      "nodes": {
+        "Trigger": {
+          "runs": [
+            {
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "id": 1
+                      }
+                    },
+                    {
+                      "json": {
+                        "id": 2
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "path": "hook"
+          }
+        },
+        "Set": {
+          "runs": [
+            {
+              "source": [
+                {
+                  "previousNode": "Trigger"
+                }
+              ],
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "a": 10
+                      },
+                      "pairedItem": 0
+                    },
+                    {
+                      "json": {
+                        "a": 20
+                      },
+                      "pairedItem": 1
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "mode": "manual"
+          }
+        }
+      }
+    },
+    "expected": 20
+  },
+  {
+    "name": "node_ref_first_last_all",
+    "expression": "={{ [$('Trigger').first().json.id, $('Trigger').last().json.id, $('Trigger').all().length] }}",
+    "context": {
+      "node": "Code",
+      "input": [
+        [
+          {
+            "json": {
+              "a": 10
+            },
+            "pairedItem": 0
+          },
+          {
+            "json": {
+              "a": 20
+            },
+            "pairedItem": 1
+          }
+        ]
+      ],
+      "source": [
+        {
+          "previousNode": "Set"
+        }
+      ],
+      "item_index": 1,
+      "nodes": {
+        "Trigger": {
+          "runs": [
+            {
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "id": 1
+                      }
+                    },
+                    {
+                      "json": {
+                        "id": 2
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "path": "hook"
+          }
+        },
+        "Set": {
+          "runs": [
+            {
+              "source": [
+                {
+                  "previousNode": "Trigger"
+                }
+              ],
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "a": 10
+                      },
+                      "pairedItem": 0
+                    },
+                    {
+                      "json": {
+                        "a": 20
+                      },
+                      "pairedItem": 1
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "mode": "manual"
+          }
+        }
+      }
+    },
+    "expected": [
+      1,
+      2,
+      2
+    ]
+  },
+  {
+    "name": "node_ref_params",
+    "expression": "={{ $('Trigger').params.path }}",
+    "context": {
+      "node": "Code",
+      "input": [
+        [
+          {
+            "json": {
+              "a": 10
+            },
+            "pairedItem": 0
+          },
+          {
+            "json": {
+              "a": 20
+            },
+            "pairedItem": 1
+          }
+        ]
+      ],
+      "source": [
+        {
+          "previousNode": "Set"
+        }
+      ],
+      "item_index": 1,
+      "nodes": {
+        "Trigger": {
+          "runs": [
+            {
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "id": 1
+                      }
+                    },
+                    {
+                      "json": {
+                        "id": 2
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "path": "hook"
+          }
+        },
+        "Set": {
+          "runs": [
+            {
+              "source": [
+                {
+                  "previousNode": "Trigger"
+                }
+              ],
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "a": 10
+                      },
+                      "pairedItem": 0
+                    },
+                    {
+                      "json": {
+                        "a": 20
+                      },
+                      "pairedItem": 1
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "mode": "manual"
+          }
+        }
+      }
+    },
+    "expected": "hook"
+  },
+  {
+    "name": "node_ref_item_matching",
+    "expression": "={{ $('Trigger').itemMatching(0).json.id }}",
+    "context": {
+      "node": "Code",
+      "input": [
+        [
+          {
+            "json": {
+              "a": 10
+            },
+            "pairedItem": 0
+          },
+          {
+            "json": {
+              "a": 20
+            },
+            "pairedItem": 1
+          }
+        ]
+      ],
+      "source": [
+        {
+          "previousNode": "Set"
+        }
+      ],
+      "item_index": 1,
+      "nodes": {
+        "Trigger": {
+          "runs": [
+            {
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "id": 1
+                      }
+                    },
+                    {
+                      "json": {
+                        "id": 2
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "path": "hook"
+          }
+        },
+        "Set": {
+          "runs": [
+            {
+              "source": [
+                {
+                  "previousNode": "Trigger"
+                }
+              ],
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "a": 10
+                      },
+                      "pairedItem": 0
+                    },
+                    {
+                      "json": {
+                        "a": 20
+                      },
+                      "pairedItem": 1
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "mode": "manual"
+          }
+        }
+      }
+    },
+    "expected": 1
+  },
+  {
+    "name": "node_ref_is_executed",
+    "expression": "={{ $('Trigger').isExecuted }}",
+    "context": {
+      "node": "Code",
+      "input": [
+        [
+          {
+            "json": {
+              "a": 10
+            },
+            "pairedItem": 0
+          },
+          {
+            "json": {
+              "a": 20
+            },
+            "pairedItem": 1
+          }
+        ]
+      ],
+      "source": [
+        {
+          "previousNode": "Set"
+        }
+      ],
+      "item_index": 1,
+      "nodes": {
+        "Trigger": {
+          "runs": [
+            {
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "id": 1
+                      }
+                    },
+                    {
+                      "json": {
+                        "id": 2
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "path": "hook"
+          }
+        },
+        "Set": {
+          "runs": [
+            {
+              "source": [
+                {
+                  "previousNode": "Trigger"
+                }
+              ],
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "a": 10
+                      },
+                      "pairedItem": 0
+                    },
+                    {
+                      "json": {
+                        "a": 20
+                      },
+                      "pairedItem": 1
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "mode": "manual"
+          }
+        }
+      }
+    },
+    "expected": true
+  },
+  {
+    "name": "legacy_node_bracket",
+    "expression": "={{ $node['Trigger'].json.id }}",
+    "context": {
+      "node": "Code",
+      "input": [
+        [
+          {
+            "json": {
+              "a": 10
+            },
+            "pairedItem": 0
+          },
+          {
+            "json": {
+              "a": 20
+            },
+            "pairedItem": 1
+          }
+        ]
+      ],
+      "source": [
+        {
+          "previousNode": "Set"
+        }
+      ],
+      "item_index": 1,
+      "nodes": {
+        "Trigger": {
+          "runs": [
+            {
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "id": 1
+                      }
+                    },
+                    {
+                      "json": {
+                        "id": 2
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "path": "hook"
+          }
+        },
+        "Set": {
+          "runs": [
+            {
+              "source": [
+                {
+                  "previousNode": "Trigger"
+                }
+              ],
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "a": 10
+                      },
+                      "pairedItem": 0
+                    },
+                    {
+                      "json": {
+                        "a": 20
+                      },
+                      "pairedItem": 1
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "mode": "manual"
+          }
+        }
+      }
+    },
+    "expected": 2
+  },
+  {
+    "name": "legacy_node_dot_and_parameter",
+    "expression": "={{ $node.Trigger.parameter.path }}",
+    "context": {
+      "node": "Code",
+      "input": [
+        [
+          {
+            "json": {
+              "a": 10
+            },
+            "pairedItem": 0
+          },
+          {
+            "json": {
+              "a": 20
+            },
+            "pairedItem": 1
+          }
+        ]
+      ],
+      "source": [
+        {
+          "previousNode": "Set"
+        }
+      ],
+      "item_index": 1,
+      "nodes": {
+        "Trigger": {
+          "runs": [
+            {
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "id": 1
+                      }
+                    },
+                    {
+                      "json": {
+                        "id": 2
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "path": "hook"
+          }
+        },
+        "Set": {
+          "runs": [
+            {
+              "source": [
+                {
+                  "previousNode": "Trigger"
+                }
+              ],
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "a": 10
+                      },
+                      "pairedItem": 0
+                    },
+                    {
+                      "json": {
+                        "a": 20
+                      },
+                      "pairedItem": 1
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "mode": "manual"
+          }
+        }
+      }
+    },
+    "expected": "hook"
+  },
+  {
+    "name": "node_ref_unexecuted_errors",
+    "expression": "={{ $('Later').first() }}",
+    "context": {
+      "node": "Code",
+      "input": [
+        [
+          {
+            "json": {
+              "a": 10
+            },
+            "pairedItem": 0
+          },
+          {
+            "json": {
+              "a": 20
+            },
+            "pairedItem": 1
+          }
+        ]
+      ],
+      "source": [
+        {
+          "previousNode": "Set"
+        }
+      ],
+      "item_index": 1,
+      "nodes": {
+        "Trigger": {
+          "runs": [
+            {
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "id": 1
+                      }
+                    },
+                    {
+                      "json": {
+                        "id": 2
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "path": "hook"
+          }
+        },
+        "Set": {
+          "runs": [
+            {
+              "source": [
+                {
+                  "previousNode": "Trigger"
+                }
+              ],
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "a": 10
+                      },
+                      "pairedItem": 0
+                    },
+                    {
+                      "json": {
+                        "a": 20
+                      },
+                      "pairedItem": 1
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "mode": "manual"
+          }
+        },
+        "Later": {
+          "parameters": {},
+          "runs": []
+        }
+      }
+    },
+    "error": "hasn't been executed"
+  },
+  {
+    "name": "node_ref_unknown_errors",
+    "expression": "={{ $('Nope').first() }}",
+    "context": {
+      "node": "Code",
+      "input": [
+        [
+          {
+            "json": {
+              "a": 10
+            },
+            "pairedItem": 0
+          },
+          {
+            "json": {
+              "a": 20
+            },
+            "pairedItem": 1
+          }
+        ]
+      ],
+      "source": [
+        {
+          "previousNode": "Set"
+        }
+      ],
+      "item_index": 1,
+      "nodes": {
+        "Trigger": {
+          "runs": [
+            {
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "id": 1
+                      }
+                    },
+                    {
+                      "json": {
+                        "id": 2
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "path": "hook"
+          }
+        },
+        "Set": {
+          "runs": [
+            {
+              "source": [
+                {
+                  "previousNode": "Trigger"
+                }
+              ],
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "a": 10
+                      },
+                      "pairedItem": 0
+                    },
+                    {
+                      "json": {
+                        "a": 20
+                      },
+                      "pairedItem": 1
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "mode": "manual"
+          }
+        }
+      }
+    },
+    "error": "doesn't exist"
+  },
+  {
+    "name": "prev_node",
+    "expression": "={{ $prevNode.name }}",
+    "context": {
+      "node": "Code",
+      "input": [
+        [
+          {
+            "json": {
+              "a": 10
+            },
+            "pairedItem": 0
+          },
+          {
+            "json": {
+              "a": 20
+            },
+            "pairedItem": 1
+          }
+        ]
+      ],
+      "source": [
+        {
+          "previousNode": "Set"
+        }
+      ],
+      "item_index": 1,
+      "nodes": {
+        "Trigger": {
+          "runs": [
+            {
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "id": 1
+                      }
+                    },
+                    {
+                      "json": {
+                        "id": 2
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "path": "hook"
+          }
+        },
+        "Set": {
+          "runs": [
+            {
+              "source": [
+                {
+                  "previousNode": "Trigger"
+                }
+              ],
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "a": 10
+                      },
+                      "pairedItem": 0
+                    },
+                    {
+                      "json": {
+                        "a": 20
+                      },
+                      "pairedItem": 1
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "parameters": {
+            "mode": "manual"
+          }
+        }
+      }
+    },
+    "expected": "Set"
+  },
+  {
+    "name": "parameter",
+    "expression": "={{ $parameter.value }}",
+    "context": {
+      "json": {},
+      "parameters": {
+        "value": "x"
+      }
+    },
+    "expected": "x"
+  },
+  {
+    "name": "workflow_vars",
+    "expression": "={{ $workflow.name + '/' + $workflow.id + '/' + $workflow.active }}",
+    "context": {
+      "json": {},
+      "workflow": {
+        "id": "7",
+        "name": "My WF",
+        "active": true
+      }
+    },
+    "expected": "My WF/7/true"
+  },
+  {
+    "name": "execution_vars",
+    "expression": "={{ $execution.id + '/' + $execution.mode }}",
+    "context": {
+      "json": {},
+      "execution_id": "e42",
+      "mode": "trigger"
+    },
+    "expected": "e42/trigger"
+  },
+  {
+    "name": "env_and_vars",
+    "expression": "={{ $env.FOO + '-' + $vars.bar }}",
+    "context": {
+      "json": {},
+      "env": {
+        "FOO": "f"
+      },
+      "vars": {
+        "bar": "b"
+      }
+    },
+    "expected": "f-b"
+  },
+  {
+    "name": "env_defaults_empty",
+    "expression": "={{ typeof $env.HOME }}",
+    "context": {
+      "json": {}
+    },
+    "expected": "undefined"
+  },
+  {
+    "name": "jmespath",
+    "expression": "={{ $jmespath($json.people, '[?age > `30`].name') }}",
+    "context": {
+      "json": {
+        "people": [
+          {
+            "name": "A",
+            "age": 25
+          },
+          {
+            "name": "B",
+            "age": 40
+          }
+        ]
+      }
+    },
+    "expected": [
+      "B"
+    ]
+  },
+  {
+    "name": "if_min_max_ifempty",
+    "expression": "={{ [$if($json.a > 1, 'y', 'n'), $max(1, 5, 3), $min(4, 2), $ifEmpty('', 'dflt')] }}",
+    "context": {
+      "json": {
+        "a": 2
+      }
+    },
+    "expected": [
+      "y",
+      5,
+      2,
+      "dflt"
+    ]
+  }
+]

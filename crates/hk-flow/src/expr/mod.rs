@@ -163,3 +163,16 @@ pub fn resolve_value(
         _ => Ok(v.clone()),
     }
 }
+
+/// Run data pre-filled for tests of expression-reading nodes (the executor owns the real
+/// write path).
+#[cfg(feature = "testing")]
+pub fn shared_run_data(rd: crate::run_data::RunData) -> SharedRunData {
+    let shared = SharedRunData::new();
+    for (name, runs) in rd {
+        for run in runs {
+            shared.push(&name, run);
+        }
+    }
+    shared
+}
