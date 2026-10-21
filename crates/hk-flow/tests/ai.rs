@@ -312,7 +312,7 @@ async fn serve_once(resp: &str) -> (String, Arc<Mutex<Vec<String>>>) {
 #[tokio::test]
 async fn http_tool_fills_placeholders_and_model_fields() {
     let (base, seen) = serve_once(
-        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 18\r\nConnection: close\r\n\r\n{\"temp_c\":21,\"x\":1}",
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 19\r\nConnection: close\r\n\r\n{\"temp_c\":21,\"x\":1}",
     )
     .await;
     let script = ScriptedChatModelFactory::from_json(&json!({"models": {"m1": [

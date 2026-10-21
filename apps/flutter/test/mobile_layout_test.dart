@@ -8,6 +8,8 @@ import 'package:hokkabaz/ffi/notifications.dart';
 import 'package:hokkabaz/screens/chat/chat_model.dart';
 import 'package:hokkabaz/screens/chat/chat_providers.dart';
 import 'package:hokkabaz/screens/chat_screen.dart';
+import 'package:hokkabaz/screens/flows/flow_canvas.dart';
+import 'package:hokkabaz/screens/flows/model/flow_editor.dart';
 import 'package:hokkabaz/screens/models/models_screen.dart';
 import 'package:hokkabaz/ffi/settings_providers.dart';
 import 'package:hokkabaz/src/rust/dto.dart';
@@ -250,6 +252,48 @@ void main() {
       await t.pump();
       expect(sink.cancelled, ['a1']);
       expect(find.textContaining('Approval needed'), findsNothing);
+    });
+  });
+
+  group('flow canvas on phone', () {
+    testWidgets('long-press node multi-selects; ports have touch hit boxes', (
+      t,
+    ) async {
+      _phone(t);
+      final ed = FlowEditor();
+      ed.addRawNode(
+        type: 'n8n-nodes-base.noOp',
+        version: 1,
+        baseName: 'A',
+        at: (x: 20, y: 20),
+      );
+      ed.addRawNode(
+        type: 'n8n-nodes-base.noOp',
+        version: 1,
+        baseName: 'B',
+        at: (x: 20, y: 200),
+      );
+      ed.clearSelection();
+      await t.pumpWidget(
+        _app(
+          Scaffold(
+            body: FlowCanvas(
+              editor: ed,
+              types: const {},
+              onAddNode: (_, _) {},
+              onOpenNode: (_) {},
+              onMessage: (_) {},
+              onSave: () {},
+            ),
+          ),
+        ),
+      );
+      await t.pump();
+      await t.longPress(find.text('A'));
+      await t.tap(find.text('B'));
+      await t.pump(const Duration(milliseconds: 400));
+      expect(ed.selection.length, 2);
+      expect(t.takeException(), isNull);
     });
   });
 
