@@ -1,10 +1,5 @@
 //! API error type: one JSON shape for every failure.
 
-use axum::Json;
-use axum::http::{HeaderValue, StatusCode, header};
-use axum::response::{IntoResponse, Response};
-use serde_json::json;
-
 /// Failure returned by handlers and runtimes. `code` strings are part of the wire contract.
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ApiError {
@@ -29,17 +24,6 @@ pub enum ApiError {
 }
 
 impl ApiError {
-    pub fn status(&self) -> StatusCode {
-        match self {
-            Self::Unauthorized => StatusCode::UNAUTHORIZED,
-            Self::Forbidden(_) => StatusCode::FORBIDDEN,
-            Self::NotFound(_) => StatusCode::NOT_FOUND,
-            Self::BadRequest(_) => StatusCode::BAD_REQUEST,
-            Self::Conflict(_) => StatusCode::CONFLICT,
-            Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-
     pub fn code(&self) -> &'static str {
         match self {
             Self::Unauthorized => "unauthorized",
@@ -52,15 +36,39 @@ impl ApiError {
     }
 }
 
-impl IntoResponse for ApiError {
-    fn into_response(self) -> Response {
-        let body = Json(json!({ "error": { "code": self.code(), "message": self.to_string() } }));
-        let mut res = (self.status(), body).into_response();
-        if matches!(self, Self::Unauthorized) {
-            res.headers_mut()
-                .insert(header::WWW_AUTHENTICATE, HeaderValue::from_static("Bearer"));
+/// HTTP mapping; only the axum surface needs it (the in-process runtime does not).
+#[cfg(feature = "server")]
+mod http {
+    use axum::Json;
+    use axum::http::{HeaderValue, StatusCode, header};
+    use axum::response::{IntoResponse, Response};
+    use serde_json::json;
+
+    use super::ApiError;
+
+    impl ApiError {
+        pub fn status(&self) -> StatusCode {
+            match self {
+                Self::Unauthorized => StatusCode::UNAUTHORIZED,
+                Self::Forbidden(_) => StatusCode::FORBIDDEN,
+                Self::NotFound(_) => StatusCode::NOT_FOUND,
+                Self::BadRequest(_) => StatusCode::BAD_REQUEST,
+                Self::Conflict(_) => StatusCode::CONFLICT,
+                Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            }
         }
-        res
+    }
+
+    impl IntoResponse for ApiError {
+        fn into_response(self) -> Response {
+            let body = Json(json!({ "error": { "code": self.code(), "message": self.to_string() } }));
+            let mut res = (self.status(), body).into_response();
+            if matches!(self, Self::Unauthorized) {
+                res.headers_mut()
+                    .insert(header::WWW_AUTHENTICATE, HeaderValue::from_static("Bearer"));
+            }
+            res
+        }
     }
 }
 

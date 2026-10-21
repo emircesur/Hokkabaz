@@ -12,24 +12,29 @@ workspace = true
 
 [features]
 default = ["server"]
-# HTTP/WS surface. Off => empty crate, so nothing pulls axum on targets that never serve.
-server = [
-  "dep:axum",
+# In-process agent runtime (LocalRuntime + AgentRuntime trait). No HTTP stack: android/ffi embed this.
+runtime = [
   "dep:async-trait",
-  "dep:futures",
   "dep:hk-agent",
   "dep:hk-core",
   "dep:hk-llm",
   "dep:hk-session",
-  "dep:hk-store",
   "dep:hk-tools",
   "dep:serde",
   "dep:serde_json",
-  "dep:subtle",
   "dep:thiserror",
   "dep:tokio",
   "dep:tracing",
+]
+# HTTP/WS surface on top of `runtime`. Off => nothing pulls axum on targets that never serve.
+server = [
+  "runtime",
+  "dep:axum",
+  "dep:futures",
+  "dep:hk-store",
+  "dep:subtle",
   "dep:getrandom",
+  "tokio/net",
 ]
 
 [dependencies]
@@ -47,7 +52,7 @@ serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 subtle = { version = "2", optional = true }
 thiserror = { version = "2", optional = true }
-tokio = { version = "1", features = ["rt", "sync", "net", "time", "macros"], optional = true }
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"], optional = true }
 tracing = { version = "0.1", optional = true }
 
 [dev-dependencies]

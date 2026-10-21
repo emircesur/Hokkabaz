@@ -2,4 +2,6 @@
 // frb attribute macros reference `cfg(frb_expand)`, unknown to rustc check-cfg.
 #![allow(unexpected_cfgs)]
 
+pub mod chat;
 pub mod core;
+pub mod settings;

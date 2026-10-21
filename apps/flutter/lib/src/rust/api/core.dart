@@ -3,16 +3,26 @@
 
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
+import '../dto.dart';
 import '../error.dart';
 import '../frb_generated.dart';
-
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-/// Version of the Rust core linked into the app.
-String coreVersion() => RustLib.instance.api.crateApiCoreCoreVersion();
+
+            
+
+            /// Version of the Rust core linked into the app.
+String  coreVersion() => RustLib.instance.api.crateApiCoreCoreVersion();
 
 /// Emits `0..count` every `interval_ms`, then completes. Proves Rust -> Dart streaming.
-Stream<int> demoTicker({required int count, required int intervalMs}) => RustLib
-    .instance
-    .api
-    .crateApiCoreDemoTicker(count: count, intervalMs: intervalMs);
+Stream<int>  demoTicker({required int count , required int intervalMs }) => RustLib.instance.api.crateApiCoreDemoTicker(count: count, intervalMs: intervalMs);
+
+/// Start the in-process core rooted at `data_dir` (created if missing). Calling it again replaces
+/// the running core (Flutter hot restart keeps the native lib loaded).
+Future<void>  coreInit({required String dataDir , required CoreProfile profile }) => RustLib.instance.api.crateApiCoreCoreInit(dataDir: dataDir, profile: profile);
+
+/// Stop the core: cancels running turns and ends every `session_events` stream. Idempotent.
+Future<void>  coreShutdown() => RustLib.instance.api.crateApiCoreCoreShutdown();
+
+            
+            

@@ -4,35 +4,54 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import 'frb_generated.dart';
-
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-class HkError implements FrbException {
-  final HkErrorKind kind;
-  final String message;
 
-  const HkError({required this.kind, required this.message});
+            
 
-  @override
-  int get hashCode => kind.hashCode ^ message.hashCode;
+            
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is HkError &&
-          runtimeType == other.runtimeType &&
-          kind == other.kind &&
-          message == other.message;
-}
+            class HkError implements FrbException {
+                final HkErrorKind kind;
+final String message;
+
+                const HkError({required this.kind ,required this.message ,});
+
+                
+                
+
+                
+        @override
+        int get hashCode => kind.hashCode^message.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is HkError &&
+                runtimeType == other.runtimeType
+                && kind == other.kind&& message == other.message;
+        
+            }
 
 /// Coarse error class; the UI switches on this, shows `message` to the user.
 enum HkErrorKind {
-  /// Bug or unexpected state inside the core.
-  internal,
-
-  /// Dart side dropped the stream/receiver.
-  closed,
-
-  /// Caller passed an invalid argument.
-  invalidArgument,
-}
+                    /// Bug or unexpected state inside the core.
+internal,
+/// Dart side dropped the stream/receiver.
+closed,
+/// Caller passed an invalid argument.
+invalidArgument,
+/// `core_init` has not run (or `core_shutdown` already did).
+notInitialized,
+/// Unknown session / approval / provider.
+notFound,
+/// Valid request that clashes with current state (e.g. duplicate provider id).
+conflict,
+/// Provider or model misconfiguration (missing key, bad endpoint).
+provider,
+                    ;
+                    
+                }
+            
