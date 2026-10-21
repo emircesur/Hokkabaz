@@ -160,6 +160,8 @@ class ChatState {
     this.outputTokens = 0,
     this.reasoningTokens = 0,
     this.cacheReadTokens = 0,
+    this.usageSteps = 0,
+    this.lastInputTokens = 0,
     this.streamingIndex,
     this.toolIndex = const {},
   });
@@ -173,6 +175,12 @@ class ChatState {
   final int outputTokens;
   final int reasoningTokens;
   final int cacheReadTokens;
+
+  /// Finished model requests seen (one usage event each).
+  final int usageSteps;
+
+  /// Input tokens of the latest request = current context size.
+  final int lastInputTokens;
 
   /// Index into [items] of the assistant item receiving deltas.
   final int? streamingIndex;
@@ -199,6 +207,8 @@ class ChatState {
     int? outputTokens,
     int? reasoningTokens,
     int? cacheReadTokens,
+    int? usageSteps,
+    int? lastInputTokens,
     Object? streamingIndex = _keep,
     Map<int, String>? toolIndex,
   }) => ChatState(
@@ -211,6 +221,8 @@ class ChatState {
     outputTokens: outputTokens ?? this.outputTokens,
     reasoningTokens: reasoningTokens ?? this.reasoningTokens,
     cacheReadTokens: cacheReadTokens ?? this.cacheReadTokens,
+    usageSteps: usageSteps ?? this.usageSteps,
+    lastInputTokens: lastInputTokens ?? this.lastInputTokens,
     streamingIndex: identical(streamingIndex, _keep)
         ? this.streamingIndex
         : streamingIndex as int?,
@@ -464,6 +476,8 @@ ChatState reduceEvent(ChatState s, SessionEventDto e) {
         outputTokens: s.outputTokens + u.outputTokens.toInt(),
         reasoningTokens: s.reasoningTokens + rt,
         cacheReadTokens: s.cacheReadTokens + u.cacheReadTokens.toInt(),
+        usageSteps: s.usageSteps + 1,
+        lastInputTokens: u.inputTokens.toInt(),
       );
 
     case SessionEventKind.turnEnded:

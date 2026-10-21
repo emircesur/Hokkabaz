@@ -6,17 +6,26 @@ import '../../theme/tokens.dart';
 import 'chat_model.dart';
 import 'chat_providers.dart';
 import 'composer.dart';
+import 'inspector_pane.dart';
 import 'message_widgets.dart';
 import 'tool_card.dart';
 
 /// Header + streaming message list + composer for one session.
 class ConversationPane extends ConsumerWidget {
-  const ConversationPane({super.key, required this.sessionId, this.onBack});
+  const ConversationPane({
+    super.key,
+    required this.sessionId,
+    this.onBack,
+    this.inspectorInline = false,
+  });
 
   final String sessionId;
 
   /// Set on narrow layouts to return to the session list.
   final VoidCallback? onBack;
+
+  /// Inspector is a side column (header button toggles it) rather than a sheet.
+  final bool inspectorInline;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -29,7 +38,13 @@ class ConversationPane extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Header(sessionId: sessionId, state: state, info: info, onBack: onBack),
+        _Header(
+          sessionId: sessionId,
+          state: state,
+          info: info,
+          onBack: onBack,
+          inspectorInline: inspectorInline,
+        ),
         Divider(height: 1, color: context.hk.border),
         Expanded(
           child: state.loading
@@ -48,12 +63,14 @@ class _Header extends ConsumerWidget {
     required this.state,
     required this.info,
     required this.onBack,
+    required this.inspectorInline,
   });
 
   final String sessionId;
   final ChatState state;
   final SessionInfoDto? info;
   final VoidCallback? onBack;
+  final bool inspectorInline;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -116,6 +133,18 @@ class _Header extends ConsumerWidget {
             ),
             const SizedBox(width: HkTokens.s2),
           ],
+          IconButton(
+            tooltip: 'Inspector',
+            icon: Icon(
+              Icons.view_sidebar_outlined,
+              color: inspectorInline && ref.watch(inspectorOpenProvider)
+                  ? hk.accent
+                  : null,
+            ),
+            onPressed: () => inspectorInline
+                ? ref.read(inspectorOpenProvider.notifier).toggle()
+                : showInspectorSheet(context, sessionId),
+          ),
         ],
       ),
     );
