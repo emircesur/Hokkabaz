@@ -6,3 +6,4 @@
 /apps/flutter/build/
 /apps/flutter/.dart_tool/
 /apps/flutter/.flutter-plugins-dependencies
+apps/flutter/android/.kotlin/
