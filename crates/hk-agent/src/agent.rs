@@ -11,14 +11,18 @@ use hk_session::{
     EventKind, RequestHeader, SessionEvent, SessionWriter, TurnEndReason, derive_messages,
     new_session_id, read_log,
 };
-use hk_tools::{ToolCtx, ToolPipeline, ToolPreExecute};
+use hk_tools::{ToolCtx, ToolError, ToolOutput, ToolPipeline, ToolPreExecute};
 use serde_json::{Value, json};
 use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::time::Instant;
 
 use crate::approval::{Gate, GateEvent};
-use crate::config::AgentConfig;
+use crate::compaction::{self, COMPACT_PROMPT, SUMMARY_PREFIX};
+use crate::config::{AgentConfig, CompactionConfig};
 use crate::events::{AgentPreStep, AgentRequest, AgentStream, ApprovalRequest, ApprovalResponse};
+use crate::guard::{self, RepeatAction, RepeatGuard, until};
 use crate::inbox::AgentHandle;
+use crate::subagent::TASK_TOOL;
 
 const CANCELLED_RESULT: &str = "tool call cancelled before it produced a result";
 const INTERRUPTED_RESULT: &str = "tool call interrupted: no result was recorded";
@@ -59,6 +63,28 @@ enum Stop {
     Failed(String),
 }
 
+/// Why a model request ended without a finish.
+enum Fail {
+    Llm(LlmError),
+    /// A guard deadline passed; the text names which.
+    Timeout(&'static str),
+}
+
+/// Tool calls of these names in one reply run concurrently (the subagent limiter bounds them).
+fn parallel_tool(name: &str) -> bool {
+    name == TASK_TOOL
+}
+
+/// How one batch of tool calls ended.
+enum BatchEnd {
+    Done(Vec<std::result::Result<ToolOutput, ToolError>>),
+    Cancelled,
+    /// Per-call timeout: the calls get error results, the turn goes on.
+    ToolTimeout(&'static str),
+    TurnTimeout,
+    Gate(Option<GateEvent>),
+}
+
 struct StepOut {
     calls: Vec<ToolCall>,
     finish: Option<FinishReason>,
@@ -86,6 +112,8 @@ pub struct Agent {
     gate_rx: UnboundedReceiver<GateEvent>,
     /// Approvals logged as requested but not yet as answered.
     open_approvals: Vec<String>,
+    /// Identical-call streak of the running turn.
+    repeat: RepeatGuard,
     /// Keeps the mode-policy interceptor installed for the agent's lifetime.
     _policy: Effect,
 }
@@ -129,6 +157,7 @@ impl Agent {
             gate,
             gate_rx,
             open_approvals: Vec::new(),
+            repeat: RepeatGuard::default(),
             _policy: policy,
         })
     }
@@ -238,8 +267,10 @@ impl Agent {
 
         let mut steps = 0u32;
         let mut usage = Usage::default();
+        self.repeat.reset();
+        let deadline = self.cfg.guards.turn_timeout.map(|d| Instant::now() + d);
         let (reason, error) = self
-            .step_loop(&turn_id, &cancel, &mut steps, &mut usage)
+            .step_loop(&turn_id, &cancel, deadline, &mut steps, &mut usage)
             .await?;
         self.log(EventKind::TurnEnd {
             turn_id: turn_id.clone(),
@@ -258,6 +289,7 @@ impl Agent {
         &mut self,
         turn_id: &str,
         cancel: &CancellationToken,
+        deadline: Option<Instant>,
         steps: &mut u32,
         usage: &mut Usage,
     ) -> Result<(TurnEndReason, Option<String>)> {
@@ -269,6 +301,15 @@ impl Agent {
                 return Ok((TurnEndReason::MaxSteps, None));
             }
             let step = *steps;
+            if deadline.is_some_and(|d| Instant::now() >= d) {
+                return self.guard_stop(step, "turn timeout exceeded".to_owned());
+            }
+
+            if let Some(cc) = self.cfg.compaction.clone()
+                && compaction::context_tokens(&self.events) >= cc.threshold_tokens
+            {
+                self.compact_with(&cc, step, cancel).await?;
+            }
 
             for m in self.handle.claim_injected() {
                 self.log(EventKind::UserMessage { content: m })?;
@@ -289,6 +330,11 @@ impl Agent {
                 }
                 Err(r) => return Ok((TurnEndReason::Failed, Some(r.to_string()))),
             }
+            match self.repeat.check(&self.cfg.guards) {
+                RepeatAction::None => {}
+                RepeatAction::Remind(m) => self.log(EventKind::UserMessage { content: m })?,
+                RepeatAction::Abort(m) => return self.guard_stop(step, m),
+            }
 
             self.log(EventKind::StepStart {
                 turn_id: turn_id.to_owned(),
@@ -296,9 +342,12 @@ impl Agent {
             })?;
             *steps += 1;
 
-            let (out, mut stop) = self.model_phase(turn_id, step, cancel).await?;
+            let (out, mut stop) = self.model_phase(turn_id, step, cancel, deadline).await?;
+            for c in &out.calls {
+                self.repeat.observe(&c.name, &c.arguments);
+            }
             if stop.is_none() && !out.calls.is_empty() {
-                stop = self.tool_phase(&out.calls, cancel).await?;
+                stop = self.tool_phase(&out.calls, cancel, deadline).await?;
             }
             if let Some(u) = &out.usage {
                 usage.accumulate(u);
@@ -319,6 +368,117 @@ impl Agent {
             if out.calls.is_empty() && !self.handle.has_injected() {
                 return Ok((TurnEndReason::Completed, None));
             }
+            // Checked only when the turn would go on: a finished answer is never thrown away.
+            let g = &self.cfg.guards;
+            if let (Some(cap), Some(price)) = (g.max_cost_usd, g.price) {
+                let spent = price.price(usage).usd;
+                if spent > cap {
+                    return self.guard_stop(
+                        step,
+                        format!("cost cap exceeded: ${spent:.4} spent of ${cap:.4}"),
+                    );
+                }
+            }
+        }
+    }
+
+    /// End the turn as failed for a guard, leaving the reason in the log (there is no
+    /// dedicated event; `assistant/attempt` is the log's failure record).
+    fn guard_stop(&mut self, step: u32, msg: String) -> Result<(TurnEndReason, Option<String>)> {
+        self.log(EventKind::AssistantAttempt {
+            step,
+            attempt: 1,
+            error: Some(msg.clone()),
+        })?;
+        Ok((TurnEndReason::Failed, Some(msg)))
+    }
+
+    /// Summarize old history now, regardless of the threshold. `false` when there is nothing
+    /// to compact yet or the summary request failed (the log is then unchanged). Between turns.
+    pub async fn compact(&mut self) -> Result<bool> {
+        let cc = self
+            .cfg
+            .compaction
+            .clone()
+            .unwrap_or_else(|| CompactionConfig::new(0));
+        let step = 0;
+        self.compact_with(&cc, step, &CancellationToken::new())
+            .await
+    }
+
+    /// One summarization round. Failures never fail the turn: the next request just carries
+    /// the longer history (and may hit a context limit, which the provider reports).
+    async fn compact_with(
+        &mut self,
+        cc: &CompactionConfig,
+        step: u32,
+        cancel: &CancellationToken,
+    ) -> Result<bool> {
+        let Some(cut) = compaction::plan_cut(&self.events, cc.keep_recent_steps) else {
+            return Ok(false);
+        };
+        let mut msgs = derive_messages(&self.events[..cut.index]);
+        if msgs.iter().all(|m| m.role == hk_llm::Role::System) {
+            return Ok(false);
+        }
+        msgs.push(compaction::user(COMPACT_PROMPT));
+        let req = ChatRequest::new(self.cfg.model.clone(), msgs);
+        let timeout = self.cfg.guards.step_timeout;
+        let summary = {
+            let run = self.summarize(req, cancel);
+            match timeout {
+                Some(t) => tokio::time::timeout(t, run)
+                    .await
+                    .unwrap_or_else(|_| Err(LlmError::Network("compaction timed out".into()))),
+                None => run.await,
+            }
+        };
+        match summary {
+            Ok(text) if !text.trim().is_empty() => {
+                self.log(EventKind::CompactionSummary {
+                    summary: format!("{SUMMARY_PREFIX}{}", text.trim()),
+                    through_seq: cut.through_seq,
+                })?;
+                Ok(true)
+            }
+            Ok(_) => {
+                tracing::warn!("compaction: model returned an empty summary; skipped");
+                Ok(false)
+            }
+            // The loop's own cancel check ends the turn.
+            Err(LlmError::Cancelled) => Ok(false),
+            Err(e) => {
+                tracing::warn!(error = %e, "compaction failed; continuing uncompacted");
+                self.log(EventKind::AssistantAttempt {
+                    step,
+                    attempt: 1,
+                    error: Some(format!("compaction failed: {e}")),
+                })?;
+                Ok(false)
+            }
+        }
+    }
+
+    async fn summarize(
+        &self,
+        req: ChatRequest,
+        cancel: &CancellationToken,
+    ) -> std::result::Result<String, LlmError> {
+        let mut stream = self.provider.stream(req, cancel.clone()).await?;
+        let mut text = String::new();
+        loop {
+            let next = tokio::select! {
+                biased;
+                () = cancel.cancelled() => return Err(LlmError::Cancelled),
+                n = stream.next() => n,
+            };
+            match next {
+                Some(Ok(StreamEvent::TextDelta { text: t })) => text.push_str(&t),
+                Some(Ok(StreamEvent::Finish(_))) => return Ok(text),
+                Some(Ok(_)) => {}
+                Some(Err(e)) => return Err(e),
+                None => return Err(LlmError::Protocol("stream ended without finish".into())),
+            }
         }
     }
 
@@ -328,7 +488,13 @@ impl Agent {
         turn_id: &str,
         step: u32,
         cancel: &CancellationToken,
+        deadline: Option<Instant>,
     ) -> Result<(StepOut, Option<Stop>)> {
+        let lim = guard::limit(
+            deadline,
+            self.cfg.guards.step_timeout.map(|d| (d, "step timeout")),
+        );
+        let at = lim.map(|l| l.0);
         let mut out = StepOut {
             calls: Vec::new(),
             finish: None,
@@ -376,8 +542,9 @@ impl Agent {
 
         let started = tokio::select! {
             biased;
-            () = cancel.cancelled() => Err(LlmError::Cancelled),
-            r = self.provider.stream(request, cancel.clone()) => r,
+            () = cancel.cancelled() => Err(Fail::Llm(LlmError::Cancelled)),
+            () = until(at) => Err(Fail::Timeout(lim.map_or("timeout", |l| l.1))),
+            r = self.provider.stream(request, cancel.clone()) => r.map_err(Fail::Llm),
         };
         let mut stream = match started {
             Ok(s) => s,
@@ -387,17 +554,20 @@ impl Agent {
         let mut text = String::new();
         let mut reasoning = String::new();
         let mut partial: BTreeMap<u32, PartialCall> = BTreeMap::new();
-        let mut failure: Option<LlmError> = None;
+        let mut failure: Option<Fail> = None;
         loop {
             let next = tokio::select! {
                 biased;
-                () = cancel.cancelled() => Some(Err(LlmError::Cancelled)),
-                n = stream.next() => n,
+                () = cancel.cancelled() => Some(Err(Fail::Llm(LlmError::Cancelled))),
+                () = until(at) => Some(Err(Fail::Timeout(lim.map_or("timeout", |l| l.1)))),
+                n = stream.next() => n.map(|r| r.map_err(Fail::Llm)),
             };
             let ev = match next {
                 None => {
                     if out.finish.is_none() {
-                        failure = Some(LlmError::Protocol("stream ended without finish".into()));
+                        failure = Some(Fail::Llm(LlmError::Protocol(
+                            "stream ended without finish".into(),
+                        )));
                     }
                     break;
                 }
@@ -469,12 +639,13 @@ impl Agent {
         &mut self,
         step: u32,
         out: StepOut,
-        e: LlmError,
+        e: Fail,
     ) -> Result<(StepOut, Option<Stop>)> {
-        if matches!(e, LlmError::Cancelled) {
-            return Ok((out, Some(Stop::Cancelled)));
-        }
-        let msg = e.to_string();
+        let msg = match e {
+            Fail::Llm(LlmError::Cancelled) => return Ok((out, Some(Stop::Cancelled))),
+            Fail::Llm(e) => e.to_string(),
+            Fail::Timeout(what) => format!("{what} exceeded"),
+        };
         self.log(EventKind::AssistantAttempt {
             step,
             attempt: 1,
@@ -549,61 +720,121 @@ impl Agent {
         Ok(())
     }
 
-    /// Run calls in order through the pipeline. Every call gets exactly one result, also
-    /// after a cancel (the remaining ones are answered, not skipped).
+    /// Run calls through the pipeline in order; consecutive `task` calls run together as one
+    /// batch. Every call gets exactly one result, also after a cancel or timeout (the
+    /// remaining ones are answered, not skipped).
     async fn tool_phase(
         &mut self,
         calls: &[ToolCall],
         cancel: &CancellationToken,
+        deadline: Option<Instant>,
     ) -> Result<Option<Stop>> {
         let tools = self.tools.clone();
         let mut stop = None;
-        for call in calls {
+        let mut i = 0;
+        while i < calls.len() {
+            let mut j = i + 1;
+            if parallel_tool(&calls[i].name) {
+                while j < calls.len() && parallel_tool(&calls[j].name) {
+                    j += 1;
+                }
+            }
+            let batch = &calls[i..j];
+            i = j;
             if stop.is_some() {
-                self.log_result(&call.id, CANCELLED_RESULT, true)?;
+                for call in batch {
+                    self.log_result(&call.id, CANCELLED_RESULT, true)?;
+                }
                 continue;
             }
-            let ctx = ToolCtx {
-                call_id: call.id.clone(),
-                session_id: Some(self.writer.session_id().to_owned()),
-                cwd: self.cfg.cwd.clone(),
+
+            // Subagents are bounded by their own guards; a parked approval is the user's time.
+            let per_call = if parallel_tool(&batch[0].name) {
+                None
+            } else {
+                self.cfg.guards.tool_timeout
             };
-            let res = {
-                let run = tools.run(ctx, &call.name, call.arguments.clone());
-                tokio::pin!(run);
-                loop {
-                    // Approval traffic is logged here, while the call is parked.
-                    let step = tokio::select! {
-                        biased;
-                        () = cancel.cancelled() => None,
-                        ev = self.gate_rx.recv() => Some(Err(ev)),
-                        r = &mut run => Some(Ok(r)),
-                    };
-                    match step {
-                        None => break None,
-                        Some(Err(ev)) => {
-                            if let Some(ev) = ev {
-                                self.log_gate(ev).await?;
-                            }
+            let session_id = self.writer.session_id().to_owned();
+            let cwd = self.cfg.cwd.clone();
+            let run = futures::future::join_all(batch.iter().map(|call| {
+                let ctx = ToolCtx {
+                    call_id: call.id.clone(),
+                    session_id: Some(session_id.clone()),
+                    cwd: cwd.clone(),
+                };
+                tools.run(ctx, &call.name, call.arguments.clone())
+            }));
+            tokio::pin!(run);
+            let rearm = |d: Option<std::time::Duration>| d.map(|d| Instant::now() + d);
+            let mut call_at = rearm(per_call);
+            let end = loop {
+                // Approval traffic is logged here, while the calls are parked.
+                let armed = if self.open_approvals.is_empty() {
+                    call_at
+                } else {
+                    None
+                };
+                let ev = tokio::select! {
+                    biased;
+                    () = cancel.cancelled() => BatchEnd::Cancelled,
+                    () = until(deadline) => BatchEnd::TurnTimeout,
+                    () = until(armed) => BatchEnd::ToolTimeout("tool call"),
+                    ev = self.gate_rx.recv() => BatchEnd::Gate(ev),
+                    r = &mut run => BatchEnd::Done(r),
+                };
+                match ev {
+                    BatchEnd::Gate(ev) => {
+                        if let Some(ev) = ev {
+                            self.log_gate(ev).await?;
                         }
-                        Some(Ok(r)) => break Some(r),
+                        // The clock restarts once the human has answered.
+                        call_at = rearm(per_call);
                     }
+                    other => break other,
                 }
             };
-            // Responses queued just before the call woke must precede its result.
+            // Responses queued just before the calls woke must precede their results.
             while let Ok(ev) = self.gate_rx.try_recv() {
                 self.log_gate(ev).await?;
             }
-            if res.is_none() {
+            if !matches!(end, BatchEnd::Done(_)) {
                 self.cancel_open_approvals().await?;
             }
-            match res {
-                Some(Ok(o)) => self.log_result(&call.id, o.content, o.is_error)?,
-                Some(Err(e)) => self.log_result(&call.id, e.to_output().content, true)?,
-                None => {
-                    stop = Some(Stop::Cancelled);
-                    self.log_result(&call.id, CANCELLED_RESULT, true)?;
+            match end {
+                BatchEnd::Done(rs) => {
+                    for (call, r) in batch.iter().zip(rs) {
+                        match r {
+                            Ok(o) => self.log_result(&call.id, o.content, o.is_error)?,
+                            Err(e) => self.log_result(&call.id, e.to_output().content, true)?,
+                        }
+                    }
                 }
+                BatchEnd::Cancelled => {
+                    stop = Some(Stop::Cancelled);
+                    for call in batch {
+                        self.log_result(&call.id, CANCELLED_RESULT, true)?;
+                    }
+                }
+                BatchEnd::TurnTimeout => {
+                    stop = Some(Stop::Failed("turn timeout exceeded".to_owned()));
+                    for call in batch {
+                        self.log_result(&call.id, "tool call aborted: turn timeout", true)?;
+                    }
+                }
+                BatchEnd::ToolTimeout(what) => {
+                    let secs = per_call.map_or(0, |d| d.as_secs_f64() as u64);
+                    for call in batch {
+                        self.log_result(
+                            &call.id,
+                            format!(
+                                "{what} `{}` timed out after {secs}s and was aborted",
+                                call.name
+                            ),
+                            true,
+                        )?;
+                    }
+                }
+                BatchEnd::Gate(_) => unreachable!("gate events are handled in the loop"),
             }
         }
         Ok(stop)

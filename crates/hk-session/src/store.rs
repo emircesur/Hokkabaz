@@ -86,6 +86,12 @@ impl SessionStore {
         self.create_with_parent(new, None)
     }
 
+    /// Create a session whose `session/start` links to `parent` without copying history
+    /// (subagent child sessions; `fork` is the copying variant).
+    pub fn create_child(&self, new: NewSession, parent: ParentRef) -> Result<SessionWriter> {
+        self.create_with_parent(new, Some(parent))
+    }
+
     fn create_with_parent(
         &self,
         new: NewSession,

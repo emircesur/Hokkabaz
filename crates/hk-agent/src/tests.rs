@@ -832,3 +832,564 @@ async fn respond_to_unknown_id_is_false() {
     let e = env(vec![]);
     assert!(!e.agent.handle().respond("appr_nope", true, None));
 }
+
+/// P2.8 subagents and P2.9 compaction + guards.
+mod p2 {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use hk_llm::ModelCost;
+    use hk_session::ParentRef;
+
+    use super::*;
+    use crate::compaction::{COMPACT_PROMPT, SUMMARY_PREFIX};
+    use crate::{ChildApprovals, CompactionConfig, SubagentRunner, TaskTool};
+
+    /// Counts overlapping executions; `peak` is the observed fan-out.
+    struct Gauge {
+        cur: AtomicUsize,
+        peak: Arc<AtomicUsize>,
+    }
+    #[async_trait]
+    impl Tool for Gauge {
+        fn spec(&self) -> ToolSpec {
+            ToolSpec {
+                name: "gauge".into(),
+                description: "gauge".into(),
+                parameters: json!({"type":"object"}),
+            }
+        }
+        async fn execute(&self, _: ToolCtx, _: Value) -> Result<ToolOutput, ToolError> {
+            let n = self.cur.fetch_add(1, Ordering::SeqCst) + 1;
+            self.peak.fetch_max(n, Ordering::SeqCst);
+            tokio::time::sleep(Duration::from_millis(30)).await;
+            self.cur.fetch_sub(1, Ordering::SeqCst);
+            Ok(ToolOutput::ok("gauged"))
+        }
+    }
+
+    struct Sub {
+        agent: Agent,
+        fake: Arc<Fake>,
+        store: SessionStore,
+        id: String,
+        peak: Arc<AtomicUsize>,
+        ran: Arc<Mutex<Vec<String>>>,
+        _dir: tempfile::TempDir,
+    }
+
+    fn sub_env(fake: Arc<Fake>, parallel: usize, approvals: ChildApprovals) -> Sub {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SessionStore::open(dir.path().join("s")).unwrap();
+        let writer = store.create(NewSession::default()).unwrap();
+        let id = writer.session_id().to_owned();
+        let reg = ToolRegistry::new();
+        let peak = Arc::new(AtomicUsize::new(0));
+        let ran = Arc::new(Mutex::new(Vec::new()));
+        std::mem::forget(reg.register(Arc::new(Echo)).unwrap());
+        std::mem::forget(
+            reg.register(Arc::new(Gauge {
+                cur: AtomicUsize::new(0),
+                peak: peak.clone(),
+            }))
+            .unwrap(),
+        );
+        std::mem::forget(
+            reg.register(Arc::new(Gated {
+                name: "write",
+                ran: ran.clone(),
+            }))
+            .unwrap(),
+        );
+        let limits = OutputLimits::new(dir.path().join("spill"));
+        let runner = SubagentRunner::new(
+            fake.clone(),
+            store.clone(),
+            reg.clone(),
+            limits.clone(),
+            AgentConfig::new("child-m"),
+        )
+        .max_parallel(parallel)
+        .approvals(approvals);
+        std::mem::forget(
+            reg.register(Arc::new(TaskTool::new(Arc::new(runner))))
+                .unwrap(),
+        );
+        let bus = EventBus::new();
+        let pipe = ToolPipeline::new(reg, bus.clone(), limits);
+        let agent = Agent::new(fake.clone(), pipe, bus, AgentConfig::new("m"), writer).unwrap();
+        Sub {
+            agent,
+            fake,
+            store,
+            id,
+            peak,
+            ran,
+            _dir: dir,
+        }
+    }
+
+    fn task_call(id: &str, prompt: &str) -> StreamEvent {
+        StreamEvent::ToolCallDelta {
+            index: u32::from(id == "t2"),
+            id: Some(id.into()),
+            name: Some("task".into()),
+            arguments_delta: json!({"prompt": prompt, "description": "job"}).to_string(),
+        }
+    }
+
+    fn two_tasks() -> Script {
+        vec![
+            Ok(task_call("t1", "one")),
+            Ok(task_call("t2", "two")),
+            Ok(StreamEvent::Finish(FinishReason::ToolCalls)),
+        ]
+    }
+
+    fn tool_results(log: &[hk_session::SessionEvent]) -> Vec<(String, String, bool)> {
+        log.iter()
+            .filter_map(|ev| match &ev.kind {
+                EventKind::ToolResult {
+                    call_id,
+                    content,
+                    is_error,
+                } => Some((call_id.clone(), content.clone(), *is_error)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn child_id(result: &str) -> String {
+        result
+            .rsplit("[subagent session ")
+            .next()
+            .unwrap()
+            .trim_end_matches(']')
+            .to_owned()
+    }
+
+    #[tokio::test]
+    async fn parent_receives_child_result_and_child_log_links_parent() {
+        let fake = Fake::new(vec![
+            vec![
+                Ok(task_call("t1", "find x")),
+                Ok(StreamEvent::Finish(FinishReason::ToolCalls)),
+            ],
+            text("found x"),
+            text("thanks"),
+        ]);
+        let mut s = sub_env(fake, 2, ChildApprovals::Deny);
+        s.agent.handle().submit("delegate");
+        let sum = s.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!(sum.reason, TurnEndReason::Completed);
+
+        let log = s.store.read(&s.id).unwrap();
+        let res = tool_results(&log);
+        assert_eq!(res.len(), 1);
+        assert!(!res[0].2, "{res:?}");
+        assert!(res[0].1.starts_with("found x"), "{res:?}");
+
+        // child session: separate log, parent ref points at the spawning tool/call
+        let cid = child_id(&res[0].1);
+        assert_ne!(cid, s.id);
+        let child = s.store.read(&cid).unwrap();
+        let call_seq = log
+            .iter()
+            .find(|e| matches!(e.kind, EventKind::ToolCall { .. }))
+            .unwrap()
+            .seq;
+        match &child[0].kind {
+            EventKind::SessionStart { parent, title, .. } => {
+                assert_eq!(
+                    parent,
+                    &Some(ParentRef {
+                        session_id: s.id.clone(),
+                        seq: call_seq
+                    })
+                );
+                assert_eq!(title.as_deref(), Some("job"));
+            }
+            k => panic!("first child event: {k:?}"),
+        }
+        // child saw only its prompt, never the parent history, and has no `task` tool
+        let reqs = s.fake.requests();
+        assert_eq!(reqs[1].model, "child-m");
+        assert_eq!(derive_messages(&child[..3]), reqs[1].messages);
+        assert_eq!(reqs[1].messages.len(), 1);
+        assert!(reqs[1].tools.iter().all(|t| t.name != "task"));
+        assert!(reqs[0].tools.iter().any(|t| t.name == "task"));
+        // parent log carries the answer, not the child's messages
+        assert!(
+            !log.iter().any(
+                |e| matches!(&e.kind, EventKind::UserMessage { content } if content == "find x")
+            )
+        );
+        // parent's second request is replayable from its own log
+        assert_eq!(reqs[2].messages.last().unwrap().role, Role::Tool);
+    }
+
+    async fn peak_for(
+        parallel: usize,
+        scripts: Vec<Script>,
+    ) -> (usize, Vec<(String, String, bool)>) {
+        let mut s = sub_env(Fake::new(scripts), parallel, ChildApprovals::Deny);
+        s.agent.handle().submit("fan out");
+        let sum = s.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!(sum.reason, TurnEndReason::Completed);
+        let res = tool_results(&s.store.read(&s.id).unwrap());
+        (s.peak.load(Ordering::SeqCst), res)
+    }
+
+    #[tokio::test]
+    async fn parallel_limit_bounds_concurrent_children() {
+        // Scripts are consumed in request order across all agents; with two slots both
+        // children reach `gauge` before either asks for its second reply.
+        let (peak2, res) = peak_for(
+            2,
+            vec![
+                two_tasks(),
+                call("g1", "gauge", "{}"),
+                call("g2", "gauge", "{}"),
+                text("A"),
+                text("B"),
+                text("done"),
+            ],
+        )
+        .await;
+        assert_eq!(peak2, 2);
+        assert_eq!(res.len(), 2);
+        assert!(
+            res[0].1.starts_with('A') && res[1].1.starts_with('B'),
+            "{res:?}"
+        );
+
+        // One slot: the second child starts only after the first finished.
+        let (peak1, res) = peak_for(
+            1,
+            vec![
+                two_tasks(),
+                call("g1", "gauge", "{}"),
+                text("A"),
+                call("g2", "gauge", "{}"),
+                text("B"),
+                text("done"),
+            ],
+        )
+        .await;
+        assert_eq!(peak1, 1);
+        assert!(
+            res[0].1.starts_with('A') && res[1].1.starts_with('B'),
+            "{res:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_child_becomes_error_result_and_approvals_are_denied() {
+        let fake = Fake::new(vec![
+            vec![
+                Ok(task_call("t1", "write it")),
+                Ok(StreamEvent::Finish(FinishReason::ToolCalls)),
+            ],
+            // child asks to write: nobody can approve, so it is denied, not parked
+            call("w1", "write", "{}"),
+            vec![Err(LlmError::Protocol("boom".into()))],
+            text("ok"),
+        ]);
+        let mut s = sub_env(fake, 2, ChildApprovals::Deny);
+        s.agent.handle().submit("go");
+        let sum = s.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!(sum.reason, TurnEndReason::Completed);
+        assert!(s.ran.lock().unwrap().is_empty());
+
+        let res = tool_results(&s.store.read(&s.id).unwrap());
+        assert!(res[0].2 && res[0].1.contains("Failed"), "{res:?}");
+        let child = s.store.read(&child_id(&res[0].1)).unwrap();
+        let child_res = tool_results(&child);
+        assert!(
+            child_res[0].2 && child_res[0].1.contains("denied"),
+            "{child_res:?}"
+        );
+        assert!(child.iter().any(|e| matches!(
+            &e.kind,
+            EventKind::ApprovalResponse {
+                approved: false,
+                ..
+            }
+        )));
+    }
+
+    // ---- compaction ----
+
+    fn cfg_compact(c: &mut AgentConfig, keep: usize) {
+        c.system = vec!["sys".into()];
+        c.compaction = Some(CompactionConfig {
+            threshold_tokens: 1,
+            keep_recent_steps: keep,
+        });
+    }
+
+    fn header_index(log: &[hk_session::SessionEvent], nth: usize) -> usize {
+        log.iter()
+            .enumerate()
+            .filter(|(_, e)| matches!(e.kind, EventKind::RequestHeader(_)))
+            .nth(nth)
+            .unwrap()
+            .0
+    }
+
+    #[tokio::test]
+    async fn compaction_replaces_old_history_and_keeps_log_replayable() {
+        let mut e = env_with(
+            Fake::new(vec![
+                call("a", "echo", r#"{"text":"a"}"#),
+                call("b", "echo", r#"{"text":"b"}"#),
+                call("c", "echo", r#"{"text":"c"}"#),
+                text("SUMMARY-ONE"),
+                text("final"),
+            ]),
+            |c| cfg_compact(c, 2),
+        );
+        e.agent.handle().submit("go");
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!((s.reason, s.steps), (TurnEndReason::Completed, 4));
+        assert_paired(&e);
+
+        let log = e.store.read(&e.id).unwrap();
+        let comp: Vec<_> = log
+            .iter()
+            .filter_map(|ev| match &ev.kind {
+                EventKind::CompactionSummary {
+                    summary,
+                    through_seq,
+                } => Some((ev.seq, summary.clone(), *through_seq)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(comp.len(), 1);
+        assert!(comp[0].1.starts_with(SUMMARY_PREFIX) && comp[0].1.contains("SUMMARY-ONE"));
+        assert!(comp[0].2 < comp[0].0);
+
+        let reqs = e.fake.requests();
+        // summary request = derive(head) + the fixed prompt: sys, user, asst(a), tool(a), prompt
+        assert_eq!(reqs[3].messages.len(), 5);
+        assert_eq!(reqs[3].messages[4].content, COMPACT_PROMPT);
+        assert!(reqs[3].tools.is_empty());
+        // the next real request is exactly derive(log before its header)
+        let h = header_index(&log, 3);
+        assert_eq!(reqs[4].messages, derive_messages(&log[..h]));
+        let m = &reqs[4].messages;
+        assert_eq!(m[0].role, Role::System);
+        assert!(m[1].content.contains("SUMMARY-ONE") && m[1].role == Role::User);
+        let all: String = m.iter().map(|x| x.content.clone()).collect();
+        assert!(!all.contains("echo:a"), "compacted result still visible");
+        assert!(all.contains("echo:b") && all.contains("echo:c"));
+        // reopening the log yields the same model history
+        assert_eq!(derive_messages(&log), derive_messages(e.agent.events()));
+    }
+
+    #[tokio::test]
+    async fn second_compaction_folds_the_first_summary_in() {
+        let mut e = env_with(
+            Fake::new(vec![
+                call("a", "echo", r#"{"text":"a"}"#),
+                call("b", "echo", r#"{"text":"b"}"#),
+                text("SUM1"),
+                call("c", "echo", r#"{"text":"c"}"#),
+                call("d", "echo", r#"{"text":"d"}"#),
+                text("SUM2"),
+                text("final"),
+            ]),
+            |c| cfg_compact(c, 1),
+        );
+        e.agent.handle().submit("go");
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!(s.reason, TurnEndReason::Completed);
+        assert_paired(&e);
+
+        let reqs = e.fake.requests();
+        // second summary request saw the first summary, not the raw history it replaced
+        let sum2 = &reqs[5].messages;
+        assert_eq!(sum2.last().unwrap().content, COMPACT_PROMPT);
+        assert!(sum2.iter().any(|m| m.content.contains("SUM1")));
+        assert!(!sum2.iter().any(|m| m.content.contains("echo:a")));
+
+        let last = &reqs.last().unwrap().messages;
+        let summaries: Vec<_> = last
+            .iter()
+            .filter(|m| m.content.starts_with(SUMMARY_PREFIX))
+            .collect();
+        assert_eq!(summaries.len(), 1, "{last:?}");
+        assert!(summaries[0].content.contains("SUM2"));
+        assert!(!last.iter().any(|m| m.content.contains("SUM1")));
+        let log = e.store.read(&e.id).unwrap();
+        let h = header_index(&log, 4);
+        assert_eq!(*last, derive_messages(&log[..h]));
+    }
+
+    #[tokio::test]
+    async fn failed_summary_leaves_history_intact() {
+        let mut e = env_with(
+            Fake::new(vec![
+                call("a", "echo", r#"{"text":"a"}"#),
+                call("b", "echo", r#"{"text":"b"}"#),
+                vec![Err(LlmError::Protocol("no summary".into()))],
+                text("final"),
+            ]),
+            |c| cfg_compact(c, 1),
+        );
+        e.agent.handle().submit("go");
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!(s.reason, TurnEndReason::Completed);
+        let log = e.store.read(&e.id).unwrap();
+        assert!(
+            !log.iter()
+                .any(|ev| matches!(ev.kind, EventKind::CompactionSummary { .. }))
+        );
+        assert!(log.iter().any(|ev| matches!(
+            &ev.kind,
+            EventKind::AssistantAttempt { error: Some(m), .. } if m.contains("compaction failed")
+        )));
+        assert_paired(&e);
+    }
+
+    #[tokio::test]
+    async fn manual_compact_across_turns() {
+        let mut e = env_with(
+            Fake::new(vec![text("r1"), text("r2"), text("SUM"), text("r3")]),
+            |c| c.system = vec!["sys".into()],
+        );
+        let h = e.agent.handle();
+        for m in ["u1", "u2"] {
+            h.submit(m);
+            e.agent.run_until_idle().await.unwrap();
+        }
+        // default keep (4 steps) is longer than this log: nothing to cut
+        assert!(!e.agent.compact().await.unwrap());
+        e.agent.set_config({
+            let mut c = AgentConfig::new("m");
+            c.compaction = Some(CompactionConfig {
+                threshold_tokens: u64::MAX,
+                keep_recent_steps: 1,
+            });
+            c
+        });
+        assert!(e.agent.compact().await.unwrap());
+        h.submit("u3");
+        e.agent.run_until_idle().await.unwrap();
+        let reqs = e.fake.requests();
+        let last = &reqs.last().unwrap().messages;
+        let roles: Vec<_> = last.iter().map(|m| (m.role, m.content.as_str())).collect();
+        assert!(
+            roles[0].0 == Role::System && roles[1].1.contains("SUM"),
+            "{roles:?}"
+        );
+        assert!(!roles.iter().any(|(_, c)| *c == "u1"));
+        assert!(roles.iter().any(|(_, c)| *c == "u2") && roles.iter().any(|(_, c)| *c == "u3"));
+    }
+
+    // ---- guards ----
+
+    #[tokio::test]
+    async fn repeated_identical_call_gets_reminder_then_aborts() {
+        let same = |i: usize| call(&format!("x{i}"), "echo", r#"{"text":"same"}"#);
+        let mut e = env_with(
+            Fake::new(vec![same(0), same(1), same(2), text("fine")]),
+            |_| {},
+        );
+        e.agent.handle().submit("go");
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!((s.reason, s.steps), (TurnEndReason::Completed, 4));
+        let log = e.store.read(&e.id).unwrap();
+        let reminder = log.iter().position(|ev| {
+            matches!(&ev.kind, EventKind::UserMessage { content } if content.contains("identical arguments"))
+        });
+        // logged before the 4th request, which therefore carries it
+        assert!(reminder.is_some());
+        assert!(
+            e.fake.requests()[3]
+                .messages
+                .iter()
+                .any(|m| m.content.contains("identical arguments"))
+        );
+
+        let mut e = env_with(Fake::new((0..8).map(same).collect()), |c| {
+            c.guards.repeat_remind_after = 2;
+            c.guards.repeat_abort_after = 4;
+        });
+        e.agent.handle().submit("go");
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!((s.reason, s.steps), (TurnEndReason::Failed, 4));
+        assert!(s.error.unwrap().contains("repeat guard"));
+        assert_eq!(e.fake.requests().len(), 4);
+        assert_paired(&e);
+    }
+
+    #[tokio::test]
+    async fn step_timeout_fails_a_hung_request() {
+        let mut e = env_with(Fake::with_hang(vec![(Vec::new(), true)]), |c| {
+            c.guards.step_timeout = Some(Duration::from_millis(50));
+        });
+        e.agent.handle().submit("go");
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!(s.reason, TurnEndReason::Failed);
+        assert!(s.error.unwrap().contains("step timeout exceeded"));
+        assert_eq!(names(&e).last().unwrap(), "turn/end:Failed");
+    }
+
+    #[tokio::test]
+    async fn tool_timeout_errors_the_call_and_the_turn_goes_on() {
+        let mut e = env_with(
+            Fake::new(vec![call("s", "slow", "{}"), text("recovered")]),
+            |c| c.guards.tool_timeout = Some(Duration::from_millis(50)),
+        );
+        e.agent.handle().submit("go");
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!((s.reason, s.steps), (TurnEndReason::Completed, 2));
+        let r = results(&e);
+        assert!(r[0].2 && r[0].1.contains("timed out"), "{r:?}");
+        assert_paired(&e);
+    }
+
+    #[tokio::test]
+    async fn turn_timeout_aborts_running_tool_and_fails_turn() {
+        let mut e = env_with(Fake::new(vec![call("s", "slow", "{}")]), |c| {
+            c.guards.turn_timeout = Some(Duration::from_millis(80));
+        });
+        e.agent.handle().submit("go");
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!(s.reason, TurnEndReason::Failed);
+        assert!(s.error.unwrap().contains("turn timeout"));
+        assert_paired(&e);
+    }
+
+    #[tokio::test]
+    async fn cost_cap_stops_a_continuing_turn_but_not_a_finished_one() {
+        let usage = Usage {
+            input_tokens: 1000,
+            ..Default::default()
+        };
+        let price = ModelCost {
+            input: 1000.0, // $1 for 1000 tokens
+            ..Default::default()
+        };
+        let cap = |c: &mut AgentConfig| {
+            c.guards.max_cost_usd = Some(0.5);
+            c.guards.price = Some(price);
+        };
+        let mut with_call = call("c", "echo", r#"{"text":"a"}"#);
+        with_call.insert(1, Ok(StreamEvent::Usage(usage)));
+        let mut e = env_with(Fake::new(vec![with_call, text("never")]), cap);
+        e.agent.handle().submit("go");
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!((s.reason, s.steps), (TurnEndReason::Failed, 1));
+        assert!(s.error.unwrap().contains("cost cap exceeded"));
+        assert_eq!(e.fake.requests().len(), 1);
+        assert_paired(&e);
+
+        let mut done = text("answer");
+        done.insert(1, Ok(StreamEvent::Usage(usage)));
+        let mut e = env_with(Fake::new(vec![done]), cap);
+        e.agent.handle().submit("go");
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!(s.reason, TurnEndReason::Completed);
+    }
+}

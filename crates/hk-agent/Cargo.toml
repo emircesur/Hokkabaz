@@ -11,6 +11,7 @@ publish = false
 workspace = true
 
 [dependencies]
+async-trait = "0.1"
 futures = "0.3"
 hk-core = { version = "0.0.0", path = "../hk-core" }
 hk-llm = { version = "0.0.0", path = "../hk-llm" }
@@ -18,10 +19,9 @@ hk-session = { version = "0.0.0", path = "../hk-session" }
 hk-tools = { version = "0.0.0", path = "../hk-tools" }
 serde_json = "1"
 thiserror = "2"
-tokio = { version = "1", features = ["macros", "sync"] }
+tokio = { version = "1", features = ["macros", "sync", "time"] }
 tracing = "0.1"
 
 [dev-dependencies]
-async-trait = "0.1"
 tempfile = "3"
 tokio = { version = "1", features = ["rt", "macros", "time"] }
