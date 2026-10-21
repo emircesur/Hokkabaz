@@ -53,7 +53,7 @@ Rules:
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
-| P1.1 📜 | A | `hk-core`: Host, Ctx, service registry, typed EventBus with interceptors, Effect guards, plugin load/unload | P0.1 | L | unit | load/unload unwinds effects; interceptor reject/rewrite works | todo |
+| P1.1 📜 | A | `hk-core`: Host, Ctx, service registry, typed EventBus with interceptors, Effect guards, plugin load/unload | P0.1 | L | unit | load/unload unwinds effects; interceptor reject/rewrite works | done |
 | P1.2 📜 | A | `hk-core` config layers (defaults→profile→user→project→env), TOML, id-patch semantics, profiles `cli/desktop/mobile/daemon` | P1.1 | M | unit | layered config resolves; dump-config prints tree | todo |
 | P1.3 📜 | A | `hk-session`: event types, JSONL writer (fsync on turn end), reader, SQLite index, `derive_messages`, fork | P1.1 | L | unit | replay of fixture log yields exact messages; fork at turn works | todo |
 | P1.4 📜 | B | `hk-llm`: `Provider` trait, `ChatRequest`, `StreamEvent`, `ModelInfo`, cancellation, usage/cost types | P0.1 | M | none | trait compiles, docs on each type | done — check+clippy clean; deps: async-trait, futures, serde, serde_json, thiserror, tokio-util |
