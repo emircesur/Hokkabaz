@@ -144,6 +144,8 @@ pub enum AuthError {
     Exists,
     #[error("scopes must not be empty")]
     NoScopes,
+    #[error("bootstrap token must be at least 24 characters without whitespace")]
+    WeakToken,
     #[error("bad stored token table: {0}")]
     Corrupt(String),
 }
@@ -212,6 +214,27 @@ impl Auth {
             }
         }
         Ok(auth)
+    }
+
+    /// Pin the stored token of tier `scope` to an operator-supplied value (container secrets,
+    /// provisioning). Run before [`Auth::load_or_create`]. Returns whether it changed anything.
+    /// Rejects values that are too short to be unguessable.
+    pub async fn bootstrap_tier_token(
+        store: &Store,
+        secrets: &dyn SecretStore,
+        scope: Scope,
+        token: &str,
+    ) -> Result<bool, AuthError> {
+        let token = token.trim();
+        if token.len() < 24 || token.chars().any(char::is_whitespace) {
+            return Err(AuthError::WeakToken);
+        }
+        let name = scope.tier_secret_name();
+        if store.get_secret(secrets, &name)?.is_some_and(|t| t.expose() == token) {
+            return Ok(false);
+        }
+        store.put_secret(secrets, &name, Secret::new(token)).await?;
+        Ok(true)
     }
 
     /// Mint and persist a named token with `scopes`. The returned secret is the only time the

@@ -174,6 +174,7 @@ class _MessageList extends StatelessWidget {
     // view while streaming without any scroll bookkeeping.
     return ListView.separated(
       reverse: true,
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.all(HkTokens.s4),
       itemCount: items.length,
       separatorBuilder: (_, _) => const SizedBox(height: HkTokens.s3),

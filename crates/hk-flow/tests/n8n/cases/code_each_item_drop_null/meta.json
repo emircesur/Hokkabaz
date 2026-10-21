@@ -1,0 +1,8 @@
+{
+  "description": "Per-item mode: returning null drops that item.",
+  "status": "active",
+  "nodes": [
+    "code"
+  ],
+  "docs": "https://docs.n8n.io/code/code-node/"
+}

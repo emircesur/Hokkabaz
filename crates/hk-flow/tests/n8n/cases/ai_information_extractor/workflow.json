@@ -1,0 +1,44 @@
+{
+  "name": "ai_information_extractor",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-0000000000c1",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.bio }}",
+        "schemaType": "fromAttributes",
+        "attributes": {
+          "attributes": [
+            { "name": "name", "type": "string", "description": "Full name", "required": true },
+            { "name": "age", "type": "number", "description": "Age in years", "required": true },
+            { "name": "employer", "type": "string", "description": "Current employer" }
+          ]
+        }
+      },
+      "id": "00000000-0000-4000-8000-0000000000c2",
+      "name": "Information Extractor",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": { "model": "scripted-extractor", "options": {} },
+      "id": "00000000-0000-4000-8000-0000000000c3",
+      "name": "Anthropic Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [240, 240]
+    }
+  ],
+  "connections": {
+    "Trigger": { "main": [[{ "node": "Information Extractor", "type": "main", "index": 0 }]] },
+    "Anthropic Chat Model": { "ai_languageModel": [[{ "node": "Information Extractor", "type": "ai_languageModel", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

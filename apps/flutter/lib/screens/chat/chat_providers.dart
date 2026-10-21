@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ffi/ffi.dart';
+import '../../ffi/notifications.dart';
 import '../../src/rust/api/chat.dart' as chat;
 import '../../src/rust/api/settings.dart' as settings;
 import '../../src/rust/dto.dart';
@@ -135,6 +136,7 @@ class ChatController extends Notifier<ChatState> {
       _early.clear();
       _historyReady = true;
       state = s;
+      _syncApprovals();
     } catch (e) {
       if (_disposed) return;
       _historyReady = true;
@@ -149,10 +151,26 @@ class ChatController extends Notifier<ChatState> {
       return;
     }
     state = reduceEvent(state, e);
+    _syncApprovals();
     if (e.kind == SessionEventKind.titleChanged ||
         e.kind == SessionEventKind.turnEnded) {
       unawaited(ref.read(sessionListProvider.notifier).refresh());
     }
+  }
+
+  /// Publishes pending approvals so the shell can badge / banner them even
+  /// when another tab is open.
+  void _syncApprovals() {
+    if (_disposed) return;
+    ref.read(approvalInboxProvider.notifier).sync(sessionId, [
+      for (final t in state.pendingApprovals)
+        ApprovalNotice(
+          sessionId: sessionId,
+          approvalId: t.approval!.id,
+          tool: t.name,
+          detail: t.approval!.detail,
+        ),
+    ]);
   }
 
   void _notice(String text) {

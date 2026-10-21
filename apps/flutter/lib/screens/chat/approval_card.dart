@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/breakpoints.dart';
 import '../../theme/tokens.dart';
 import 'chat_model.dart';
 import 'chat_providers.dart';
@@ -40,6 +41,43 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
     // On success the resolved event rebuilds this card away; on failure let
     // the user retry.
     if (mounted) setState(() => _busy = false);
+  }
+
+  /// Full-width 48dp buttons on touch layouts; compact pair on desktop.
+  Widget _buttons(BuildContext context) {
+    final narrow = isNarrow(context);
+    final style = narrow
+        ? ButtonStyle(
+            minimumSize: const WidgetStatePropertyAll(Size(88, kTouchTarget)),
+          )
+        : null;
+    final deny = OutlinedButton(
+      style: style,
+      onPressed: _busy ? null : () => _respond(false),
+      child: const Text('Deny'),
+    );
+    final approve = FilledButton(
+      style: style,
+      onPressed: _busy ? null : () => _respond(true),
+      child: const Text('Approve'),
+    );
+    if (narrow) {
+      return Row(
+        children: [
+          Expanded(child: deny),
+          const SizedBox(width: HkTokens.s2),
+          Expanded(child: approve),
+        ],
+      );
+    }
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        deny,
+        const SizedBox(width: HkTokens.s2),
+        approve,
+      ],
+    );
   }
 
   @override
@@ -83,27 +121,14 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
           TextField(
             controller: _reason,
             enabled: !_busy,
-            decoration: const InputDecoration(
-              isDense: true,
+            decoration: InputDecoration(
+              isDense: !isNarrow(context),
               hintText: 'Reason (optional)',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: HkTokens.s2),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              OutlinedButton(
-                onPressed: _busy ? null : () => _respond(false),
-                child: const Text('Deny'),
-              ),
-              const SizedBox(width: HkTokens.s2),
-              FilledButton(
-                onPressed: _busy ? null : () => _respond(true),
-                child: const Text('Approve'),
-              ),
-            ],
-          ),
+          _buttons(context),
         ],
       ),
     );

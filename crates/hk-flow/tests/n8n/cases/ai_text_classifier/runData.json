@@ -1,0 +1,16 @@
+{
+  "Trigger": [
+    { "data": { "main": [[
+      { "json": { "message": "I was charged twice for my invoice" } },
+      { "json": { "message": "Nice weather today" } },
+      { "json": { "message": "The export button crashes the app" } }
+    ]] } }
+  ],
+  "Text Classifier": [
+    { "data": { "main": [
+      [ { "json": { "message": "I was charged twice for my invoice" } } ],
+      [ { "json": { "message": "The export button crashes the app" } } ],
+      [ { "json": { "message": "Nice weather today" } } ]
+    ] } }
+  ]
+}

@@ -21,12 +21,15 @@
 //! | HTTP Request | `httpRequest` | 4 - 4.2 (feature `http`) |
 //! | Manual / Schedule / Webhook / Form / Chat / Execute Workflow / Error triggers | | see `triggers/` |
 //! | App Event / File Watch triggers | `hokkabaz.*` | 1 (Hokkabaz native) |
+//! | AI Agent, chains, chat models, memory, tools, parsers, `hokkabaz.agent` | `@n8n/n8n-nodes-langchain.*` | see [`ai`] (feature `ai`) |
 
 use std::sync::Arc;
 
 use crate::error::FlowError;
 use crate::node::{FlowNode, NodeRegistry};
 
+#[cfg(feature = "ai")]
+pub mod ai;
 mod code;
 mod conditions;
 pub(crate) mod date;
@@ -82,6 +85,8 @@ pub fn core_nodes() -> Vec<Arc<dyn FlowNode>> {
             .into_iter()
             .map(|n| Arc::new(n) as Arc<dyn FlowNode>),
     );
+    #[cfg(feature = "ai")]
+    v.extend(ai::ai_nodes());
     v
 }
 

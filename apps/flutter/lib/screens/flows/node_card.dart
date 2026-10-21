@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HardwareKeyboard;
 
+import '../../app/breakpoints.dart';
 import '../../theme/tokens.dart';
 import 'canvas_geometry.dart';
 import 'model/node_types.dart';
@@ -31,6 +32,8 @@ class NodeCardCallbacks {
     required this.onPortDragStart,
     required this.onPortDragUpdate,
     required this.onPortDragEnd,
+    required this.onLongPress,
+    required this.onPortTap,
   });
 
   final void Function(bool additive) onTap;
@@ -40,6 +43,12 @@ class NodeCardCallbacks {
   final void Function(PortRef port, Offset globalPos) onPortDragStart;
   final void Function(Offset globalPos) onPortDragUpdate;
   final void Function(Offset globalPos) onPortDragEnd;
+
+  /// Touch: enter / extend multi-select on this node.
+  final VoidCallback onLongPress;
+
+  /// Touch: tap-to-connect (arm an output, then tap a compatible input).
+  final void Function(PortRef port) onPortTap;
 }
 
 /// Widget for one node, sized `rect.inflate(kPortPad)`: the card plus a margin
@@ -72,6 +81,9 @@ class NodeCard extends StatelessWidget {
     final labeledOuts = layout.outputs.where(
       (p) => p.spec.isMain && p.spec.label.isNotEmpty,
     );
+    // Fingers need a 48dp target; the canvas scale only shrinks it further, so
+    // this is the floor at 100% zoom.
+    final hit = isTouchLayout(context) ? kPortHitTouch : kPortHitMouse;
     final shortName = layout.info?.displayName ?? shortType(node.type);
 
     final border = selected
@@ -88,6 +100,7 @@ class NodeCard extends StatelessWidget {
             HardwareKeyboard.instance.isControlPressed ||
             HardwareKeyboard.instance.isMetaPressed,
       ),
+      onLongPress: callbacks.onLongPress,
       onPanStart: (d) => callbacks.onDragStart(d.globalPosition),
       onPanUpdate: (d) => callbacks.onDragUpdate(d.globalPosition),
       onPanEnd: (_) => callbacks.onDragEnd(),
@@ -192,13 +205,15 @@ class NodeCard extends StatelessWidget {
             ),
           for (final p in [...layout.inputs, ...layout.outputs])
             Positioned(
-              left: p.anchor.dx - r.left + kPortPad - 12,
-              top: p.anchor.dy - r.top + kPortPad - 12,
-              width: 24,
-              height: 24,
+              left: p.anchor.dx - r.left + kPortPad - hit / 2,
+              top: p.anchor.dy - r.top + kPortPad - hit / 2,
+              width: hit,
+              height: hit,
               child: _PortDot(
                 slot: p,
                 target: _isTarget(p),
+                armed: pendingFrom == p.ref,
+                onTap: () => callbacks.onPortTap(p.ref),
                 onStart: (g) => callbacks.onPortDragStart(p.ref, g),
                 onUpdate: callbacks.onPortDragUpdate,
                 onEnd: callbacks.onPortDragEnd,
@@ -222,6 +237,8 @@ class _PortDot extends StatefulWidget {
   const _PortDot({
     required this.slot,
     required this.target,
+    required this.armed,
+    required this.onTap,
     required this.onStart,
     required this.onUpdate,
     required this.onEnd,
@@ -229,6 +246,8 @@ class _PortDot extends StatefulWidget {
 
   final PortSlot slot;
   final bool target;
+  final bool armed;
+  final VoidCallback onTap;
   final void Function(Offset) onStart;
   final void Function(Offset) onUpdate;
   final void Function(Offset) onEnd;
@@ -243,7 +262,7 @@ class _PortDotState extends State<_PortDot> {
   @override
   Widget build(BuildContext context) {
     final hk = context.hk;
-    final active = _hover || widget.target;
+    final active = _hover || widget.target || widget.armed;
     final size = active ? 14.0 : 10.0;
     final fill = active ? hk.accent : hk.textMuted;
     final dot = Container(
@@ -262,6 +281,7 @@ class _PortDotState extends State<_PortDot> {
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
         onPanStart: (d) => widget.onStart(d.globalPosition),
         onPanUpdate: (d) => widget.onUpdate(d.globalPosition),
         onPanEnd: (d) => widget.onEnd(d.globalPosition),

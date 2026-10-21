@@ -1,0 +1,47 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "text": "a b"
+              }
+            },
+            {
+              "json": {
+                "text": "c"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Code": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "word": "a"
+              }
+            },
+            {
+              "json": {
+                "word": "b"
+              }
+            },
+            {
+              "json": {
+                "word": "c"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

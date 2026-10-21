@@ -1,0 +1,14 @@
+{
+  "Trigger": [
+    { "data": { "main": [[
+      { "json": { "bio": "Ada Lovelace, 36, works on the Analytical Engine." } },
+      { "json": { "bio": "Bob is 41 years old." } }
+    ]] } }
+  ],
+  "Information Extractor": [
+    { "data": { "main": [[
+      { "json": { "output": { "name": "Ada Lovelace", "age": 36 } } },
+      { "json": { "output": { "name": "Bob", "age": 41 } } }
+    ]] } }
+  ]
+}

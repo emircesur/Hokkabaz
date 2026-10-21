@@ -1,0 +1,4 @@
+target
+.git
+apps/flutter
+**/node_modules

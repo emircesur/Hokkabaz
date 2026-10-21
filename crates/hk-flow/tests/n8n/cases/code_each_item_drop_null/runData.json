@@ -1,0 +1,50 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "keep": true,
+                "id": 1
+              }
+            },
+            {
+              "json": {
+                "keep": false,
+                "id": 2
+              }
+            },
+            {
+              "json": {
+                "keep": true,
+                "id": 3
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Code": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "id": 1
+              }
+            },
+            {
+              "json": {
+                "id": 3
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

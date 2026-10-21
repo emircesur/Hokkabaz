@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/breakpoints.dart';
 import '../../ffi/settings_providers.dart';
 import '../../src/rust/dto.dart';
 import '../../theme/tokens.dart';
@@ -11,6 +12,16 @@ Future<void> showProviderDialog(
   WidgetRef ref, {
   ProviderDto? existing,
 }) {
+  // Long form + keyboard: a bottom sheet on phones, a dialog on desktop.
+  if (isNarrow(context)) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => _ProviderDialog(existing: existing, sheet: true),
+    );
+  }
   return showDialog<void>(
     context: context,
     builder: (_) => _ProviderDialog(existing: existing),
@@ -18,8 +29,9 @@ Future<void> showProviderDialog(
 }
 
 class _ProviderDialog extends ConsumerStatefulWidget {
-  const _ProviderDialog({this.existing});
+  const _ProviderDialog({this.existing, this.sheet = false});
   final ProviderDto? existing;
+  final bool sheet;
 
   @override
   ConsumerState<_ProviderDialog> createState() => _ProviderDialogState();
@@ -96,75 +108,111 @@ class _ProviderDialogState extends ConsumerState<_ProviderDialog> {
   Widget build(BuildContext context) {
     final editing = widget.existing != null;
     final builtin = widget.existing?.builtin ?? false;
-    return AlertDialog(
-      title: Text(editing ? 'Edit endpoint' : 'Add endpoint'),
-      content: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (!editing)
-                DropdownButtonFormField<ProviderKindDto>(
-                  initialValue: _kind,
-                  decoration: const InputDecoration(labelText: 'Type'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: ProviderKindDto.openaiCompat,
-                      child: Text('OpenAI-compatible'),
-                    ),
-                    DropdownMenuItem(
-                      value: ProviderKindDto.ollama,
-                      child: Text('Ollama'),
-                    ),
-                  ],
-                  onChanged: (v) => setState(() => _kind = v ?? _kind),
-                ),
-              TextField(
-                controller: _id,
-                enabled: !editing,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  hintText: 'e.g. openrouter',
-                ),
+    final title = editing ? 'Edit endpoint' : 'Add endpoint';
+    final form = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (!editing)
+          DropdownButtonFormField<ProviderKindDto>(
+            initialValue: _kind,
+            decoration: const InputDecoration(labelText: 'Type'),
+            items: const [
+              DropdownMenuItem(
+                value: ProviderKindDto.openaiCompat,
+                child: Text('OpenAI-compatible'),
               ),
-              TextField(
-                controller: _url,
-                keyboardType: TextInputType.url,
-                decoration: InputDecoration(
-                  labelText: 'Base URL',
-                  hintText: _kind == ProviderKindDto.ollama
-                      ? 'http://localhost:11434'
-                      : 'https://api.example.com/v1',
-                ),
+              DropdownMenuItem(
+                value: ProviderKindDto.ollama,
+                child: Text('Ollama'),
               ),
-              if (!builtin)
-                TextField(
-                  controller: _models,
-                  decoration: const InputDecoration(
-                    labelText: 'Model ids (optional)',
-                    helperText: 'Comma separated; empty asks the provider',
-                  ),
-                ),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(_error!, style: TextStyle(color: context.hk.err)),
-                ),
             ],
+            onChanged: (v) => setState(() => _kind = v ?? _kind),
+          ),
+        TextField(
+          controller: _id,
+          enabled: !editing,
+          decoration: const InputDecoration(
+            labelText: 'Name',
+            hintText: 'e.g. openrouter',
           ),
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+        TextField(
+          controller: _url,
+          keyboardType: TextInputType.url,
+          decoration: InputDecoration(
+            labelText: 'Base URL',
+            hintText: _kind == ProviderKindDto.ollama
+                ? 'http://localhost:11434'
+                : 'https://api.example.com/v1',
+          ),
         ),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: const Text('Save'),
-        ),
+        if (!builtin)
+          TextField(
+            controller: _models,
+            decoration: const InputDecoration(
+              labelText: 'Model ids (optional)',
+              helperText: 'Comma separated; empty asks the provider',
+            ),
+          ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Text(_error!, style: TextStyle(color: context.hk.err)),
+          ),
       ],
+    );
+    final cancel = TextButton(
+      style: widget.sheet
+          ? TextButton.styleFrom(minimumSize: const Size(64, kTouchTarget))
+          : null,
+      onPressed: _saving ? null : () => Navigator.of(context).pop(),
+      child: const Text('Cancel'),
+    );
+    final save = FilledButton(
+      style: widget.sheet
+          ? FilledButton.styleFrom(minimumSize: const Size(88, kTouchTarget))
+          : null,
+      onPressed: _saving ? null : _save,
+      child: const Text('Save'),
+    );
+    if (widget.sheet) {
+      return Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              HkTokens.s4,
+              0,
+              HkTokens.s4,
+              HkTokens.s4,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: HkTokens.s3),
+                form,
+                const SizedBox(height: HkTokens.s3),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    cancel,
+                    const SizedBox(width: HkTokens.s2),
+                    save,
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return AlertDialog(
+      title: Text(title),
+      content: SizedBox(width: 420, child: SingleChildScrollView(child: form)),
+      actions: [cancel, save],
     );
   }
 }

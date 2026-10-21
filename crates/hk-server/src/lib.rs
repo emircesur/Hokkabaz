@@ -24,6 +24,8 @@ mod n8n;
 #[cfg(feature = "server")]
 mod openapi;
 #[cfg(feature = "server")]
+mod pairing;
+#[cfg(feature = "server")]
 mod payload;
 #[cfg(feature = "server")]
 mod ratelimit;
@@ -46,7 +48,11 @@ pub use auth::{Auth, AuthError, Grants, Principal, Reject, Scope};
 #[cfg(feature = "server")]
 pub use flow::{BuiltinCredentialSchemas, CredentialSchemas, FlowApi, WorkflowActivator};
 #[cfg(feature = "server")]
+pub use n8n::workflow_json;
+#[cfg(feature = "server")]
 pub use openapi::ApiDoc;
+#[cfg(feature = "server")]
+pub use pairing::{Minted, Pairing, PairingError, qr_svg, qr_terminal};
 #[cfg(feature = "server")]
 pub use ratelimit::{RateLimit, RateLimiter, Throttled};
 #[cfg(feature = "server")]

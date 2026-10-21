@@ -1,0 +1,72 @@
+{
+  "name": "code_legacy_items_and_item",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000115",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(i => ({ v: i.json.v + 1 }));"
+      },
+      "id": "00000000-0000-4000-8000-000000000113",
+      "name": "All",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "item.json.seen = true;\nreturn item;",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "00000000-0000-4000-8000-000000000114",
+      "name": "Each",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "All",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "All": {
+      "main": [
+        [
+          {
+            "node": "Each",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

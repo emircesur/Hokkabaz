@@ -1,0 +1,8 @@
+{
+  "description": "$('Node').first() and $input read data of different nodes.",
+  "status": "active",
+  "nodes": [
+    "code"
+  ],
+  "docs": "https://docs.n8n.io/code/code-node/"
+}

@@ -1,0 +1,8 @@
+{
+  "description": "typeVersion 1 behaves like 2 for JavaScript.",
+  "status": "active",
+  "nodes": [
+    "code"
+  ],
+  "docs": "https://docs.n8n.io/code/code-node/"
+}

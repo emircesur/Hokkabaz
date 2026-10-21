@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/breakpoints.dart';
 import '../../theme/tokens.dart';
 import 'canvas_geometry.dart';
 import 'flow_canvas.dart';
@@ -376,15 +377,23 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (ctx) => SizedBox(
-        height: MediaQuery.sizeOf(ctx).height * 0.85,
-        child: NodePanel(
-          editor: _editor,
-          nodeName: name,
-          types: types,
-          onClose: () => Navigator.pop(ctx),
-        ),
-      ),
+      builder: (ctx) {
+        // Sheet context: keeps the keyboard inset live so params stay visible.
+        final inset = MediaQuery.viewInsetsOf(ctx).bottom;
+        final h = MediaQuery.sizeOf(ctx).height;
+        return Padding(
+          padding: EdgeInsets.only(bottom: inset),
+          child: SizedBox(
+            height: (h * 0.85 - inset).clamp(240, h),
+            child: NodePanel(
+              editor: _editor,
+              nodeName: name,
+              types: types,
+              onClose: () => Navigator.pop(ctx),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -396,7 +405,7 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
     final types = ref.watch(nodeTypesProvider);
     return LayoutBuilder(
       builder: (context, c) {
-        final wide = c.maxWidth >= 900;
+        final wide = c.maxWidth >= kFlowsWideMin;
         final sel = _editor.selectedNode;
         final showPanel = wide && _panelOpen && sel != null;
         return Row(
@@ -473,7 +482,7 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
           types: types.byType,
           onAddNode: _addNode,
           onOpenNode: (n) {
-            if (MediaQuery.sizeOf(context).width >= 900) {
+            if (MediaQuery.sizeOf(context).width >= kFlowsWideMin) {
               setState(() => _panelOpen = true);
             } else {
               _openNodeSheet(n);
@@ -503,7 +512,9 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
           IgnorePointer(
             child: Center(
               child: Text(
-                'Press Tab or long-press to add a node, or paste n8n nodes (Ctrl+V)',
+                isTouchLayout(context)
+                    ? 'Long-press to add a node, or paste n8n nodes from the toolbar'
+                    : 'Press Tab or long-press to add a node, or paste n8n nodes (Ctrl+V)',
                 style: Theme.of(context).textTheme.bodySmall
                     ?.copyWith(color: hk.textMuted),
               ),

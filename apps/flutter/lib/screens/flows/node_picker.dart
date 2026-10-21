@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/breakpoints.dart';
 import '../../theme/tokens.dart';
 import 'model/node_types.dart';
 import 'node_card.dart';
@@ -47,7 +48,7 @@ Future<NodePick?> showNodePicker(
   BuildContext context,
   List<NodeTypeInfo> types,
 ) {
-  final wide = MediaQuery.sizeOf(context).width >= 640;
+  final wide = !isNarrow(context);
   final body = _PickerBody(types: types);
   if (wide) {
     return showDialog<NodePick>(
@@ -64,13 +65,14 @@ Future<NodePick?> showNodePicker(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * 0.85,
-        child: body,
-      ),
-    ),
+    builder: (ctx) {
+      final inset = MediaQuery.viewInsetsOf(ctx).bottom;
+      final h = MediaQuery.sizeOf(ctx).height;
+      return Padding(
+        padding: EdgeInsets.only(bottom: inset),
+        child: SizedBox(height: (h * 0.85 - inset).clamp(240, h), child: body),
+      );
+    },
   );
 }
 

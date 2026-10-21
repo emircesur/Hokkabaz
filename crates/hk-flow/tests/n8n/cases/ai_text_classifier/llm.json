@@ -1,0 +1,9 @@
+{
+  "models": {
+    "scripted-classifier": [
+      { "text": "{\"categories\": [\"Billing\"]}" },
+      { "text": "{\"categories\": []}" },
+      { "text": "```json\n{\"categories\": [\"support\"]}\n```" }
+    ]
+  }
+}

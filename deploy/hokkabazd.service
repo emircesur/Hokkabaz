@@ -1,0 +1,65 @@
+# systemd unit for the headless instance.
+#
+#   sudo useradd --system --home /var/lib/hokkabaz --shell /usr/sbin/nologin hokkabaz
+#   sudo install -m 0755 target/release/hokkabazd /usr/local/bin/hokkabazd
+#   sudo install -m 0644 deploy/hokkabazd.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now hokkabazd
+#
+# Optional /etc/hokkabaz/hokkabazd.env (mode 0600, root-owned), one KEY=value per line:
+#   DEEPSEEK_API_KEY=...
+#   HOKKABAZ_PUBLIC_URL=https://hk.example.com   # webhook URLs + pairing QR
+#   HOKKABAZ_ENV_ALLOWLIST=TZ,MY_FLAG            # host env readable via $env in workflows
+# The admin API token is generated on first start: `sudo -u hokkabaz hokkabazd token`.
+# Pair a phone: `sudo -u hokkabaz hokkabazd pair`.
+[Unit]
+Description=Hokkabaz headless instance
+Documentation=https://github.com/dfmbrave/Hokkabaz
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hokkabaz
+Group=hokkabaz
+StateDirectory=hokkabaz
+Environment=HOKKABAZ_HOME=/var/lib/hokkabaz
+# Loopback by default; put a TLS-terminating reverse proxy in front before binding wider.
+Environment=HOKKABAZ_LISTEN=127.0.0.1:7878
+EnvironmentFile=-/etc/hokkabaz/hokkabazd.env
+ExecStart=/usr/local/bin/hokkabazd serve
+# SIGTERM -> graceful shutdown (stops schedulers, drains requests, flushes the WAL)
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=3
+
+# Hardening. The agent runs tools in the working directory: ReadWritePaths is the only place it
+# can write; widen it deliberately for workspaces the agent should edit.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/var/lib/hokkabaz
+WorkingDirectory=/var/lib/hokkabaz
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

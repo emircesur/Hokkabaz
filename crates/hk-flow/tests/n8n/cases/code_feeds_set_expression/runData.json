@@ -1,0 +1,48 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "first": "Ada",
+                "last": "Lovelace"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Code": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "full": "Ada Lovelace"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Set": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "greeting": "Hi Ada Lovelace"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

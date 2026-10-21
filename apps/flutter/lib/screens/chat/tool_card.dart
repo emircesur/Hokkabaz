@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../../app/breakpoints.dart';
 import '../../theme/tokens.dart';
 import 'approval_card.dart';
 import 'chat_model.dart';
@@ -42,50 +43,53 @@ class _ToolCardState extends State<ToolCard> {
           InkWell(
             borderRadius: BorderRadius.circular(HkTokens.radiusCard),
             onTap: () => setState(() => _open = !_open),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: HkTokens.s3,
-                vertical: HkTokens.s2,
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.build_outlined, size: 14, color: hk.textMuted),
-                  const SizedBox(width: HkTokens.s2),
-                  Text(
-                    t.name.isEmpty ? 'tool' : t.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(width: HkTokens.s2),
-                  Expanded(
-                    child: Text(
-                      t.target,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: HkTokens.fontMono,
-                        fontSize: 12,
-                        color: hk.textMuted,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: touchMinHeight(context)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: HkTokens.s3,
+                  vertical: HkTokens.s2,
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.build_outlined, size: 14, color: hk.textMuted),
+                    const SizedBox(width: HkTokens.s2),
+                    Text(
+                      t.name.isEmpty ? 'tool' : t.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
                       ),
                     ),
-                  ),
-                  if (diff != null && t.status == ToolStatus.done)
-                    Padding(
-                      padding: const EdgeInsets.only(right: HkTokens.s2),
+                    const SizedBox(width: HkTokens.s2),
+                    Expanded(
                       child: Text(
-                        'diff',
-                        style: TextStyle(fontSize: 12, color: hk.info),
+                        t.target,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: HkTokens.fontMono,
+                          fontSize: 12,
+                          color: hk.textMuted,
+                        ),
                       ),
                     ),
-                  _StatusIcon(status: t.status),
-                  Icon(
-                    expanded ? Icons.expand_less : Icons.expand_more,
-                    size: 18,
-                    color: hk.textMuted,
-                  ),
-                ],
+                    if (diff != null && t.status == ToolStatus.done)
+                      Padding(
+                        padding: const EdgeInsets.only(right: HkTokens.s2),
+                        child: Text(
+                          'diff',
+                          style: TextStyle(fontSize: 12, color: hk.info),
+                        ),
+                      ),
+                    _StatusIcon(status: t.status),
+                    Icon(
+                      expanded ? Icons.expand_less : Icons.expand_more,
+                      size: 18,
+                      color: hk.textMuted,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

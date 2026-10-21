@@ -1,0 +1,8 @@
+{
+  "description": "All-items mode may return a single plain object; it is wrapped into one item's json.",
+  "status": "active",
+  "nodes": [
+    "code"
+  ],
+  "docs": "https://docs.n8n.io/code/code-node/"
+}

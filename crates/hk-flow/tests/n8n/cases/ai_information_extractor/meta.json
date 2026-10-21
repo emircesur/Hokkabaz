@@ -1,0 +1,6 @@
+{
+  "description": "Information Extractor builds a schema from attribute descriptions and returns the extracted object under `output`. Scripted fake model.",
+  "status": "active",
+  "nodes": ["informationExtractor"],
+  "docs": "https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.information-extractor/"
+}

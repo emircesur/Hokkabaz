@@ -1,0 +1,8 @@
+{
+  "description": "Run once for each item: $json and $itemIndex per item, return an object.",
+  "status": "active",
+  "nodes": [
+    "code"
+  ],
+  "docs": "https://docs.n8n.io/code/code-node/"
+}

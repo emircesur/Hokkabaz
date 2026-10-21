@@ -16,9 +16,19 @@ async fn run_with(
 ) -> Result<Vec<Vec<Item>>, FlowError> {
     let mut reg = NodeRegistry::new();
     register_core_nodes(&mut reg).unwrap();
-    let mut node = Node::new("Code", "n8n-nodes-base.code", 2.into(), [0.into(), 0.into()]);
+    let mut node = Node::new(
+        "Code",
+        "n8n-nodes-base.code",
+        2.into(),
+        [0.into(), 0.into()],
+    );
     node.parameters = params.as_object().unwrap().clone();
-    let items = input.as_array().unwrap().iter().map(Item::from_pinned).collect();
+    let items = input
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(Item::from_pinned)
+        .collect();
     let mut ctx = NodeContext::new(node.clone(), vec![items], 0);
     if let Some(l) = limits {
         ctx.expr.evaluator = Some(Arc::new(QuickJsEvaluator::new(l)));
@@ -35,7 +45,10 @@ fn each(code: &str) -> Value {
 }
 
 fn jsons(out: &[Vec<Item>]) -> Vec<Value> {
-    out[0].iter().map(|i| Value::Object(i.json.clone())).collect()
+    out[0]
+        .iter()
+        .map(|i| Value::Object(i.json.clone()))
+        .collect()
 }
 
 fn msg(e: FlowError) -> String {
@@ -49,25 +62,39 @@ fn msg(e: FlowError) -> String {
 async fn all_items_shapes() {
     let input = json!([{"a": 1}, {"a": 2}]);
     // plain objects wrap into json
-    let out = run_with(all("return [{x: 1}, {x: 2}]"), input.clone(), None).await.unwrap();
-    assert_eq!(jsons(&out), [json!({"x": 1}), json!({"x": 2})]);
-    // single object, item form with pairedItem
-    let out = run_with(all("return {json: {x: 1}, pairedItem: 1, junk: 1}"), input.clone(), None)
+    let out = run_with(all("return [{x: 1}, {x: 2}]"), input.clone(), None)
         .await
         .unwrap();
+    assert_eq!(jsons(&out), [json!({"x": 1}), json!({"x": 2})]);
+    // single object, item form with pairedItem
+    let out = run_with(
+        all("return {json: {x: 1}, pairedItem: 1, junk: 1}"),
+        input.clone(),
+        None,
+    )
+    .await
+    .unwrap();
     assert_eq!(jsons(&out), [json!({"x": 1})]);
     assert_eq!(out[0][0].paired_item, Some(hk_flow::PairedItem::Index(1)));
     // null = no output
-    let out = run_with(all("return null"), input.clone(), None).await.unwrap();
+    let out = run_with(all("return null"), input.clone(), None)
+        .await
+        .unwrap();
     assert!(out[0].is_empty());
     // no return
-    let e = run_with(all("const x = 1"), input.clone(), None).await.unwrap_err();
+    let e = run_with(all("const x = 1"), input.clone(), None)
+        .await
+        .unwrap_err();
     assert!(msg(e).contains("doesn't return items properly"));
     // scalar element
-    let e = run_with(all("return [1]"), input.clone(), None).await.unwrap_err();
+    let e = run_with(all("return [1]"), input.clone(), None)
+        .await
+        .unwrap_err();
     assert!(msg(e).contains("[for item 0]"));
     // mixed json / plain
-    let e = run_with(all("return [{json: {}}, {a: 1}]"), input, None).await.unwrap_err();
+    let e = run_with(all("return [{json: {}}, {a: 1}]"), input, None)
+        .await
+        .unwrap_err();
     assert!(msg(e).contains("all returned items need it"));
 }
 
@@ -88,8 +115,10 @@ async fn globals_and_legacy_names() {
     .unwrap();
     assert_eq!(
         jsons(&out),
-        [json!({"sum": 6, "first": 1, "last": 3, "len": 3, "items": 3, "idx": 0,
-                "wf": "object", "ex": "object", "now": "number", "today": 0})]
+        [
+            json!({"sum": 6, "first": 1, "last": 3, "len": 3, "items": 3, "idx": 0,
+                "wf": "object", "ex": "object", "now": "number", "today": 0})
+        ]
     );
     // per item: $json, item, $input.item, $itemIndex; null drops; auto pairing
     let out = run_with(
@@ -101,7 +130,10 @@ async fn globals_and_legacy_names() {
     .unwrap();
     assert_eq!(
         jsons(&out),
-        [json!({"n": 1, "k": 0, "same": true}), json!({"n": 3, "k": 2, "same": true})]
+        [
+            json!({"n": 1, "k": 0, "same": true}),
+            json!({"n": 3, "k": 2, "same": true})
+        ]
     );
     assert_eq!(out[0][1].paired_item, Some(hk_flow::PairedItem::Index(2)));
 }
@@ -120,11 +152,17 @@ async fn await_works_and_console_is_captured() {
 
 #[tokio::test]
 async fn errors_carry_line_and_item() {
-    let e = run_with(all("const a = 1;\nconst b = 2;\nthrow new Error('boom');"), json!([{}]), None)
+    let e = run_with(
+        all("const a = 1;\nconst b = 2;\nthrow new Error('boom');"),
+        json!([{}]),
+        None,
+    )
+    .await
+    .unwrap_err();
+    assert!(msg(e).contains("boom [line 3]"), "line info");
+    let e = run_with(all("return [\n{a: nope}]"), json!([{}]), None)
         .await
         .unwrap_err();
-    assert!(msg(e).contains("boom [line 3]"), "line info");
-    let e = run_with(all("return [\n{a: nope}]"), json!([{}]), None).await.unwrap_err();
     let m = msg(e);
     assert!(m.contains("nope") && m.contains("[line 2]"), "{m}");
     let e = run_with(
@@ -135,15 +173,21 @@ async fn errors_carry_line_and_item() {
     .await
     .unwrap_err();
     assert!(msg(e).contains("bad [line 2, for item 1]"));
-    let e = run_with(all("return [;"), json!([{}]), None).await.unwrap_err();
+    let e = run_with(all("return [;"), json!([{}]), None)
+        .await
+        .unwrap_err();
     assert!(msg(e).to_lowercase().contains("unexpected"), "syntax error");
 }
 
 #[tokio::test]
 async fn python_is_unsupported() {
-    let e = run_with(json!({"language": "python", "pythonCode": "return []"}), json!([{}]), None)
-        .await
-        .unwrap_err();
+    let e = run_with(
+        json!({"language": "python", "pythonCode": "return []"}),
+        json!([{}]),
+        None,
+    )
+    .await
+    .unwrap_err();
     assert!(msg(e).contains("not supported"));
 }
 
@@ -164,24 +208,38 @@ async fn sandbox_has_no_fs_net_process() {
 
 #[tokio::test]
 async fn infinite_loop_times_out() {
-    let limits = ExprLimits { timeout: Duration::from_millis(200), ..ExprLimits::default() };
+    let limits = ExprLimits {
+        timeout: Duration::from_millis(200),
+        ..ExprLimits::default()
+    };
     let t = Instant::now();
-    let e = run_with(all("while (true) {}"), json!([{}]), Some(limits.clone())).await.unwrap_err();
-    assert!(msg(e).contains("timed out"));
-    assert!(t.elapsed() < Duration::from_secs(5));
-    // catching must not swallow the interrupt
-    let e = run_with(all("try { for (;;) {} } catch (e) {} return [{}]"), json!([{}]), Some(limits.clone()))
+    let e = run_with(all("while (true) {}"), json!([{}]), Some(limits.clone()))
         .await
         .unwrap_err();
     assert!(msg(e).contains("timed out"));
+    assert!(t.elapsed() < Duration::from_secs(5));
+    // catching must not swallow the interrupt
+    let e = run_with(
+        all("try { for (;;) {} } catch (e) {} return [{}]"),
+        json!([{}]),
+        Some(limits.clone()),
+    )
+    .await
+    .unwrap_err();
+    assert!(msg(e).contains("timed out"));
     // per-item mode shares one deadline
-    let e = run_with(each("while (true) {}"), json!([{}]), Some(limits)).await.unwrap_err();
+    let e = run_with(each("while (true) {}"), json!([{}]), Some(limits))
+        .await
+        .unwrap_err();
     assert!(msg(e).contains("timed out"));
 }
 
 #[tokio::test]
 async fn memory_cap() {
-    let limits = ExprLimits { memory_bytes: 8 * 1024 * 1024, ..ExprLimits::default() };
+    let limits = ExprLimits {
+        memory_bytes: 8 * 1024 * 1024,
+        ..ExprLimits::default()
+    };
     let e = run_with(
         all("const a = []; for (;;) a.push('x'.repeat(1024) + a.length); return [{}]"),
         json!([{}]),
@@ -189,16 +247,24 @@ async fn memory_cap() {
     )
     .await
     .unwrap_err();
-    assert!(msg(e).contains("memory"));
+    let m = msg(e);
+    assert!(m.contains("memory"), "{m}");
     // realm is rebuilt afterwards: a fresh evaluator-independent run still works
-    let out = run_with(all("return [{ok: 1}]"), json!([{}]), Some(limits)).await.unwrap();
+    let out = run_with(all("return [{ok: 1}]"), json!([{}]), Some(limits))
+        .await
+        .unwrap();
     assert_eq!(jsons(&out), [json!({"ok": 1})]);
 }
 
 #[tokio::test]
 async fn stack_cap() {
-    let e = run_with(all("function f(){ return f() + 1 } return [{v: f()}]"), json!([{}]), None)
-        .await
-        .unwrap_err();
-    assert!(msg(e).to_lowercase().contains("stack"), "{e:?}", e = "x");
+    let e = run_with(
+        all("function f(){ return f() + 1 } return [{v: f()}]"),
+        json!([{}]),
+        None,
+    )
+    .await
+    .unwrap_err();
+    let m = msg(e);
+    assert!(m.to_lowercase().contains("stack"), "{m}");
 }

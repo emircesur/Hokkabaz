@@ -7,6 +7,10 @@ rust-version.workspace = true
 license.workspace = true
 publish = false
 
+[lib]
+name = "hk_daemon"
+path = "src/lib.rs"
+
 [[bin]]
 name = "hokkabazd"
 path = "src/main.rs"
@@ -18,13 +22,17 @@ workspace = true
 anyhow = "1"
 async-trait = "0.1"
 clap = { version = "4", features = ["derive", "env"] }
+hk-flow = { version = "0.0.0", path = "../../crates/hk-flow" }
 hk-llm = { version = "0.0.0", path = "../../crates/hk-llm" }
 hk-server = { version = "0.0.0", path = "../../crates/hk-server" }
 hk-store = { version = "0.0.0", path = "../../crates/hk-store" }
 serde_json = "1"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net", "sync", "time"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "ansi"] }
 
 [dev-dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1"] }
+http-body-util = "0.1"
 tempfile = "3"
+tower = { version = "0.5", features = ["util"] }

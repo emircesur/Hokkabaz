@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/breakpoints.dart';
 import '../../theme/tokens.dart';
 import 'chat_model.dart';
 
@@ -79,19 +80,22 @@ class _ReasoningState extends State<_Reasoning> {
         children: [
           InkWell(
             onTap: () => setState(() => _open = !_open),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _open ? Icons.arrow_drop_down : Icons.arrow_right,
-                  size: 18,
-                  color: hk.accent2,
-                ),
-                Text(
-                  'Reasoning · ${widget.item.reasoningLabel}',
-                  style: TextStyle(fontSize: 12, color: hk.accent2),
-                ),
-              ],
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: touchMinHeight(context)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _open ? Icons.arrow_drop_down : Icons.arrow_right,
+                    size: 18,
+                    color: hk.accent2,
+                  ),
+                  Text(
+                    'Reasoning · ${widget.item.reasoningLabel}',
+                    style: TextStyle(fontSize: 12, color: hk.accent2),
+                  ),
+                ],
+              ),
             ),
           ),
           if (_open)

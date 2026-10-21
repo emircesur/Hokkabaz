@@ -15,6 +15,7 @@ use tokio::net::TcpListener;
 use crate::auth::{Auth, Principal, Scope};
 use crate::error::ApiError;
 use crate::flow::FlowApi;
+use crate::pairing::{self, Pairing};
 use crate::ratelimit::{RateLimit, RateLimiter};
 use crate::runtime::{
     AgentRuntime, ApprovalDecision, CreateSession, SessionDetail, SessionInfo, TurnAccepted,
@@ -34,6 +35,8 @@ pub struct AppState {
     pub flow: Option<FlowApi>,
     /// Per-token limiter, charged on every authenticated request.
     pub limiter: Arc<RateLimiter>,
+    /// Device pairing (`/api/v1/pairing`). `None` leaves those routes unmounted.
+    pub pairing: Option<Arc<Pairing>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -44,13 +47,20 @@ impl std::fmt::Debug for AppState {
 
 impl AppState {
     pub fn new(runtime: Arc<dyn AgentRuntime>, auth: Auth) -> Self {
-        Self { runtime, auth, flow: None, limiter: Arc::new(RateLimiter::default()) }
+        Self { runtime, auth, flow: None, limiter: Arc::new(RateLimiter::default()), pairing: None }
     }
 
     /// Enable `/webhook`, `/webhook-test` and the n8n REST routes.
     #[must_use]
     pub fn with_flow(mut self, flow: FlowApi) -> Self {
         self.flow = Some(flow);
+        self
+    }
+
+    /// Enable `GET /api/v1/pairing` and `POST /api/v1/pairing/exchange`.
+    #[must_use]
+    pub fn with_pairing(mut self, p: Pairing) -> Self {
+        self.pairing = Some(Arc::new(p));
         self
     }
 
@@ -93,6 +103,9 @@ pub fn router(state: AppState) -> Router {
         app = app
             .route("/webhook/{*path}", any(webhook::production))
             .route("/webhook-test/{*path}", any(webhook::test));
+    }
+    if state.pairing.is_some() {
+        v1 = v1.route("/pairing", get(pairing::issue)).route("/pairing/exchange", post(pairing::exchange));
     }
     app.nest("/api/v1", v1).with_state(state)
 }

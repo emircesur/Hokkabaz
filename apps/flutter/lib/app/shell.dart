@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../ffi/notifications.dart';
+import '../screens/chat/chat_providers.dart';
 import '../theme/tokens.dart';
+import 'breakpoints.dart';
 import 'command_palette.dart';
 import 'destinations.dart';
 import 'theme_mode.dart';
-
-/// Desktop >= this width gets a rail; narrower gets bottom nav.
-const double kRailBreakpoint = 720;
 
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.location, required this.child});
@@ -23,7 +23,7 @@ class AppShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final wide = MediaQuery.sizeOf(context).width >= kRailBreakpoint;
+    final wide = !isNarrow(context);
     return AppShortcuts(
       child: wide ? _wide(context, ref) : _narrow(context, ref),
     );
@@ -31,6 +31,10 @@ class AppShell extends ConsumerWidget {
 
   Widget _wide(BuildContext context, WidgetRef ref) {
     final theme = ref.watch(themeModeProvider);
+    final pending = ref
+        .watch(approvalInboxProvider)
+        .values
+        .fold<int>(0, (n, l) => n + l.length);
     return Scaffold(
       body: Row(
         children: [
@@ -66,8 +70,8 @@ class AppShell extends ConsumerWidget {
               destinations: [
                 for (final d in destinations)
                   NavigationRailDestination(
-                    icon: Icon(d.icon),
-                    selectedIcon: Icon(d.selectedIcon),
+                    icon: _badged(d.icon, d.path, pending),
+                    selectedIcon: _badged(d.selectedIcon, d.path, pending),
                     label: Text(d.label),
                   ),
               ],
@@ -80,35 +84,78 @@ class AppShell extends ConsumerWidget {
     );
   }
 
+  /// Approval count badge on the Chat destination.
+  Widget _badged(IconData icon, String path, int pending) {
+    if (path != '/chat' || pending == 0) return Icon(icon);
+    return Badge.count(count: pending, child: Icon(icon));
+  }
+
   Widget _narrow(BuildContext context, WidgetRef ref) {
     final idx = _index;
     // Tabs beyond the primary set are reached via "More"; keep it highlighted.
     final selected = idx < mobilePrimaryCount ? idx : mobilePrimaryCount;
     final primary = destinations.take(mobilePrimaryCount).toList();
+    final openSession = ref.watch(selectedSessionProvider);
+    final pending = ref
+        .watch(approvalInboxProvider)
+        .values
+        .fold<List<ApprovalNotice>>([], (a, l) => [...a, ...l]);
+    // A conversation takes the whole screen (back arrow returns to the list).
+    final fullScreen = location.startsWith('/chat') && openSession != null;
+    // Approvals for the session on screen show inline; surface the others.
+    final elsewhere = [
+      for (final n in pending)
+        if (!fullScreen || n.sessionId != openSession) n,
+    ];
     return Scaffold(
-      body: SafeArea(bottom: false, child: child),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selected,
-        onDestinationSelected: (i) {
-          if (i < mobilePrimaryCount) {
-            context.go(primary[i].path);
-          } else {
-            _showMore(context, ref);
-          }
-        },
-        destinations: [
-          for (final d in primary)
-            NavigationDestination(
-              icon: Icon(d.icon),
-              selectedIcon: Icon(d.selectedIcon),
-              label: d.label,
-            ),
-          const NavigationDestination(
-            icon: Icon(Icons.more_horiz),
-            label: 'More',
-          ),
-        ],
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            if (elsewhere.isNotEmpty)
+              _ApprovalBanner(
+                notice: elsewhere.first,
+                total: elsewhere.length,
+                onTap: () {
+                  ref
+                      .read(selectedSessionProvider.notifier)
+                      .select(elsewhere.first.sessionId);
+                  context.go('/chat');
+                },
+              ),
+            Expanded(child: child),
+          ],
+        ),
       ),
+      bottomNavigationBar: fullScreen
+          ? null
+          : NavigationBar(
+              selectedIndex: selected,
+              onDestinationSelected: (i) {
+                if (i < mobilePrimaryCount) {
+                  context.go(primary[i].path);
+                } else {
+                  _showMore(context, ref);
+                }
+              },
+              destinations: [
+                for (final d in primary)
+                  NavigationDestination(
+                    icon: _badged(d.icon, d.path, pending.length),
+                    selectedIcon: _badged(
+                      d.selectedIcon,
+                      d.path,
+                      pending.length,
+                    ),
+                    label: d.label,
+                  ),
+                const NavigationDestination(
+                  icon: Icon(Icons.more_horiz),
+                  label: 'More',
+                ),
+              ],
+            ),
     );
   }
 
@@ -148,6 +195,52 @@ class AppShell extends ConsumerWidget {
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ApprovalBanner extends StatelessWidget {
+  const _ApprovalBanner({
+    required this.notice,
+    required this.total,
+    required this.onTap,
+  });
+
+  final ApprovalNotice notice;
+  final int total;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final hk = context.hk;
+    return Material(
+      color: hk.warn.withValues(alpha: 0.15),
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: kTouchTarget),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: HkTokens.s4),
+            child: Row(
+              children: [
+                Icon(Icons.shield_outlined, size: 18, color: hk.warn),
+                const SizedBox(width: HkTokens.s3),
+                Expanded(
+                  child: Text(
+                    total > 1
+                        ? 'Approval needed: ${notice.tool} (+${total - 1} more)'
+                        : 'Approval needed: ${notice.tool}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Text('Review', style: TextStyle(color: hk.warn)),
+              ],
+            ),
+          ),
         ),
       ),
     );

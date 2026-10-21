@@ -1,0 +1,47 @@
+{
+  "name": "code_v1_node",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000120",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i => ({ b: i.json.a * 10 }));"
+      },
+      "id": "00000000-0000-4000-8000-000000000119",
+      "name": "Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

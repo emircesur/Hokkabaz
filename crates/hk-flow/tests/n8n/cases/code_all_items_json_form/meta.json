@@ -1,0 +1,8 @@
+{
+  "description": "Returned items in {json} form are kept as-is; filtering by returning a subset.",
+  "status": "active",
+  "nodes": [
+    "code"
+  ],
+  "docs": "https://docs.n8n.io/code/code-node/"
+}

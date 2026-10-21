@@ -154,6 +154,17 @@ impl NodeContext {
         }
     }
 
+    /// Context for running `node` inside this execution (a tool calling the HTTP node,
+    /// a sub-node) with its own input and a fresh expression scope.
+    pub fn with_node(&self, node: Node, input: Vec<Vec<Item>>) -> Self {
+        let mut c = self.clone();
+        c.node = node;
+        c.input = input;
+        c.run_index = 0;
+        c.expr_base = OnceLock::new();
+        c
+    }
+
     /// True when at least one enabled node feeds this node over `conn_type`.
     pub fn has_sub_nodes(&self, conn_type: &str) -> bool {
         self.sub

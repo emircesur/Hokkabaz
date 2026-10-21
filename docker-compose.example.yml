@@ -1,0 +1,43 @@
+# Copy to docker-compose.yml, adjust, `docker compose up -d`.
+#
+# First start generates the API tokens. Print one:
+#   docker compose exec hokkabazd hokkabazd token
+# Pair a phone (needs HOKKABAZ_PUBLIC_URL below to be reachable from it):
+#   docker compose exec hokkabazd hokkabazd pair
+services:
+  hokkabazd:
+    build: .
+    image: hokkabazd:local
+    restart: unless-stopped
+    ports:
+      # Published on loopback only. Put a TLS-terminating reverse proxy (caddy, nginx,
+      # traefik) in front; do not expose 7878 plainly.
+      - "127.0.0.1:7878:7878"
+    volumes:
+      - hokkabaz-data:/data
+    environment:
+      # Where clients reach this instance: webhook URLs and the pairing QR use it.
+      HOKKABAZ_PUBLIC_URL: "https://hk.example.com"
+      # Host env vars workflows may read via $env (comma separated). Default none.
+      # HOKKABAZ_ENV_ALLOWLIST: "TZ"
+      # Model provider key. Prefer a secret file in production.
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      # Pin the admin API token instead of generating one (min 24 chars). Read from a file so
+      # it stays out of `docker inspect`:
+      HOKKABAZ_ADMIN_TOKEN_FILE: /run/secrets/hokkabaz_admin_token
+    secrets:
+      - hokkabaz_admin_token
+    # Hardening. The image is already non-root; /data is the only writable path.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  hokkabaz-data:
+
+secrets:
+  hokkabaz_admin_token:
+    file: ./hokkabaz_admin_token.txt

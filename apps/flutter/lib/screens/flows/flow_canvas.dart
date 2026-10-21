@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../app/breakpoints.dart';
 import '../../theme/tokens.dart';
 import 'canvas_geometry.dart';
 import 'model/flow_editor.dart';
@@ -62,6 +63,9 @@ class FlowCanvasState extends State<FlowCanvas> {
   Offset _dragStartGlobal = Offset.zero;
   String? _lastTapNode;
   DateTime _lastTapAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Touch multi-select: after a long-press on a node, plain taps toggle.
+  bool _multiMode = false;
 
   PortRef? _pendingFrom;
   Offset? _pendingPos;
@@ -184,6 +188,13 @@ class FlowCanvasState extends State<FlowCanvas> {
 
   void _onTapUp(TapUpDetails d) {
     _focus.requestFocus();
+    _multiMode = false;
+    if (_pendingFrom != null) {
+      setState(() {
+        _pendingFrom = null;
+        _pendingPos = null;
+      });
+    }
     final p = _toCanvas(d.localPosition);
     final layouts = _layouts(_ed.workflow);
     FlowEdge? best;
@@ -237,12 +248,20 @@ class FlowCanvasState extends State<FlowCanvas> {
       }
       _lastTapNode = name;
       _lastTapAt = now;
-      if (additive) {
+      if (additive || _multiMode) {
         _ed.toggleSelect(name);
+        if (_ed.selection.isEmpty) _multiMode = false;
       } else {
         _ed.select([name]);
       }
     },
+    onLongPress: () {
+      _focus.requestFocus();
+      HapticFeedback.selectionClick();
+      _multiMode = true;
+      _ed.toggleSelect(name);
+    },
+    onPortTap: _onPortTap,
     onDragStart: (g) {
       _focus.requestFocus();
       if (!_ed.selection.contains(name)) _ed.select([name]);
@@ -277,7 +296,8 @@ class FlowCanvasState extends State<FlowCanvas> {
     });
     final layouts = _layouts(_ed.workflow);
     PortSlot? target;
-    var best = 24.0;
+    // Wider snap for fingers (their drop point is imprecise and hidden).
+    var best = isTouchLayout(context) ? 40.0 : 24.0;
     for (final l in layouts.values) {
       if (l.node.name == from.node) continue;
       for (final p in from.output ? l.inputs : l.outputs) {
@@ -290,26 +310,53 @@ class FlowCanvasState extends State<FlowCanvas> {
       }
     }
     if (target != null) {
-      final t = target.ref;
-      final edge = from.output
-          ? FlowEdge(
-              src: from.node,
-              srcIndex: from.index,
-              dst: t.node,
-              dstIndex: t.index,
-              type: from.type,
-            )
-          : FlowEdge(
-              src: t.node,
-              srcIndex: t.index,
-              dst: from.node,
-              dstIndex: from.index,
-              type: from.type,
-            );
-      if (!_ed.connect(edge)) widget.onMessage('Already connected');
+      _connectPorts(from, target.ref);
     } else if (from.output && moved > 12) {
       widget.onAddNode((x: pos.dx, y: pos.dy - kNodeMinHeight / 2), from);
     }
+  }
+
+  void _connectPorts(PortRef from, PortRef t) {
+    final edge = from.output
+        ? FlowEdge(
+            src: from.node,
+            srcIndex: from.index,
+            dst: t.node,
+            dstIndex: t.index,
+            type: from.type,
+          )
+        : FlowEdge(
+            src: t.node,
+            srcIndex: t.index,
+            dst: from.node,
+            dstIndex: from.index,
+            type: from.type,
+          );
+    if (!_ed.connect(edge)) widget.onMessage('Already connected');
+  }
+
+  /// Tap-to-connect for touch: tap a port to arm it, tap a compatible port on
+  /// another node to link; anything else re-arms or cancels. Dragging a port
+  /// still works.
+  void _onPortTap(PortRef port) {
+    _focus.requestFocus();
+    final from = _pendingFrom;
+    if (from == null) {
+      setState(() {
+        _pendingFrom = port;
+        _pendingPos = null;
+      });
+      return;
+    }
+    final valid =
+        from.node != port.node &&
+        from.output != port.output &&
+        from.type == port.type;
+    if (valid) _connectPorts(from, port);
+    setState(() {
+      _pendingFrom = valid || from == port ? null : port;
+      _pendingPos = null;
+    });
   }
 
   // keyboard
@@ -565,15 +612,17 @@ class _ZoomBar extends StatelessWidget {
             icon: const Icon(Icons.remove, size: 18),
             onPressed: () => onZoom(scale / 1.25),
           ),
-          SizedBox(
-            width: 110,
-            child: Slider(
-              value: scale.clamp(_minScale, _maxScale),
-              min: _minScale,
-              max: _maxScale,
-              onChanged: onZoom,
+          // Pinch zooms on touch; the slider is for pointer users.
+          if (!isNarrow(context))
+            SizedBox(
+              width: 110,
+              child: Slider(
+                value: scale.clamp(_minScale, _maxScale),
+                min: _minScale,
+                max: _maxScale,
+                onChanged: onZoom,
+              ),
             ),
-          ),
           IconButton(
             tooltip: 'Zoom in',
             icon: const Icon(Icons.add, size: 18),

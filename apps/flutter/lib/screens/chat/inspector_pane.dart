@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/adaptive.dart';
+import '../../app/breakpoints.dart';
 import '../../src/rust/dto.dart';
 import '../../theme/tokens.dart';
 import 'chat_model.dart';
@@ -300,7 +302,7 @@ class _SubagentRow extends ConsumerWidget {
           ? null
           : () => ref.read(selectedSessionProvider.notifier).select(id),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
+        padding: EdgeInsets.symmetric(vertical: isNarrow(context) ? 16 : 3),
         child: Row(
           children: [
             Icon(icon, size: 14, color: color),
@@ -334,37 +336,34 @@ class _FileRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final hk = context.hk;
     return InkWell(
-      onTap: () => showDialog<void>(
-        context: context,
-        builder: (_) => Dialog(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720, maxHeight: 560),
-            child: Padding(
-              padding: const EdgeInsets.all(HkTokens.s3),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    file.path,
-                    style: const TextStyle(
-                      fontFamily: HkTokens.fontMono,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: HkTokens.s2),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: DiffView(lines: file.diff, maxLines: 1000),
-                    ),
-                  ),
-                ],
+      onTap: () => showAdaptiveSheetOrDialog<void>(
+        context,
+        maxWidth: 720,
+        tall: true,
+        builder: (_) => Padding(
+          padding: const EdgeInsets.all(HkTokens.s3),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                file.path,
+                style: const TextStyle(
+                  fontFamily: HkTokens.fontMono,
+                  fontSize: 13,
+                ),
               ),
-            ),
+              const SizedBox(height: HkTokens.s2),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: DiffView(lines: file.diff, maxLines: 1000),
+                ),
+              ),
+            ],
           ),
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
+        padding: EdgeInsets.symmetric(vertical: isNarrow(context) ? 16 : 3),
         child: Row(
           children: [
             Expanded(

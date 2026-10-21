@@ -1,0 +1,47 @@
+{
+  "name": "code_all_items_json_form",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000106",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().filter(i => i.json.n % 2 === 0).map(i => ({ json: { even: i.json.n } }));"
+      },
+      "id": "00000000-0000-4000-8000-000000000105",
+      "name": "Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

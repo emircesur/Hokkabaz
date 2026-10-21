@@ -390,10 +390,7 @@ impl Session {
                 Ok(f) => f,
                 Err(e) => return Err(ExprError::Unavailable(e.to_string())),
             };
-            let p: Promise = f
-                .call((src, mode as i32))
-                .catch(&ctx)
-                .map_err(js_error)?;
+            let p: Promise = f.call((src, mode as i32)).catch(&ctx).map_err(js_error)?;
             p.finish::<String>().catch(&ctx).map_err(js_error)
         });
         self.shared.deadline.set(None);

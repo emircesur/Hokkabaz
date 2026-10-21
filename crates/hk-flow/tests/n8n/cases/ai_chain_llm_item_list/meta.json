@@ -1,0 +1,6 @@
+{
+  "description": "Basic LLM Chain (>=1.5) with a system message template and an Item List Output Parser limited to 3 items. Scripted fake model.",
+  "status": "active",
+  "nodes": ["chainLlm"],
+  "docs": "https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.chainllm/"
+}

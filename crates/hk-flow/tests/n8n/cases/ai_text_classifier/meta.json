@@ -1,0 +1,6 @@
+{
+  "description": "Text Classifier routes each item to its category branch; no match goes to the Other fallback branch. Scripted fake model.",
+  "status": "active",
+  "nodes": ["textClassifier"],
+  "docs": "https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.text-classifier/"
+}

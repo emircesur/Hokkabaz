@@ -1,0 +1,46 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "price": 10
+              }
+            },
+            {
+              "json": {
+                "price": 20
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Code": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "price": 10,
+                "double": 20,
+                "i": 0
+              }
+            },
+            {
+              "json": {
+                "price": 20,
+                "double": 40,
+                "i": 1
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

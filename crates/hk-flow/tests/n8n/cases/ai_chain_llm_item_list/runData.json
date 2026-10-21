@@ -1,0 +1,8 @@
+{
+  "Trigger": [
+    { "data": { "main": [[ { "json": { "thing": "a rainbow" } } ]] } }
+  ],
+  "Basic LLM Chain": [
+    { "data": { "main": [[ { "json": { "text": ["red", "orange", "yellow"] } } ]] } }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "Trigger": [
+    { "data": { "main": [[{ "json": { "chatInput": "Shout rome", "sessionId": "s-1" } }]] } }
+  ],
+  "AI Agent": [
+    {
+      "data": {
+        "main": [[
+          {
+            "json": {
+              "output": { "city": "Rome", "shout": "ROME" },
+              "intermediateSteps": [
+                {
+                  "action": {
+                    "tool": "shout",
+                    "toolInput": { "input": "rome" },
+                    "log": "Calling the tool.",
+                    "toolCallId": "call_1",
+                    "type": "tool_call"
+                  },
+                  "observation": "ROME"
+                }
+              ]
+            }
+          }
+        ]]
+      }
+    }
+  ]
+}

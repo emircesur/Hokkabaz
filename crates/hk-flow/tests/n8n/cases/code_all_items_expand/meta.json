@@ -1,0 +1,8 @@
+{
+  "description": "Output may have more items than the input (split words into items).",
+  "status": "active",
+  "nodes": [
+    "code"
+  ],
+  "docs": "https://docs.n8n.io/code/code-node/"
+}

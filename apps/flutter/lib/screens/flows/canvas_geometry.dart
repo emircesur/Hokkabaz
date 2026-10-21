@@ -10,7 +10,12 @@ const double kNodeMinHeight = 64;
 const double kPortRow = 24;
 
 /// Transparent margin around a card so ports that stick out stay hit-testable.
-const double kPortPad = 14;
+/// Sized for the touch port hit box (half of 48).
+const double kPortPad = 24;
+
+/// Port hit box side in canvas units: pointer vs finger.
+const double kPortHitMouse = 24;
+const double kPortHitTouch = 48;
 
 enum PortSide { left, right, top, bottom }
 

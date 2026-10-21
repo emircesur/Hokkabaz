@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/adaptive.dart';
+import '../../app/breakpoints.dart';
 import '../../ffi/settings_providers.dart';
 import '../../src/rust/dto.dart';
 import '../../theme/tokens.dart';
@@ -9,8 +11,10 @@ import 'composer_logic.dart';
 
 /// Searchable model list from [modelListProvider]; writes [composerModelProvider].
 Future<void> showModelPicker(BuildContext context) {
-  return showDialog<void>(
-    context: context,
+  return showAdaptiveSheetOrDialog<void>(
+    context,
+    maxHeight: 520,
+    tall: true,
     builder: (_) => const _ModelPicker(),
   );
 }
@@ -30,40 +34,35 @@ class _ModelPickerState extends ConsumerState<_ModelPicker> {
     final hk = context.hk;
     final list = ref.watch(modelListProvider);
     final current = ref.watch(composerModelProvider);
-    return Dialog(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 520),
-        child: Padding(
-          padding: const EdgeInsets.all(HkTokens.s3),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextField(
-                autofocus: true,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  prefixIcon: Icon(Icons.search),
-                  hintText: 'Search models',
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (v) => setState(() => _q = v),
-              ),
-              const SizedBox(height: HkTokens.s2),
-              Flexible(
-                child: list.when(
-                  loading: () => const Padding(
-                    padding: EdgeInsets.all(HkTokens.s4),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                  error: (e, _) =>
-                      Text(describeError(e), style: TextStyle(color: hk.err)),
-                  data: (d) => _body(context, d.models, current),
-                ),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.all(HkTokens.s3),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            autofocus: true,
+            decoration: InputDecoration(
+              isDense: !isNarrow(context),
+              prefixIcon: const Icon(Icons.search),
+              hintText: 'Search models',
+              border: const OutlineInputBorder(),
+            ),
+            onChanged: (v) => setState(() => _q = v),
           ),
-        ),
+          const SizedBox(height: HkTokens.s2),
+          Flexible(
+            child: list.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.all(HkTokens.s4),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (e, _) =>
+                  Text(describeError(e), style: TextStyle(color: hk.err)),
+              data: (d) => _body(context, d.models, current),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -82,7 +81,7 @@ class _ModelPickerState extends ConsumerState<_ModelPicker> {
       children: [
         if (_q.isEmpty)
           ListTile(
-            dense: true,
+            dense: !isNarrow(context),
             selected: current == null,
             leading: const Icon(Icons.auto_awesome_outlined, size: 18),
             title: const Text('Session default'),
@@ -90,7 +89,7 @@ class _ModelPickerState extends ConsumerState<_ModelPicker> {
           ),
         for (final r in refs)
           ListTile(
-            dense: true,
+            dense: !isNarrow(context),
             selected: r == current,
             title: Text(byRef[r]!.name, overflow: TextOverflow.ellipsis),
             subtitle: Text(

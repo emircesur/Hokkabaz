@@ -105,7 +105,8 @@ fn prepare_workflow(body: Value) -> Result<Prepared, ApiError> {
     Ok(Prepared { name, data: m })
 }
 
-pub(crate) fn workflow_json(r: &WorkflowRow) -> Value {
+/// n8n-shaped JSON for a stored workflow (id, name, active, nodes, ...).
+pub fn workflow_json(r: &WorkflowRow) -> Value {
     let mut m = Map::new();
     m.insert("id".into(), json!(r.id));
     m.insert("name".into(), json!(r.name));

@@ -168,6 +168,8 @@ function userLine(e) {
 
 const bigint = (k, x) => (typeof x === 'bigint' ? x.toString() : x);
 const fail = (e, item) => {
+  // QuickJS throws a bare `null` when it cannot even allocate the out-of-memory error.
+  if (e === null) e = { name: 'InternalError', message: 'out of memory' };
   const isErr = e !== null && typeof e === 'object';
   const msg = isErr && e.message !== undefined ? String(e.message) : String(e);
   const name = isErr && e.name ? String(e.name) : 'Error';

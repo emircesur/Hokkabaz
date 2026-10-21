@@ -1,0 +1,8 @@
+{
+  "description": "Run once for all items: mutate input items in place and return $input.all().",
+  "status": "active",
+  "nodes": [
+    "code"
+  ],
+  "docs": "https://docs.n8n.io/code/code-node/"
+}

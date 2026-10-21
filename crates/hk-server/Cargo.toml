@@ -41,6 +41,7 @@ server = [
   "dep:base64",
   "dep:form_urlencoded",
   "dep:utoipa",
+  "dep:qrcode",
   "tokio/net",
 ]
 
@@ -53,6 +54,7 @@ futures = { version = "0.3", optional = true }
 hmac = { version = "0.12", optional = true }
 sha1 = { version = "0.10", optional = true }
 sha2 = { version = "0.10", optional = true }
+qrcode = { version = "0.14", optional = true, default-features = false, features = ["svg"] }
 utoipa = { version = "5", optional = true, default-features = false, features = ["macros"] }
 getrandom = { version = "0.3", optional = true }
 hk-agent = { version = "0.0.0", path = "../hk-agent", optional = true }

@@ -1,0 +1,6 @@
+{
+  "description": "AI Agent (tools agent) with chat model, window memory, code tool and structured output parser; scripted fake model, no network.",
+  "status": "active",
+  "nodes": ["agent"],
+  "docs": "https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/"
+}

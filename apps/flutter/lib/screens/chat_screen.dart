@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../app/breakpoints.dart';
 import '../ffi/ffi.dart';
 import '../theme/tokens.dart';
 import 'chat/chat_providers.dart';
@@ -16,12 +17,7 @@ class ChatScreen extends ConsumerWidget {
   final String title;
   final IconData icon;
 
-  /// Content width at which sessions and conversation sit side by side.
-  static const double _twoPaneMin = 720;
   static const double _sessionsWidth = 280;
-
-  /// Content width at which the inspector becomes a third column.
-  static const double _inspectorMin = 1100;
   static const double _inspectorWidth = 320;
 
   @override
@@ -29,8 +25,8 @@ class ChatScreen extends ConsumerWidget {
     final selected = ref.watch(selectedSessionProvider);
     return LayoutBuilder(
       builder: (context, c) {
-        final wide = c.maxWidth >= _twoPaneMin;
-        final inline = c.maxWidth >= _inspectorMin;
+        final wide = c.maxWidth >= kChatTwoPaneMin;
+        final inline = c.maxWidth >= kChatInspectorMin;
         final conversation = selected == null
             ? _Empty(title: title, icon: icon)
             : ConversationPane(
@@ -45,7 +41,17 @@ class ChatScreen extends ConsumerWidget {
                           .select(null),
               );
         if (!wide) {
-          return selected == null ? const SessionsPane() : conversation;
+          if (selected == null) return const SessionsPane();
+          // System back returns to the session list instead of leaving the app.
+          return PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop) {
+                ref.read(selectedSessionProvider.notifier).select(null);
+              }
+            },
+            child: conversation,
+          );
         }
         return Row(
           children: [

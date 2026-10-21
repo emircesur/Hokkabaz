@@ -1,0 +1,8 @@
+{
+  "description": "Code output feeds a later Set node that reads it with an expression.",
+  "status": "active",
+  "nodes": [
+    "code"
+  ],
+  "docs": "https://docs.n8n.io/code/code-node/"
+}

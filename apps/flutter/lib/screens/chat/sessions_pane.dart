@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/breakpoints.dart';
 import '../../ffi/ffi.dart';
 import '../../src/rust/dto.dart';
 import '../../theme/tokens.dart';
@@ -95,7 +96,8 @@ class _SessionTile extends StatelessWidget {
         ? 'New session'
         : info.title!;
     return ListTile(
-      dense: true,
+      dense: !isNarrow(context),
+      minTileHeight: touchMinHeight(context) + 8,
       selected: selected,
       selectedTileColor: hk.surface,
       selectedColor: hk.text,

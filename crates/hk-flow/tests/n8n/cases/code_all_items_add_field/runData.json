@@ -1,0 +1,44 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "a": 1
+              }
+            },
+            {
+              "json": {
+                "a": 2
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Code": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "a": 1,
+                "myNewField": 1
+              }
+            },
+            {
+              "json": {
+                "a": 2,
+                "myNewField": 1
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

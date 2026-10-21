@@ -1,0 +1,52 @@
+{
+  "name": "ai_chain_llm_item_list",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-0000000000d1",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Name three colors of {{ $json.thing }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            { "type": "SystemMessagePromptTemplate", "message": "Answer tersely." }
+          ]
+        }
+      },
+      "id": "00000000-0000-4000-8000-0000000000d2",
+      "name": "Basic LLM Chain",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [240, 0]
+    },
+    {
+      "parameters": { "model": "scripted-chain", "options": {} },
+      "id": "00000000-0000-4000-8000-0000000000d3",
+      "name": "Ollama Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [240, 240]
+    },
+    {
+      "parameters": { "options": { "numberOfItems": 3 } },
+      "id": "00000000-0000-4000-8000-0000000000d4",
+      "name": "Item List Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserItemList",
+      "typeVersion": 1,
+      "position": [400, 240]
+    }
+  ],
+  "connections": {
+    "Trigger": { "main": [[{ "node": "Basic LLM Chain", "type": "main", "index": 0 }]] },
+    "Ollama Chat Model": { "ai_languageModel": [[{ "node": "Basic LLM Chain", "type": "ai_languageModel", "index": 0 }]] },
+    "Item List Output Parser": { "ai_outputParser": [[{ "node": "Basic LLM Chain", "type": "ai_outputParser", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

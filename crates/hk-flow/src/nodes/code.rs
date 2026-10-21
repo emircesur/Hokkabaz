@@ -126,7 +126,9 @@ impl FlowNode for CodeNode {
 
 fn script_failure(e: ExprError) -> String {
     match e {
-        ExprError::Timeout => "Code execution timed out: the script ran longer than the limit".into(),
+        ExprError::Timeout => {
+            "Code execution timed out: the script ran longer than the limit".into()
+        }
         ExprError::Memory => "Code execution exceeded the memory limit".into(),
         other => other.to_string(),
     }
@@ -156,9 +158,11 @@ fn all_items(v: Value) -> Result<Vec<Item>, String> {
     };
     let with_json = list.iter().filter(|x| is_item_form(x)).count();
     if with_json != 0 && with_json != list.len() {
-        return Err("Code doesn't return items properly. If you return an item with the key \
+        return Err(
+            "Code doesn't return items properly. If you return an item with the key \
                     `json`, all returned items need it."
-            .into());
+                .into(),
+        );
     }
     list.into_iter()
         .enumerate()
@@ -207,6 +211,8 @@ fn to_item(v: Value) -> Result<Item, String> {
                 .map_err(|e| format!("Returned item is malformed: {e}"))
         }
         Value::Object(m) => Ok(Item::new(m)),
-        _ => Err("Code doesn't return items properly. Every returned item must be an object".into()),
+        _ => {
+            Err("Code doesn't return items properly. Every returned item must be an object".into())
+        }
     }
 }

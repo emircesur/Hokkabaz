@@ -1,0 +1,43 @@
+{
+  "name": "ai_text_classifier",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-0000000000b1",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "inputText": "={{ $json.message }}",
+        "categories": {
+          "categories": [
+            { "category": "Billing", "description": "Invoices, payments, refunds" },
+            { "category": "Support", "description": "Bugs and how-to questions" }
+          ]
+        },
+        "options": { "fallback": "other" }
+      },
+      "id": "00000000-0000-4000-8000-0000000000b2",
+      "name": "Text Classifier",
+      "type": "@n8n/n8n-nodes-langchain.textClassifier",
+      "typeVersion": 1.1,
+      "position": [240, 0]
+    },
+    {
+      "parameters": { "model": "scripted-classifier", "options": {} },
+      "id": "00000000-0000-4000-8000-0000000000b3",
+      "name": "DeepSeek Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [240, 240]
+    }
+  ],
+  "connections": {
+    "Trigger": { "main": [[{ "node": "Text Classifier", "type": "main", "index": 0 }]] },
+    "DeepSeek Chat Model": { "ai_languageModel": [[{ "node": "Text Classifier", "type": "ai_languageModel", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

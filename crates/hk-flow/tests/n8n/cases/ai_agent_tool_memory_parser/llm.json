@@ -1,0 +1,8 @@
+{
+  "models": {
+    "scripted-agent": [
+      { "text": "Calling the tool.", "tool_calls": [{ "id": "call_1", "name": "shout", "arguments": { "input": "rome" } }] },
+      { "text": "```json\n{\"city\": \"Rome\", \"shout\": \"ROME\"}\n```", "expect_last_contains": "ROME" }
+    ]
+  }
+}

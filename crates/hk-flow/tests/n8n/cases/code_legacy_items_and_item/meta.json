@@ -1,0 +1,8 @@
+{
+  "description": "Legacy `items` (all items) and `item` (current item) names.",
+  "status": "active",
+  "nodes": [
+    "code"
+  ],
+  "docs": "https://docs.n8n.io/code/code-node/"
+}
