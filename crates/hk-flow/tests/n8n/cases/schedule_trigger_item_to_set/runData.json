@@ -1,0 +1,42 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "timestamp": "2023-05-28T05:30:00.000-04:00",
+                "Readable date": "May 28th 2023, 5:30:00 am",
+                "Readable time": "5:30:00 am",
+                "Day of week": "Sunday",
+                "Year": "2023",
+                "Month": "May",
+                "Day of month": "28",
+                "Hour": "05",
+                "Minute": "30",
+                "Second": "00",
+                "Timezone": "America/New_York (UTC-04:00)"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Set": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "when": "Sunday 05:30"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

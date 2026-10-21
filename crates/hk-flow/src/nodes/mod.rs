@@ -15,10 +15,12 @@
 //! | Date & Time | `dateTime` | 2 |
 //! | Aggregate, Split Out, Sort, Limit | | 1 |
 //! | Remove Duplicates | `removeDuplicates` | 1, 1.1, 2 (current-input only) |
-//! | Wait | `wait` | 1, 1.1 (in-process, short) |
+//! | Wait | `wait` | 1, 1.1 (inline sleep; long, webhook, form = durable, see `triggers::wait`) |
 //! | Execute Workflow | `executeWorkflow` | 1 - 1.2 (needs a [`SubWorkflowRunner`](crate::hooks::SubWorkflowRunner)) |
 //! | Respond to Webhook | `respondToWebhook` | 1 - 1.3 (emits to a [`ResponseSink`](crate::hooks::ResponseSink)) |
 //! | HTTP Request | `httpRequest` | 4 - 4.2 (feature `http`) |
+//! | Manual / Schedule / Webhook / Form / Chat / Execute Workflow / Error triggers | | see `triggers/` |
+//! | App Event / File Watch triggers | `hokkabaz.*` | 1 (Hokkabaz native) |
 
 use std::sync::Arc;
 
@@ -26,7 +28,7 @@ use crate::error::FlowError;
 use crate::node::{FlowNode, NodeRegistry};
 
 mod conditions;
-mod date;
+pub(crate) mod date;
 mod datetime;
 mod flow_control;
 #[cfg(feature = "http")]
@@ -35,6 +37,7 @@ mod merge;
 mod routing;
 mod set;
 mod transform;
+mod triggers;
 mod util;
 
 pub use datetime::DateTimeNode;
@@ -47,6 +50,7 @@ pub use set::SetNode;
 pub use transform::{
     AggregateNode, LimitNode, RemoveDuplicatesNode, SortNode, SplitInBatchesNode, SplitOutNode,
 };
+pub use triggers::TriggerNode;
 
 /// Every core node implementation in this crate.
 pub fn core_nodes() -> Vec<Arc<dyn FlowNode>> {
@@ -71,6 +75,11 @@ pub fn core_nodes() -> Vec<Arc<dyn FlowNode>> {
     ];
     #[cfg(feature = "http")]
     v.push(Arc::new(HttpRequestNode::new()));
+    v.extend(
+        triggers::trigger_nodes()
+            .into_iter()
+            .map(|n| Arc::new(n) as Arc<dyn FlowNode>),
+    );
     v
 }
 
@@ -108,6 +117,12 @@ mod tests {
             "wait",
             "executeWorkflow",
             "respondToWebhook",
+            "manualTrigger",
+            "scheduleTrigger",
+            "webhook",
+            "formTrigger",
+            "executeWorkflowTrigger",
+            "errorTrigger",
         ] {
             assert!(r.latest(&format!("n8n-nodes-base.{t}")).is_some(), "{t}");
         }

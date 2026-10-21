@@ -62,8 +62,18 @@
 //! (empty by default: host env can hold secrets) and `$vars`. When the execution ends the
 //! evaluator's per-execution realm is released.
 //!
-//! Not here yet: cancellation, workflow timeout, sub-nodes (`ai_*` connections), Wait
-//! resume, error workflows.
+//! # Durable waits
+//!
+//! With a [`WaitStore`] attached ([`Executor::with_wait_store`]) a Wait node that cannot be
+//! held in-process returns [`FlowError::Suspend`]. The executor then stops scheduling,
+//! snapshots everything needed to continue ([`WaitSnapshot`]: workflow, run data, pending
+//! work stack, join buffers, scratch, static data), parks it in the store, checkpoints
+//! the execution as `waiting` and returns `status == Waiting`. [`Executor::resume`]
+//! rebuilds the run from a snapshot and continues: the Wait node's output is its input
+//! (timer) or the webhook item that resumed it. Nothing else re-runs.
+//!
+//! Not here yet: cancellation, workflow timeout, sub-nodes (`ai_*` connections), error
+//! workflows (see `triggers::LocalTriggerHost::on_execution_finished`).
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Arc;
@@ -71,6 +81,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::error::FlowError;
@@ -82,6 +93,7 @@ use crate::run_data::{
     ExecutionRecord, NodeRun, NodeRunData, RunError, RunSource, RunStatus, RunStore, SharedRunData,
     StaticData,
 };
+use crate::triggers::wait::{WaitRecord, WaitRequest, WaitStore, WaitTrigger};
 use crate::workflow::{ErrorMode, MAIN, Node, Workflow};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,6 +133,9 @@ pub struct ExecutorConfig {
     pub frozen_now_ms: Option<i64>,
     /// Sub-workflow runner, webhook response sink, credential resolver for nodes.
     pub hooks: NodeHooks,
+    /// Public base of the webhook listener (`https://host:5678`). Enables
+    /// `$execution.resumeUrl` (`<base>/webhook-waiting/<execution id>`).
+    pub webhook_base_url: Option<String>,
 }
 
 impl Default for ExecutorConfig {
@@ -134,6 +149,7 @@ impl Default for ExecutorConfig {
             evaluator: None,
             frozen_now_ms: None,
             hooks: NodeHooks::default(),
+            webhook_base_url: None,
         }
     }
 }
@@ -167,12 +183,58 @@ pub struct ExecutionResult {
     pub last_node_executed: Option<String>,
     /// Updated workflow static data; `None` when no node touched it.
     pub static_data: Option<Value>,
+    /// Set when `status == Waiting`: what to persist/arm. Already put in the executor's
+    /// `WaitStore` when one is attached.
+    pub wait: Option<WaitRecord>,
+}
+
+/// Why a suspended execution continues.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ResumeReason {
+    /// Timer fired (or the timeout of a webhook wait): Wait forwards its input items.
+    Elapsed,
+    /// Webhook/form call: Wait outputs these items instead of its input.
+    Webhook(Vec<Item>),
+}
+
+/// Everything needed to continue a suspended execution after a restart. JSON-serializable;
+/// holds items and error messages only, never credential values (nodes only ever hold
+/// credential references).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WaitSnapshot {
+    pub execution_id: String,
+    /// The workflow as it was when the run started. Replace it before `resume` to continue
+    /// on an edited version (n8n resumes on the current one).
+    pub workflow: Workflow,
+    pub started_at: u64,
+    pub suspended_at: u64,
+    pub run_data: crate::run_data::RunData,
+    pub next_index: usize,
+    #[serde(default)]
+    pub last_node: Option<String>,
+    #[serde(default)]
+    pub static_data: Value,
+    #[serde(default)]
+    pub static_dirty: bool,
+    #[serde(default)]
+    pub scratch: BTreeMap<String, Value>,
+    /// Ready work not yet run, front first.
+    #[serde(default)]
+    pub stack: Vec<Task>,
+    /// Join buffers (Merge) still waiting for another branch.
+    #[serde(default)]
+    pub waiting: IndexMap<String, Vec<Waiting>>,
+    /// The Wait node's own pending run.
+    pub suspended: Task,
+    pub request: WaitRequest,
 }
 
 #[derive(Debug, Clone)]
 pub struct Executor {
     registry: Arc<NodeRegistry>,
     store: Option<Arc<dyn RunStore>>,
+    wait_store: Option<Arc<dyn WaitStore>>,
     config: ExecutorConfig,
 }
 
@@ -189,8 +251,19 @@ impl Executor {
         Self {
             registry,
             store: None,
+            wait_store: None,
             config: ExecutorConfig::default(),
         }
+    }
+
+    /// Enables durable waits: suspended executions are parked here.
+    pub fn with_wait_store(mut self, store: Arc<dyn WaitStore>) -> Self {
+        self.wait_store = Some(store);
+        self
+    }
+
+    pub fn wait_store(&self) -> Option<&Arc<dyn WaitStore>> {
+        self.wait_store.as_ref()
     }
 
     pub fn with_store(mut self, store: Arc<dyn RunStore>) -> Self {
@@ -225,7 +298,7 @@ impl Executor {
             wf,
             order: ExecutionOrder::of(wf),
             id: id.clone(),
-            expr: self.expr_env(wf),
+            expr: self.expr_env(wf, &id),
             scratch: ExecScratch::new(),
             started_at: now_ms(),
             run_data: SharedRunData::new(),
@@ -241,7 +314,136 @@ impl Executor {
         res
     }
 
-    fn expr_env(&self, wf: &Workflow) -> ExprEnv {
+    /// Continue a suspended execution. `Err` = could not continue (store failure);
+    /// node failures land in the result as in [`execute`](Self::execute). The result can
+    /// be `Waiting` again (a second Wait later in the workflow).
+    pub async fn resume(
+        &self,
+        snapshot: WaitSnapshot,
+        reason: ResumeReason,
+    ) -> Result<ExecutionResult, FlowError> {
+        let WaitSnapshot {
+            execution_id: id,
+            workflow: wf,
+            started_at,
+            suspended_at,
+            run_data,
+            next_index,
+            last_node,
+            static_data,
+            static_dirty,
+            scratch,
+            stack,
+            waiting,
+            suspended,
+            request: _,
+        } = snapshot;
+        let mut run = Run {
+            exec: self,
+            wf: &wf,
+            order: ExecutionOrder::of(&wf),
+            id: id.clone(),
+            expr: self.expr_env(&wf, &id),
+            scratch: ExecScratch::restore(scratch),
+            started_at,
+            run_data: SharedRunData::from_snapshot(run_data),
+            static_data: StaticData::restore(Some(&static_data), static_dirty),
+            stack: stack.into(),
+            waiting,
+            layouts: HashMap::new(),
+            next_index,
+            last_node,
+        };
+        let res = run
+            .continue_after_wait(suspended, suspended_at, reason)
+            .await;
+        self.release_expr(&id);
+        res
+    }
+
+    /// Resume the parked execution `execution_id`. `Ok(None)` = nothing parked under that
+    /// id (never suspended, already resumed or claimed by another worker).
+    pub async fn resume_from_store(
+        &self,
+        execution_id: &str,
+        reason: ResumeReason,
+    ) -> Result<Option<ExecutionResult>, FlowError> {
+        let store = self.require_wait_store()?;
+        let Some(rec) = store.take(execution_id).await? else {
+            return Ok(None);
+        };
+        self.resume(rec.snapshot, reason).await.map(Some)
+    }
+
+    /// Resume a parked execution because a call hit its resume URL. Checks the HTTP method
+    /// and suffix the Wait node was configured with; `Err(Invalid)` on mismatch (the
+    /// execution stays parked), `Ok(None)` when nothing is parked under the id.
+    pub async fn resume_webhook(
+        &self,
+        execution_id: &str,
+        method: &str,
+        suffix: Option<&str>,
+        items: Vec<Item>,
+    ) -> Result<Option<ExecutionResult>, FlowError> {
+        let store = self.require_wait_store()?;
+        let Some(rec) = store.get(execution_id).await? else {
+            return Ok(None);
+        };
+        match &rec.request.on {
+            WaitTrigger::Webhook {
+                http_method,
+                suffix: want,
+            } => {
+                if !http_method.eq_ignore_ascii_case(method)
+                    || want.as_deref().unwrap_or("") != suffix.unwrap_or("")
+                {
+                    return Err(FlowError::Invalid(format!(
+                        "execution {execution_id} waits for {http_method} /{}",
+                        want.as_deref().unwrap_or("")
+                    )));
+                }
+            }
+            WaitTrigger::Form => {}
+            WaitTrigger::Time => {
+                return Err(FlowError::Invalid(format!(
+                    "execution {execution_id} waits for a timer, not a webhook"
+                )));
+            }
+        }
+        self.resume_from_store(execution_id, ResumeReason::Webhook(items))
+            .await
+    }
+
+    /// Resume every parked execution whose timer is due at `now_ms` (also the timeout of
+    /// webhook waits). Call after a restart and from the scheduler tick; overdue waits
+    /// resume immediately. One result per claimed execution.
+    pub async fn resume_due(&self, now_ms: i64) -> Vec<Result<ExecutionResult, FlowError>> {
+        let Some(store) = &self.wait_store else {
+            return Vec::new();
+        };
+        let due = match store.due(now_ms).await {
+            Ok(d) => d,
+            Err(e) => return vec![Err(e)],
+        };
+        let mut out = Vec::new();
+        for rec in due {
+            // `take` is the claim: a concurrent worker that got it first makes this a no-op
+            match store.take(&rec.execution_id).await {
+                Ok(Some(rec)) => out.push(self.resume(rec.snapshot, ResumeReason::Elapsed).await),
+                Ok(None) => {}
+                Err(e) => out.push(Err(e)),
+            }
+        }
+        out
+    }
+
+    fn require_wait_store(&self) -> Result<&Arc<dyn WaitStore>, FlowError> {
+        self.wait_store
+            .as_ref()
+            .ok_or_else(|| FlowError::Invalid("executor has no wait store".into()))
+    }
+
+    fn expr_env(&self, wf: &Workflow, execution_id: &str) -> ExprEnv {
         let c = &self.config;
         let env: BTreeMap<String, String> = c
             .env_allowlist
@@ -260,7 +462,10 @@ impl Executor {
             node_params: Arc::new(node_params),
             mode: Some(c.mode.clone()),
             workflow_active: wf.active.unwrap_or(false),
-            resume_url: None,
+            resume_url: c
+                .webhook_base_url
+                .as_ref()
+                .map(|b| format!("{}/webhook-waiting/{execution_id}", b.trim_end_matches('/'))),
             timezone: wf.settings.as_ref().and_then(|s| s.timezone.clone()),
             now_ms: c.frozen_now_ms,
         }
@@ -279,15 +484,19 @@ impl Executor {
 
 // ------------------------------------------------------------------- state
 
-struct Task {
-    node: String,
-    input: Vec<Vec<Item>>,
-    source: Vec<Option<RunSource>>,
+/// Ready work: a node plus the items on each input port.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Task {
+    pub node: String,
+    pub input: Vec<Vec<Item>>,
+    pub source: Vec<Option<RunSource>>,
 }
 
-struct Waiting {
-    slots: Vec<Option<Vec<Item>>>,
-    source: Vec<Option<RunSource>>,
+/// Join buffer entry of a node with several connected inputs (Merge).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Waiting {
+    pub slots: Vec<Option<Vec<Item>>>,
+    pub source: Vec<Option<RunSource>>,
 }
 
 impl Waiting {
@@ -332,6 +541,7 @@ struct Run<'a> {
 enum Flow {
     Continue,
     Stop(RunError),
+    Suspend(Box<Task>, Box<WaitRequest>),
 }
 
 impl<'a> Run<'a> {
@@ -348,7 +558,37 @@ impl<'a> Run<'a> {
         let idx = self.record(start, Vec::new(), started, Instant::now(), &out, None);
         self.checkpoint(RunStatus::Running, None, None).await?;
         self.propagate(start, idx, &out);
+        self.run_loop().await
+    }
 
+    /// Continue after a durable wait: the Wait node completes now, then the loop goes on.
+    async fn continue_after_wait(
+        &mut self,
+        task: Task,
+        suspended_at: u64,
+        reason: ResumeReason,
+    ) -> Result<ExecutionResult, FlowError> {
+        let first_input = task.input.first().cloned().unwrap_or_default();
+        let mut out = vec![match reason {
+            ResumeReason::Elapsed => first_input.clone(),
+            ResumeReason::Webhook(items) => items,
+        }];
+        assign_paired(&mut out, &first_input);
+        self.checkpoint(RunStatus::Running, None, None).await?;
+        let idx = self.record(
+            &task.node,
+            task.source,
+            suspended_at,
+            Instant::now(),
+            &out,
+            None,
+        );
+        self.checkpoint(RunStatus::Running, None, None).await?;
+        self.propagate(&task.node, idx, &out);
+        self.run_loop().await
+    }
+
+    async fn run_loop(&mut self) -> Result<ExecutionResult, FlowError> {
         let mut runs = 0usize;
         let mut failure = None;
         loop {
@@ -370,9 +610,13 @@ impl<'a> Run<'a> {
                 });
                 break;
             }
-            if let Flow::Stop(e) = self.run_task(task).await? {
-                failure = Some(e);
-                break;
+            match self.run_task(task).await? {
+                Flow::Continue => {}
+                Flow::Stop(e) => {
+                    failure = Some(e);
+                    break;
+                }
+                Flow::Suspend(task, req) => return self.suspend(*task, *req).await,
             }
         }
 
@@ -393,6 +637,53 @@ impl<'a> Run<'a> {
                 .static_data
                 .is_dirty()
                 .then(|| self.static_data.snapshot()),
+            wait: None,
+        })
+    }
+
+    /// Park the execution: snapshot, persist, report `Waiting`.
+    async fn suspend(
+        &mut self,
+        task: Task,
+        request: WaitRequest,
+    ) -> Result<ExecutionResult, FlowError> {
+        let snapshot = WaitSnapshot {
+            execution_id: self.id.clone(),
+            workflow: self.wf.clone(),
+            started_at: self.started_at,
+            suspended_at: now_ms(),
+            run_data: self.run_data.snapshot(),
+            next_index: self.next_index,
+            last_node: self.last_node.clone(),
+            static_data: self.static_data.snapshot(),
+            static_dirty: self.static_data.is_dirty(),
+            scratch: self.scratch.snapshot(),
+            stack: self.stack.drain(..).collect(),
+            waiting: std::mem::take(&mut self.waiting),
+            suspended: task,
+            request: request.clone(),
+        };
+        let record = WaitRecord {
+            execution_id: self.id.clone(),
+            workflow_id: self.wf.id.clone(),
+            request,
+            snapshot,
+        };
+        if let Some(ws) = &self.exec.wait_store {
+            ws.put(&record).await?;
+        }
+        self.checkpoint(RunStatus::Waiting, None, None).await?;
+        Ok(ExecutionResult {
+            execution_id: self.id.clone(),
+            status: RunStatus::Waiting,
+            run_data: self.run_data.snapshot(),
+            error: None,
+            last_node_executed: self.last_node.clone(),
+            static_data: self
+                .static_data
+                .is_dirty()
+                .then(|| self.static_data.snapshot()),
+            wait: Some(record),
         })
     }
 
@@ -612,6 +903,7 @@ impl<'a> Run<'a> {
         ctx.static_data = self.static_data.clone();
         ctx.expr = self.expr.clone();
         ctx.hooks = self.exec.config.hooks.clone();
+        ctx.hooks.durable_wait = self.exec.wait_store.is_some();
         ctx.scratch = self.scratch.clone();
 
         let (declared, result) = match self.exec.registry.resolve(node) {
@@ -620,6 +912,13 @@ impl<'a> Run<'a> {
                 call_with_retry(imp, node, &ctx).await,
             ),
             Err(e) => (None, Err(e)),
+        };
+
+        let result = match result {
+            Err(FlowError::Suspend(req)) => {
+                return Ok(Flow::Suspend(Box::new(task), req));
+            }
+            other => other,
         };
 
         let mode = node.error_mode();
@@ -720,7 +1019,7 @@ async fn call_with_retry(
     loop {
         match imp.execute(ctx).await {
             Ok(o) => return Ok(o),
-            Err(e) if attempt >= tries => return Err(e),
+            Err(e) if attempt >= tries || matches!(e, FlowError::Suspend(_)) => return Err(e),
             Err(_) => {
                 attempt += 1;
                 if wait > 0 {

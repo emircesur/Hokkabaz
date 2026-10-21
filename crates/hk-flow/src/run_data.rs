@@ -24,6 +24,8 @@ pub enum RunStatus {
     #[default]
     Success,
     Error,
+    /// Suspended in a durable Wait; resumes via `Executor::resume`.
+    Waiting,
 }
 
 /// Where a run's input came from (n8n `source`). `previousNodeOutput` / `previousNodeRun`
@@ -99,6 +101,11 @@ impl SharedRunData {
         Self::default()
     }
 
+    /// Rebuild from a persisted snapshot (durable-wait resume).
+    pub fn from_snapshot(data: RunData) -> Self {
+        Self(Arc::new(RwLock::new(data)))
+    }
+
     pub fn snapshot(&self) -> RunData {
         self.0
             .read()
@@ -172,6 +179,14 @@ impl StaticData {
             scopes,
             dirty: false,
         })))
+    }
+
+    /// Like [`from_value`](Self::from_value) but keeps the dirty flag, so a resumed
+    /// execution still reports static data written before it was suspended.
+    pub fn restore(v: Option<&Value>, dirty: bool) -> Self {
+        let s = Self::from_value(v);
+        s.lock().dirty = dirty;
+        s
     }
 
     fn lock(&self) -> MutexGuard<'_, StaticInner> {

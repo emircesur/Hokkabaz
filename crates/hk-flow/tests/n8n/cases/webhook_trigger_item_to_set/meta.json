@@ -1,0 +1,9 @@
+{
+  "description": "Webhook trigger item {headers, params, query, body} feeds expressions downstream.",
+  "status": "active",
+  "nodes": [
+    "webhook",
+    "set"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/"
+}

@@ -13,6 +13,7 @@ use crate::error::FlowError;
 use crate::hooks::{ResponseBody, SubWorkflowRequest, WebhookResponse};
 use crate::item::Item;
 use crate::node::{FlowNode, NodeContext, NodeOutput};
+use crate::triggers::wait::{WaitRequest, WaitTrigger};
 
 // ------------------------------------------------------------------------ Wait
 
@@ -54,7 +55,33 @@ impl WaitNode {
                     {"name": "Seconds", "value": "seconds"},
                     {"name": "Minutes", "value": "minutes"},
                     {"name": "Hours", "value": "hours"},
-                    {"name": "Days", "value": "days"}]}
+                    {"name": "Days", "value": "days"}]},
+                {"displayName": "HTTP Method", "name": "httpMethod", "type": "options", "default": "GET",
+                 "displayOptions": {"show": {"resume": ["webhook"]}},
+                 "options": [
+                    {"name": "DELETE", "value": "DELETE"}, {"name": "GET", "value": "GET"},
+                    {"name": "HEAD", "value": "HEAD"}, {"name": "PATCH", "value": "PATCH"},
+                    {"name": "POST", "value": "POST"}, {"name": "PUT", "value": "PUT"}]},
+                {"displayName": "Limit Wait Time", "name": "limitWaitTime", "type": "boolean", "default": false,
+                 "displayOptions": {"show": {"resume": ["webhook", "form"]}}},
+                {"displayName": "Limit Type", "name": "limitType", "type": "options", "default": "afterTimeInterval",
+                 "displayOptions": {"show": {"limitWaitTime": [true], "resume": ["webhook", "form"]}},
+                 "options": [
+                    {"name": "After Time Interval", "value": "afterTimeInterval"},
+                    {"name": "At Specified Time", "value": "atSpecifiedTime"}]},
+                {"displayName": "Amount", "name": "resumeAmount", "type": "number", "default": 1,
+                 "displayOptions": {"show": {"limitType": ["afterTimeInterval"], "limitWaitTime": [true], "resume": ["webhook", "form"]}}},
+                {"displayName": "Unit", "name": "resumeUnit", "type": "options", "default": "hours",
+                 "displayOptions": {"show": {"limitType": ["afterTimeInterval"], "limitWaitTime": [true], "resume": ["webhook", "form"]}},
+                 "options": [
+                    {"name": "Seconds", "value": "seconds"}, {"name": "Minutes", "value": "minutes"},
+                    {"name": "Hours", "value": "hours"}, {"name": "Days", "value": "days"}]},
+                {"displayName": "Max Date and Time", "name": "maxDateAndTime", "type": "dateTime", "default": "",
+                 "displayOptions": {"show": {"limitType": ["atSpecifiedTime"], "limitWaitTime": [true], "resume": ["webhook", "form"]}}},
+                {"displayName": "Options", "name": "options", "type": "collection", "default": {},
+                 "displayOptions": {"show": {"resume": ["webhook"]}},
+                 "options": [
+                    {"displayName": "Webhook Suffix", "name": "webhookSuffix", "type": "string", "default": ""}]}
             ]
         })))
     }
@@ -66,52 +93,103 @@ impl FlowNode for WaitNode {
         &self.0
     }
 
-    /// Only waits short enough to hold in-process; longer ones need the durable wait
-    /// (execution parked in the store), which is a separate task.
+    /// Short waits sleep in-process. Longer ones, and webhook/form waits, suspend the
+    /// execution when the executor can park it (`hooks.durable_wait`).
     async fn execute(&self, ctx: &NodeContext) -> Result<NodeOutput, FlowError> {
-        let wait_ms: f64 = match param_str(ctx, "resume", 0, "timeInterval")?.as_str() {
+        let now = ctx.expr.now_ms.unwrap_or_else(now_millis);
+        let mode = param_str(ctx, "resume", 0, "timeInterval")?;
+        let request = match mode.as_str() {
             "timeInterval" => {
                 let amount = param_f64(ctx, "amount", 0, 1.0)?;
-                let per = match param_str(ctx, "unit", 0, "hours")?.as_str() {
-                    "seconds" => 1000.0,
-                    "minutes" => 60_000.0,
-                    "days" => 86_400_000.0,
-                    _ => 3_600_000.0,
-                };
-                amount * per
+                let ms = amount * unit_ms(&param_str(ctx, "unit", 0, "hours")?);
+                WaitRequest {
+                    resume_at: Some(now.saturating_add(ms.max(0.0) as i64)),
+                    on: WaitTrigger::Time,
+                }
             }
             "specificTime" => {
                 let v = param_or(ctx, "dateTime", 0, Value::Null)?;
                 let tz = parse_zone(ctx.expr.timezone.as_deref().unwrap_or("UTC"));
                 let target = parse_date(&v, tz)
                     .ok_or_else(|| node_err(ctx, "Invalid date for 'Date and Time'"))?;
-                (target.timestamp_millis() - ctx.expr.now_ms.unwrap_or_else(now_millis)) as f64
+                WaitRequest {
+                    resume_at: Some(target.timestamp_millis()),
+                    on: WaitTrigger::Time,
+                }
+            }
+            "webhook" | "form" => {
+                let on = if mode == "form" {
+                    WaitTrigger::Form
+                } else {
+                    let suffix = param_str(ctx, "options.webhookSuffix", 0, "")?;
+                    WaitTrigger::Webhook {
+                        http_method: param_str(ctx, "httpMethod", 0, "GET")?.to_uppercase(),
+                        suffix: (!suffix.is_empty()).then_some(suffix),
+                    }
+                };
+                WaitRequest {
+                    resume_at: webhook_timeout(ctx, now)?,
+                    on,
+                }
             }
             other => {
-                return Err(node_err(
-                    ctx,
-                    format!(
-                        "Wait resume mode `{other}` needs the durable wait, which is not available yet"
-                    ),
-                ));
+                return Err(node_err(ctx, format!("Unknown Wait resume mode `{other}`")));
             }
         };
-        let wait = Duration::from_millis(wait_ms.max(0.0) as u64);
-        if wait > ctx.hooks.max_inline_wait {
-            return Err(node_err(
-                ctx,
-                format!(
-                    "Wait of {}s exceeds the in-process limit of {}s; durable wait is not available yet",
-                    wait.as_secs(),
+
+        if request.on == WaitTrigger::Time {
+            let at = request.resume_at.unwrap_or(now);
+            let wait = Duration::from_millis(u64::try_from((at - now).max(0)).unwrap_or(0));
+            if wait <= ctx.hooks.max_inline_wait {
+                if !wait.is_zero() {
+                    tokio::time::sleep(wait).await;
+                }
+                return Ok(vec![port(ctx, 0).to_vec()]);
+            }
+        }
+        if ctx.hooks.durable_wait {
+            return Err(FlowError::Suspend(Box::new(request)));
+        }
+        Err(node_err(
+            ctx,
+            match request.on {
+                WaitTrigger::Time => format!(
+                    "Wait of {}s exceeds the in-process limit of {}s; the durable wait is not enabled (executor has no wait store)",
+                    request.resume_at.unwrap_or(now).saturating_sub(now) / 1000,
                     ctx.hooks.max_inline_wait.as_secs()
                 ),
-            ));
-        }
-        if !wait.is_zero() {
-            tokio::time::sleep(wait).await;
-        }
-        Ok(vec![port(ctx, 0).to_vec()])
+                _ => format!(
+                    "Wait resume mode `{mode}` needs the durable wait, which is not enabled (executor has no wait store)"
+                ),
+            },
+        ))
     }
+}
+
+fn unit_ms(unit: &str) -> f64 {
+    match unit {
+        "seconds" => 1000.0,
+        "minutes" => 60_000.0,
+        "days" => 86_400_000.0,
+        _ => 3_600_000.0,
+    }
+}
+
+/// `limitWaitTime`: when a webhook/form wait gives up and continues on its own.
+fn webhook_timeout(ctx: &NodeContext, now: i64) -> Result<Option<i64>, FlowError> {
+    if !param_bool(ctx, "limitWaitTime", 0, false)? {
+        return Ok(None);
+    }
+    if param_str(ctx, "limitType", 0, "afterTimeInterval")? == "atSpecifiedTime" {
+        let v = param_or(ctx, "maxDateAndTime", 0, Value::Null)?;
+        let tz = parse_zone(ctx.expr.timezone.as_deref().unwrap_or("UTC"));
+        let at = parse_date(&v, tz)
+            .ok_or_else(|| node_err(ctx, "Invalid date for 'Limit Wait Time'"))?;
+        return Ok(Some(at.timestamp_millis()));
+    }
+    let amount = param_f64(ctx, "resumeAmount", 0, 1.0)?;
+    let ms = amount * unit_ms(&param_str(ctx, "resumeUnit", 0, "hours")?);
+    Ok(Some(now.saturating_add(ms.max(0.0) as i64)))
 }
 
 // ------------------------------------------------------------- Execute Workflow

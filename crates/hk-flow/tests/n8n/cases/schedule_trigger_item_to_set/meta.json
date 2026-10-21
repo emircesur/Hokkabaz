@@ -1,0 +1,9 @@
+{
+  "description": "Schedule trigger item (documented output fields) feeds expressions downstream.",
+  "status": "active",
+  "nodes": [
+    "scheduleTrigger",
+    "set"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.scheduletrigger/"
+}

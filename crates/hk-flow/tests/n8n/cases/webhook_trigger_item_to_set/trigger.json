@@ -1,0 +1,20 @@
+[
+  {
+    "json": {
+      "headers": {
+        "content-type": "application/json"
+      },
+      "params": {},
+      "query": {
+        "src": "cli"
+      },
+      "body": {
+        "name": "Ada",
+        "tags": [
+          "a",
+          "b"
+        ]
+      }
+    }
+  }
+]

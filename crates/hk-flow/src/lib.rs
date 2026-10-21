@@ -21,6 +21,7 @@ pub mod raw;
 pub mod run_data;
 #[cfg(feature = "testing")]
 pub mod testing;
+pub mod triggers;
 pub mod version;
 pub mod workflow;
 
@@ -29,7 +30,10 @@ pub use description::{
     NodeTypeDescription, PropertyType,
 };
 pub use error::FlowError;
-pub use executor::{ExecuteInput, ExecutionOrder, ExecutionResult, Executor, ExecutorConfig};
+pub use executor::{
+    ExecuteInput, ExecutionOrder, ExecutionResult, Executor, ExecutorConfig, ResumeReason,
+    WaitSnapshot,
+};
 #[cfg(feature = "expr")]
 pub use expr::QuickJsEvaluator;
 pub use expr::{ExprEnv, ExprError, ExprLimits, ExprScope, ExpressionEvaluator};
@@ -43,6 +47,11 @@ pub use nodes::register_core_nodes;
 pub use run_data::{
     ExecutionRecord, InMemoryRunStore, NodeRun, NodeRunData, RunData, RunError, RunSource,
     RunStatus, RunStore, SharedRunData, StaticData,
+};
+pub use triggers::wait::{InMemoryWaitStore, WaitRecord, WaitRequest, WaitStore, WaitTrigger};
+pub use triggers::{
+    LocalTriggerHost, TriggerEvent, TriggerHost, TriggerSink, TriggerSpec, WebhookRegistry,
+    WebhookRequest,
 };
 pub use version::{NodeKey, NodeVersions, Version};
 pub use workflow::{

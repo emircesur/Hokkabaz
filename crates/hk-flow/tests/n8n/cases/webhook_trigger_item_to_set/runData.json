@@ -1,0 +1,47 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "headers": {
+                  "content-type": "application/json"
+                },
+                "params": {},
+                "query": {
+                  "src": "cli"
+                },
+                "body": {
+                  "name": "Ada",
+                  "tags": [
+                    "a",
+                    "b"
+                  ]
+                }
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Set": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "who": "Ada",
+                "src": "cli",
+                "tagCount": 2
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "description": "Wait until a time already passed forwards items unchanged without parking the run.",
+  "status": "active",
+  "nodes": [
+    "wait"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.wait/"
+}

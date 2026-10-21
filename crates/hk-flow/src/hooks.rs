@@ -98,8 +98,11 @@ pub struct NodeHooks {
     pub sub_workflow: Option<Arc<dyn SubWorkflowRunner>>,
     pub response: Option<Arc<dyn ResponseSink>>,
     pub credentials: Option<Arc<dyn CredentialResolver>>,
-    /// Longest Wait handled in-process; longer ones need the durable wait (P4.4).
+    /// Longest Wait handled in-process; longer ones suspend the execution (durable wait).
     pub max_inline_wait: Duration,
+    /// The executor can park a suspended execution (it has a `WaitStore`). Set by the
+    /// executor; nodes must not suspend when this is false.
+    pub durable_wait: bool,
 }
 
 impl Default for NodeHooks {
@@ -109,6 +112,7 @@ impl Default for NodeHooks {
             response: None,
             credentials: None,
             max_inline_wait: Duration::from_secs(65),
+            durable_wait: false,
         }
     }
 }
@@ -138,6 +142,18 @@ impl ExecScratch {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .insert(node.to_owned(), v);
+    }
+
+    /// Copy of all entries; persisted with a suspended execution.
+    pub fn snapshot(&self) -> BTreeMap<String, Value> {
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    pub fn restore(entries: BTreeMap<String, Value>) -> Self {
+        Self(Arc::new(Mutex::new(entries)))
     }
 
     pub fn clear(&self, node: &str) {
