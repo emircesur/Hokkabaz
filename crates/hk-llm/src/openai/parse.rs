@@ -1,4 +1,7 @@
-//! SSE payloads -> [`StreamEvent`]s.
+//! SSE payloads -> [`StreamEvent`]s for OpenAI-style chat chunks.
+//!
+//! Superset of the dialects seen so far: DeepSeek cache counters, OpenAI
+//! `cached_tokens`, `reasoning_content` / `reasoning` deltas.
 
 use std::collections::VecDeque;
 use std::fmt::Display;
@@ -37,6 +40,8 @@ struct Choice {
 #[derive(Deserialize, Default)]
 struct Delta {
     content: Option<String>,
+    // `reasoning_content` (DeepSeek, vLLM, Qwen) or `reasoning` (OpenRouter, Ollama).
+    #[serde(alias = "reasoning")]
     reasoning_content: Option<String>,
     #[serde(default)]
     tool_calls: Vec<ToolDelta>,
@@ -64,7 +69,15 @@ struct WireUsage {
     completion_tokens: u64,
     prompt_cache_hit_tokens: Option<u64>,
     prompt_cache_miss_tokens: Option<u64>,
+    // OpenAI-style cache counter.
+    prompt_tokens_details: Option<PromptDetails>,
     completion_tokens_details: Option<CompletionDetails>,
+}
+
+#[derive(Deserialize)]
+struct PromptDetails {
+    #[serde(default)]
+    cached_tokens: u64,
 }
 
 #[derive(Deserialize)]
@@ -75,7 +88,10 @@ struct CompletionDetails {
 
 impl WireUsage {
     fn into_usage(self) -> Usage {
-        let hit = self.prompt_cache_hit_tokens.unwrap_or(0);
+        let hit = self
+            .prompt_cache_hit_tokens
+            .or_else(|| self.prompt_tokens_details.map(|d| d.cached_tokens))
+            .unwrap_or(0);
         // Prefer the explicit miss counter; otherwise derive it.
         let miss = self
             .prompt_cache_miss_tokens
@@ -96,7 +112,7 @@ fn finish_reason(s: &str) -> FinishReason {
     match s {
         "stop" => FinishReason::Stop,
         "length" => FinishReason::Length,
-        "tool_calls" => FinishReason::ToolCalls,
+        "tool_calls" | "function_call" => FinishReason::ToolCalls,
         "content_filter" => FinishReason::ContentFilter,
         _ => FinishReason::Other,
     }

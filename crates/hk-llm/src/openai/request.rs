@@ -1,33 +1,69 @@
-//! [`ChatRequest`] -> DeepSeek `/chat/completions` JSON body.
+//! [`ChatRequest`] -> `/chat/completions` JSON body, shared by OpenAI-style
+//! backends. Per-backend quirks live in [`BodyOptions`].
 
 use serde_json::{Value, json};
 
-use crate::{ChatRequest, Message, Role, ToolChoice};
+use crate::{ChatRequest, Message, ReasoningEffort, Role, ToolChoice};
+
+/// Wire-format knobs that differ between OpenAI-style backends.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BodyOptions {
+    /// Replay `reasoning_content` on assistant messages that carry tool calls
+    /// (DeepSeek requires it within a tool-call sub-turn; OpenAI rejects it).
+    pub echo_reasoning: bool,
+    /// Ask for a trailing usage chunk (`stream_options.include_usage`).
+    pub include_usage: bool,
+    /// JSON field for the output cap: `max_tokens` (most servers) or
+    /// `max_completion_tokens` (OpenAI o-series / newer models).
+    pub max_tokens_field: String,
+    /// Forward [`ChatRequest::reasoning_effort`] as `reasoning_effort`.
+    pub send_reasoning_effort: bool,
+    /// Model ids that reject sampling params; `temperature` is dropped for them.
+    pub no_temperature_models: Vec<String>,
+}
+
+impl Default for BodyOptions {
+    fn default() -> Self {
+        Self {
+            echo_reasoning: false,
+            include_usage: true,
+            max_tokens_field: "max_tokens".into(),
+            send_reasoning_effort: true,
+            no_temperature_models: Vec::new(),
+        }
+    }
+}
 
 /// Build the streaming request body.
 ///
-/// DeepSeek specifics:
-/// - `reasoning_content` is sent back only on assistant messages that carry
-///   tool calls (the API requires it within a tool-call sub-turn and drops or
-///   rejects it elsewhere).
-/// - `deepseek-reasoner` ignores sampling params, so `temperature` is omitted.
-/// - `stream_options.include_usage` is always on: usage + cache-hit counters
-///   arrive in a trailing chunk.
-pub fn build_body(req: &ChatRequest) -> Value {
+/// Model-visible means logged: everything here derives from `req` alone.
+pub fn build_body_with(req: &ChatRequest, opts: &BodyOptions) -> Value {
     let mut body = json!({
         "model": req.model,
-        "messages": req.messages.iter().map(message).collect::<Vec<_>>(),
+        "messages": req.messages.iter().map(|m| message(m, opts.echo_reasoning)).collect::<Vec<_>>(),
         "stream": true,
-        "stream_options": { "include_usage": true },
     });
     let obj = body.as_object_mut().expect("json! object");
+    if opts.include_usage {
+        obj.insert("stream_options".into(), json!({ "include_usage": true }));
+    }
     if let Some(t) = req.temperature
-        && req.model != "deepseek-reasoner"
+        && !opts.no_temperature_models.contains(&req.model)
     {
         obj.insert("temperature".into(), json!(t));
     }
     if let Some(n) = req.max_output_tokens {
-        obj.insert("max_tokens".into(), json!(n));
+        obj.insert(opts.max_tokens_field.clone(), json!(n));
+    }
+    if opts.send_reasoning_effort
+        && let Some(e) = req.reasoning_effort
+    {
+        let e = match e {
+            ReasoningEffort::Low => "low",
+            ReasoningEffort::Medium => "medium",
+            ReasoningEffort::High => "high",
+        };
+        obj.insert("reasoning_effort".into(), json!(e));
     }
     if !req.tools.is_empty() {
         let tools: Vec<Value> = req
@@ -54,7 +90,7 @@ fn tool_choice(c: &ToolChoice) -> Value {
     }
 }
 
-fn message(m: &Message) -> Value {
+fn message(m: &Message, echo_reasoning: bool) -> Value {
     let role = match m.role {
         Role::System => "system",
         Role::User => "user",
@@ -81,7 +117,7 @@ fn message(m: &Message) -> Value {
             })
             .collect();
         obj.insert("tool_calls".into(), Value::Array(calls));
-        if let Some(r) = &m.reasoning {
+        if echo_reasoning && let Some(r) = &m.reasoning {
             obj.insert("reasoning_content".into(), json!(r));
         }
     }
@@ -106,8 +142,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn tool_turn_roundtrip_shape() {
+    fn tool_turn() -> ChatRequest {
         let mut asst = msg(Role::Assistant, "");
         asst.reasoning = Some("think".into());
         asst.tool_calls = vec![ToolCall {
@@ -117,20 +152,28 @@ mod tests {
         }];
         let mut tool = msg(Role::Tool, "ok");
         tool.tool_call_id = Some("c1".into());
-        let mut req =
-            ChatRequest::new("deepseek-reasoner", vec![msg(Role::User, "hi"), asst, tool]);
+        let mut req = ChatRequest::new("m", vec![msg(Role::User, "hi"), asst, tool]);
         req.temperature = Some(0.3);
+        req.max_output_tokens = Some(100);
+        req.reasoning_effort = Some(ReasoningEffort::High);
         req.tools = vec![ToolSpec {
             name: "read".into(),
             description: "d".into(),
             parameters: json!({"type": "object"}),
         }];
-        let b = build_body(&req);
-        assert!(b.get("temperature").is_none());
+        req
+    }
+
+    #[test]
+    fn default_shape_is_plain_openai() {
+        let b = build_body_with(&tool_turn(), &BodyOptions::default());
         assert_eq!(b["stream_options"]["include_usage"], true);
+        assert_eq!(b["max_tokens"], 100);
+        assert_eq!(b["reasoning_effort"], "high");
+        assert!((b["temperature"].as_f64().unwrap() - 0.3).abs() < 1e-6);
         let m = &b["messages"][1];
         assert_eq!(m["content"], Value::Null);
-        assert_eq!(m["reasoning_content"], "think");
+        assert!(m.get("reasoning_content").is_none());
         assert_eq!(
             m["tool_calls"][0]["function"]["arguments"],
             "{\"path\":\"a\"}"
@@ -140,10 +183,32 @@ mod tests {
     }
 
     #[test]
+    fn options_change_wire_shape() {
+        let opts = BodyOptions {
+            echo_reasoning: true,
+            include_usage: false,
+            max_tokens_field: "max_completion_tokens".into(),
+            send_reasoning_effort: false,
+            no_temperature_models: vec!["m".into()],
+        };
+        let b = build_body_with(&tool_turn(), &opts);
+        assert!(b.get("stream_options").is_none());
+        assert!(b.get("max_tokens").is_none());
+        assert_eq!(b["max_completion_tokens"], 100);
+        assert!(b.get("reasoning_effort").is_none());
+        assert!(b.get("temperature").is_none());
+        assert_eq!(b["messages"][1]["reasoning_content"], "think");
+    }
+
+    #[test]
     fn reasoning_dropped_without_tool_calls() {
         let mut a = msg(Role::Assistant, "answer");
         a.reasoning = Some("secret".into());
-        let b = build_body(&ChatRequest::new("deepseek-chat", vec![a]));
+        let opts = BodyOptions {
+            echo_reasoning: true,
+            ..BodyOptions::default()
+        };
+        let b = build_body_with(&ChatRequest::new("m", vec![a]), &opts);
         assert!(b["messages"][0].get("reasoning_content").is_none());
     }
 }

@@ -1,0 +1,5 @@
+{"case":"rate_limit","status":429,"retry_after":"1","body":{"error":{"message":"Rate limit reached for gpt-4o-mini","type":"requests","code":"rate_limit_exceeded"}},"expect":"http_retryable"}
+{"case":"auth","status":401,"body":{"error":{"message":"Incorrect API key provided: sk-secret.","type":"invalid_request_error","code":"invalid_api_key"}},"expect":"auth"}
+{"case":"context","status":400,"body":{"error":{"message":"This model's maximum context length is 128000 tokens.","type":"invalid_request_error","code":"context_length_exceeded"}},"expect":"context_length"}
+{"case":"flat_message","status":400,"body":{"message":"model not found"},"expect":"invalid_request"}
+{"case":"gateway_string_error","status":502,"body":{"error":"upstream down"},"expect":"http_retryable"}

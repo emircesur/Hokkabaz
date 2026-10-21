@@ -1,7 +1,7 @@
-//! HTTP error mapping for the DeepSeek API.
+//! HTTP error mapping for OpenAI-style APIs.
 //!
-//! Codes per DeepSeek docs: 400 format, 401 auth, 402 balance, 422 params,
-//! 429 rate limit, 500/503 server busy.
+//! Shared by every `/chat/completions` backend. Codes: 400/422 bad request,
+//! 401/403 auth, 402 balance (DeepSeek), 429 rate limit, 5xx server busy.
 
 use std::time::Duration;
 
@@ -24,13 +24,20 @@ pub fn error_from_response(status: u16, retry_after: Option<Duration>, body: &st
     }
 }
 
-/// `{"error":{"message":..}}` -> message.
+/// `{"error":{"message":..}}` -> message. Also accepts `{"error":".."}` and
+/// the flat `{"message":..}` / `{"detail":..}` shapes some gateways return.
 pub(super) fn extract_message(body: &str) -> Option<String> {
     let v: Value = serde_json::from_str(body).ok()?;
-    let e = v.get("error")?;
-    e.get("message")
+    if let Some(e) = v.get("error") {
+        return e
+            .get("message")
+            .and_then(Value::as_str)
+            .or_else(|| e.as_str())
+            .map(str::to_owned);
+    }
+    v.get("message")
+        .or_else(|| v.get("detail"))
         .and_then(Value::as_str)
-        .or_else(|| e.as_str())
         .map(str::to_owned)
 }
 

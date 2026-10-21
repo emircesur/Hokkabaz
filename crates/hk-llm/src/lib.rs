@@ -9,6 +9,7 @@ pub mod deepseek;
 mod error;
 mod event;
 mod model;
+pub mod openai;
 mod provider;
 mod request;
 mod usage;

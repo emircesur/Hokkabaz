@@ -2,36 +2,50 @@
 //! OpenAI-style `/chat/completions` SSE API.
 // port: dsh packages/llm (deepseek adapter, llm-retry); wire-extension headers not ported yet
 
-mod error;
-mod parse;
-mod request;
-mod retry;
-mod sse;
-
 use std::fmt;
 use std::time::Duration;
 
-use reqwest::header::{ACCEPT, RETRY_AFTER};
+use reqwest::header::HeaderMap;
+use serde_json::Value;
 
-pub use error::error_from_response;
-pub use parse::{ChunkParser, decode_stream};
-pub use request::build_body;
-pub use retry::RetryPolicy;
-pub use sse::SseDecoder;
-
+// Wire pieces live in `openai`; re-exported so DeepSeek callers keep one path.
+use crate::openai::{BodyOptions, Endpoint, Scrubber, build_body_with, default_client};
+pub use crate::openai::{ChunkParser, RetryPolicy, SseDecoder, decode_stream, error_from_response};
 use crate::{
     CancellationToken, Capabilities, ChatRequest, EventStream, LlmError, ModelCost, ModelInfo,
     Provider, Result,
 };
 
 const DEFAULT_BASE_URL: &str = "https://api.deepseek.com";
-const USER_AGENT: &str = concat!("hokkabaz/", env!("CARGO_PKG_VERSION"));
+
+/// Build the streaming request body.
+///
+/// DeepSeek specifics:
+/// - `reasoning_content` is sent back only on assistant messages that carry
+///   tool calls (the API requires it within a tool-call sub-turn and drops or
+///   rejects it elsewhere).
+/// - `deepseek-reasoner` ignores sampling params, so `temperature` is omitted.
+/// - `stream_options.include_usage` is always on: usage + cache-hit counters
+///   arrive in a trailing chunk.
+pub fn build_body(req: &ChatRequest) -> Value {
+    build_body_with(req, &body_options())
+}
+
+fn body_options() -> BodyOptions {
+    BodyOptions {
+        echo_reasoning: true,
+        send_reasoning_effort: false,
+        no_temperature_models: vec!["deepseek-reasoner".into()],
+        ..BodyOptions::default()
+    }
+}
 
 /// DeepSeek provider. Holds the API key in memory only; `Debug` redacts it.
 pub struct DeepSeek {
     client: reqwest::Client,
     base_url: String,
     api_key: String,
+    scrub: Scrubber,
     retry: RetryPolicy,
     idle_timeout: Duration,
 }
@@ -52,20 +66,19 @@ impl DeepSeek {
 
     /// New adapter against the public API.
     pub fn new(api_key: impl Into<String>) -> Result<Self> {
-        let client = reqwest::Client::builder()
-            .user_agent(USER_AGENT)
-            .connect_timeout(Duration::from_secs(15))
-            .build()
-            .map_err(|e| LlmError::Network(e.to_string()))?;
-        Ok(Self::with_client(client, api_key))
+        Ok(Self::with_client(default_client()?, api_key))
     }
 
     /// Use a caller-built HTTP client (proxy, custom TLS, tests).
     pub fn with_client(client: reqwest::Client, api_key: impl Into<String>) -> Self {
+        let api_key = api_key.into();
+        let mut scrub = Scrubber::default();
+        scrub.add(&api_key);
         Self {
             client,
             base_url: DEFAULT_BASE_URL.into(),
-            api_key: api_key.into(),
+            api_key,
+            scrub,
             retry: RetryPolicy::default(),
             idle_timeout: Duration::from_secs(120),
         }
@@ -90,92 +103,6 @@ impl DeepSeek {
     pub fn idle_timeout(mut self, d: Duration) -> Self {
         self.idle_timeout = d;
         self
-    }
-
-    /// Remove the key from text that may be logged or surfaced.
-    fn scrub(&self, s: String) -> String {
-        if self.api_key.is_empty() {
-            s
-        } else {
-            s.replace(&self.api_key, "<redacted>")
-        }
-    }
-
-    async fn send_once(&self, body: &serde_json::Value) -> Result<reqwest::Response> {
-        let resp = self
-            .client
-            .post(format!("{}/chat/completions", self.base_url))
-            .bearer_auth(&self.api_key)
-            .header(ACCEPT, "text/event-stream")
-            .json(body)
-            .send()
-            .await
-            .map_err(|e| LlmError::Network(self.scrub(e.without_url().to_string())))?;
-        if resp.status().is_success() {
-            return Ok(resp);
-        }
-        let status = resp.status().as_u16();
-        let retry_after = resp
-            .headers()
-            .get(RETRY_AFTER)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.trim().parse::<u64>().ok())
-            .map(Duration::from_secs);
-        let text = resp.text().await.unwrap_or_default();
-        Err(self.scrub_err(error_from_response(status, retry_after, &text)))
-    }
-
-    /// Providers sometimes echo the key in error text; never let it out.
-    fn scrub_err(&self, e: LlmError) -> LlmError {
-        match e {
-            LlmError::Http {
-                status,
-                message,
-                retry_after,
-            } => LlmError::Http {
-                status,
-                message: self.scrub(message),
-                retry_after,
-            },
-            LlmError::Auth(m) => LlmError::Auth(self.scrub(m)),
-            LlmError::ContextLength(m) => LlmError::ContextLength(self.scrub(m)),
-            LlmError::InvalidRequest(m) => LlmError::InvalidRequest(self.scrub(m)),
-            other => other,
-        }
-    }
-
-    async fn send_with_retry(
-        &self,
-        body: &serde_json::Value,
-        cancel: &CancellationToken,
-    ) -> Result<reqwest::Response> {
-        let mut retry = 0;
-        loop {
-            let res = tokio::select! {
-                biased;
-                () = cancel.cancelled() => return Err(LlmError::Cancelled),
-                r = self.send_once(body) => r,
-            };
-            match res {
-                Err(e) if e.is_retryable() && retry < self.retry.max_retries => {
-                    let wait = self.retry.delay(
-                        retry,
-                        match &e {
-                            LlmError::Http { retry_after, .. } => *retry_after,
-                            _ => None,
-                        },
-                    );
-                    tracing::warn!(provider = Self::ID, retry, ?wait, error = %e, "retrying request");
-                    tokio::select! {
-                        biased;
-                        () = cancel.cancelled() => return Err(LlmError::Cancelled),
-                        () = tokio::time::sleep(wait) => {}
-                    }
-                    retry += 1;
-                }
-                other => return other,
-            }
-        }
     }
 }
 
@@ -218,11 +145,53 @@ impl Provider for DeepSeek {
             return Err(LlmError::Auth("missing DeepSeek API key".into()));
         }
         let body = build_body(&req);
-        let resp = self.send_with_retry(&body, &cancel).await?;
+        let headers = HeaderMap::new();
+        let resp = Endpoint {
+            client: &self.client,
+            provider: Self::ID,
+            bearer: Some(&self.api_key),
+            headers: &headers,
+            scrub: &self.scrub,
+        }
+        .post_sse(
+            &format!("{}/chat/completions", self.base_url),
+            &body,
+            &self.retry,
+            &cancel,
+        )
+        .await?;
         Ok(decode_stream(
             resp.bytes_stream(),
             cancel,
             self.idle_timeout,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Message, Role, ToolCall};
+    use serde_json::json;
+
+    #[test]
+    fn reasoner_body_shape() {
+        let asst = Message {
+            role: Role::Assistant,
+            content: String::new(),
+            reasoning: Some("think".into()),
+            tool_calls: vec![ToolCall {
+                id: "c1".into(),
+                name: "read".into(),
+                arguments: json!({"path": "a"}),
+            }],
+            tool_call_id: None,
+        };
+        let mut req = ChatRequest::new("deepseek-reasoner", vec![asst]);
+        req.temperature = Some(0.3);
+        let b = build_body(&req);
+        assert!(b.get("temperature").is_none());
+        assert_eq!(b["stream_options"]["include_usage"], true);
+        assert_eq!(b["messages"][0]["reasoning_content"], "think");
     }
 }
