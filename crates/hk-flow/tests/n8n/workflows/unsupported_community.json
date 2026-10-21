@@ -1,0 +1,29 @@
+{
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 7 * * 1-5" }] } },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": { "resource": "thing", "operation": "doIt", "extra": { "nested": [1, { "a": null }] } },
+      "name": "Community thing",
+      "type": "n8n-nodes-some-community.thing",
+      "typeVersion": 7.25,
+      "position": [-120.75, 64.5],
+      "credentials": {
+        "someCommunityApi": { "id": null, "name": "Unsaved credential" }
+      },
+      "onError": "someFutureMode",
+      "maxTries": "5"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Community thing", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {}
+}

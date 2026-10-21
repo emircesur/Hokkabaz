@@ -1,0 +1,114 @@
+{
+  "name": "Webhook echo",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "echo",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "8c1f1a52-3a70-4c0e-9d40-0f6b4a7d2a01",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "b7a3e0f0-5f1c-4b5a-9a43-3e6f7c1d9e10"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "greeting",
+              "value": "={{ 'Hello ' + $json.body.name }}",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "receivedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "2d9c4c6e-7a1e-4f43-8f4b-5a8f0b1a3c02",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [{ "name": "X-Flow", "value": "hokkabaz" }]
+          }
+        }
+      },
+      "id": "5e7a9d11-1c2b-4d6e-a0b3-9f4d2e6b8c03",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "content": "## Echo\nPOST `/webhook/echo` with `{\"name\": \"x\"}`",
+        "height": 120,
+        "width": 260
+      },
+      "id": "c0ffee00-0000-4000-8000-000000000004",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [200.5, 120]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Edit Fields", "type": "main", "index": 0 }]]
+    },
+    "Edit Fields": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": { "host": "localhost:5678", "content-type": "application/json" },
+          "params": {},
+          "query": {},
+          "body": { "name": "Ada" }
+        }
+      }
+    ]
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "6a1b0f5e-0b3a-4a4f-8d0e-1d2c3b4a5f60",
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0e5b0a1c7d0f4d8aa9d7f1e2c3b4a5968778695a4b3c2d1e0f1a2b3c4d5e6f70"
+  },
+  "id": "Wk7HgQ2xLm9PzR3a",
+  "tags": [
+    {
+      "createdAt": "2026-03-01T10:00:00.000Z",
+      "updatedAt": "2026-03-01T10:00:00.000Z",
+      "id": "t1",
+      "name": "demo"
+    }
+  ]
+}

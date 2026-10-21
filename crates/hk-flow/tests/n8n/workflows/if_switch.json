@@ -1,0 +1,186 @@
+{
+  "name": "Route orders",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "11111111-aaaa-4bbb-8ccc-000000000001",
+      "name": "When clicking Test workflow",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "url": "https://api.example.com/orders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [{ "name": "limit", "value": "50" }]
+        },
+        "options": { "timeout": 10000 }
+      },
+      "id": "11111111-aaaa-4bbb-8ccc-000000000002",
+      "name": "Fetch orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0],
+      "credentials": {
+        "httpHeaderAuth": { "id": "cred-42", "name": "Orders API key" }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput",
+      "notes": "Rate limited: 3 retries.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.total }}",
+              "rightValue": 100,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "11111111-aaaa-4bbb-8ccc-000000000003",
+      "name": "Big order?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [440, 0],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.region }}",
+                    "rightValue": "eu",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "EU"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.region }}",
+                    "rightValue": "us",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "US"
+            }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "11111111-aaaa-4bbb-8ccc-000000000004",
+      "name": "By region",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [660, -80],
+      "executeOnce": false
+    },
+    {
+      "parameters": {},
+      "id": "11111111-aaaa-4bbb-8ccc-000000000005",
+      "name": "Small order",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [660, 120],
+      "disabled": true
+    },
+    {
+      "parameters": { "mode": "append" },
+      "id": "11111111-aaaa-4bbb-8ccc-000000000006",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [900, 0],
+      "continueOnFail": true,
+      "color": "#ff6d5a",
+      "hokkabazFutureNodeField": { "kept": [1, 2.0, null] }
+    }
+  ],
+  "connections": {
+    "When clicking Test workflow": {
+      "main": [[{ "node": "Fetch orders", "type": "main", "index": 0 }]]
+    },
+    "Fetch orders": {
+      "main": [
+        [{ "node": "Big order?", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Big order?": {
+      "main": [
+        [{ "node": "By region", "type": "main", "index": 0 }],
+        [{ "node": "Small order", "type": "main", "index": 0 }]
+      ]
+    },
+    "By region": {
+      "main": [
+        [{ "node": "Merge", "type": "main", "index": 0 }],
+        [{ "node": "Merge", "type": "main", "index": 1 }],
+        null
+      ]
+    },
+    "Small order": {
+      "main": [[{ "node": "Merge", "type": "main", "index": 1 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none",
+    "executionTimeout": 3600,
+    "timezone": "Europe/Istanbul",
+    "callerPolicy": "workflowsFromSameOwner",
+    "someFutureSetting": { "x": 1 }
+  },
+  "pinData": {
+    "Fetch orders": [
+      { "json": { "id": 1, "total": 150.0, "region": "eu" } },
+      { "json": { "id": 2, "total": 20, "region": "us" } }
+    ]
+  },
+  "staticData": {
+    "global": { "lastOrderId": 2 }
+  },
+  "meta": null,
+  "id": "Or1Rt3Sw5Ch7Yz9b",
+  "versionId": "f1e2d3c4-b5a6-4789-8a9b-0c1d2e3f4a5b",
+  "createdAt": "2026-02-11T08:30:00.000Z",
+  "updatedAt": "2026-02-12T09:45:10.123Z",
+  "triggerCount": 0,
+  "tags": []
+}

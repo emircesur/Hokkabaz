@@ -11,3 +11,12 @@ publish = false
 workspace = true
 
 [dependencies]
+serde = { version = "1", features = ["derive"] }
+# preserve_order: exported JSON keeps n8n key order, diffs stay readable
+serde_json = { version = "1", features = ["preserve_order"] }
+indexmap = { version = "2", features = ["serde"] }
+thiserror = "2"
+async-trait = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
