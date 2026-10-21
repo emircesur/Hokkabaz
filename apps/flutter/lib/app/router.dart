@@ -1,0 +1,31 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../screens/placeholder_screen.dart';
+import 'destinations.dart';
+import 'shell.dart';
+
+final routerProvider = Provider<GoRouter>((ref) {
+  return GoRouter(
+    initialLocation: '/chat',
+    routes: [
+      ShellRoute(
+        builder: (context, state, child) =>
+            AppShell(location: state.uri.path, child: child),
+        routes: [
+          for (final d in destinations)
+            GoRoute(
+              path: d.path,
+              pageBuilder: (context, state) => NoTransitionPage<void>(
+                key: state.pageKey,
+                child: PlaceholderScreen(title: d.label, icon: d.icon),
+              ),
+            ),
+        ],
+      ),
+    ],
+    errorBuilder: (context, state) =>
+        const Scaffold(body: Center(child: Text('Not found'))),
+  );
+});
