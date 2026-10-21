@@ -7,7 +7,11 @@ import 'model/workflow_model.dart';
 
 /// Row in the flows list.
 class FlowFile {
-  const FlowFile({required this.id, required this.name, required this.modified});
+  const FlowFile({
+    required this.id,
+    required this.name,
+    required this.modified,
+  });
   final String id;
   final String name;
   final DateTime modified;
@@ -38,13 +42,17 @@ class FlowStore {
       var name = id;
       try {
         final j = jsonDecode(await e.readAsString());
-        if (j is Map && j['name'] is String && (j['name'] as String).isNotEmpty) {
+        if (j is Map &&
+            j['name'] is String &&
+            (j['name'] as String).isNotEmpty) {
           name = j['name'] as String;
         }
       } catch (_) {
         // Corrupt file stays listed under its id so the user can delete it.
       }
-      out.add(FlowFile(id: id, name: name, modified: (await e.stat()).modified));
+      out.add(
+        FlowFile(id: id, name: name, modified: (await e.stat()).modified),
+      );
     }
     out.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     return out;
@@ -62,7 +70,8 @@ class FlowStore {
   }
 
   Future<FlowFile> create(String name, {FlowWorkflow? from}) async {
-    final id = 'flow_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+    final id =
+        'flow_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
     final wf = (from ?? FlowWorkflow.empty()).withName(name);
     await save(id, wf);
     return FlowFile(id: id, name: name, modified: DateTime.now());

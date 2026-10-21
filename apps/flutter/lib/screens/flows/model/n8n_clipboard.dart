@@ -40,7 +40,9 @@ ClipboardPayload _fromNodes(List raw, Object? conns, Object? pin) {
   final nodes = <FlowNode>[];
   for (final n in raw) {
     if (n is! Map || n['name'] is! String || n['type'] is! String) {
-      throw FlowFormatException('clipboard node needs string `name` and `type`');
+      throw FlowFormatException(
+        'clipboard node needs string `name` and `type`',
+      );
     }
     nodes.add(FlowNode(deepCopy(n)! as Map<String, dynamic>));
   }
@@ -100,7 +102,7 @@ String uniqueName(String base, Iterable<String> taken) {
   final used = taken.toSet();
   if (!used.contains(base)) return base;
   final stem = base.replaceFirst(RegExp(r'\d+$'), '');
-  for (var i = 1;; i++) {
+  for (var i = 1; ; i++) {
     final c = '$stem$i';
     if (!used.contains(c)) return c;
   }
@@ -137,10 +139,10 @@ PasteResult pasteInto(FlowWorkflow wf, ClipboardPayload p, {Pos? at}) {
 
   final added = <FlowNode>[];
   for (final n in p.nodes) {
-    var m = n
-        .withName(rename[n.name]!)
-        .set('id', newNodeId())
-        .withPosition((x: n.position.x + dx, y: n.position.y + dy));
+    var m = n.withName(rename[n.name]!).set('id', newNodeId()).withPosition((
+      x: n.position.x + dx,
+      y: n.position.y + dy,
+    ));
     if (m.raw.containsKey('webhookId')) m = m.set('webhookId', newNodeId());
     added.add(m);
   }

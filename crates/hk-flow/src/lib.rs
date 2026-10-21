@@ -36,7 +36,9 @@ pub use executor::{
 };
 #[cfg(feature = "expr")]
 pub use expr::QuickJsEvaluator;
-pub use expr::{ExprEnv, ExprError, ExprLimits, ExprScope, ExpressionEvaluator};
+pub use expr::{
+    ExprEnv, ExprError, ExprLimits, ExprScope, ExpressionEvaluator, ScriptMode, ScriptOutput,
+};
 pub use hooks::{
     CollectingSink, CredentialResolver, ExecScratch, NodeHooks, ResponseBody, ResponseSink,
     SubWorkflowRequest, SubWorkflowRunner, WebhookResponse,

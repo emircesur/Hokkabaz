@@ -156,7 +156,9 @@ class FlowConnections {
     for (final n in json.entries) {
       final byType = n.value;
       if (byType is! Map) {
-        throw FlowFormatException('connections of `${n.key}` must be an object');
+        throw FlowFormatException(
+          'connections of `${n.key}` must be an object',
+        );
       }
       final types = <String, List<List<ConnTarget>?>>{};
       for (final t in byType.entries) {
@@ -239,9 +241,11 @@ class FlowConnections {
     return slots[output] ?? const [];
   }
 
-  bool contains(FlowEdge e) => targets(e.src, e.type, e.srcIndex).any(
-    (t) => t.node == e.dst && t.type == e.type && t.index == e.dstIndex,
-  );
+  bool contains(FlowEdge e) => targets(
+    e.src,
+    e.type,
+    e.srcIndex,
+  ).any((t) => t.node == e.dst && t.type == e.type && t.index == e.dstIndex);
 
   /// Highest connected output slot of [node] for [type], or -1.
   int maxOutput(String node, String type) {

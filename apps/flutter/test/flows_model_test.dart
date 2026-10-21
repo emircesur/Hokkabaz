@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hokkabaz/screens/flows/flow_store.dart';
 import 'package:hokkabaz/screens/flows/model/flow_editor.dart';
-import 'package:hokkabaz/screens/flows/model/n8n_clipboard.dart';
 import 'package:hokkabaz/screens/flows/model/node_types.dart';
 import 'package:hokkabaz/screens/flows/model/workflow_model.dart';
 
@@ -134,9 +133,18 @@ void main() {
     });
 
     test('rejects non-workflow json', () {
-      expect(() => FlowWorkflow.parse('[1]'), throwsA(isA<FlowFormatException>()));
-      expect(() => FlowWorkflow.parse('{"a":1}'), throwsA(isA<FlowFormatException>()));
-      expect(() => FlowWorkflow.parse('nope'), throwsA(isA<FlowFormatException>()));
+      expect(
+        () => FlowWorkflow.parse('[1]'),
+        throwsA(isA<FlowFormatException>()),
+      );
+      expect(
+        () => FlowWorkflow.parse('{"a":1}'),
+        throwsA(isA<FlowFormatException>()),
+      );
+      expect(
+        () => FlowWorkflow.parse('nope'),
+        throwsA(isA<FlowFormatException>()),
+      );
     });
 
     test('validate flags dangling refs', () {
@@ -164,17 +172,24 @@ void main() {
       expect((slots['main'] as List)[0], isNull);
       expect(ed.connect(e), isFalse, reason: 'duplicate');
       expect(ed.disconnect(e), isTrue);
-      expect((ed.workflow.toJson()['connections'] as Map).containsKey('Done'), isFalse);
+      expect(
+        (ed.workflow.toJson()['connections'] as Map).containsKey('Done'),
+        isFalse,
+      );
     });
 
     test('rejects self loop and unknown node', () {
       final ed = FlowEditor(FlowWorkflow.parse(sample));
       expect(
-        ed.connect(const FlowEdge(src: 'If', srcIndex: 0, dst: 'If', dstIndex: 0)),
+        ed.connect(
+          const FlowEdge(src: 'If', srcIndex: 0, dst: 'If', dstIndex: 0),
+        ),
         isFalse,
       );
       expect(
-        ed.connect(const FlowEdge(src: 'If', srcIndex: 0, dst: 'Nope', dstIndex: 0)),
+        ed.connect(
+          const FlowEdge(src: 'If', srcIndex: 0, dst: 'Nope', dstIndex: 0),
+        ),
         isFalse,
       );
       expect(ed.canUndo, isFalse);
@@ -203,7 +218,10 @@ void main() {
       final name = ed.addNode(ifInfo(), (x: 10, y: 20), connectFrom: 'Done');
       expect(name, 'If1');
       expect(ed.workflow.node('If1')!.typeVersion, 2.2);
-      expect(ed.workflow.connections.targets('Done', 'main', 0).single.node, 'If1');
+      expect(
+        ed.workflow.connections.targets('Done', 'main', 0).single.node,
+        'If1',
+      );
       final added = canon(ed.workflow.toJson());
 
       ed.beginDrag(['If1']);
@@ -233,6 +251,20 @@ void main() {
       expect(ed.redo(), isFalse);
     });
 
+    test('typing burst with one coalesce key is one undo step', () {
+      final ed = FlowEditor(FlowWorkflow.parse(sample));
+      for (final v in ['a', 'ab', 'abc']) {
+        ed.setParameters('Done', {'text': v}, coalesce: '/text');
+      }
+      expect(ed.workflow.node('Done')!.parameters['text'], 'abc');
+      ed.setParameters('Done', {'text': 'x', 'other': 1}, coalesce: '/other');
+      expect(ed.undo(), isTrue);
+      expect(ed.workflow.node('Done')!.parameters['text'], 'abc');
+      expect(ed.undo(), isTrue);
+      expect(ed.workflow.node('Done')!.parameters, isEmpty);
+      expect(ed.undo(), isFalse);
+    });
+
     test('new edit clears redo; no-op drag adds no history', () {
       final ed = FlowEditor(FlowWorkflow.parse(sample));
       ed.beginDrag(['Done']);
@@ -253,11 +285,9 @@ void main() {
       final text = ed.copySelection()!;
       final j = jsonDecode(text) as Map<String, dynamic>;
       expect((j['nodes'] as List).length, 2);
-      expect(
-        (j['connections'] as Map).keys.toList(),
-        ['Webhook'],
-        reason: 'If -> Notify/Done leave the selection',
-      );
+      expect((j['connections'] as Map).keys.toList(), [
+        'Webhook',
+      ], reason: 'If -> Notify/Done leave the selection');
       expect((j['pinData'] as Map).keys, ['Webhook']);
 
       final pasted = ed.paste(text);
@@ -266,7 +296,10 @@ void main() {
       final wf = ed.workflow;
       expect(wf.connections.targets('Webhook1', 'main', 0).single.node, 'If1');
       expect(wf.node('If1')!.id, isNot('22222222-2222-4222-8222-222222222222'));
-      expect(wf.node('Webhook1')!.raw['webhookId'], isNot('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'));
+      expect(
+        wf.node('Webhook1')!.raw['webhookId'],
+        isNot('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+      );
       expect(wf.node('If1')!.position, (x: 40.0, y: 160.0));
       expect(wf.node('If1')!.raw['credentials'], isNotNull);
       expect(wf.pinData.keys, containsAll(['Webhook', 'Webhook1']));
@@ -280,35 +313,55 @@ void main() {
       final names = ed.paste(sample, at: (x: 100, y: 100));
       expect(names, hasLength(4));
       expect(ed.workflow.node('Webhook')!.position, (x: 100.0, y: 180.0));
-      expect(ed.workflow.node('Notify')!.position.x, 601, reason: 'ints on export');
+      expect(
+        ed.workflow.node('Notify')!.position.x,
+        601,
+        reason: 'ints on export',
+      );
       expect(ed.workflow.connections.edges, hasLength(3));
     });
 
     test('bare node array, single node and junk', () {
       final ed = FlowEditor(FlowWorkflow.empty());
       expect(
-        ed.paste('[{"name":"A","type":"n8n-nodes-base.noOp","typeVersion":1,"position":[0,0]}]'),
+        ed.paste(
+          '[{"name":"A","type":"n8n-nodes-base.noOp","typeVersion":1,"position":[0,0]}]',
+        ),
         ['A'],
       );
       expect(
-        ed.paste('{"name":"A","type":"n8n-nodes-base.noOp","typeVersion":1,"position":[0,0]}'),
+        ed.paste(
+          '{"name":"A","type":"n8n-nodes-base.noOp","typeVersion":1,"position":[0,0]}',
+        ),
         ['A1'],
       );
       expect(ed.paste('hello world'), isEmpty);
       expect(ed.paste('{"foo": 1}'), isEmpty);
-      expect(() => ed.paste('{"nodes":[{"x":1}]}'), throwsA(isA<FlowFormatException>()));
-      expect(() => ed.paste('{"nodes":[]}'), throwsA(isA<FlowFormatException>()));
+      expect(
+        () => ed.paste('{"nodes":[{"x":1}]}'),
+        throwsA(isA<FlowFormatException>()),
+      );
+      expect(
+        () => ed.paste('{"nodes":[]}'),
+        throwsA(isA<FlowFormatException>()),
+      );
     });
 
-    test('import workflow replaces doc as one undo step; export parses back', () {
-      final ed = FlowEditor();
-      ed.importWorkflow(sample);
-      expect(ed.workflow.name, 'Triage');
-      expect(ed.workflow.nodes, hasLength(4));
-      expect(canon(FlowWorkflow.parse(ed.exportWorkflow()).toJson()), canon(jsonDecode(sample)));
-      ed.undo();
-      expect(ed.workflow.nodes, isEmpty);
-    });
+    test(
+      'import workflow replaces doc as one undo step; export parses back',
+      () {
+        final ed = FlowEditor();
+        ed.importWorkflow(sample);
+        expect(ed.workflow.name, 'Triage');
+        expect(ed.workflow.nodes, hasLength(4));
+        expect(
+          canon(FlowWorkflow.parse(ed.exportWorkflow()).toJson()),
+          canon(jsonDecode(sample)),
+        );
+        ed.undo();
+        expect(ed.workflow.nodes, isEmpty);
+      },
+    );
 
     test('cut removes selection and returns json', () {
       final ed = FlowEditor(FlowWorkflow.parse(sample));
@@ -329,7 +382,10 @@ void main() {
     test('ports: static, expression and unsupported', () {
       final wf = FlowWorkflow.parse(sample);
       final info = ifInfo();
-      expect(outputPorts(wf.node('If')!, info, 1).map((p) => p.label), ['true', 'false']);
+      expect(outputPorts(wf.node('If')!, info, 1).map((p) => p.label), [
+        'true',
+        'false',
+      ]);
       expect(inputPorts(wf.node('Webhook')!, null), isEmpty, reason: 'trigger');
       expect(inputPorts(wf.node('Notify')!, null), hasLength(1));
       expect(outputPorts(wf.node('Notify')!, null, -1), hasLength(1));
@@ -343,7 +399,8 @@ void main() {
         group: ['transform'],
         inputs: [],
         outputs: ['main'],
-        inputsExpr: r"={{ Array(($parameter.numberInputs || 2)).fill('main') }}",
+        inputsExpr:
+            r"={{ Array(($parameter.numberInputs || 2)).fill('main') }}",
         propertiesJson: '[]',
       );
       final node = FlowNode.create(
@@ -363,7 +420,10 @@ void main() {
       expect(categoryOf('n8n-nodes-base.webhook'), NodeCategory.trigger);
       expect(categoryOf('n8n-nodes-base.if'), NodeCategory.logic);
       expect(categoryOf('@n8n/n8n-nodes-langchain.agent'), NodeCategory.ai);
-      expect(categoryOf('n8n-nodes-base.httpRequest'), NodeCategory.integration);
+      expect(
+        categoryOf('n8n-nodes-base.httpRequest'),
+        NodeCategory.integration,
+      );
     });
   });
 

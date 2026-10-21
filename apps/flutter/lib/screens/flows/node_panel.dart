@@ -36,14 +36,20 @@ class NodePanel extends StatelessWidget {
         final text = Theme.of(context).textTheme;
         final info = types[node.type];
         final cat = categoryOf(node.type, group: info?.group ?? const []);
-        final unsupported = info == null || !info.supportsVersion(node.typeVersion);
+        final unsupported =
+            info == null || !info.supportsVersion(node.typeVersion);
         return DefaultTabController(
           length: 3,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(HkTokens.s3, HkTokens.s3, HkTokens.s1, 0),
+                padding: const EdgeInsets.fromLTRB(
+                  HkTokens.s3,
+                  HkTokens.s3,
+                  HkTokens.s1,
+                  0,
+                ),
                 child: Row(
                   children: [
                     Icon(categoryIcon(cat), color: categoryColor(cat)),
@@ -79,7 +85,11 @@ class NodePanel extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: hk.warn, size: 18),
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: hk.warn,
+                        size: 18,
+                      ),
                       const SizedBox(width: HkTokens.s2),
                       Expanded(
                         child: Text(
@@ -95,7 +105,11 @@ class NodePanel extends StatelessWidget {
                   ),
                 ),
               const TabBar(
-                tabs: [Tab(text: 'Parameters'), Tab(text: 'Settings'), Tab(text: 'JSON')],
+                tabs: [
+                  Tab(text: 'Parameters'),
+                  Tab(text: 'Settings'),
+                  Tab(text: 'JSON'),
+                ],
               ),
               Expanded(
                 child: TabBarView(
@@ -124,7 +138,9 @@ class _NameField extends StatefulWidget {
 }
 
 class _NameFieldState extends State<_NameField> {
-  late final TextEditingController _c = TextEditingController(text: widget.name);
+  late final TextEditingController _c = TextEditingController(
+    text: widget.name,
+  );
   final _focus = FocusNode();
   String? _error;
 
@@ -158,7 +174,9 @@ class _NameFieldState extends State<_NameField> {
     if (widget.editor.renameNode(widget.name, t)) {
       setState(() => _error = null);
     } else {
-      setState(() => _error = t.isEmpty ? 'Name required' : 'Name already used');
+      setState(
+        () => _error = t.isEmpty ? 'Name required' : 'Name already used',
+      );
     }
   }
 
@@ -166,13 +184,21 @@ class _NameFieldState extends State<_NameField> {
   Widget build(BuildContext context) => TextField(
     controller: _c,
     focusNode: _focus,
-    decoration: InputDecoration(labelText: 'Node name', errorText: _error, isDense: true),
+    decoration: InputDecoration(
+      labelText: 'Node name',
+      errorText: _error,
+      isDense: true,
+    ),
     onSubmitted: (_) => _commit(),
   );
 }
 
 class _ParamsTab extends StatelessWidget {
-  const _ParamsTab({required this.editor, required this.node, required this.info});
+  const _ParamsTab({
+    required this.editor,
+    required this.node,
+    required this.info,
+  });
   final FlowEditor editor;
   final FlowNode node;
   final NodeTypeInfo? info;
@@ -187,7 +213,8 @@ class _ParamsTab extends StatelessWidget {
             specs: info!.properties,
             values: node.parameters,
             typeVersion: node.typeVersion,
-            onChanged: (next, key) => editor.setParameters(node.name, next, coalesce: key),
+            onChanged: (next, key) =>
+                editor.setParameters(node.name, next, coalesce: key),
           )
         else
           JsonValueField(
@@ -207,7 +234,11 @@ class _ParamsTab extends StatelessWidget {
 }
 
 class _SettingsTab extends StatelessWidget {
-  const _SettingsTab({required this.editor, required this.node, required this.info});
+  const _SettingsTab({
+    required this.editor,
+    required this.node,
+    required this.info,
+  });
   final FlowEditor editor;
   final FlowNode node;
   final NodeTypeInfo? info;
@@ -231,38 +262,67 @@ class _SettingsTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(HkTokens.s3),
       children: [
-        _flag('Disabled', 'disabled', sub: 'Skipped at run time; data passes through'),
+        _flag(
+          'Disabled',
+          'disabled',
+          sub: 'Skipped at run time; data passes through',
+        ),
         _flag('Always output data', 'alwaysOutputData'),
         _flag('Execute once', 'executeOnce'),
         _flag('Retry on fail', 'retryOnFail'),
         const SizedBox(height: HkTokens.s2),
         DropdownButtonFormField<String>(
+          key: ValueKey('onerr-${node.raw['onError']}'),
           initialValue: (node.raw['onError'] as String?) ?? 'stopWorkflow',
-          decoration: const InputDecoration(labelText: 'On error', isDense: true),
+          decoration: const InputDecoration(
+            labelText: 'On error',
+            isDense: true,
+          ),
           items: const [
-            DropdownMenuItem(value: 'stopWorkflow', child: Text('Stop workflow')),
-            DropdownMenuItem(value: 'continueRegularOutput', child: Text('Continue')),
-            DropdownMenuItem(value: 'continueErrorOutput', child: Text('Continue (error output)')),
+            DropdownMenuItem(
+              value: 'stopWorkflow',
+              child: Text('Stop workflow'),
+            ),
+            DropdownMenuItem(
+              value: 'continueRegularOutput',
+              child: Text('Continue'),
+            ),
+            DropdownMenuItem(
+              value: 'continueErrorOutput',
+              child: Text('Continue (error output)'),
+            ),
           ],
           onChanged: (v) => editor.updateNode(
             node.name,
-            (n) => v == null || v == 'stopWorkflow' ? n.remove('onError') : n.set('onError', v),
+            (n) => v == null || v == 'stopWorkflow'
+                ? n.remove('onError')
+                : n.set('onError', v),
           ),
         ),
         if (versions.length > 1) ...[
           const SizedBox(height: HkTokens.s3),
           DropdownButtonFormField<double>(
+            key: ValueKey('ver-$cur'),
             initialValue: versions.contains(cur) ? cur : null,
-            decoration: const InputDecoration(labelText: 'Node version', isDense: true),
+            decoration: const InputDecoration(
+              labelText: 'Node version',
+              isDense: true,
+            ),
             items: [
               for (final v in versions)
-                DropdownMenuItem(value: v, child: Text(v == v.roundToDouble() ? '${v.toInt()}' : '$v')),
+                DropdownMenuItem(
+                  value: v,
+                  child: Text(v == v.roundToDouble() ? '${v.toInt()}' : '$v'),
+                ),
             ],
             onChanged: (v) {
               if (v == null) return;
               editor.updateNode(
                 node.name,
-                (n) => n.set('typeVersion', v == v.roundToDouble() ? v.toInt() : v),
+                (n) => n.set(
+                  'typeVersion',
+                  v == v.roundToDouble() ? v.toInt() : v,
+                ),
               );
             },
           ),
@@ -273,7 +333,11 @@ class _SettingsTab extends StatelessWidget {
           initialValue: node.notes ?? '',
           minLines: 2,
           maxLines: 5,
-          decoration: const InputDecoration(labelText: 'Notes', isDense: true, alignLabelWithHint: true),
+          decoration: const InputDecoration(
+            labelText: 'Notes',
+            isDense: true,
+            alignLabelWithHint: true,
+          ),
           onChanged: (v) => editor.updateNode(
             node.name,
             (n) => v.isEmpty ? n.remove('notes') : n.set('notes', v),

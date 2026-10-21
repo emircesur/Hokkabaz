@@ -72,7 +72,10 @@
 //! rebuilds the run from a snapshot and continues: the Wait node's output is its input
 //! (timer) or the webhook item that resumed it. Nothing else re-runs.
 //!
-//! Not here yet: cancellation, workflow timeout, sub-nodes (`ai_*` connections), error
+//! Sub-nodes (`ai_*` connections) are not scheduled: only `main` connections carry items.
+//! A root node pulls them through [`NodeContext::sub_nodes`](crate::node::NodeContext::sub_nodes).
+//!
+//! Not here yet: cancellation, workflow timeout, error
 //! workflows (see `triggers::LocalTriggerHost::on_execution_finished`).
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
@@ -88,7 +91,7 @@ use crate::error::FlowError;
 use crate::expr::{ExprEnv, ExpressionEvaluator};
 use crate::hooks::{ExecScratch, NodeHooks};
 use crate::item::{Item, PairedItem};
-use crate::node::{FlowNode, NodeContext, NodeOutput, NodeRegistry};
+use crate::node::{FlowNode, NodeContext, NodeOutput, NodeRegistry, SubNodeEnv};
 use crate::run_data::{
     ExecutionRecord, NodeRun, NodeRunData, RunError, RunSource, RunStatus, RunStore, SharedRunData,
     StaticData,
@@ -308,6 +311,7 @@ impl Executor {
             layouts: HashMap::new(),
             next_index: 0,
             last_node: None,
+            sub: SubNodeEnv::build(&self.registry, wf),
         };
         let res = run.drive(input).await;
         self.release_expr(&id);
@@ -353,6 +357,7 @@ impl Executor {
             layouts: HashMap::new(),
             next_index,
             last_node,
+            sub: SubNodeEnv::build(&self.registry, &wf),
         };
         let res = run
             .continue_after_wait(suspended, suspended_at, reason)
@@ -536,6 +541,8 @@ struct Run<'a> {
     layouts: HashMap<String, (usize, usize)>,
     next_index: usize,
     last_node: Option<String>,
+    /// `ai_*` sub-node wiring, handed to every node context.
+    sub: Option<Arc<SubNodeEnv>>,
 }
 
 enum Flow {
@@ -905,6 +912,7 @@ impl<'a> Run<'a> {
         ctx.hooks = self.exec.config.hooks.clone();
         ctx.hooks.durable_wait = self.exec.wait_store.is_some();
         ctx.scratch = self.scratch.clone();
+        ctx.sub = self.sub.clone();
 
         let (declared, result) = match self.exec.registry.resolve(node) {
             Ok(imp) => (

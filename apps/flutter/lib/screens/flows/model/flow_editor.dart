@@ -286,9 +286,7 @@ class FlowEditor extends ChangeNotifier {
     if (_wf.hasNode(name)) return false;
     final conns = _wf.connections.clone()..renameNode(from, name);
     var next = _wf.copyWith(
-      nodes: [
-        for (final n in _wf.nodes) n.name == from ? n.withName(name) : n,
-      ],
+      nodes: [for (final n in _wf.nodes) n.name == from ? n.withName(name) : n],
       connections: conns,
     );
     if (_wf.pinData.containsKey(from)) {

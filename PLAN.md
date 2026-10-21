@@ -111,7 +111,7 @@ Rules:
 | P4.6 📜 | D | `hk-server` (axum): n8n-shaped webhooks (`/webhook`, `/webhook-test`, response modes) + HMAC presets, REST v1 mirroring n8n public API (workflows, executions, credentials), WS event/command mux, token scopes, rate limit | P4.2 | L | unit (auth) | OpenAPI doc generated | done — gaps: multipart file parts dropped; no HTTP route to arm test listeners; no webhook CORS; flat query parsing; daemon not wired to with_flow; WebhookHandler→hk-flow WebhookRegistry bridge not written |
 | P4.7 | D | `hokkabazd`: daemon profile, systemd unit, Dockerfile, pairing QR endpoint | P4.6 | M | none | docker run → webhook triggers flow | todo |
 | P4.8 | C | `RemoteCore` impl of `CoreHandle` (WS/REST) + Instances screen + pairing | P4.6, P3.1 | M | none | desktop controls remote daemon | todo |
-| P4.9 | C | Flows screen: list, canvas (pan/zoom, ports, bezier edges), node picker, params form from node description, n8n paste/copy/import, ⚠ placeholder for unsupported nodes | P4.1, P3.1 | L | unit (canvas model) | n8n workflow pasted, edited, exported | todo |
+| P4.9 | C | Flows screen: list, canvas (pan/zoom, ports, bezier edges), node picker, params form from node description, n8n paste/copy/import, ⚠ placeholder for unsupported nodes | P4.1, P3.1 | L | unit (canvas model) | n8n workflow pasted, edited, exported | done — persistence = JSON files in app support dir (FlowStore swap point); no file/URL import (no file_picker), no Test/Activate/pin-data (P4.10), no expression live preview |
 | P4.10 | C | Test-run mode, pinned data, execution overlay; Runs screen | P4.9, P4.2 | M | none | – | todo |
 | P4.11 | A | `flow_run` + `flow_author` agent tools | P4.2, P1.8 | S | none | agent drafts flow, user opens in canvas | todo |
 

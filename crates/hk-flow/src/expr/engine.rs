@@ -18,11 +18,11 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 use rquickjs::function::Opt;
-use rquickjs::{CatchResultExt, CaughtError, Context, Function, Persistent, Runtime};
+use rquickjs::{CatchResultExt, CaughtError, Context, Function, Persistent, Promise, Runtime};
 use serde_json::Value;
 
 use super::template::{Part, parse_template};
-use super::{ExprError, ExprLimits, ExprScope, ExpressionEvaluator};
+use super::{ExprError, ExprLimits, ExprScope, ExpressionEvaluator, ScriptMode, ScriptOutput};
 use crate::item::PairedItem;
 
 /// Concatenated so the three files share one closure scope.
@@ -61,6 +61,13 @@ enum Req {
         template: String,
         scope: ExprScope,
         reply: SyncSender<Result<Value, ExprError>>,
+    },
+    Script {
+        key: String,
+        source: String,
+        mode: ScriptMode,
+        scope: ExprScope,
+        reply: SyncSender<Result<ScriptOutput, ExprError>>,
     },
     Release(String),
 }
@@ -116,6 +123,32 @@ impl ExpressionEvaluator for QuickJsEvaluator {
             .map_err(|_| ExprError::Unavailable("worker stopped".into()))?
     }
 
+    fn run_script(
+        &self,
+        source: &str,
+        mode: ScriptMode,
+        scope: &ExprScope,
+    ) -> Result<ScriptOutput, ExprError> {
+        let (reply, rx) = mpsc::sync_channel(1);
+        let key = scope
+            .base
+            .execution_id
+            .clone()
+            .unwrap_or_else(|| NO_EXECUTION.to_owned());
+        let sent = self.send(Req::Script {
+            key,
+            source: source.to_owned(),
+            mode,
+            scope: scope.clone(),
+            reply,
+        });
+        if !sent {
+            return Err(ExprError::Unavailable("worker stopped".into()));
+        }
+        rx.recv()
+            .map_err(|_| ExprError::Unavailable("worker stopped".into()))?
+    }
+
     fn release(&self, execution_id: &str) {
         self.send(Req::Release(execution_id.to_owned()));
     }
@@ -135,29 +168,93 @@ fn worker(rx: mpsc::Receiver<Req>, limits: ExprLimits) {
                 scope,
                 reply,
             } => {
-                let pos = sessions.iter().position(|(k, _)| *k == key);
-                let result = match pos {
-                    Some(p) => run_in(&mut sessions[p].1, &template, &scope),
-                    None => match Session::new(&limits) {
-                        Ok(mut s) => {
-                            let r = run_in(&mut s, &template, &scope);
-                            if sessions.len() >= limits.max_sessions.max(1) {
-                                sessions.pop_front();
-                            }
-                            sessions.push_back((key.clone(), s));
-                            r
-                        }
-                        Err(e) => Err(e),
-                    },
-                };
-                // A blown memory limit or interrupt can leave the realm half-torn: rebuild.
-                if matches!(result, Err(ExprError::Memory | ExprError::Timeout)) {
-                    sessions.retain(|(k, _)| *k != key);
-                }
-                let _ = reply.send(result);
+                let r = with_session(&mut sessions, &limits, &key, |s| {
+                    run_in(s, &template, &scope)
+                });
+                let _ = reply.send(r);
+            }
+            Req::Script {
+                key,
+                source,
+                mode,
+                scope,
+                reply,
+            } => {
+                let r = with_session(&mut sessions, &limits, &key, |s| {
+                    run_script_in(s, &source, mode, &scope)
+                });
+                let _ = reply.send(r);
             }
         }
     }
+}
+
+fn with_session<R>(
+    sessions: &mut VecDeque<(String, Session)>,
+    limits: &ExprLimits,
+    key: &str,
+    f: impl FnOnce(&mut Session) -> Result<R, ExprError>,
+) -> Result<R, ExprError> {
+    let pos = sessions.iter().position(|(k, _)| k == key);
+    let result = match pos {
+        Some(p) => f(&mut sessions[p].1),
+        None => match Session::new(limits) {
+            Ok(mut s) => {
+                let r = f(&mut s);
+                if sessions.len() >= limits.max_sessions.max(1) {
+                    sessions.pop_front();
+                }
+                sessions.push_back((key.to_owned(), s));
+                r
+            }
+            Err(e) => Err(e),
+        },
+    };
+    // A blown memory limit or interrupt can leave the realm half-torn: rebuild.
+    if matches!(result, Err(ExprError::Memory | ExprError::Timeout)) {
+        sessions.retain(|(k, _)| k != key);
+    }
+    result
+}
+
+fn run_script_in(
+    s: &mut Session,
+    source: &str,
+    mode: ScriptMode,
+    scope: &ExprScope,
+) -> Result<ScriptOutput, ExprError> {
+    s.bind(scope);
+    let raw = s.call_script(
+        source,
+        match mode {
+            ScriptMode::AllItems => MODE_SCRIPT_ALL,
+            ScriptMode::EachItem => MODE_SCRIPT_EACH,
+        },
+    )?;
+    #[derive(serde::Deserialize)]
+    struct Out {
+        #[serde(default)]
+        u: Value,
+        #[serde(default)]
+        r: Value,
+        #[serde(default)]
+        logs: Vec<String>,
+    }
+    let o: Out = serde_json::from_str(&raw)
+        .map_err(|e| ExprError::Js(format!("script result is not JSON: {e}")))?;
+    let undefined = match (&o.u, mode) {
+        (Value::Bool(true), ScriptMode::AllItems) => vec![0],
+        (Value::Array(a), ScriptMode::EachItem) => a
+            .iter()
+            .filter_map(|x| x.as_u64().map(|n| n as usize))
+            .collect(),
+        _ => Vec::new(),
+    };
+    Ok(ScriptOutput {
+        value: o.r,
+        undefined,
+        logs: o.logs,
+    })
 }
 
 fn run_in(s: &mut Session, template: &str, scope: &ExprScope) -> Result<Value, ExprError> {
@@ -190,6 +287,8 @@ fn run_in(s: &mut Session, template: &str, scope: &ExprScope) -> Result<Value, E
 
 const MODE_JSON: u8 = 0;
 const MODE_TEXT: u8 = 1;
+const MODE_SCRIPT_ALL: u8 = 2;
+const MODE_SCRIPT_EACH: u8 = 3;
 
 /// State the host dispatcher reads; shared with the JS closures.
 #[derive(Default)]
@@ -281,14 +380,44 @@ impl Session {
         self.shared.deadline.set(None);
         out
     }
+
+    /// Script modes return a promise (async body); drive the job queue until it settles.
+    fn call_script(&self, src: &str, mode: u8) -> Result<String, ExprError> {
+        let deadline = Instant::now() + self.timeout;
+        self.shared.deadline.set(Some(deadline));
+        let out = self.ctx.with(|ctx| {
+            let f = match self.api.clone().restore(&ctx) {
+                Ok(f) => f,
+                Err(e) => return Err(ExprError::Unavailable(e.to_string())),
+            };
+            let p: Promise = f
+                .call((src, mode as i32))
+                .catch(&ctx)
+                .map_err(js_error)?;
+            p.finish::<String>().catch(&ctx).map_err(js_error)
+        });
+        self.shared.deadline.set(None);
+        // An interrupt inside a promise job is swallowed by the job queue: the promise just
+        // never settles. Past the deadline that can only mean the timeout fired.
+        match out {
+            Err(ExprError::Js(_)) if Instant::now() >= deadline => Err(ExprError::Timeout),
+            other => other,
+        }
+    }
 }
 
 fn js_error(e: CaughtError<'_>) -> ExprError {
     let msg = match &e {
         CaughtError::Exception(x) => x.message().unwrap_or_default(),
         CaughtError::Value(v) => format!("{v:?}"),
+        CaughtError::Error(rquickjs::Error::WouldBlock) => {
+            "script never finished: it awaits something that can't resolve in the sandbox".into()
+        }
         CaughtError::Error(x) => x.to_string(),
     };
+    if let Some(err) = script_error(&msg) {
+        return err;
+    }
     let lower = msg.to_ascii_lowercase();
     if lower.contains("interrupted") {
         ExprError::Timeout
@@ -297,6 +426,36 @@ fn js_error(e: CaughtError<'_>) -> ExprError {
     } else {
         ExprError::Js(msg)
     }
+}
+
+/// Decode the envelope the shim wraps user-code errors in (`\u{1}S{json}`).
+fn script_error(msg: &str) -> Option<ExprError> {
+    #[derive(serde::Deserialize)]
+    struct Env {
+        m: String,
+        #[serde(default)]
+        n: String,
+        l: Option<u32>,
+        i: Option<usize>,
+    }
+    let env: Env = serde_json::from_str(msg.strip_prefix("\u{1}S")?).ok()?;
+    // The user script may catch and rethrow resource errors; keep them classified.
+    let lower = env.m.to_ascii_lowercase();
+    if env.n == "InternalError" && lower.contains("out of memory") {
+        return Some(ExprError::Memory);
+    }
+    if env.n == "InternalError" && lower.contains("interrupted") {
+        return Some(ExprError::Timeout);
+    }
+    Some(ExprError::Script {
+        message: if env.n.is_empty() || env.n == "Error" {
+            env.m
+        } else {
+            format!("{}: {}", env.n, env.m)
+        },
+        line: env.l,
+        item_index: env.i,
+    })
 }
 
 // ----------------------------------------------------------------- host ops

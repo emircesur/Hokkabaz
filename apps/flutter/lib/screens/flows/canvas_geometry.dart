@@ -73,7 +73,8 @@ class NodeLayout {
   final List<PortSlot> outputs;
 
   /// No registry entry for this exact type + version: card shows the warning.
-  bool get unsupported => info == null || !info!.supportsVersion(node.typeVersion);
+  bool get unsupported =>
+      info == null || !info!.supportsVersion(node.typeVersion);
 
   PortSlot? input(String type, int index) => _find(inputs, type, index);
   PortSlot? output(String type, int index) => _find(outputs, type, index);

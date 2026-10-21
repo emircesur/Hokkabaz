@@ -25,7 +25,6 @@ IconData categoryIcon(NodeCategory c) => switch (c) {
 class NodeCardCallbacks {
   const NodeCardCallbacks({
     required this.onTap,
-    required this.onDoubleTap,
     required this.onDragStart,
     required this.onDragUpdate,
     required this.onDragEnd,
@@ -35,7 +34,6 @@ class NodeCardCallbacks {
   });
 
   final void Function(bool additive) onTap;
-  final VoidCallback onDoubleTap;
   final void Function(Offset globalPos) onDragStart;
   final void Function(Offset globalPos) onDragUpdate;
   final VoidCallback onDragEnd;
@@ -71,7 +69,9 @@ class NodeCard extends StatelessWidget {
     final stripe = categoryColor(cat);
     final unsupported = layout.unsupported;
     final r = layout.rect;
-    final labeledOuts = layout.outputs.where((p) => p.spec.isMain && p.spec.label.isNotEmpty);
+    final labeledOuts = layout.outputs.where(
+      (p) => p.spec.isMain && p.spec.label.isNotEmpty,
+    );
     final shortName = layout.info?.displayName ?? shortType(node.type);
 
     final border = selected
@@ -82,12 +82,12 @@ class NodeCard extends StatelessWidget {
 
     final card = GestureDetector(
       behavior: HitTestBehavior.opaque,
+      // No onDoubleTap here: it would delay onTap ~300ms. The canvas detects double taps itself.
       onTap: () => callbacks.onTap(
         HardwareKeyboard.instance.isShiftPressed ||
             HardwareKeyboard.instance.isControlPressed ||
             HardwareKeyboard.instance.isMetaPressed,
       ),
-      onDoubleTap: callbacks.onDoubleTap,
       onPanStart: (d) => callbacks.onDragStart(d.globalPosition),
       onPanUpdate: (d) => callbacks.onDragUpdate(d.globalPosition),
       onPanEnd: (_) => callbacks.onDragEnd(),
@@ -111,7 +111,9 @@ class NodeCard extends StatelessWidget {
               const SizedBox(width: HkTokens.s2),
               Expanded(
                 child: Padding(
-                  padding: EdgeInsets.only(right: labeledOuts.isEmpty ? HkTokens.s2 : 44),
+                  padding: EdgeInsets.only(
+                    right: labeledOuts.isEmpty ? HkTokens.s2 : 44,
+                  ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -122,11 +124,15 @@ class NodeCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: text.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w600,
-                          decoration: node.disabled ? TextDecoration.lineThrough : null,
+                          decoration: node.disabled
+                              ? TextDecoration.lineThrough
+                              : null,
                         ),
                       ),
                       Text(
-                        unsupported ? 'Unsupported: ${shortType(node.type)}' : shortName,
+                        unsupported
+                            ? 'Unsupported: ${shortType(node.type)}'
+                            : shortName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: text.bodySmall?.copyWith(
@@ -144,7 +150,11 @@ class NodeCard extends StatelessWidget {
                     message: layout.info == null
                         ? 'Node type not available in this build. It is kept as-is and fails at run time.'
                         : 'typeVersion ${node.typeVersion} is not supported. It is kept as-is.',
-                    child: Icon(Icons.warning_amber_rounded, size: 18, color: hk.warn),
+                    child: Icon(
+                      Icons.warning_amber_rounded,
+                      size: 18,
+                      color: hk.warn,
+                    ),
                   ),
                 ),
             ],
@@ -160,7 +170,9 @@ class NodeCard extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Positioned(left: kPortPad, top: kPortPad, child: card),
-          for (final p in layout.outputs.where((p) => p.spec.isMain && p.spec.label.isNotEmpty))
+          for (final p in layout.outputs.where(
+            (p) => p.spec.isMain && p.spec.label.isNotEmpty,
+          ))
             Positioned(
               left: kPortPad + r.width - 8 - 40,
               top: p.anchor.dy - r.top + kPortPad - 8,
@@ -171,7 +183,10 @@ class NodeCard extends StatelessWidget {
                   textAlign: TextAlign.right,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: text.bodySmall?.copyWith(color: hk.textMuted, fontSize: 12),
+                  style: text.bodySmall?.copyWith(
+                    color: hk.textMuted,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ),

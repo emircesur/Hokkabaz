@@ -27,6 +27,7 @@ use std::sync::Arc;
 use crate::error::FlowError;
 use crate::node::{FlowNode, NodeRegistry};
 
+mod code;
 mod conditions;
 pub(crate) mod date;
 mod datetime;
@@ -63,6 +64,7 @@ pub fn core_nodes() -> Vec<Arc<dyn FlowNode>> {
         Arc::new(MergeNode::new()),
         Arc::new(SplitInBatchesNode::new()),
         Arc::new(NoOpNode::new()),
+        Arc::new(code::CodeNode::new()),
         Arc::new(DateTimeNode::new()),
         Arc::new(AggregateNode::new()),
         Arc::new(SplitOutNode::new()),

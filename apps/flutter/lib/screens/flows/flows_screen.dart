@@ -116,7 +116,9 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
         _currentId = id;
         _error = null;
       });
-      WidgetsBinding.instance.addPostFrameCallback((_) => _canvasKey.currentState?.fit());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _canvasKey.currentState?.fit(),
+      );
     } on FlowFormatException catch (e) {
       _toast('Cannot open flow: ${e.message}');
     } catch (e) {
@@ -146,7 +148,10 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
           onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, c.text.trim()),
             child: const Text('OK'),
@@ -185,8 +190,14 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
         title: Text('Delete "${f.name}"?'),
         content: const Text('The workflow file is removed from this device.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -206,7 +217,10 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
   Future<void> _importText(String text) async {
     try {
       final wf = FlowWorkflow.parse(text);
-      await _create(from: wf, suggested: wf.name.isEmpty ? 'Imported workflow' : wf.name);
+      await _create(
+        from: wf,
+        suggested: wf.name.isEmpty ? 'Imported workflow' : wf.name,
+      );
     } on FlowFormatException catch (e) {
       _toast('Import failed: ${e.message}');
     }
@@ -219,11 +233,15 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
   }
 
   Future<void> _jsonDialog({required bool export}) async {
-    final c = TextEditingController(text: export ? _editor.exportWorkflow() : '');
+    final c = TextEditingController(
+      text: export ? _editor.exportWorkflow() : '',
+    );
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(export ? 'Export n8n workflow JSON' : 'Import n8n workflow JSON'),
+        title: Text(
+          export ? 'Export n8n workflow JSON' : 'Import n8n workflow JSON',
+        ),
         content: SizedBox(
           width: 560,
           child: TextField(
@@ -240,7 +258,10 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
           if (export)
             FilledButton(
               onPressed: () async {
@@ -284,15 +305,24 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
                 ListTile(
                   dense: true,
                   leading: Icon(
-                    i.startsWith('warning') ? Icons.warning_amber_rounded : Icons.error_outline,
+                    i.startsWith('warning')
+                        ? Icons.warning_amber_rounded
+                        : Icons.error_outline,
                     color: i.startsWith('warning') ? ctx.hk.warn : ctx.hk.err,
                   ),
-                  title: Text(i.replaceFirst(RegExp(r'^(warning|error): '), '')),
+                  title: Text(
+                    i.replaceFirst(RegExp(r'^(warning|error): '), ''),
+                  ),
                 ),
             ],
           ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
@@ -317,11 +347,16 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
       pos = (x: sel.position.x + kNodeWidth + 60, y: sel.position.y);
     } else {
       final c = at ?? _canvasKey.currentState?.viewCenter ?? (x: 0.0, y: 0.0);
-      pos = at != null ? at : (x: c.x - kNodeWidth / 2, y: c.y - kNodeMinHeight / 2);
+      pos = at ?? (x: c.x - kNodeWidth / 2, y: c.y - kNodeMinHeight / 2);
     }
     final info = pick.info;
     if (info != null) {
-      _editor.addNode(info, pos, connectFrom: connectFrom, connectFromIndex: fromIndex);
+      _editor.addNode(
+        info,
+        pos,
+        connectFrom: connectFrom,
+        connectFromIndex: fromIndex,
+      );
     } else {
       final t = pick.customType!;
       _editor.addRawNode(
@@ -406,7 +441,10 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
           children: [
             Icon(Icons.account_tree_outlined, size: 40, color: hk.textMuted),
             const SizedBox(height: HkTokens.s3),
-            Text(_error ?? 'No flow open', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              _error ?? 'No flow open',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: HkTokens.s3),
             Wrap(
               spacing: HkTokens.s2,
@@ -466,7 +504,8 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
             child: Center(
               child: Text(
                 'Press Tab or long-press to add a node, or paste n8n nodes (Ctrl+V)',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: hk.textMuted),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: hk.textMuted),
               ),
             ),
           ),
@@ -490,7 +529,10 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
         Expanded(
           child: _files.isEmpty
               ? Center(
-                  child: Text('No flows yet', style: Theme.of(context).textTheme.bodySmall),
+                  child: Text(
+                    'No flows yet',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 )
               : ListView(
                   children: [
@@ -504,10 +546,17 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
                         trailing: PopupMenuButton<String>(
                           tooltip: 'Flow actions',
                           icon: const Icon(Icons.more_vert, size: 18),
-                          onSelected: (v) => v == 'rename' ? _rename(f) : _delete(f),
+                          onSelected: (v) =>
+                              v == 'rename' ? _rename(f) : _delete(f),
                           itemBuilder: (_) => const [
-                            PopupMenuItem(value: 'rename', child: Text('Rename')),
-                            PopupMenuItem(value: 'delete', child: Text('Delete')),
+                            PopupMenuItem(
+                              value: 'rename',
+                              child: Text('Rename'),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Delete'),
+                            ),
                           ],
                         ),
                       ),
@@ -539,7 +588,8 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
               icon: const Icon(Icons.folder_open),
               onSelected: (v) => v == '__new' ? _create() : _open(v),
               itemBuilder: (_) => [
-                for (final f in _files) PopupMenuItem(value: f.id, child: Text(f.name)),
+                for (final f in _files)
+                  PopupMenuItem(value: f.id, child: Text(f.name)),
                 const PopupMenuDivider(),
                 const PopupMenuItem(value: '__new', child: Text('New flow')),
               ],
@@ -568,7 +618,11 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
               ),
             ),
           const SizedBox(width: HkTokens.s2),
-          _btn(Icons.add_box_outlined, 'Add node (Tab)', hasFlow ? () => _addNode(null, null) : null),
+          _btn(
+            Icons.add_box_outlined,
+            'Add node (Tab)',
+            hasFlow ? () => _addNode(null, null) : null,
+          ),
           _btn(Icons.undo, 'Undo', _editor.canUndo ? _editor.undo : null),
           _btn(Icons.redo, 'Redo', _editor.canRedo ? _editor.redo : null),
           _btn(
@@ -579,17 +633,29 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
           _btn(
             Icons.content_paste,
             'Paste n8n nodes',
-            hasFlow ? () => _canvasKey.currentState?.pasteFromClipboard() : null,
+            hasFlow
+                ? () => _canvasKey.currentState?.pasteFromClipboard()
+                : null,
           ),
           _btn(
             Icons.delete_outline,
             'Delete selection',
-            (sel.isNotEmpty || _editor.selectedEdge != null) ? _editor.deleteSelection : null,
+            (sel.isNotEmpty || _editor.selectedEdge != null)
+                ? _editor.deleteSelection
+                : null,
           ),
           if (!wide && _editor.selectedNode != null)
-            _btn(Icons.tune, 'Edit node', () => _openNodeSheet(_editor.selectedNode!.name)),
+            _btn(
+              Icons.tune,
+              'Edit node',
+              () => _openNodeSheet(_editor.selectedNode!.name),
+            ),
           if (wide && _editor.selectedNode != null && !_panelOpen)
-            _btn(Icons.view_sidebar_outlined, 'Show node panel', () => setState(() => _panelOpen = true)),
+            _btn(
+              Icons.view_sidebar_outlined,
+              'Show node panel',
+              () => setState(() => _panelOpen = true),
+            ),
           _btn(Icons.rule, 'Validate', hasFlow ? _validate : null),
           PopupMenuButton<String>(
             tooltip: 'Import / export',
@@ -603,22 +669,42 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
                 case 'export':
                   _jsonDialog(export: true);
                 case 'copy':
-                  Clipboard.setData(ClipboardData(text: _editor.exportWorkflow()));
+                  Clipboard.setData(
+                    ClipboardData(text: _editor.exportWorkflow()),
+                  );
                   _toast('Workflow JSON copied');
               }
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(value: 'clip', child: Text('Import from clipboard (new flow)')),
-              const PopupMenuItem(value: 'import', child: Text('Import JSON...')),
-              if (hasFlow) const PopupMenuItem(value: 'copy', child: Text('Copy workflow JSON')),
-              if (hasFlow) const PopupMenuItem(value: 'export', child: Text('Export JSON...')),
+              const PopupMenuItem(
+                value: 'clip',
+                child: Text('Import from clipboard (new flow)'),
+              ),
+              const PopupMenuItem(
+                value: 'import',
+                child: Text('Import JSON...'),
+              ),
+              if (hasFlow)
+                const PopupMenuItem(
+                  value: 'copy',
+                  child: Text('Copy workflow JSON'),
+                ),
+              if (hasFlow)
+                const PopupMenuItem(
+                  value: 'export',
+                  child: Text('Export JSON...'),
+                ),
             ],
           ),
           if (types.list.isEmpty)
             Center(
               child: Tooltip(
                 message: types.error ?? 'No node types',
-                child: Icon(Icons.warning_amber_rounded, color: hk.warn, size: 18),
+                child: Icon(
+                  Icons.warning_amber_rounded,
+                  color: hk.warn,
+                  size: 18,
+                ),
               ),
             ),
         ],

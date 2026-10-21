@@ -66,7 +66,10 @@ Future<NodePick?> showNodePicker(
     useSafeArea: true,
     builder: (_) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SizedBox(height: MediaQuery.sizeOf(context).height * 0.85, child: body),
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.85,
+        child: body,
+      ),
     ),
   );
 }
@@ -105,7 +108,10 @@ class _PickerBodyState extends State<_PickerBody> {
               HkTokens.s4,
               HkTokens.s1,
             ),
-            child: Text(c.label.toUpperCase(), style: text.labelSmall?.copyWith(color: hk.textMuted)),
+            child: Text(
+              c.label.toUpperCase(),
+              style: text.labelSmall?.copyWith(color: hk.textMuted),
+            ),
           ),
         );
         children.addAll(items.map(_tile));
@@ -119,7 +125,9 @@ class _PickerBodyState extends State<_PickerBody> {
           dense: true,
           leading: Icon(Icons.warning_amber_rounded, color: hk.warn),
           title: Text('Add "$custom" as placeholder'),
-          subtitle: const Text('Type is not in this build; the node is kept as JSON.'),
+          subtitle: const Text(
+            'Type is not in this build; the node is kept as JSON.',
+          ),
           onTap: () => Navigator.pop(context, NodePick.custom(custom)),
         ),
       );
@@ -130,7 +138,9 @@ class _PickerBodyState extends State<_PickerBody> {
           padding: const EdgeInsets.all(HkTokens.s6),
           child: Center(
             child: Text(
-              widget.types.isEmpty ? 'No node types loaded' : 'No matching nodes',
+              widget.types.isEmpty
+                  ? 'No node types loaded'
+                  : 'No matching nodes',
               style: text.bodySmall,
             ),
           ),
@@ -176,7 +186,8 @@ class _PickerBodyState extends State<_PickerBody> {
           : Text(t.description, maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: Text(
         shortType(t.typeName),
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: context.hk.textMuted),
+        style: Theme.of(context).textTheme.bodySmall
+            ?.copyWith(color: context.hk.textMuted),
       ),
       onTap: () => Navigator.pop(context, NodePick.type(t)),
     );

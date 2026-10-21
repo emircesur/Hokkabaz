@@ -214,7 +214,8 @@ class ParamSpec {
     final d = j['displayOptions'];
     return ParamSpec(
       name: (j['name'] as String?) ?? '',
-      displayName: (j['displayName'] as String?) ?? (j['name'] as String?) ?? '',
+      displayName:
+          (j['displayName'] as String?) ?? (j['name'] as String?) ?? '',
       type: type,
       defaultValue: j['default'],
       description: j['description'] as String?,
@@ -257,7 +258,8 @@ class ParamSpec {
   /// n8n `displayOptions` semantics: every `show` key must match, no `hide` key may.
   bool isVisible(Map<String, dynamic> params, {num typeVersion = 1}) {
     final s = show;
-    if (s != null && !s.entries.every((e) => _matches(e, params, typeVersion))) {
+    if (s != null &&
+        !s.entries.every((e) => _matches(e, params, typeVersion))) {
       return false;
     }
     final h = hide;
@@ -355,7 +357,10 @@ List<PortSpec> inputPorts(FlowNode node, NodeTypeInfo? info) {
 /// declaration is an expression we cannot evaluate or the type is unknown.
 List<PortSpec> outputPorts(FlowNode node, NodeTypeInfo? info, int connected) {
   if (info == null) {
-    return [for (var i = 0; i <= (connected < 0 ? 0 : connected); i++) const PortSpec('main', '')];
+    return [
+      for (var i = 0; i <= (connected < 0 ? 0 : connected); i++)
+        const PortSpec('main', ''),
+    ];
   }
   final expr = info.outputsExpr;
   if (expr != null) {
@@ -386,7 +391,9 @@ List<PortSpec> outputPorts(FlowNode node, NodeTypeInfo? info, int connected) {
       return [for (final l in labels) PortSpec('main', l)];
     }
     final n = connected + 1;
-    return [for (var i = 0; i < (n < 1 ? 1 : n); i++) const PortSpec('main', '')];
+    return [
+      for (var i = 0; i < (n < 1 ? 1 : n); i++) const PortSpec('main', ''),
+    ];
   }
   return [
     for (var i = 0; i < info.outputs.length; i++)

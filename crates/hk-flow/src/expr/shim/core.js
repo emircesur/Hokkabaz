@@ -21,6 +21,22 @@ function nodeParams(name) {
   throw new Error("Referenced node '" + name + "' doesn't exist");
 }
 
+// Code node `console`: captured, capped, handed to the host with the result. Never
+// reaches stdout from a library.
+const LOG_LINES = 100;
+const LOG_CHARS = 2000;
+let logs = [];
+const logText = (a) => {
+  if (typeof a === 'string') return a;
+  try { const s = JSON.stringify(a); return s === undefined ? String(a) : s; } catch (e) { return String(a); }
+};
+const consoleApi = {};
+for (const lvl of ['log', 'info', 'warn', 'error', 'debug', 'trace']) {
+  consoleApi[lvl] = (...args) => {
+    if (logs.length < LOG_LINES) logs.push(args.map(logText).join(' ').slice(0, LOG_CHARS));
+  };
+}
+
 function buildScope(m) {
   const cur = () => inputAll(0)[m.itemIndex];
   const paired = (name, itemIndex) => {
@@ -103,6 +119,10 @@ function buildScope(m) {
   S.$max = Math.max;
   S.$ifEmpty = (v, fallback) => (v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0) ||
     (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0 && !(v instanceof DateTime)) ? fallback : v);
+  // Code node legacy names: `items` (all items), `item` (current item, per-item mode)
+  get('items', () => inputAll(0));
+  get('item', cur);
+  S.console = consoleApi;
   S.DateTime = DateTime;
   S.Duration = Duration;
   S.Interval = Interval;
@@ -118,6 +138,64 @@ function compile(src) {
     compiled.set(src, f);
   }
   return f;
+}
+
+const scripts = new Map();
+function compileScript(src) {
+  let f = scripts.get(src);
+  if (!f) {
+    // Same `with` trick as expressions. The async arrow keeps `await` legal in the body;
+    // its first line is the first line of `src`, so line numbers only need the constant
+    // offset of the Function-constructor header.
+    f = new Function('__s', 'with(__s){return (async()=>{' + src + '\n})()}');
+    scripts.set(src, f);
+  }
+  return f;
+}
+
+// Constructor header `(function anonymous(__s\n) {\n` puts the body on line 3.
+const BODY_LINE = 3;
+function userLine(e) {
+  const st = e && typeof e.stack === 'string' ? e.stack : '';
+  const re = /:(\d+)(?::\d+)?\)?\s*$/;
+  for (const l of st.split('\n')) {
+    if (l.indexOf('<anonymous>') === -1 && l.indexOf('anonymous') === -1) continue;
+    const mm = re.exec(l);
+    if (mm) return Number(mm[1]) - BODY_LINE + 1;
+  }
+  return undefined;
+}
+
+const bigint = (k, x) => (typeof x === 'bigint' ? x.toString() : x);
+const fail = (e, item) => {
+  const isErr = e !== null && typeof e === 'object';
+  const msg = isErr && e.message !== undefined ? String(e.message) : String(e);
+  const name = isErr && e.name ? String(e.name) : 'Error';
+  const err = new Error('\u0001S' + JSON.stringify({ m: msg, n: name, l: userLine(e), i: item }));
+  return err;
+};
+
+async function runScript(src, mode, m) {
+  state.cache.clear();
+  logs = [];
+  let f;
+  try { f = compileScript(src); } catch (e) { throw fail(e); }
+  const S = buildScope(m);
+  if (mode === 2) {
+    let v;
+    try { v = await f(S); } catch (e) { throw fail(e); }
+    return JSON.stringify({ u: v === undefined, r: v === undefined ? null : v, logs }, bigint);
+  }
+  const n = inputAll(0).length;
+  const r = [];
+  const u = [];
+  for (let i = 0; i < n; i++) {
+    m.itemIndex = i;
+    let v;
+    try { v = await f(S); } catch (e) { throw fail(e, i); }
+    if (v === undefined) { u.push(i); r.push(null); } else r.push(v);
+  }
+  return JSON.stringify({ u, r, logs }, bigint);
 }
 
 function ser(v) {
@@ -144,6 +222,7 @@ return function run(src, mode) {
     state.gen = m.gen;
     state.cache.clear();
   }
+  if (mode >= 2) return runScript(src, mode, m);
   const v = compile(src)(buildScope(m));
   return mode === 0 ? ser(v) : render(v);
 };

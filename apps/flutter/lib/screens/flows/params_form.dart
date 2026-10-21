@@ -30,12 +30,16 @@ class ParamsForm extends StatelessWidget {
   Widget build(BuildContext context) {
     final visible = [
       for (final s in specs)
-        if (s.type != 'hidden' && s.isVisible(values, typeVersion: typeVersion)) s,
+        if (s.type != 'hidden' && s.isVisible(values, typeVersion: typeVersion))
+          s,
     ];
     if (visible.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(HkTokens.s3),
-        child: Text('No parameters', style: Theme.of(context).textTheme.bodySmall),
+        child: Text(
+          'No parameters',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
       );
     }
     return _FieldList(
@@ -149,14 +153,27 @@ class ParamField extends StatelessWidget {
         );
         return _withRemove(field);
       case 'options' when !_isExpr(shown):
-        field = _OptionsField(spec: spec, label: label, help: help, value: shown, onChanged: onChanged);
+        field = _OptionsField(
+          spec: spec,
+          label: label,
+          help: help,
+          value: shown,
+          onChanged: onChanged,
+        );
       case 'multiOptions':
-        field = _MultiOptionsField(spec: spec, label: label, value: shown, onChanged: onChanged);
+        field = _MultiOptionsField(
+          spec: spec,
+          label: label,
+          value: shown,
+          onChanged: onChanged,
+        );
       case 'collection':
         field = _CollectionField(
           spec: spec,
           label: label,
-          value: value is Map<String, dynamic> ? value! as Map<String, dynamic> : const {},
+          value: value is Map<String, dynamic>
+              ? value! as Map<String, dynamic>
+              : const {},
           path: path,
           typeVersion: typeVersion,
           onChanged: onChanged,
@@ -165,16 +182,35 @@ class ParamField extends StatelessWidget {
         field = _FixedCollectionField(
           spec: spec,
           label: label,
-          value: value is Map<String, dynamic> ? value! as Map<String, dynamic> : const {},
+          value: value is Map<String, dynamic>
+              ? value! as Map<String, dynamic>
+              : const {},
           path: path,
           typeVersion: typeVersion,
           onChanged: onChanged,
         );
-      case 'string' || 'number' || 'dateTime' || 'color' || 'json' || 'options' || 'boolean':
-        field = _ScalarField(spec: spec, label: label, help: help, value: shown, onChanged: onChanged);
+      case 'string' ||
+          'number' ||
+          'dateTime' ||
+          'color' ||
+          'json' ||
+          'options' ||
+          'boolean':
+        field = _ScalarField(
+          spec: spec,
+          label: label,
+          help: help,
+          value: shown,
+          onChanged: onChanged,
+        );
       default:
         // filter, assignmentCollection, workflowSelector, future widgets: edit the raw JSON.
-        field = _JsonField(label: label, help: help, value: value ?? spec.defaultValue, onChanged: onChanged);
+        field = _JsonField(
+          label: label,
+          help: help,
+          value: value ?? spec.defaultValue,
+          onChanged: onChanged,
+        );
     }
     return _withRemove(field);
   }
@@ -217,7 +253,9 @@ class _ScalarField extends StatefulWidget {
 }
 
 class _ScalarFieldState extends State<_ScalarField> {
-  late final TextEditingController _c = TextEditingController(text: _show(widget.value));
+  late final TextEditingController _c = TextEditingController(
+    text: _show(widget.value),
+  );
   final _focus = FocusNode();
 
   static String _show(Object? v) {
@@ -266,15 +304,21 @@ class _ScalarFieldState extends State<_ScalarField> {
     final hk = context.hk;
     final mono = widget.spec.type == 'json' || _expr;
     final rows = widget.spec.type == 'json' ? 6 : widget.spec.rows;
-    final canExpr = widget.spec.type != 'json' && widget.spec.typeOptions['password'] != true;
+    final canExpr =
+        widget.spec.type != 'json' &&
+        widget.spec.typeOptions['password'] != true;
     return TextField(
       controller: _c,
       focusNode: _focus,
       minLines: rows > 1 ? rows : 1,
       maxLines: rows > 1 ? rows : 1,
       obscureText: widget.spec.typeOptions['password'] == true,
-      keyboardType: _number ? const TextInputType.numberWithOptions(decimal: true, signed: true) : null,
-      style: mono ? const TextStyle(fontFamily: HkTokens.fontMono, fontSize: 13) : null,
+      keyboardType: _number
+          ? const TextInputType.numberWithOptions(decimal: true, signed: true)
+          : null,
+      style: mono
+          ? const TextStyle(fontFamily: HkTokens.fontMono, fontSize: 13)
+          : null,
       decoration: InputDecoration(
         labelText: widget.label,
         helperText: widget.help,
@@ -320,12 +364,23 @@ class _OptionsField extends StatelessWidget {
   Widget build(BuildContext context) {
     final known = spec.options.any((o) => o.value == value);
     return DropdownButtonFormField<Object?>(
+      key: ValueKey('opt-$value'),
       initialValue: value,
       isExpanded: true,
-      decoration: InputDecoration(labelText: label, helperText: help, helperMaxLines: 3, isDense: true),
+      decoration: InputDecoration(
+        labelText: label,
+        helperText: help,
+        helperMaxLines: 3,
+        isDense: true,
+      ),
       items: [
-        for (final o in spec.options) DropdownMenuItem(value: o.value, child: Text(o.name, overflow: TextOverflow.ellipsis)),
-        if (!known && value != null) DropdownMenuItem(value: value, child: Text('$value')),
+        for (final o in spec.options)
+          DropdownMenuItem(
+            value: o.value,
+            child: Text(o.name, overflow: TextOverflow.ellipsis),
+          ),
+        if (!known && value != null)
+          DropdownMenuItem(value: value, child: Text('$value')),
       ],
       onChanged: onChanged,
     );
@@ -402,7 +457,12 @@ class _Section extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Text(title, style: Theme.of(context).textTheme.labelLarge)),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
               ?trailing,
             ],
           ),
@@ -436,7 +496,9 @@ class _CollectionField extends StatelessWidget {
   Widget build(BuildContext context) {
     final present = [
       for (final c in spec.children)
-        if (value.containsKey(c.name) && c.isVisible(value, typeVersion: typeVersion)) c,
+        if (value.containsKey(c.name) &&
+            c.isVisible(value, typeVersion: typeVersion))
+          c,
     ];
     final addable = [
       for (final c in spec.children)
@@ -454,11 +516,15 @@ class _CollectionField extends StatelessWidget {
                 c.name: deepCopy(c.defaultValue ?? _emptyFor(c)),
               }),
               itemBuilder: (_) => [
-                for (final c in addable) PopupMenuItem(value: c, child: Text(c.displayName)),
+                for (final c in addable)
+                  PopupMenuItem(value: c, child: Text(c.displayName)),
               ],
             ),
       child: present.isEmpty
-          ? Text(spec.placeholder ?? 'No options set', style: Theme.of(context).textTheme.bodySmall)
+          ? Text(
+              spec.placeholder ?? 'No options set',
+              style: Theme.of(context).textTheme.bodySmall,
+            )
           : _FieldList(
               specs: present,
               values: value,
@@ -509,12 +575,12 @@ class _FixedCollectionField extends StatelessWidget {
             if (spec.groups.length > 1)
               Padding(
                 padding: const EdgeInsets.only(bottom: HkTokens.s1),
-                child: Text(g.displayName, style: Theme.of(context).textTheme.labelMedium),
+                child: Text(
+                  g.displayName,
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
               ),
-            if (multi)
-              ..._rows(context, g)
-            else
-              _single(context, g),
+            if (multi) ..._rows(context, g) else _single(context, g),
           ],
         ],
       ),
@@ -524,7 +590,10 @@ class _FixedCollectionField extends StatelessWidget {
   List<Widget> _rows(BuildContext context, ParamGroup g) {
     final raw = value[g.name];
     final items = raw is List
-        ? [for (final i in raw) i is Map<String, dynamic> ? i : <String, dynamic>{}]
+        ? [
+            for (final i in raw)
+              i is Map<String, dynamic> ? i : <String, dynamic>{},
+          ]
         : <Map<String, dynamic>>[];
     void emit(List<Map<String, dynamic>> next) {
       final out = Map<String, dynamic>.of(value);
@@ -551,7 +620,9 @@ class _FixedCollectionField extends StatelessWidget {
             child: _FieldList(
               specs: [
                 for (final s in g.values)
-                  if (s.type != 'hidden' && s.isVisible(items[i], typeVersion: typeVersion)) s,
+                  if (s.type != 'hidden' &&
+                      s.isVisible(items[i], typeVersion: typeVersion))
+                    s,
               ],
               values: items[i],
               path: '$path/${g.name}/$i',
@@ -583,14 +654,16 @@ class _FixedCollectionField extends StatelessWidget {
         child: TextButton.icon(
           icon: const Icon(Icons.add, size: 16),
           label: Text('Add ${g.displayName}'),
-          onPressed: () => onChanged({...value, g.name: _defaultsFor(g.values)}),
+          onPressed: () =>
+              onChanged({...value, g.name: _defaultsFor(g.values)}),
         ),
       );
     }
     return _FieldList(
       specs: [
         for (final s in g.values)
-          if (s.type != 'hidden' && s.isVisible(raw, typeVersion: typeVersion)) s,
+          if (s.type != 'hidden' && s.isVisible(raw, typeVersion: typeVersion))
+            s,
       ],
       values: raw,
       path: '$path/${g.name}',
@@ -641,7 +714,9 @@ class _JsonField extends StatefulWidget {
 
 class _JsonFieldState extends State<_JsonField> {
   static const _enc = JsonEncoder.withIndent('  ');
-  late final TextEditingController _c = TextEditingController(text: _fmt(widget.value));
+  late final TextEditingController _c = TextEditingController(
+    text: _fmt(widget.value),
+  );
   final _focus = FocusNode();
   String? _error;
 

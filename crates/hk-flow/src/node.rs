@@ -1,8 +1,18 @@
 //! Node trait + registry keyed by `(type, typeVersion)`.
 //!
-//! [`NodeContext`] is what the executor (`executor.rs`) hands a node per run; the
-//! expression scope (P4.3) and sub-node inputs will grow it further.
+//! [`NodeContext`] is what the executor (`executor.rs`) hands a node per run.
+//!
+//! # Sub-nodes (LangChain-style `ai_*` connections)
+//!
+//! A root node (AI Agent) is wired to sub-nodes through non-`main` connections stored
+//! source -> target (`ai_languageModel`, `ai_memory`, `ai_tool`, `ai_outputParser`). Sub-nodes
+//! never run on their own and produce no items: the root asks for them with
+//! [`NodeContext::sub_nodes`], which instantiates each connected node and calls
+//! [`FlowNode::supply_data`]. The sub-node answers with a [`Supplied`] handle (a typed
+//! `Arc<dyn ...>` the root downcasts). Sub-node expressions see the *root's* input items,
+//! so `={{ $json.sessionId }}` on a memory node resolves against the item being processed.
 
+use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::{Arc, OnceLock};
@@ -17,10 +27,80 @@ use crate::hooks::{ExecScratch, NodeHooks};
 use crate::item::Item;
 use crate::run_data::{RunSource, SharedRunData, StaticData};
 use crate::version::{NodeKey, Version};
-use crate::workflow::Node;
+use crate::workflow::{MAIN, Node, Workflow};
 
 /// Items per output port. An empty inner vec means "nothing on that branch".
 pub type NodeOutput = Vec<Vec<Item>>;
+
+/// Typed handle a sub-node supplies to its root (n8n `supplyData`). Type-erased so the
+/// core stays independent of the handle types (`Arc<dyn ChatModel>` and friends live in
+/// `nodes::ai`); the root downcasts with [`Supplied::get`].
+#[derive(Clone)]
+pub struct Supplied(Arc<dyn Any + Send + Sync>);
+
+impl Supplied {
+    /// Wrap a handle. `T` is usually an `Arc<dyn Trait>`.
+    pub fn new<T: Any + Send + Sync>(handle: T) -> Self {
+        Self(Arc::new(handle))
+    }
+
+    /// The handle when it is a `T`.
+    pub fn get<T: Any>(&self) -> Option<&T> {
+        self.0.downcast_ref::<T>()
+    }
+}
+
+impl fmt::Debug for Supplied {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Supplied(..)")
+    }
+}
+
+/// Deepest sub-node chain resolved (agent tool -> model, ...). Guards connection cycles.
+const MAX_SUB_DEPTH: u8 = 8;
+
+#[derive(Debug)]
+struct SubEdge {
+    conn_type: String,
+    node: Node,
+}
+
+/// Non-`main` connections of a workflow indexed by target node, plus the registry that
+/// instantiates the sub-nodes. Built once per execution.
+#[derive(Debug)]
+pub struct SubNodeEnv {
+    registry: Arc<NodeRegistry>,
+    by_target: HashMap<String, Vec<SubEdge>>,
+}
+
+impl SubNodeEnv {
+    /// `None` when the workflow has no sub-node connections (the common case).
+    pub fn build(registry: &Arc<NodeRegistry>, wf: &Workflow) -> Option<Arc<Self>> {
+        let mut by_target: HashMap<String, Vec<SubEdge>> = HashMap::new();
+        for (source, conns) in &wf.connections.0 {
+            let Some(node) = wf.node(source) else {
+                continue;
+            };
+            for (conn_type, slots) in &conns.0 {
+                if conn_type == MAIN {
+                    continue;
+                }
+                for t in slots.iter().flatten().flatten() {
+                    by_target.entry(t.node.clone()).or_default().push(SubEdge {
+                        conn_type: conn_type.clone(),
+                        node: node.clone(),
+                    });
+                }
+            }
+        }
+        (!by_target.is_empty()).then(|| {
+            Arc::new(Self {
+                registry: Arc::clone(registry),
+                by_target,
+            })
+        })
+    }
+}
 
 /// What a node implementation sees for one run.
 #[derive(Debug, Clone)]
@@ -45,6 +125,10 @@ pub struct NodeContext {
     pub hooks: NodeHooks,
     /// Per-execution scratch state (Loop Over Items queue).
     pub scratch: ExecScratch,
+    /// Sub-node wiring of the running workflow; `None` outside an execution or when the
+    /// workflow has no `ai_*` connections.
+    pub sub: Option<Arc<SubNodeEnv>>,
+    sub_depth: u8,
     expr_base: OnceLock<Arc<ScopeBase>>,
 }
 
@@ -64,8 +148,71 @@ impl NodeContext {
             expr: ExprEnv::default(),
             hooks: NodeHooks::default(),
             scratch: ExecScratch::new(),
+            sub: None,
+            sub_depth: 0,
             expr_base: OnceLock::new(),
         }
+    }
+
+    /// True when at least one enabled node feeds this node over `conn_type`.
+    pub fn has_sub_nodes(&self, conn_type: &str) -> bool {
+        self.sub
+            .as_ref()
+            .and_then(|s| s.by_target.get(&self.node.name))
+            .is_some_and(|v| {
+                v.iter()
+                    .any(|e| e.conn_type == conn_type && !e.node.is_disabled())
+            })
+    }
+
+    /// Instantiate the sub-nodes connected to this node over `conn_type` and collect what
+    /// they supply, in connection order. `item_index` is the input item the sub-nodes'
+    /// expressions are evaluated against.
+    pub async fn sub_nodes(
+        &self,
+        conn_type: &str,
+        item_index: usize,
+    ) -> Result<Vec<Supplied>, FlowError> {
+        let Some(env) = self.sub.as_ref() else {
+            return Ok(Vec::new());
+        };
+        let Some(edges) = env.by_target.get(&self.node.name) else {
+            return Ok(Vec::new());
+        };
+        if self.sub_depth >= MAX_SUB_DEPTH {
+            return Err(FlowError::Node {
+                node: self.node.name.clone(),
+                message: "sub-node connections nest too deeply (cycle?)".into(),
+            });
+        }
+        let mut out = Vec::new();
+        for e in edges
+            .iter()
+            .filter(|e| e.conn_type == conn_type && !e.node.is_disabled())
+        {
+            let imp = env.registry.resolve(&e.node)?;
+            let mut child = self.clone();
+            child.node = e.node.clone();
+            child.run_index = 0;
+            child.sub_depth = self.sub_depth + 1;
+            // the scope snapshot names the node and its params; rebuild for the sub-node
+            child.expr_base = OnceLock::new();
+            out.push(imp.supply_data(&child, item_index).await?);
+        }
+        Ok(out)
+    }
+
+    /// First sub-node over `conn_type`, if any.
+    pub async fn sub_node(
+        &self,
+        conn_type: &str,
+        item_index: usize,
+    ) -> Result<Option<Supplied>, FlowError> {
+        Ok(self
+            .sub_nodes(conn_type, item_index)
+            .await?
+            .into_iter()
+            .next())
     }
 
     /// Copy with one extra `$vars` entry and a fresh scope snapshot. HTTP Request
@@ -108,7 +255,7 @@ impl NodeContext {
         ExprScope::new(Arc::clone(base), item_index)
     }
 
-    fn evaluator(&self) -> Result<Arc<dyn ExpressionEvaluator>, ExprError> {
+    pub(crate) fn evaluator(&self) -> Result<Arc<dyn ExpressionEvaluator>, ExprError> {
         if let Some(e) = &self.expr.evaluator {
             return Ok(Arc::clone(e));
         }
@@ -184,6 +331,20 @@ pub trait FlowNode: Send + Sync + fmt::Debug {
     }
 
     async fn execute(&self, ctx: &NodeContext) -> Result<NodeOutput, FlowError>;
+
+    /// Sub-node entry point (n8n `supplyData`): hand the root node a typed handle instead
+    /// of items. `ctx.input` holds the root's input; evaluate parameters for `item_index`.
+    /// Nodes that are not sub-nodes keep the default.
+    async fn supply_data(
+        &self,
+        ctx: &NodeContext,
+        _item_index: usize,
+    ) -> Result<Supplied, FlowError> {
+        Err(FlowError::Node {
+            node: ctx.node.name.clone(),
+            message: "node cannot be used as a sub-node".into(),
+        })
+    }
 }
 
 /// Lookup of implementations. Unknown keys are not an import error: the workflow

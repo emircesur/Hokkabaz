@@ -31,12 +31,29 @@ pub enum ExprError {
     /// JS exception raised by the expression (syntax error, ReferenceError, shim error).
     #[error("{0}")]
     Js(String),
+    /// Code node script failure with the user-code line (and item for per-item mode).
+    #[error("{}", script_message(.message, *.line, *.item_index))]
+    Script {
+        message: String,
+        line: Option<u32>,
+        item_index: Option<usize>,
+    },
     #[error("expression timed out")]
     Timeout,
     #[error("expression exceeded the memory limit")]
     Memory,
     #[error("expression engine unavailable: {0}")]
     Unavailable(String),
+}
+
+/// n8n style `message [line 3, for item 1]`.
+fn script_message(message: &str, line: Option<u32>, item: Option<usize>) -> String {
+    match (line, item) {
+        (Some(l), Some(i)) => format!("{message} [line {l}, for item {i}]"),
+        (Some(l), None) => format!("{message} [line {l}]"),
+        (None, Some(i)) => format!("{message} [for item {i}]"),
+        (None, None) => message.to_owned(),
+    }
 }
 
 /// Sandbox limits. Memory and stack are per execution session; the timeout is per
@@ -61,11 +78,44 @@ impl Default for ExprLimits {
     }
 }
 
+/// Code node run mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScriptMode {
+    /// `runOnceForAllItems`: one run, returns the output items.
+    AllItems,
+    /// `runOnceForEachItem`: one run per input item, each returns one object or `null`.
+    EachItem,
+}
+
+/// Raw result of a Code node script plus captured `console` lines.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ScriptOutput {
+    /// `AllItems`: the returned value (`Null` for `undefined`, see `undefined`).
+    /// `EachItem`: array with one entry per input item.
+    pub value: Value,
+    /// `AllItems`: script returned `undefined`. `EachItem`: input indices that did.
+    pub undefined: Vec<usize>,
+    pub logs: Vec<String>,
+}
+
 /// Evaluates the body of an expression parameter (the part after the leading `=`).
 /// Blocking: nodes call it from `execute`; work is bounded by [`ExprLimits::timeout`].
 pub trait ExpressionEvaluator: Send + Sync + fmt::Debug {
     /// `template` is e.g. `{{ $json.a }}` (typed result) or `Hi {{ $json.a }}` (string).
     fn evaluate(&self, template: &str, scope: &ExprScope) -> Result<Value, ExprError>;
+
+    /// Run a Code node script body (`return ...` allowed, top-level `await` allowed) with the
+    /// expression scope plus `items`/`item`/`console`. Same sandbox and limits as expressions.
+    fn run_script(
+        &self,
+        _source: &str,
+        _mode: ScriptMode,
+        _scope: &ExprScope,
+    ) -> Result<ScriptOutput, ExprError> {
+        Err(ExprError::Unavailable(
+            "this evaluator cannot run scripts".into(),
+        ))
+    }
 
     /// Drop engine state kept for an execution (compiled cache, JS realm).
     fn release(&self, _execution_id: &str) {}

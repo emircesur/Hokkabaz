@@ -60,6 +60,8 @@ class FlowCanvasState extends State<FlowCanvas> {
   Offset? _marqueeB;
 
   Offset _dragStartGlobal = Offset.zero;
+  String? _lastTapNode;
+  DateTime _lastTapAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   PortRef? _pendingFrom;
   Offset? _pendingPos;
@@ -212,9 +214,11 @@ class FlowCanvasState extends State<FlowCanvas> {
       if (kb.isControlPressed || kb.isMetaPressed) {
         _zoomAt(e.localPosition, math.exp(-e.scrollDelta.dy / 300));
       } else {
-        setState(() => _pan -= kb.isShiftPressed
-            ? Offset(e.scrollDelta.dy, 0)
-            : e.scrollDelta);
+        setState(
+          () => _pan -= kb.isShiftPressed
+              ? Offset(e.scrollDelta.dy, 0)
+              : e.scrollDelta,
+        );
       }
     });
   }
@@ -224,13 +228,21 @@ class FlowCanvasState extends State<FlowCanvas> {
   NodeCardCallbacks _callbacks(String name) => NodeCardCallbacks(
     onTap: (additive) {
       _focus.requestFocus();
+      final now = DateTime.now();
+      if (_lastTapNode == name &&
+          now.difference(_lastTapAt) < const Duration(milliseconds: 350)) {
+        _lastTapNode = null;
+        widget.onOpenNode(name);
+        return;
+      }
+      _lastTapNode = name;
+      _lastTapAt = now;
       if (additive) {
         _ed.toggleSelect(name);
       } else {
         _ed.select([name]);
       }
     },
-    onDoubleTap: () => widget.onOpenNode(name),
     onDragStart: (g) {
       _focus.requestFocus();
       if (!_ed.selection.contains(name)) _ed.select([name]);
@@ -400,8 +412,7 @@ class FlowCanvasState extends State<FlowCanvas> {
                     pendingFrom: _pendingFrom,
                   ),
                 ),
-              if (selEnds != null)
-                _edgeHandle(selEdge!, selEnds, hk),
+              if (selEnds != null) _edgeHandle(selEdge!, selEnds, hk),
             ];
 
             return Focus(
