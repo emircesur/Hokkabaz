@@ -1,0 +1,116 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "role": "admin",
+                "email": "a@corp.io"
+              }
+            },
+            {
+              "json": {
+                "role": "user",
+                "email": "u@gmail.com"
+              }
+            },
+            {
+              "json": {
+                "role": "user",
+                "email": "x@corp.io"
+              }
+            },
+            {
+              "json": {
+                "role": "guest",
+                "email": "g@other.org"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "If": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "role": "admin",
+                "email": "a@corp.io"
+              }
+            },
+            {
+              "json": {
+                "role": "user",
+                "email": "x@corp.io"
+              }
+            }
+          ],
+          [
+            {
+              "json": {
+                "role": "user",
+                "email": "u@gmail.com"
+              }
+            },
+            {
+              "json": {
+                "role": "guest",
+                "email": "g@other.org"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Yes": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "role": "admin",
+                "email": "a@corp.io"
+              }
+            },
+            {
+              "json": {
+                "role": "user",
+                "email": "x@corp.io"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "No": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "role": "user",
+                "email": "u@gmail.com"
+              }
+            },
+            {
+              "json": {
+                "role": "guest",
+                "email": "g@other.org"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

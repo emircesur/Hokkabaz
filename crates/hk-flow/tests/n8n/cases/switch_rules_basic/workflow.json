@@ -1,0 +1,178 @@
+{
+  "name": "switch_rules_basic",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000024",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c0",
+                    "leftValue": "={{ $json.tier }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "gold"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": false
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.tier }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "silver"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": false
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c2",
+                    "leftValue": "={{ $json.tier }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "bronze"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-4000-8000-000000000025",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000026",
+      "name": "Gold",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        440,
+        -120
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000027",
+      "name": "Silver",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000028",
+      "name": "Bronze",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        440,
+        120
+      ]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Gold",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Silver",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Bronze",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

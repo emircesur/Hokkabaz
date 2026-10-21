@@ -1,0 +1,48 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "name": "Ada",
+                "age": 36
+              }
+            },
+            {
+              "json": {
+                "name": "Bob",
+                "age": 41
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Set": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "greeting": "Hello",
+                "count": 3,
+                "active": true
+              }
+            },
+            {
+              "json": {
+                "greeting": "Hello",
+                "count": 3,
+                "active": true
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

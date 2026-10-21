@@ -1,0 +1,8 @@
+{
+  "description": "Merge append: all input 1 items followed by all input 2 items.",
+  "status": "pending_executor",
+  "nodes": [
+    "merge"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.merge/"
+}

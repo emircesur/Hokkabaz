@@ -1,0 +1,139 @@
+{
+  "name": "switch_all_matching_outputs",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000034",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c0",
+                    "leftValue": "={{ $json.v }}",
+                    "operator": {
+                      "type": "number",
+                      "operation": "gt"
+                    },
+                    "rightValue": 10
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": false
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.v }}",
+                    "operator": {
+                      "type": "number",
+                      "operation": "gt"
+                    },
+                    "rightValue": 20
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": false
+            }
+          ]
+        },
+        "options": {
+          "allMatchingOutputs": true
+        }
+      },
+      "id": "00000000-0000-4000-8000-000000000035",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000036",
+      "name": "Over10",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        440,
+        -80
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000037",
+      "name": "Over20",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        440,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Over10",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Over20",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

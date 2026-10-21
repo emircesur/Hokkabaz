@@ -1,0 +1,120 @@
+{
+  "name": "merge_combine_by_fields_inner",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000054",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000055",
+      "name": "Users",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        220,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a-id",
+              "name": "id",
+              "value": "={{ $json.id === 3 ? 9 : $json.id }}",
+              "type": "number"
+            },
+            {
+              "id": "a-total",
+              "name": "total",
+              "value": "={{ $json.id * 100 }}",
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "00000000-0000-4000-8000-000000000056",
+      "name": "Orders",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByFields",
+        "fieldsToMatchString": "id",
+        "joinMode": "keepMatches",
+        "options": {}
+      },
+      "id": "00000000-0000-4000-8000-000000000057",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Users",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Users": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Orders": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

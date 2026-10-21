@@ -1,0 +1,8 @@
+{
+  "description": "If routes items by condition: true output 0, false output 1, input order kept.",
+  "status": "pending_executor",
+  "nodes": [
+    "if"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.if/"
+}

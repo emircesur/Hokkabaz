@@ -1,0 +1,8 @@
+{
+  "description": "Switch rules mode: each item to the first matching rule output; unmatched items dropped (no fallback).",
+  "status": "pending_executor",
+  "nodes": [
+    "switch"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.switch/"
+}

@@ -1,0 +1,97 @@
+{
+  "name": "set_dot_notation",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000007",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a-user.city",
+              "name": "user.city",
+              "value": "Ankara",
+              "type": "string"
+            },
+            {
+              "id": "a-user.zip",
+              "name": "user.zip",
+              "value": 6000,
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "00000000-0000-4000-8000-000000000008",
+      "name": "Nested",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a-user.city",
+              "name": "user.city",
+              "value": "Ankara",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {
+          "dotNotation": false
+        }
+      },
+      "id": "00000000-0000-4000-8000-000000000009",
+      "name": "Literal",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Nested",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Literal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

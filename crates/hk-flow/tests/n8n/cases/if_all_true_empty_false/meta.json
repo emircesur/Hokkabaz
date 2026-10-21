@@ -1,0 +1,8 @@
+{
+  "description": "If where every item matches: false output is an empty array and its downstream node never runs.",
+  "status": "pending_executor",
+  "nodes": [
+    "if"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.if/"
+}

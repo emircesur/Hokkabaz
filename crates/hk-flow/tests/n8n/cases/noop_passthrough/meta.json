@@ -1,0 +1,8 @@
+{
+  "description": "No Operation node forwards items unchanged, in order.",
+  "status": "pending_executor",
+  "nodes": [
+    "noOp"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.noop/"
+}

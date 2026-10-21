@@ -10,6 +10,10 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+# corpus harness (src/testing.rs); enabled for own integration tests via the self dev-dependency
+testing = []
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 # preserve_order: exported JSON keeps n8n key order, diffs stay readable
@@ -20,3 +24,5 @@ async-trait = "0.1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }
+# turns `testing` on for tests/ so a plain `cargo test -p hk-flow` runs the corpus
+hk-flow = { path = ".", features = ["testing"] }

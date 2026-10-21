@@ -1,0 +1,9 @@
+{
+  "description": "A disabled node is skipped: its input passes straight to the next node untouched.",
+  "status": "pending_executor",
+  "nodes": [
+    "set",
+    "noOp"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.set/"
+}

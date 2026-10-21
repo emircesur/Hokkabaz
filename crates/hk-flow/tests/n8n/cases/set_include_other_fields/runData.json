@@ -1,0 +1,48 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "name": "Ada",
+                "age": 36
+              }
+            },
+            {
+              "json": {
+                "name": "Bob",
+                "age": 41
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Set": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "name": "Ada",
+                "age": 40,
+                "status": "seen"
+              }
+            },
+            {
+              "json": {
+                "name": "Bob",
+                "age": 40,
+                "status": "seen"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "sku": "A",
+                "stock": 0
+              }
+            },
+            {
+              "json": {
+                "sku": "B",
+                "stock": 7
+              }
+            },
+            {
+              "json": {
+                "sku": "C",
+                "stock": 3
+              }
+            },
+            {
+              "json": {
+                "sku": "D",
+                "stock": 12
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Filter": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "sku": "B",
+                "stock": 7
+              }
+            },
+            {
+              "json": {
+                "sku": "D",
+                "stock": 12
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

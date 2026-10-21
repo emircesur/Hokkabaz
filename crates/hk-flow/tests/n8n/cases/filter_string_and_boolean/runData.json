@@ -1,0 +1,64 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "name": "ann",
+                "plan": "free",
+                "active": true
+              }
+            },
+            {
+              "json": {
+                "name": "ben",
+                "plan": "pro",
+                "active": true
+              }
+            },
+            {
+              "json": {
+                "name": "cat",
+                "plan": "pro",
+                "active": false
+              }
+            },
+            {
+              "json": {
+                "name": "dan",
+                "plan": "team",
+                "active": true
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Filter": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "name": "ben",
+                "plan": "pro",
+                "active": true
+              }
+            },
+            {
+              "json": {
+                "name": "dan",
+                "plan": "team",
+                "active": true
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

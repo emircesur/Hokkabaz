@@ -1,0 +1,50 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "id": 1
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Nested": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "user": {
+                  "city": "Ankara",
+                  "zip": 6000
+                }
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Literal": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "user.city": "Ankara"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

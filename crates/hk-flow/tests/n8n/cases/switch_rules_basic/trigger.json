@@ -1,0 +1,32 @@
+[
+  {
+    "json": {
+      "n": "a",
+      "tier": "gold"
+    }
+  },
+  {
+    "json": {
+      "n": "b",
+      "tier": "silver"
+    }
+  },
+  {
+    "json": {
+      "n": "c",
+      "tier": "bronze"
+    }
+  },
+  {
+    "json": {
+      "n": "d",
+      "tier": "gold"
+    }
+  },
+  {
+    "json": {
+      "n": "e",
+      "tier": "none"
+    }
+  }
+]

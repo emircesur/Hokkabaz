@@ -1,0 +1,96 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "id": 1
+              }
+            },
+            {
+              "json": {
+                "id": 2
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "A": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "id": 1,
+                "v": "from-a",
+                "only_a": 1
+              }
+            },
+            {
+              "json": {
+                "id": 2,
+                "v": "from-a",
+                "only_a": 1
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "B": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "id": 1,
+                "v": "from-b",
+                "only_b": 2
+              }
+            },
+            {
+              "json": {
+                "id": 2,
+                "v": "from-b",
+                "only_b": 2
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Merge": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "id": 1,
+                "v": "from-b",
+                "only_a": 1,
+                "only_b": 2
+              }
+            },
+            {
+              "json": {
+                "id": 2,
+                "v": "from-b",
+                "only_a": 1,
+                "only_b": 2
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

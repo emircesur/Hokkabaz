@@ -1,0 +1,8 @@
+{
+  "description": "Filter keeps only items whose condition holds; dropped items vanish, order preserved.",
+  "status": "pending_executor",
+  "nodes": [
+    "filter"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.filter/"
+}

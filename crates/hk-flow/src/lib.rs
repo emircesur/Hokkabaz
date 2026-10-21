@@ -11,6 +11,8 @@ pub mod error;
 pub mod item;
 pub mod node;
 pub mod raw;
+#[cfg(feature = "testing")]
+pub mod testing;
 pub mod version;
 pub mod workflow;
 

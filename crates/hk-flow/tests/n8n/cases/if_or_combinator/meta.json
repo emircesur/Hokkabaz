@@ -1,0 +1,8 @@
+{
+  "description": "If with OR: item goes true if any condition holds (role equals admin OR email ends with corp.io).",
+  "status": "pending_executor",
+  "nodes": [
+    "if"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.if/"
+}

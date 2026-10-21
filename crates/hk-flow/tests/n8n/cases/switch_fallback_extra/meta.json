@@ -1,0 +1,8 @@
+{
+  "description": "Switch fallbackOutput=extra adds a final output that receives items matching no rule.",
+  "status": "pending_executor",
+  "nodes": [
+    "switch"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.switch/"
+}

@@ -1,0 +1,8 @@
+{
+  "description": "Set manual mode, includeOtherFields off: output holds only assigned fields, typed.",
+  "status": "pending_executor",
+  "nodes": [
+    "set"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.set/"
+}

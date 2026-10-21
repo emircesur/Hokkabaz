@@ -1,0 +1,52 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "first": "Ada",
+                "last": "Lovelace",
+                "price": 2.5,
+                "qty": 4
+              }
+            },
+            {
+              "json": {
+                "first": "Alan",
+                "last": "Turing",
+                "price": 10,
+                "qty": 3
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Set": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "full_name": "Ada Lovelace",
+                "total": 10,
+                "label": "item 4x"
+              }
+            },
+            {
+              "json": {
+                "full_name": "Alan Turing",
+                "total": 30,
+                "label": "item 3x"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

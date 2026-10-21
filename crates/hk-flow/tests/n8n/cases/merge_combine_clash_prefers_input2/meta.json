@@ -1,0 +1,8 @@
+{
+  "description": "Merge combine by position with a field clash: default clash handling prefers input 2.",
+  "status": "pending_executor",
+  "nodes": [
+    "merge"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.merge/"
+}

@@ -1,0 +1,8 @@
+{
+  "description": "Set field names with dots build nested objects by default; options.dotNotation=false keeps literal keys.",
+  "status": "pending_executor",
+  "nodes": [
+    "set"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.set/"
+}

@@ -99,7 +99,7 @@ Rules:
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
 | P4.1 📜 | D | `hk-flow` model = n8n workflow JSON (lossless serde incl. unknown fields), node trait keyed by `(type, typeVersion)`, n8n items `{json, binary, pairedItem}`, node description schema, versions | P1.1, P1.12 | M | unit (round-trip) | n8n export → import → export equivalent (normalized) | done — FlowNode/NodeContext minimal, P4.2 extends |
-| P4.1b | D | n8n compat corpus harness: fixture format (workflow + payload → expected runData), runner, 20 seed cases | P4.1 | M | fixture | harness runs, per-node diff | todo |
+| P4.1b | D | n8n compat corpus harness: fixture format (workflow + payload → expected runData), runner, 20 seed cases | P4.1 | M | fixture | harness runs, per-node diff | done — 21 cases all pending_executor; expectations from docs memory, re-verify when P4.2 runs them |
 | P4.2 | D | Executor: n8n v1 execution order, multi in/out, `executeOnce`, `alwaysOutputData`, `retryOnFail`, `onError`, disabled nodes, pinData, staticData; runData persistence | P4.1 | L | fixture | seed corpus passes | todo |
 | P4.3 | D | Expression engine: `rquickjs` + n8n runtime shim (`$json`, `$input`, `$('Name')`, `$node`, `$items`, `$workflow`, `$execution`, `$env`, `$vars`, `$now`/Luxon DateTime, `$jmespath`, extension methods); sandbox limits | P4.2 | L | unit (expr corpus) | n8n doc expression examples evaluate identically | todo |
 | P4.3b | D | Code node (JS, run-once + per-item) on same engine | P4.3 | M | fixture | – | todo |
