@@ -107,6 +107,11 @@ pub struct ChatRequest {
     /// Reasoning budget; ignored by models without reasoning.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<ReasoningEffort>,
+    /// Prompt caching hint. `None` = adapter default. Only adapters with
+    /// explicit cache breakpoints (Anthropic) act on it; prefix-cache
+    /// providers (DeepSeek, OpenAI) cache automatically and ignore it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_cache: Option<bool>,
 }
 
 impl ChatRequest {
@@ -120,6 +125,7 @@ impl ChatRequest {
             temperature: None,
             max_output_tokens: None,
             reasoning_effort: None,
+            prompt_cache: None,
         }
     }
 }

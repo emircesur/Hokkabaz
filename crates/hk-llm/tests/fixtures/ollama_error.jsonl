@@ -1,0 +1,2 @@
+{"model":"qwen3:8b","created_at":"2026-01-01T10:00:00Z","message":{"role":"assistant","content":"par"},"done":false}
+{"error":"llama runner process has terminated: signal: killed"}

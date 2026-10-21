@@ -43,7 +43,11 @@ pub(super) fn extract_message(body: &str) -> Option<String> {
 
 pub(super) fn is_context_overflow(msg: &str) -> bool {
     let m = msg.to_ascii_lowercase();
-    m.contains("context length") || m.contains("maximum context") || m.contains("context_length")
+    m.contains("context length")
+        || m.contains("maximum context")
+        || m.contains("context_length")
+        // Anthropic: "prompt is too long: N tokens > M maximum"
+        || m.contains("prompt is too long")
 }
 
 fn truncate(s: &str, max: usize) -> String {

@@ -121,11 +121,36 @@ impl Endpoint<'_> {
         retry: &RetryPolicy,
         cancel: &CancellationToken,
     ) -> Result<reqwest::Response> {
+        self.post_stream(url, body, "text/event-stream", retry, cancel)
+            .await
+    }
+
+    /// POST `body` expecting a newline-delimited JSON response (Ollama);
+    /// retries the connect phase.
+    pub async fn post_ndjson(
+        &self,
+        url: &str,
+        body: &Value,
+        retry: &RetryPolicy,
+        cancel: &CancellationToken,
+    ) -> Result<reqwest::Response> {
+        self.post_stream(url, body, "application/x-ndjson", retry, cancel)
+            .await
+    }
+
+    async fn post_stream(
+        &self,
+        url: &str,
+        body: &Value,
+        accept: &str,
+        retry: &RetryPolicy,
+        cancel: &CancellationToken,
+    ) -> Result<reqwest::Response> {
         let mut attempt = 0;
         loop {
             let rb = self
                 .request(reqwest::Method::POST, url)
-                .header(ACCEPT, "text/event-stream")
+                .header(ACCEPT, accept)
                 .json(body);
             let res = tokio::select! {
                 biased;

@@ -20,7 +20,7 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
 pub use error::error_from_response;
 pub use http::{Endpoint, Scrubber};
-pub use parse::{ChunkParser, decode_stream};
+pub use parse::{ChunkParser, PayloadParser, decode_stream, decode_stream_with};
 pub use request::{BodyOptions, build_body_with};
 pub use retry::RetryPolicy;
 pub use sse::SseDecoder;

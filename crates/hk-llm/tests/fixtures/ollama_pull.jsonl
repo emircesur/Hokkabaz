@@ -1,0 +1,6 @@
+{"status":"pulling manifest"}
+{"status":"pulling 6a0746a1ec1a","digest":"sha256:6a0746a1ec1a","total":1000,"completed":250}
+{"status":"pulling 6a0746a1ec1a","digest":"sha256:6a0746a1ec1a","total":1000,"completed":1000}
+{"status":"verifying sha256 digest"}
+{"status":"writing manifest"}
+{"status":"success"}

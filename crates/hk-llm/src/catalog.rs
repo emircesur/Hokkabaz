@@ -261,7 +261,11 @@ pub struct CatalogStore {
 impl CatalogStore {
     /// Cache file at `path`, default URL and TTL.
     pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into(), url: MODELS_DEV_URL.to_owned(), ttl: DEFAULT_TTL }
+        Self {
+            path: path.into(),
+            url: MODELS_DEV_URL.to_owned(),
+            ttl: DEFAULT_TTL,
+        }
     }
 
     /// Override the source URL (mirrors, tests).
@@ -309,7 +313,10 @@ impl CatalogStore {
                 retry_after: None,
             });
         }
-        let text = resp.text().await.map_err(|e| LlmError::Network(e.to_string()))?;
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| LlmError::Network(e.to_string()))?;
         let cat = Catalog::from_models_dev(&text)?;
         if let Err(e) = self.write_cache(&text) {
             // Cache is an optimisation; a read-only dir must not break model listing.
@@ -362,11 +369,23 @@ mod tests {
         assert_eq!(chat.max_output, Some(8192));
         assert_eq!(
             chat.capabilities,
-            Capabilities { tools: true, reasoning: false, vision: false }
+            Capabilities {
+                tools: true,
+                reasoning: false,
+                vision: false
+            }
         );
         let cost = chat.cost.unwrap();
-        assert_eq!((cost.input, cost.output, cost.cache_read, cost.cache_write), (0.27, 1.1, Some(0.07), None));
-        assert!(cat.model("deepseek", "deepseek-reasoner").unwrap().capabilities.reasoning);
+        assert_eq!(
+            (cost.input, cost.output, cost.cache_read, cost.cache_write),
+            (0.27, 1.1, Some(0.07), None)
+        );
+        assert!(
+            cat.model("deepseek", "deepseek-reasoner")
+                .unwrap()
+                .capabilities
+                .reasoning
+        );
 
         let sonnet = cat.model("anthropic", "claude-sonnet-4").unwrap();
         assert!(sonnet.capabilities.vision && sonnet.capabilities.tools);
@@ -398,7 +417,10 @@ mod tests {
         .unwrap();
         cat.add_custom(&ep);
         let m = cat.model("lmstudio", "qwen").unwrap();
-        assert_eq!((m.name.as_str(), m.context_window, m.cost), ("qwen", 32768, None));
+        assert_eq!(
+            (m.name.as_str(), m.context_window, m.cost),
+            ("qwen", 32768, None)
+        );
         assert!(cat.provider("lmstudio").unwrap().custom);
 
         // Same id as catalog provider replaces its models.
@@ -421,7 +443,13 @@ mod tests {
         assert!(store.load_cached().is_none() && !store.is_fresh());
         store.write_cache(FIXTURE).unwrap();
         assert!(store.is_fresh());
-        assert!(store.load_cached().unwrap().model("deepseek", "deepseek-chat").is_some());
+        assert!(
+            store
+                .load_cached()
+                .unwrap()
+                .model("deepseek", "deepseek-chat")
+                .is_some()
+        );
         assert!(!store.clone().with_ttl(Duration::ZERO).is_fresh());
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -452,13 +480,29 @@ mod tests {
 
         let url = serve_once(FIXTURE, "200 OK").await;
         let store = CatalogStore::new(&path).with_url(url);
-        assert!(store.load(&client).await.unwrap().model("anthropic", "claude-sonnet-4").is_some());
+        assert!(
+            store
+                .load(&client)
+                .await
+                .unwrap()
+                .model("anthropic", "claude-sonnet-4")
+                .is_some()
+        );
         assert!(store.is_fresh());
 
         // Stale cache + dead server -> stale data, not an error.
         let url = serve_once("oops", "500 Internal Server Error").await;
-        let stale = CatalogStore::new(&path).with_url(url).with_ttl(Duration::ZERO);
-        assert!(stale.load(&client).await.unwrap().model("deepseek", "deepseek-chat").is_some());
+        let stale = CatalogStore::new(&path)
+            .with_url(url)
+            .with_ttl(Duration::ZERO);
+        assert!(
+            stale
+                .load(&client)
+                .await
+                .unwrap()
+                .model("deepseek", "deepseek-chat")
+                .is_some()
+        );
 
         // No cache + failure -> error; bad body never replaces cache.
         let url = serve_once("not json", "200 OK").await;

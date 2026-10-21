@@ -196,10 +196,34 @@ impl ChunkParser {
     }
 }
 
-struct State<S> {
+/// Incremental payload parser driven by [`decode_stream_with`]. Implemented by
+/// the OpenAI chunk parser and by other SSE dialects (Anthropic) so they share
+/// the idle-timeout/cancel/EOF handling below.
+pub trait PayloadParser: Send + 'static {
+    /// Parse one SSE `data` payload.
+    fn feed(&mut self, data: &str) -> Result<Vec<StreamEvent>>;
+    /// Body ended without the terminal marker.
+    fn finish_eof(&mut self) -> Result<Vec<StreamEvent>>;
+    /// True once the terminal event has been emitted.
+    fn is_done(&self) -> bool;
+}
+
+impl PayloadParser for ChunkParser {
+    fn feed(&mut self, data: &str) -> Result<Vec<StreamEvent>> {
+        ChunkParser::feed(self, data)
+    }
+    fn finish_eof(&mut self) -> Result<Vec<StreamEvent>> {
+        ChunkParser::finish_eof(self)
+    }
+    fn is_done(&self) -> bool {
+        ChunkParser::is_done(self)
+    }
+}
+
+struct State<S, P> {
     src: S,
     sse: SseDecoder,
-    parser: ChunkParser,
+    parser: P,
     queue: VecDeque<StreamEvent>,
     pending_err: Option<LlmError>,
     cancel: CancellationToken,
@@ -207,7 +231,7 @@ struct State<S> {
     ended: bool,
 }
 
-impl<S> State<S> {
+impl<S, P: PayloadParser> State<S, P> {
     fn feed_all(&mut self, payloads: Vec<String>) {
         for p in payloads {
             match self.parser.feed(&p) {
@@ -235,10 +259,25 @@ where
     S: Stream<Item = std::result::Result<Bytes, E>> + Send + Unpin + 'static,
     E: Display + Send + 'static,
 {
+    decode_stream_with(body, ChunkParser::default(), cancel, idle)
+}
+
+/// [`decode_stream`] with a caller-supplied dialect parser.
+pub fn decode_stream_with<S, E, P>(
+    body: S,
+    parser: P,
+    cancel: CancellationToken,
+    idle: Duration,
+) -> EventStream
+where
+    S: Stream<Item = std::result::Result<Bytes, E>> + Send + Unpin + 'static,
+    E: Display + Send + 'static,
+    P: PayloadParser,
+{
     let st = State {
         src: body,
         sse: SseDecoder::default(),
-        parser: ChunkParser::default(),
+        parser,
         queue: VecDeque::new(),
         pending_err: None,
         cancel,
