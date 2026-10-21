@@ -129,7 +129,7 @@ Adapters (order of delivery):
 3. `ollama` — native API (model pull/list, keep-alive).
 4. `anthropic` — messages API, thinking, prompt caching.
 5. `gemini` — generateContent streaming.
-6. `local` (feature `local-llm`) — on-device llama.cpp via `llama-cpp-2`, GGUF models; Android aarch64 + desktop.
+6. `local` (feature `local-llm`, **v1**) — on-device llama.cpp via `llama-cpp-2`, GGUF models; Android aarch64 + desktop. Model manager: download from Hugging Face (resume, checksum), RAM/VRAM fit check, recommended small models per device class (e.g. 1–4B Q4 on phones), offline fallback in router.
 
 Catalog: models.dev JSON cached in SQLite, refreshed daily; user overrides for custom endpoints. Capabilities per model: tools, reasoning, vision, context, cost → used by UI and router.
 
@@ -161,7 +161,7 @@ Client via `rmcp` (official Rust MCP SDK). Transports: stdio (desktop/daemon onl
 - Runtime: `wasmtime` component model; WIT world in `wit/hokkabaz-plugin.wit`.
 - A plugin may export: tools, flow nodes, triggers, event hooks (interceptors on `agent/*`, `tools/*`), settings schema.
 - Host imports granted by capability manifest: `http` (allowlist hosts), `kv` (plugin-scoped), `secrets` (named handles only), `log`, `fs` (scoped dir), `emit-event`.
-- Package: `plugin.toml` + `.wasm`, signed hash, installed into `~/.hokkabaz/plugins/`. Registry = git repo index (later).
+- Package: `plugin.toml` + `.wasm`, signed hash, installed into `~/.hokkabaz/plugins/`. Registry = GitHub repo `hokkabaz-plugins` (index JSON + manifests; artifacts as GitHub Releases assets with sha256). Publishing via PR; CI validates manifest, builds/verifies hash. App browses/installs from it; custom registry URLs allowed.
 - Android: wasmtime supports aarch64; fallback to `wasmi` interpreter behind feature if JIT blocked.
 - Authoring SDKs: Rust (`hokkabaz-plugin` crate), JS/TS via `jco componentize`, Python via `componentize-py`.
 
@@ -347,6 +347,9 @@ Cards: name, URL, version, status dot, active flows, queue depth. Actions: pair 
 | D4 | dsh-style event-log session as source of truth | Replay, fork, audit, remote sync | Mutable message arrays |
 | D5 | WASM component plugins + MCP; no native dylib plugins | Sandboxed, portable to Android | dylibs (unsafe, ABI pain), Lua |
 | D6 | Embedded JS (`rquickjs`) + Rust n8n runtime shim for expressions and Code node | Full n8n compatibility needs n8n's JS expression semantics; QuickJS is small and runs on Android | `minijinja`/`rhai` (incompatible with n8n), `boa` (slower, less complete), V8/deno_core (too heavy for Android) |
+| D12 | On-device LLM ships in v1 (desktop + Android) | Owner requirement; offline use on phone | v2 |
+| D13 | Plugin registry hosted on GitHub (`hokkabaz-plugins` repo + Releases) | Free, PR-based review, familiar | Self-hosted registry server |
+| D14 | Integration order after core + AI nodes left to implementing agent, guided by P5.11 coverage report | Owner delegates | Fixed list now |
 | D11 | n8n workflow JSON is the native flow format; full n8n compatibility is a v1 goal | Owner requirement; reuse n8n ecosystem of workflows/templates | Own format + best-effort importer |
 | D7 | SQLite + JSONL logs | Local-first, zero ops | Postgres (daemon may add later) |
 | D8 | ACP bridge to real dsh/opencode on desktop | Day-one parity, comparison | — |
@@ -355,7 +358,4 @@ Cards: name, URL, version, status dot, active flows, queue depth. Actions: pair 
 
 ## 7. Open questions
 
-1. On-device LLM on Android in v1 or v2?
-2. Plugin registry hosting (git index on GitHub vs self-hosted).
-3. n8n node coverage order after core + AI nodes: which integrations first.
-4. n8n licensing: n8n is Sustainable Use License (fair-code). We reimplement behavior from public docs/JSON formats; no n8n source copied. Node description JSON reuse needs legal check before shipping.
+1. n8n licensing: n8n is Sustainable Use License (fair-code). We reimplement behavior from public docs/JSON formats; no n8n source copied. Node description JSON reuse needs legal check before shipping.

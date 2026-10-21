@@ -120,6 +120,7 @@ Rules:
 | P5.1 📜 | E | WIT world `hokkabaz-plugin`: tools, nodes, triggers, hooks, settings; capability manifest `plugin.toml` | P1.7, P4.1 | M | none | WIT reviewed by A + D leads | todo |
 | P5.2 | E | `hk-plugin` host on wasmtime: load, capability-scoped imports (http, kv, secrets, log, fs, emit), unload | P5.1 | L | unit (caps) | sample plugin adds tool + node | todo |
 | P5.3 | E | Rust plugin SDK crate + template + `hk plugin new/build/install` | P5.2 | M | none | – | todo |
+| P5.3b | E | GitHub plugin registry: `hokkabaz-plugins` repo layout (index.json, manifests), CI manifest/hash validation, Releases artifacts; in-app browse/install/update | P5.3 | M | none | plugin installed from GitHub registry | todo |
 | P5.4 | E | Integration framework: n8n credential types, node/trigger helpers matching n8n node descriptions, polling trigger base | P4.3c | M | none | – | todo |
 | P5.5 | E | T1 batch A: HTTP Request, GitHub, Gitea/Forgejo, Git, n8n | P5.4 | L | none | – | todo |
 | P5.6 | E | T1 batch B: Telegram, Matrix, ntfy, Gotify, Email IMAP/SMTP, RSS | P5.4 | L | none | – | todo |
@@ -129,7 +130,9 @@ Rules:
 | P5.10 | D | Remote delegation: run unimplemented node types on configured n8n instance | P5.9 | M | none | flow with unsupported node runs end-to-end | todo |
 | P5.11 | D | Coverage report: rank node types by usage in n8n public templates, track % supported in `docs/N8N_COVERAGE.md`; drives integration order | P4.1b | S | none | report generated | todo |
 
-## Phase 6 — Android APK  (milestone **M6: signed APK on device**)
+Integration order after core + AI nodes: implementing agent decides (D14), using P5.11 report + own judgment. T1/T2 lists in DESIGN §3.11 are suggestions, not commitments.
+
+## Phase 6 — Android APK + on-device LLM  (milestone **M6: signed APK on device, offline chat**)
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
@@ -138,13 +141,14 @@ Rules:
 | P6.3 | C | Mobile layouts: bottom nav, chat full-screen, inspector sheet, approvals via notifications | P3.2 | L | none | – | todo |
 | P6.4 | F | Foreground service for long runs / optional local webhook server; battery-aware | P6.1, P4.6 | M | none | – | todo |
 | P6.5 | C | Remote-first UX: pair via QR camera scan, instance switcher | P4.8, P6.3 | S | none | phone controls daemon | todo |
+| P6.7 | B | On-device LLM (`local-llm`, llama-cpp-2): GGUF model manager (HF download, resume, checksum, fit check), desktop + Android aarch64, router offline fallback | P2.5, P6.1 | L | none | offline chat on phone | todo |
+| P6.8 | C | Local models UI: browse/download/delete, device-class recommendations, offline indicator | P6.7, P3.6 | M | none | – | todo |
 | P6.6 | F | Release signing, F-Droid metadata, GitHub Releases APK | P6.1 | S | none | signed APK published | todo |
 
 ## Phase 7 — Hardening & extras  (milestone **M7: v1.0**)
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
-| P7.1 | B | On-device LLM (`local-llm`, llama-cpp-2, GGUF manager) desktop + Android | P2.5, P6.1 | L | none | offline chat on phone | todo |
 | P7.2 | E | T2 integrations as n8n node types, ordered by P5.11 report (GitLab, Home Assistant, Nextcloud, Discord, Docker, Qdrant, …) | P5.4 | L | fixture | ≥ 80% of top-500 template node usages supported | todo |
 | P7.2b | D | Code node Python mode | P4.3b | M | fixture | – | todo |
 | P7.3 | E | JS/Python plugin SDK docs (jco, componentize-py) | P5.3 | S | none | – | todo |
@@ -156,7 +160,7 @@ Rules:
 
 ## Critical path
 
-`P0.1 → P1.1 → P1.3/P1.7 → P1.9 → P1.11 (M1) → P3.1 → P3.2 (M3) → P4.1 → P4.2 → P4.3 → P4.3c → P4.6 → P4.7 (M4) → P6.1 → P6.3 (M6)`
+`P0.1 → P1.1 → P1.3/P1.7 → P1.9 → P1.11 (M1) → P3.1 → P3.2 (M3) → P4.1 → P4.2 → P4.3 → P4.3c → P4.6 → P4.7 (M4) → P6.1 → P6.3/P6.7 (M6)`
 
 n8n compat is the largest lane-D workload: P4.1–P4.3 may start right after P1.1 + P1.12, parallel to M1–M3.
 
@@ -173,6 +177,7 @@ Parallel early: B lane (P1.4–P1.6, P2.x adapters) and C lane (P0.4, P0.5) run 
 | Upstream dsh is "developer preview", changes fast | Port concepts, not code; pin SHAs; ACP bridge gives live access to latest dsh |
 | wasmtime JIT restrictions on some Android devices | `wasmi` interpreter fallback feature |
 | Flutter canvas performance on large flows | Viewport culling, cached node layers; cap visible nodes |
+| On-device LLM on low-RAM phones | Device-class model recommendations, fit check before download, small Q4 models, fall back to remote |
 | Android background limits kill local triggers | Phone = remote controller by default; foreground service opt-in |
 | Provider API drift | Fixture tests per adapter; catalog-driven capabilities |
 | n8n semantics large, partly undocumented (execution order, expression extensions) | Fixture corpus recorded from real n8n runs; coverage report; remote delegation fallback |
