@@ -138,7 +138,7 @@ Integration order after core + AI nodes: implementing agent decides (D14), using
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
-| P6.1 | F | `cargo-ndk` build for aarch64 + x86_64; cfg-gate desktop-only deps; mobile profile | P3.1 | M | none | `.so` builds in CI | todo |
+| P6.1 | F | `cargo-ndk` build for aarch64 + x86_64; cfg-gate desktop-only deps; mobile profile | P3.1 | M | none | `.so` builds in CI | done — CI untested (apk job); cargokit hardcodes --release so apk job mirrors mobile profile via CARGO_PROFILE_RELEASE_* env; see docs/android-build.md |
 | P6.2 | F | Android Keystore secrets bridge; app-private data dir; SAF file picks | P6.1, P1.12 | M | none | – | todo |
 | P6.3 | C | Mobile layouts: bottom nav, chat full-screen, inspector sheet, approvals via notifications | P3.2 | L | none | – | todo |
 | P6.4 | F | Foreground service for long runs / optional local webhook server; battery-aware | P6.1, P4.6 | M | none | – | todo |
