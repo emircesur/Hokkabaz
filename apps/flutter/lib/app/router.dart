@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../screens/chat_screen.dart';
 import '../screens/placeholder_screen.dart';
 import 'destinations.dart';
 import 'shell.dart';
@@ -19,7 +20,9 @@ final routerProvider = Provider<GoRouter>((ref) {
               path: d.path,
               pageBuilder: (context, state) => NoTransitionPage<void>(
                 key: state.pageKey,
-                child: PlaceholderScreen(title: d.label, icon: d.icon),
+                child: d.path == '/chat'
+                    ? ChatScreen(title: d.label, icon: d.icon)
+                    : PlaceholderScreen(title: d.label, icon: d.icon),
               ),
             ),
         ],

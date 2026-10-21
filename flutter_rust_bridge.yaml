@@ -1,0 +1,10 @@
+# flutter_rust_bridge_codegen config. Regenerate: `flutter_rust_bridge_codegen generate`
+# (codegen version must match the `flutter_rust_bridge` crate/pub pin: 2.11.1).
+rust_input: crate::api
+rust_root: crates/hk-ffi/
+rust_output: crates/hk-ffi/src/frb_generated.rs
+dart_root: apps/flutter
+dart_output: apps/flutter/lib/src/rust
+dart_entrypoint_class_name: RustLib
+# No freezed/build_runner in the Dart toolchain; keep FFI types simple.
+build_runner: false

@@ -13,6 +13,9 @@ workspace = true
 [features]
 # corpus harness (src/testing.rs); enabled for own integration tests via the self dev-dependency
 testing = []
+default = ["expr"]
+# n8n expression engine (QuickJS via rquickjs; bundled C, cross-compiles to Android)
+expr = ["dep:rquickjs", "tokio/rt"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -23,6 +26,7 @@ thiserror = "2"
 async-trait = "0.1"
 # retry back-off sleeps
 tokio = { version = "1", features = ["time"] }
+rquickjs = { version = "0.14", optional = true, default-features = false }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "time", "test-util"] }
