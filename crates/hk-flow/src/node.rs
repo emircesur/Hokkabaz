@@ -12,6 +12,7 @@ use serde_json::Value;
 
 use crate::description::NodeTypeDescription;
 use crate::error::FlowError;
+use crate::hooks::{ExecScratch, NodeHooks};
 use crate::expr::{ExprEnv, ExprError, ExprScope, ExpressionEvaluator, ScopeBase, resolve_value};
 use crate::item::Item;
 use crate::run_data::{RunSource, SharedRunData, StaticData};
@@ -40,6 +41,10 @@ pub struct NodeContext {
     /// Expression engine inputs (`$env`, `$vars`, evaluator override, ...). Set before the
     /// first `eval_param`: the scope snapshot is taken once per context.
     pub expr: ExprEnv,
+    /// Embedder hooks (sub-workflows, webhook response, credentials).
+    pub hooks: NodeHooks,
+    /// Per-execution scratch state (Loop Over Items queue).
+    pub scratch: ExecScratch,
     expr_base: OnceLock<Arc<ScopeBase>>,
 }
 
@@ -57,8 +62,22 @@ impl NodeContext {
             run_data: SharedRunData::new(),
             static_data: StaticData::default(),
             expr: ExprEnv::default(),
+            hooks: NodeHooks::default(),
+            scratch: ExecScratch::new(),
             expr_base: OnceLock::new(),
         }
+    }
+
+    /// Copy with one extra `$vars` entry and a fresh scope snapshot. HTTP Request
+    /// pagination exposes the last response this way (`$response` is rewritten to
+    /// `$vars.<name>` by the node).
+    pub fn with_extra_var(&self, name: &str, value: Value) -> Self {
+        let mut c = self.clone();
+        let mut vars = (*c.expr.vars).clone();
+        vars.insert(name.to_owned(), value);
+        c.expr.vars = Arc::new(vars);
+        c.expr_base = OnceLock::new();
+        c
     }
 
     /// Expression scope for `item_index`. The heavy part (input items, run data handle)

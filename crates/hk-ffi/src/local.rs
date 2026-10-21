@@ -27,8 +27,8 @@ use tokio::sync::{Mutex, broadcast};
 
 use crate::dto::{
     CoreProfile, CreateSessionDto, MessageDto, ModeDto, ModelListDto, PendingApprovalDto, PreferencesDto,
-    ProviderDto, ProviderErrorDto, ProviderInputDto, RoleDto, SessionDetailDto, SessionEventDto, SessionInfoDto,
-    SettingsDto, ToolCallDto, TurnAcceptedDto, TurnRequestDto,
+    ProviderDto, ProviderErrorDto, ProviderInputDto, RoleDto, SessionDetailDto, SessionEventDto, SessionEventKind,
+    SessionInfoDto, SettingsDto, ToolCallDto, TurnAcceptedDto, TurnRequestDto,
 };
 use crate::error::{HkError, HkErrorKind};
 use crate::handle::CoreHandle;
@@ -519,9 +519,9 @@ impl Feed {
                 r = self.rx.recv() => match r {
                     Ok(ev) => ev,
                     Err(broadcast::error::RecvError::Lagged(n)) => {
-                        self.queue.push_back(SessionEventDto::Error {
-                            message: format!("fell behind, {n} events dropped; reload the session"),
-                            fatal: false,
+                        self.queue.push_back(SessionEventDto {
+                            text: Some(format!("fell behind, {n} events dropped; reload the session")),
+                            ..SessionEventDto::new(SessionEventKind::Error)
                         });
                         continue;
                     }

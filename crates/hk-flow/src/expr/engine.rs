@@ -39,11 +39,20 @@ const SHIM: &str = concat!(
 /// Session key for evaluations outside an execution.
 const NO_EXECUTION: &str = "";
 
+static DEFAULT: OnceLock<Arc<QuickJsEvaluator>> = OnceLock::new();
+
 /// Process-wide evaluator used when `ExprEnv::evaluator` is unset.
 pub fn default_evaluator() -> Arc<dyn ExpressionEvaluator> {
-    static D: OnceLock<Arc<QuickJsEvaluator>> = OnceLock::new();
-    Arc::clone(D.get_or_init(|| Arc::new(QuickJsEvaluator::new(ExprLimits::default()))))
+    Arc::clone(DEFAULT.get_or_init(|| Arc::new(QuickJsEvaluator::new(ExprLimits::default()))))
         as Arc<dyn ExpressionEvaluator>
+}
+
+/// Drop the default evaluator's session for `execution_id`. A no-op (and no worker
+/// thread start) when the default evaluator was never used.
+pub fn release_default(execution_id: &str) {
+    if let Some(d) = DEFAULT.get() {
+        d.release(execution_id);
+    }
 }
 
 enum Req {

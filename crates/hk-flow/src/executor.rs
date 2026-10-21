@@ -54,10 +54,18 @@
 //! `pairedItem` is filled for output items lacking it: input of exactly one item pairs
 //! everything to item 0, equal lengths pair by index (what n8n auto-assigns).
 //!
+//! # Expressions
+//!
+//! Every node run gets an [`ExprEnv`] built once per execution: the raw parameters of all
+//! workflow nodes (`$('X').params`), `$execution.mode`, the workflow timezone
+//! (`settings.timezone`, else UTC), `$env` restricted to [`ExecutorConfig::env_allowlist`]
+//! (empty by default: host env can hold secrets) and `$vars`. When the execution ends the
+//! evaluator's per-execution realm is released.
+//!
 //! Not here yet: cancellation, workflow timeout, sub-nodes (`ai_*` connections), Wait
 //! resume, error workflows.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -66,6 +74,8 @@ use indexmap::IndexMap;
 use serde_json::{Map, Value};
 
 use crate::error::FlowError;
+use crate::expr::{ExprEnv, ExpressionEvaluator};
+use crate::hooks::{ExecScratch, NodeHooks};
 use crate::item::{Item, PairedItem};
 use crate::node::{FlowNode, NodeContext, NodeOutput, NodeRegistry};
 use crate::run_data::{
@@ -99,6 +109,18 @@ pub struct ExecutorConfig {
     pub use_pin_data: bool,
     /// Loop guard: node runs per execution before it is stopped with an error.
     pub max_node_runs: usize,
+    /// `$execution.mode`: `manual`, `trigger`, `webhook`, ...
+    pub mode: String,
+    /// Host env var names readable through `$env`. Empty by default.
+    pub env_allowlist: Vec<String>,
+    /// `$vars`.
+    pub vars: Map<String, Value>,
+    /// Expression engine; `None` = process-wide QuickJS default.
+    pub evaluator: Option<Arc<dyn ExpressionEvaluator>>,
+    /// Freeze `$now` (unix ms); tests.
+    pub frozen_now_ms: Option<i64>,
+    /// Sub-workflow runner, webhook response sink, credential resolver for nodes.
+    pub hooks: NodeHooks,
 }
 
 impl Default for ExecutorConfig {
@@ -106,6 +128,12 @@ impl Default for ExecutorConfig {
         Self {
             use_pin_data: false,
             max_node_runs: 10_000,
+            mode: "manual".into(),
+            env_allowlist: Vec::new(),
+            vars: Map::new(),
+            evaluator: None,
+            frozen_now_ms: None,
+            hooks: NodeHooks::default(),
         }
     }
 }
@@ -188,14 +216,17 @@ impl Executor {
                 input.start_node
             )));
         }
+        let id = input
+            .execution_id
+            .clone()
+            .unwrap_or_else(|| format!("exec-{}", NEXT_ID.fetch_add(1, Ordering::Relaxed)));
         let mut run = Run {
             exec: self,
             wf,
             order: ExecutionOrder::of(wf),
-            id: input
-                .execution_id
-                .clone()
-                .unwrap_or_else(|| format!("exec-{}", NEXT_ID.fetch_add(1, Ordering::Relaxed))),
+            id: id.clone(),
+            expr: self.expr_env(wf),
+            scratch: ExecScratch::new(),
             started_at: now_ms(),
             run_data: SharedRunData::new(),
             static_data: StaticData::from_value(wf.static_data.as_ref()),
@@ -205,7 +236,44 @@ impl Executor {
             next_index: 0,
             last_node: None,
         };
-        run.drive(input).await
+        let res = run.drive(input).await;
+        self.release_expr(&id);
+        res
+    }
+
+    fn expr_env(&self, wf: &Workflow) -> ExprEnv {
+        let c = &self.config;
+        let env: BTreeMap<String, String> = c
+            .env_allowlist
+            .iter()
+            .filter_map(|k| std::env::var(k).ok().map(|v| (k.clone(), v)))
+            .collect();
+        let node_params: BTreeMap<String, Value> = wf
+            .nodes
+            .iter()
+            .map(|n| (n.name.clone(), Value::Object(n.parameters.clone())))
+            .collect();
+        ExprEnv {
+            evaluator: c.evaluator.clone(),
+            env: Arc::new(env),
+            vars: Arc::new(c.vars.clone()),
+            node_params: Arc::new(node_params),
+            mode: Some(c.mode.clone()),
+            workflow_active: wf.active.unwrap_or(false),
+            resume_url: None,
+            timezone: wf.settings.as_ref().and_then(|s| s.timezone.clone()),
+            now_ms: c.frozen_now_ms,
+        }
+    }
+
+    fn release_expr(&self, execution_id: &str) {
+        match &self.config.evaluator {
+            Some(e) => e.release(execution_id),
+            #[cfg(feature = "expr")]
+            None => crate::expr::release_default(execution_id),
+            #[cfg(not(feature = "expr"))]
+            None => {}
+        }
     }
 }
 
@@ -249,6 +317,8 @@ struct Run<'a> {
     order: ExecutionOrder,
     id: String,
     started_at: u64,
+    expr: ExprEnv,
+    scratch: ExecScratch,
     run_data: SharedRunData,
     static_data: StaticData,
     stack: VecDeque<Task>,
@@ -540,6 +610,9 @@ impl<'a> Run<'a> {
         ctx.source = task.source.clone();
         ctx.run_data = self.run_data.clone();
         ctx.static_data = self.static_data.clone();
+        ctx.expr = self.expr.clone();
+        ctx.hooks = self.exec.config.hooks.clone();
+        ctx.scratch = self.scratch.clone();
 
         let (declared, result) = match self.exec.registry.resolve(node) {
             Ok(imp) => (

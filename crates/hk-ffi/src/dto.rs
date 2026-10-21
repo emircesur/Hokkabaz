@@ -197,83 +197,101 @@ pub enum TurnEndReasonDto {
     MaxSteps,
 }
 
-/// Live session feed. Subscribe (`session_events`) before `submit_turn`: the feed carries only
-/// what happens after subscribing; use `get_session` for history.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionEventKind {
+    /// `turn_id`.
+    TurnStarted,
+    /// `text`.
+    UserMessage,
+    /// `text`.
+    TextDelta,
+    /// `text`.
+    ReasoningDelta,
+    /// Model began a tool call: `index`, `call_id`, `name`. `index` keys the `ToolCallArgs`.
+    ToolCallStart,
+    /// `index`, `text` = raw JSON fragment of the arguments, in order.
+    ToolCallArgs,
+    /// Finished assistant message, replaces the accumulated deltas: `text`, `reasoning`.
+    AssistantMessage,
+    /// Call with parsed arguments, about to run or wait for approval: `call_id`, `name`,
+    /// `arguments_json`.
+    ToolCall,
+    /// `call_id`, `text` = output, `is_error`.
+    ToolResult,
+    /// `approval_id`, `call_id`, `tool`, `detail`.
+    ApprovalRequest,
+    /// `approval_id`, `approved`, `reason`.
+    ApprovalResolved,
+    /// Token usage of one finished model request: `usage`.
+    Usage,
+    /// `turn_id`, `end_reason`.
+    TurnEnded,
+    /// `text`.
+    TitleChanged,
+    /// `text` = message, `fatal`. Non-fatal: a request attempt failed and is being retried.
+    Error,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct UsageDto {
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_write_tokens: i64,
+    pub reasoning_tokens: i64,
+}
+
+/// Live session feed item. A flat struct (not a data-carrying enum) so the Dart side needs no
+/// `freezed`: switch on `kind`, read the fields its doc lists; the rest are empty.
 ///
-/// Streaming order inside a step: `TextDelta` / `ReasoningDelta` / `ToolCallStart` /
-/// `ToolCallArgs` as the model streams, then the durable events (`AssistantMessage`,
-/// `ToolCall`, `ApprovalRequest`, `ToolResult`, `Usage`, ...) a moment later. Durable events
-/// are the source of truth; deltas are for live display.
-#[derive(Debug, Clone)]
-pub enum SessionEventDto {
-    TurnStarted {
-        turn_id: String,
-    },
-    UserMessage {
-        content: String,
-    },
-    TextDelta {
-        text: String,
-    },
-    ReasoningDelta {
-        text: String,
-    },
-    /// Model began a tool call. `index` keys the following `ToolCallArgs`.
-    ToolCallStart {
-        index: u32,
-        call_id: String,
-        name: String,
-    },
-    /// Raw JSON fragment of the call's arguments, in order.
-    ToolCallArgs {
-        index: u32,
-        delta: String,
-    },
-    /// Finished assistant message (replaces the accumulated deltas).
-    AssistantMessage {
-        content: String,
-        reasoning: Option<String>,
-    },
-    /// Call with parsed arguments, about to run (or wait for approval).
-    ToolCall {
-        call_id: String,
-        name: String,
-        arguments_json: String,
-    },
-    ToolResult {
-        call_id: String,
-        content: String,
-        is_error: bool,
-    },
-    ApprovalRequest {
-        approval_id: String,
-        call_id: String,
-        tool: String,
-        detail: Option<String>,
-    },
-    ApprovalResolved {
-        approval_id: String,
-        approved: bool,
-        reason: Option<String>,
-    },
-    /// Token usage of one finished model request.
-    Usage {
-        input_tokens: i64,
-        output_tokens: i64,
-        cache_read_tokens: i64,
-        cache_write_tokens: i64,
-        reasoning_tokens: i64,
-    },
-    TurnEnded {
-        turn_id: String,
-        reason: TurnEndReasonDto,
-    },
-    TitleChanged {
-        title: String,
-    },
-    /// `fatal == false`: a request attempt failed and is being retried.
-    Error {
-        message: String,
-        fatal: bool,
-    },
+/// Subscribe (`session_events`) before `submit_turn`: the feed carries only what happens after
+/// subscribing; use `get_session` for history.
+///
+/// Within a step, `TextDelta` / `ReasoningDelta` / `ToolCallStart` / `ToolCallArgs` stream live,
+/// then the durable events (`AssistantMessage`, `ToolCall`, `ApprovalRequest`, `ToolResult`,
+/// `Usage`, ...) follow a moment later. Durable events are the source of truth; deltas are for
+/// live display.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SessionEventDto {
+    pub kind: SessionEventKind,
+    pub turn_id: Option<String>,
+    pub text: Option<String>,
+    pub reasoning: Option<String>,
+    pub index: Option<u32>,
+    pub call_id: Option<String>,
+    pub name: Option<String>,
+    pub arguments_json: Option<String>,
+    pub approval_id: Option<String>,
+    pub tool: Option<String>,
+    pub detail: Option<String>,
+    pub reason: Option<String>,
+    pub is_error: bool,
+    pub approved: bool,
+    pub fatal: bool,
+    pub usage: Option<UsageDto>,
+    pub end_reason: Option<TurnEndReasonDto>,
+}
+
+impl SessionEventDto {
+    pub(crate) fn new(kind: SessionEventKind) -> Self {
+        Self {
+            kind,
+            turn_id: None,
+            text: None,
+            reasoning: None,
+            index: None,
+            call_id: None,
+            name: None,
+            arguments_json: None,
+            approval_id: None,
+            tool: None,
+            detail: None,
+            reason: None,
+            is_error: false,
+            approved: false,
+            fatal: false,
+            usage: None,
+            end_reason: None,
+        }
+    }
 }

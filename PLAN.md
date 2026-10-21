@@ -87,7 +87,7 @@ Rules:
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
-| P3.1 📜 | C | `hk-ffi` API v1: core init/shutdown, chat commands, session event stream, models, settings; `CoreHandle` trait (Local impl) | P1.11 | M | none | Dart bindings generated, no panics cross FFI | todo |
+| P3.1 📜 | C | `hk-ffi` API v1: core init/shutdown, chat commands, session event stream, models, settings; `CoreHandle` trait (Local impl) | P1.11 | M | none | Dart bindings generated, no panics cross FFI | done — SessionEventDto flat struct+kind enum (no freezed); android/headless secrets plaintext 0600 file until P6.2; hk-server `runtime` feature added |
 | P3.2 | C | Chat screen: sessions list, conversation stream, reasoning collapse, tool cards, diff viewer | P3.1 | L | none | DESIGN §4.3 layout works | todo |
 | P3.3 | C | Composer: `@` files/MCP, `/` commands, mode + model chips, image paste | P3.2 | M | none | – | todo |
 | P3.4 | C | Inspector: context, todo/plan, cost, subagent tree, files changed | P3.2 | M | none | – | todo |

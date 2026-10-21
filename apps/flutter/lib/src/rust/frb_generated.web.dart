@@ -3,346 +3,674 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
-
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
 import 'api/chat.dart';
 import 'api/core.dart';
 import 'api/settings.dart';
+
 import 'dart:async';
 import 'dart:convert';
+
 import 'dto.dart';
 import 'error.dart';
 import 'frb_generated.dart';
+
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_web.dart';
 
+abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
+  RustLibApiImplPlatform({
+    required super.handler,
+    required super.wire,
+    required super.generalizedFrbRustBinding,
+    required super.portManager,
+  });
 
+  @protected
+  AnyhowException dco_decode_AnyhowException(dynamic raw);
 
+  @protected
+  RustStreamSink<SessionEventDto> dco_decode_StreamSink_session_event_dto_Sse(
+    dynamic raw,
+  );
 
-                abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
-                  RustLibApiImplPlatform({
-                    required super.handler,
-                    required super.wire,
-                    required super.generalizedFrbRustBinding,
-                    required super.portManager,
-                  });
+  @protected
+  RustStreamSink<int> dco_decode_StreamSink_u_32_Sse(dynamic raw);
 
-                  
+  @protected
+  String dco_decode_String(dynamic raw);
 
-                  @protected AnyhowException dco_decode_AnyhowException(dynamic raw);
+  @protected
+  bool dco_decode_bool(dynamic raw);
 
-@protected RustStreamSink<SessionEventDto> dco_decode_StreamSink_session_event_dto_Sse(dynamic raw);
+  @protected
+  double dco_decode_box_autoadd_f_64(dynamic raw);
 
-@protected RustStreamSink<int> dco_decode_StreamSink_u_32_Sse(dynamic raw);
+  @protected
+  PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
 
-@protected String dco_decode_String(dynamic raw);
+  @protected
+  ModeDto dco_decode_box_autoadd_mode_dto(dynamic raw);
 
-@protected bool dco_decode_bool(dynamic raw);
+  @protected
+  PreferencesDto dco_decode_box_autoadd_preferences_dto(dynamic raw);
 
-@protected double dco_decode_box_autoadd_f_64(dynamic raw);
+  @protected
+  ProviderInputDto dco_decode_box_autoadd_provider_input_dto(dynamic raw);
 
-@protected PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
+  @protected
+  TurnEndReasonDto dco_decode_box_autoadd_turn_end_reason_dto(dynamic raw);
 
-@protected ModeDto dco_decode_box_autoadd_mode_dto(dynamic raw);
+  @protected
+  int dco_decode_box_autoadd_u_32(dynamic raw);
 
-@protected PreferencesDto dco_decode_box_autoadd_preferences_dto(dynamic raw);
+  @protected
+  UsageDto dco_decode_box_autoadd_usage_dto(dynamic raw);
 
-@protected ProviderInputDto dco_decode_box_autoadd_provider_input_dto(dynamic raw);
+  @protected
+  CoreProfile dco_decode_core_profile(dynamic raw);
 
-@protected CoreProfile dco_decode_core_profile(dynamic raw);
+  @protected
+  double dco_decode_f_64(dynamic raw);
 
-@protected double dco_decode_f_64(dynamic raw);
+  @protected
+  HkError dco_decode_hk_error(dynamic raw);
 
-@protected HkError dco_decode_hk_error(dynamic raw);
+  @protected
+  HkErrorKind dco_decode_hk_error_kind(dynamic raw);
 
-@protected HkErrorKind dco_decode_hk_error_kind(dynamic raw);
+  @protected
+  int dco_decode_i_32(dynamic raw);
 
-@protected int dco_decode_i_32(dynamic raw);
+  @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw);
 
-@protected PlatformInt64 dco_decode_i_64(dynamic raw);
+  @protected
+  List<String> dco_decode_list_String(dynamic raw);
 
-@protected List<String> dco_decode_list_String(dynamic raw);
+  @protected
+  List<MessageDto> dco_decode_list_message_dto(dynamic raw);
 
-@protected List<MessageDto> dco_decode_list_message_dto(dynamic raw);
+  @protected
+  List<ModelDto> dco_decode_list_model_dto(dynamic raw);
 
-@protected List<ModelDto> dco_decode_list_model_dto(dynamic raw);
+  @protected
+  List<PendingApprovalDto> dco_decode_list_pending_approval_dto(dynamic raw);
 
-@protected List<PendingApprovalDto> dco_decode_list_pending_approval_dto(dynamic raw);
+  @protected
+  Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
-@protected Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+  @protected
+  List<ProviderDto> dco_decode_list_provider_dto(dynamic raw);
 
-@protected List<ProviderDto> dco_decode_list_provider_dto(dynamic raw);
+  @protected
+  List<ProviderErrorDto> dco_decode_list_provider_error_dto(dynamic raw);
 
-@protected List<ProviderErrorDto> dco_decode_list_provider_error_dto(dynamic raw);
+  @protected
+  List<SessionInfoDto> dco_decode_list_session_info_dto(dynamic raw);
 
-@protected List<SessionInfoDto> dco_decode_list_session_info_dto(dynamic raw);
+  @protected
+  List<ToolCallDto> dco_decode_list_tool_call_dto(dynamic raw);
 
-@protected List<ToolCallDto> dco_decode_list_tool_call_dto(dynamic raw);
+  @protected
+  MessageDto dco_decode_message_dto(dynamic raw);
 
-@protected MessageDto dco_decode_message_dto(dynamic raw);
+  @protected
+  ModeDto dco_decode_mode_dto(dynamic raw);
 
-@protected ModeDto dco_decode_mode_dto(dynamic raw);
+  @protected
+  ModelDto dco_decode_model_dto(dynamic raw);
 
-@protected ModelDto dco_decode_model_dto(dynamic raw);
+  @protected
+  ModelListDto dco_decode_model_list_dto(dynamic raw);
 
-@protected ModelListDto dco_decode_model_list_dto(dynamic raw);
+  @protected
+  String? dco_decode_opt_String(dynamic raw);
 
-@protected String? dco_decode_opt_String(dynamic raw);
+  @protected
+  double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
 
-@protected double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
+  @protected
+  PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
 
-@protected PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+  @protected
+  ModeDto? dco_decode_opt_box_autoadd_mode_dto(dynamic raw);
 
-@protected ModeDto? dco_decode_opt_box_autoadd_mode_dto(dynamic raw);
+  @protected
+  TurnEndReasonDto? dco_decode_opt_box_autoadd_turn_end_reason_dto(dynamic raw);
 
-@protected PendingApprovalDto dco_decode_pending_approval_dto(dynamic raw);
+  @protected
+  int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
 
-@protected PreferencesDto dco_decode_preferences_dto(dynamic raw);
+  @protected
+  UsageDto? dco_decode_opt_box_autoadd_usage_dto(dynamic raw);
 
-@protected ProviderDto dco_decode_provider_dto(dynamic raw);
+  @protected
+  PendingApprovalDto dco_decode_pending_approval_dto(dynamic raw);
 
-@protected ProviderErrorDto dco_decode_provider_error_dto(dynamic raw);
+  @protected
+  PreferencesDto dco_decode_preferences_dto(dynamic raw);
 
-@protected ProviderInputDto dco_decode_provider_input_dto(dynamic raw);
+  @protected
+  ProviderDto dco_decode_provider_dto(dynamic raw);
 
-@protected ProviderKindDto dco_decode_provider_kind_dto(dynamic raw);
+  @protected
+  ProviderErrorDto dco_decode_provider_error_dto(dynamic raw);
 
-@protected RoleDto dco_decode_role_dto(dynamic raw);
+  @protected
+  ProviderInputDto dco_decode_provider_input_dto(dynamic raw);
 
-@protected SessionDetailDto dco_decode_session_detail_dto(dynamic raw);
+  @protected
+  ProviderKindDto dco_decode_provider_kind_dto(dynamic raw);
 
-@protected SessionEventDto dco_decode_session_event_dto(dynamic raw);
+  @protected
+  RoleDto dco_decode_role_dto(dynamic raw);
 
-@protected SessionInfoDto dco_decode_session_info_dto(dynamic raw);
+  @protected
+  SessionDetailDto dco_decode_session_detail_dto(dynamic raw);
 
-@protected SettingsDto dco_decode_settings_dto(dynamic raw);
+  @protected
+  SessionEventDto dco_decode_session_event_dto(dynamic raw);
 
-@protected ToolCallDto dco_decode_tool_call_dto(dynamic raw);
+  @protected
+  SessionEventKind dco_decode_session_event_kind(dynamic raw);
 
-@protected TurnAcceptedDto dco_decode_turn_accepted_dto(dynamic raw);
+  @protected
+  SessionInfoDto dco_decode_session_info_dto(dynamic raw);
 
-@protected TurnEndReasonDto dco_decode_turn_end_reason_dto(dynamic raw);
+  @protected
+  SettingsDto dco_decode_settings_dto(dynamic raw);
 
-@protected int dco_decode_u_32(dynamic raw);
+  @protected
+  ToolCallDto dco_decode_tool_call_dto(dynamic raw);
 
-@protected int dco_decode_u_8(dynamic raw);
+  @protected
+  TurnAcceptedDto dco_decode_turn_accepted_dto(dynamic raw);
 
-@protected void dco_decode_unit(dynamic raw);
+  @protected
+  TurnEndReasonDto dco_decode_turn_end_reason_dto(dynamic raw);
 
-@protected AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
+  @protected
+  int dco_decode_u_32(dynamic raw);
 
-@protected RustStreamSink<SessionEventDto> sse_decode_StreamSink_session_event_dto_Sse(SseDeserializer deserializer);
+  @protected
+  int dco_decode_u_8(dynamic raw);
 
-@protected RustStreamSink<int> sse_decode_StreamSink_u_32_Sse(SseDeserializer deserializer);
+  @protected
+  void dco_decode_unit(dynamic raw);
 
-@protected String sse_decode_String(SseDeserializer deserializer);
+  @protected
+  UsageDto dco_decode_usage_dto(dynamic raw);
 
-@protected bool sse_decode_bool(SseDeserializer deserializer);
+  @protected
+  AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
-@protected double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
+  @protected
+  RustStreamSink<SessionEventDto> sse_decode_StreamSink_session_event_dto_Sse(
+    SseDeserializer deserializer,
+  );
 
-@protected PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
+  @protected
+  RustStreamSink<int> sse_decode_StreamSink_u_32_Sse(
+    SseDeserializer deserializer,
+  );
 
-@protected ModeDto sse_decode_box_autoadd_mode_dto(SseDeserializer deserializer);
+  @protected
+  String sse_decode_String(SseDeserializer deserializer);
 
-@protected PreferencesDto sse_decode_box_autoadd_preferences_dto(SseDeserializer deserializer);
+  @protected
+  bool sse_decode_bool(SseDeserializer deserializer);
 
-@protected ProviderInputDto sse_decode_box_autoadd_provider_input_dto(SseDeserializer deserializer);
+  @protected
+  double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
 
-@protected CoreProfile sse_decode_core_profile(SseDeserializer deserializer);
+  @protected
+  PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
 
-@protected double sse_decode_f_64(SseDeserializer deserializer);
+  @protected
+  ModeDto sse_decode_box_autoadd_mode_dto(SseDeserializer deserializer);
 
-@protected HkError sse_decode_hk_error(SseDeserializer deserializer);
+  @protected
+  PreferencesDto sse_decode_box_autoadd_preferences_dto(
+    SseDeserializer deserializer,
+  );
 
-@protected HkErrorKind sse_decode_hk_error_kind(SseDeserializer deserializer);
+  @protected
+  ProviderInputDto sse_decode_box_autoadd_provider_input_dto(
+    SseDeserializer deserializer,
+  );
 
-@protected int sse_decode_i_32(SseDeserializer deserializer);
+  @protected
+  TurnEndReasonDto sse_decode_box_autoadd_turn_end_reason_dto(
+    SseDeserializer deserializer,
+  );
 
-@protected PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+  @protected
+  int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
-@protected List<String> sse_decode_list_String(SseDeserializer deserializer);
+  @protected
+  UsageDto sse_decode_box_autoadd_usage_dto(SseDeserializer deserializer);
 
-@protected List<MessageDto> sse_decode_list_message_dto(SseDeserializer deserializer);
+  @protected
+  CoreProfile sse_decode_core_profile(SseDeserializer deserializer);
 
-@protected List<ModelDto> sse_decode_list_model_dto(SseDeserializer deserializer);
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer);
 
-@protected List<PendingApprovalDto> sse_decode_list_pending_approval_dto(SseDeserializer deserializer);
+  @protected
+  HkError sse_decode_hk_error(SseDeserializer deserializer);
 
-@protected Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+  @protected
+  HkErrorKind sse_decode_hk_error_kind(SseDeserializer deserializer);
 
-@protected List<ProviderDto> sse_decode_list_provider_dto(SseDeserializer deserializer);
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
 
-@protected List<ProviderErrorDto> sse_decode_list_provider_error_dto(SseDeserializer deserializer);
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
-@protected List<SessionInfoDto> sse_decode_list_session_info_dto(SseDeserializer deserializer);
+  @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer);
 
-@protected List<ToolCallDto> sse_decode_list_tool_call_dto(SseDeserializer deserializer);
+  @protected
+  List<MessageDto> sse_decode_list_message_dto(SseDeserializer deserializer);
 
-@protected MessageDto sse_decode_message_dto(SseDeserializer deserializer);
+  @protected
+  List<ModelDto> sse_decode_list_model_dto(SseDeserializer deserializer);
 
-@protected ModeDto sse_decode_mode_dto(SseDeserializer deserializer);
+  @protected
+  List<PendingApprovalDto> sse_decode_list_pending_approval_dto(
+    SseDeserializer deserializer,
+  );
 
-@protected ModelDto sse_decode_model_dto(SseDeserializer deserializer);
+  @protected
+  Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
-@protected ModelListDto sse_decode_model_list_dto(SseDeserializer deserializer);
+  @protected
+  List<ProviderDto> sse_decode_list_provider_dto(SseDeserializer deserializer);
 
-@protected String? sse_decode_opt_String(SseDeserializer deserializer);
+  @protected
+  List<ProviderErrorDto> sse_decode_list_provider_error_dto(
+    SseDeserializer deserializer,
+  );
 
-@protected double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
+  @protected
+  List<SessionInfoDto> sse_decode_list_session_info_dto(
+    SseDeserializer deserializer,
+  );
 
-@protected PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+  @protected
+  List<ToolCallDto> sse_decode_list_tool_call_dto(SseDeserializer deserializer);
 
-@protected ModeDto? sse_decode_opt_box_autoadd_mode_dto(SseDeserializer deserializer);
+  @protected
+  MessageDto sse_decode_message_dto(SseDeserializer deserializer);
 
-@protected PendingApprovalDto sse_decode_pending_approval_dto(SseDeserializer deserializer);
+  @protected
+  ModeDto sse_decode_mode_dto(SseDeserializer deserializer);
 
-@protected PreferencesDto sse_decode_preferences_dto(SseDeserializer deserializer);
+  @protected
+  ModelDto sse_decode_model_dto(SseDeserializer deserializer);
 
-@protected ProviderDto sse_decode_provider_dto(SseDeserializer deserializer);
+  @protected
+  ModelListDto sse_decode_model_list_dto(SseDeserializer deserializer);
 
-@protected ProviderErrorDto sse_decode_provider_error_dto(SseDeserializer deserializer);
+  @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer);
 
-@protected ProviderInputDto sse_decode_provider_input_dto(SseDeserializer deserializer);
+  @protected
+  double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
 
-@protected ProviderKindDto sse_decode_provider_kind_dto(SseDeserializer deserializer);
+  @protected
+  PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
 
-@protected RoleDto sse_decode_role_dto(SseDeserializer deserializer);
+  @protected
+  ModeDto? sse_decode_opt_box_autoadd_mode_dto(SseDeserializer deserializer);
 
-@protected SessionDetailDto sse_decode_session_detail_dto(SseDeserializer deserializer);
+  @protected
+  TurnEndReasonDto? sse_decode_opt_box_autoadd_turn_end_reason_dto(
+    SseDeserializer deserializer,
+  );
 
-@protected SessionEventDto sse_decode_session_event_dto(SseDeserializer deserializer);
+  @protected
+  int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
 
-@protected SessionInfoDto sse_decode_session_info_dto(SseDeserializer deserializer);
+  @protected
+  UsageDto? sse_decode_opt_box_autoadd_usage_dto(SseDeserializer deserializer);
 
-@protected SettingsDto sse_decode_settings_dto(SseDeserializer deserializer);
+  @protected
+  PendingApprovalDto sse_decode_pending_approval_dto(
+    SseDeserializer deserializer,
+  );
 
-@protected ToolCallDto sse_decode_tool_call_dto(SseDeserializer deserializer);
+  @protected
+  PreferencesDto sse_decode_preferences_dto(SseDeserializer deserializer);
 
-@protected TurnAcceptedDto sse_decode_turn_accepted_dto(SseDeserializer deserializer);
+  @protected
+  ProviderDto sse_decode_provider_dto(SseDeserializer deserializer);
 
-@protected TurnEndReasonDto sse_decode_turn_end_reason_dto(SseDeserializer deserializer);
+  @protected
+  ProviderErrorDto sse_decode_provider_error_dto(SseDeserializer deserializer);
 
-@protected int sse_decode_u_32(SseDeserializer deserializer);
+  @protected
+  ProviderInputDto sse_decode_provider_input_dto(SseDeserializer deserializer);
 
-@protected int sse_decode_u_8(SseDeserializer deserializer);
+  @protected
+  ProviderKindDto sse_decode_provider_kind_dto(SseDeserializer deserializer);
 
-@protected void sse_decode_unit(SseDeserializer deserializer);
+  @protected
+  RoleDto sse_decode_role_dto(SseDeserializer deserializer);
 
-@protected void sse_encode_AnyhowException(AnyhowException self, SseSerializer serializer);
+  @protected
+  SessionDetailDto sse_decode_session_detail_dto(SseDeserializer deserializer);
 
-@protected void sse_encode_StreamSink_session_event_dto_Sse(RustStreamSink<SessionEventDto> self, SseSerializer serializer);
+  @protected
+  SessionEventDto sse_decode_session_event_dto(SseDeserializer deserializer);
 
-@protected void sse_encode_StreamSink_u_32_Sse(RustStreamSink<int> self, SseSerializer serializer);
+  @protected
+  SessionEventKind sse_decode_session_event_kind(SseDeserializer deserializer);
 
-@protected void sse_encode_String(String self, SseSerializer serializer);
+  @protected
+  SessionInfoDto sse_decode_session_info_dto(SseDeserializer deserializer);
 
-@protected void sse_encode_bool(bool self, SseSerializer serializer);
+  @protected
+  SettingsDto sse_decode_settings_dto(SseDeserializer deserializer);
 
-@protected void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
+  @protected
+  ToolCallDto sse_decode_tool_call_dto(SseDeserializer deserializer);
 
-@protected void sse_encode_box_autoadd_i_64(PlatformInt64 self, SseSerializer serializer);
+  @protected
+  TurnAcceptedDto sse_decode_turn_accepted_dto(SseDeserializer deserializer);
 
-@protected void sse_encode_box_autoadd_mode_dto(ModeDto self, SseSerializer serializer);
+  @protected
+  TurnEndReasonDto sse_decode_turn_end_reason_dto(SseDeserializer deserializer);
 
-@protected void sse_encode_box_autoadd_preferences_dto(PreferencesDto self, SseSerializer serializer);
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer);
 
-@protected void sse_encode_box_autoadd_provider_input_dto(ProviderInputDto self, SseSerializer serializer);
+  @protected
+  int sse_decode_u_8(SseDeserializer deserializer);
 
-@protected void sse_encode_core_profile(CoreProfile self, SseSerializer serializer);
+  @protected
+  void sse_decode_unit(SseDeserializer deserializer);
 
-@protected void sse_encode_f_64(double self, SseSerializer serializer);
+  @protected
+  UsageDto sse_decode_usage_dto(SseDeserializer deserializer);
 
-@protected void sse_encode_hk_error(HkError self, SseSerializer serializer);
+  @protected
+  void sse_encode_AnyhowException(
+    AnyhowException self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_hk_error_kind(HkErrorKind self, SseSerializer serializer);
+  @protected
+  void sse_encode_StreamSink_session_event_dto_Sse(
+    RustStreamSink<SessionEventDto> self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_i_32(int self, SseSerializer serializer);
+  @protected
+  void sse_encode_StreamSink_u_32_Sse(
+    RustStreamSink<int> self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+  @protected
+  void sse_encode_String(String self, SseSerializer serializer);
 
-@protected void sse_encode_list_String(List<String> self, SseSerializer serializer);
+  @protected
+  void sse_encode_bool(bool self, SseSerializer serializer);
 
-@protected void sse_encode_list_message_dto(List<MessageDto> self, SseSerializer serializer);
+  @protected
+  void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
 
-@protected void sse_encode_list_model_dto(List<ModelDto> self, SseSerializer serializer);
+  @protected
+  void sse_encode_box_autoadd_i_64(
+    PlatformInt64 self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_list_pending_approval_dto(List<PendingApprovalDto> self, SseSerializer serializer);
+  @protected
+  void sse_encode_box_autoadd_mode_dto(ModeDto self, SseSerializer serializer);
 
-@protected void sse_encode_list_prim_u_8_strict(Uint8List self, SseSerializer serializer);
+  @protected
+  void sse_encode_box_autoadd_preferences_dto(
+    PreferencesDto self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_list_provider_dto(List<ProviderDto> self, SseSerializer serializer);
+  @protected
+  void sse_encode_box_autoadd_provider_input_dto(
+    ProviderInputDto self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_list_provider_error_dto(List<ProviderErrorDto> self, SseSerializer serializer);
+  @protected
+  void sse_encode_box_autoadd_turn_end_reason_dto(
+    TurnEndReasonDto self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_list_session_info_dto(List<SessionInfoDto> self, SseSerializer serializer);
+  @protected
+  void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
-@protected void sse_encode_list_tool_call_dto(List<ToolCallDto> self, SseSerializer serializer);
+  @protected
+  void sse_encode_box_autoadd_usage_dto(
+    UsageDto self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_message_dto(MessageDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_core_profile(CoreProfile self, SseSerializer serializer);
 
-@protected void sse_encode_mode_dto(ModeDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer);
 
-@protected void sse_encode_model_dto(ModelDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_hk_error(HkError self, SseSerializer serializer);
 
-@protected void sse_encode_model_list_dto(ModelListDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_hk_error_kind(HkErrorKind self, SseSerializer serializer);
 
-@protected void sse_encode_opt_String(String? self, SseSerializer serializer);
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
 
-@protected void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
 
-@protected void sse_encode_opt_box_autoadd_i_64(PlatformInt64? self, SseSerializer serializer);
+  @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
-@protected void sse_encode_opt_box_autoadd_mode_dto(ModeDto? self, SseSerializer serializer);
+  @protected
+  void sse_encode_list_message_dto(
+    List<MessageDto> self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_pending_approval_dto(PendingApprovalDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_list_model_dto(List<ModelDto> self, SseSerializer serializer);
 
-@protected void sse_encode_preferences_dto(PreferencesDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_list_pending_approval_dto(
+    List<PendingApprovalDto> self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_provider_dto(ProviderDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_list_prim_u_8_strict(
+    Uint8List self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_provider_error_dto(ProviderErrorDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_list_provider_dto(
+    List<ProviderDto> self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_provider_input_dto(ProviderInputDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_list_provider_error_dto(
+    List<ProviderErrorDto> self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_provider_kind_dto(ProviderKindDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_list_session_info_dto(
+    List<SessionInfoDto> self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_role_dto(RoleDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_list_tool_call_dto(
+    List<ToolCallDto> self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_session_detail_dto(SessionDetailDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_message_dto(MessageDto self, SseSerializer serializer);
 
-@protected void sse_encode_session_event_dto(SessionEventDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_mode_dto(ModeDto self, SseSerializer serializer);
 
-@protected void sse_encode_session_info_dto(SessionInfoDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_model_dto(ModelDto self, SseSerializer serializer);
 
-@protected void sse_encode_settings_dto(SettingsDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_model_list_dto(ModelListDto self, SseSerializer serializer);
 
-@protected void sse_encode_tool_call_dto(ToolCallDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer);
 
-@protected void sse_encode_turn_accepted_dto(TurnAcceptedDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
 
-@protected void sse_encode_turn_end_reason_dto(TurnEndReasonDto self, SseSerializer serializer);
+  @protected
+  void sse_encode_opt_box_autoadd_i_64(
+    PlatformInt64? self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_u_32(int self, SseSerializer serializer);
+  @protected
+  void sse_encode_opt_box_autoadd_mode_dto(
+    ModeDto? self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_u_8(int self, SseSerializer serializer);
+  @protected
+  void sse_encode_opt_box_autoadd_turn_end_reason_dto(
+    TurnEndReasonDto? self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_unit(void self, SseSerializer serializer);
-                }
-                
+  @protected
+  void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
 
+  @protected
+  void sse_encode_opt_box_autoadd_usage_dto(
+    UsageDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_pending_approval_dto(
+    PendingApprovalDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_preferences_dto(
+    PreferencesDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_provider_dto(ProviderDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_provider_error_dto(
+    ProviderErrorDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_provider_input_dto(
+    ProviderInputDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_provider_kind_dto(
+    ProviderKindDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_role_dto(RoleDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_session_detail_dto(
+    SessionDetailDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_session_event_dto(
+    SessionEventDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_session_event_kind(
+    SessionEventKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_session_info_dto(
+    SessionInfoDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_settings_dto(SettingsDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_tool_call_dto(ToolCallDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_turn_accepted_dto(
+    TurnAcceptedDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_turn_end_reason_dto(
+    TurnEndReasonDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_8(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_usage_dto(UsageDto self, SseSerializer serializer);
+}
 
 // Section: wire_class
 
 class RustLibWire implements BaseWire {
-            RustLibWire.fromExternalLibrary(ExternalLibrary lib);
+  RustLibWire.fromExternalLibrary(ExternalLibrary lib);
+}
 
-            
-        }
-        @JS('wasm_bindgen') external RustLibWasmModule get wasmModule;
+@JS('wasm_bindgen')
+external RustLibWasmModule get wasmModule;
 
-        @JS() @anonymous extension type RustLibWasmModule._(JSObject _) implements JSObject {
-            
-        }
-        
+@JS()
+@anonymous
+extension type RustLibWasmModule._(JSObject _) implements JSObject {}

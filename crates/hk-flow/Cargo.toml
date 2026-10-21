@@ -13,9 +13,11 @@ workspace = true
 [features]
 # corpus harness (src/testing.rs); enabled for own integration tests via the self dev-dependency
 testing = []
-default = ["expr"]
+default = ["expr", "http"]
 # n8n expression engine (QuickJS via rquickjs; bundled C, cross-compiles to Android)
-expr = ["dep:rquickjs", "dep:chrono", "dep:chrono-tz", "dep:jmespath", "dep:sha1", "dep:sha2", "dep:md-5"]
+expr = ["dep:rquickjs", "dep:jmespath", "dep:sha1", "dep:sha2", "dep:md-5"]
+# HTTP Request node (reqwest + rustls; builds for Android)
+http = ["dep:reqwest"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -27,9 +29,13 @@ async-trait = "0.1"
 # retry back-off sleeps
 tokio = { version = "1", features = ["time"] }
 rquickjs = { version = "0.14", optional = true, default-features = false }
-# IANA zones for Luxon-like DateTime in expressions (workflow timezone)
-chrono = { version = "0.4", optional = true, default-features = false, features = ["std"] }
-chrono-tz = { version = "0.10", optional = true }
+# IANA zones: Luxon-like DateTime in expressions (workflow timezone), Date & Time node, date conditions
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+chrono-tz = "0.10"
+# Filter `regex` operator, binary payloads
+regex = { version = "1", default-features = false, features = ["std", "unicode", "perf"] }
+base64 = "0.22"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"], optional = true }
 # `$jmespath(...)`
 jmespath = { version = "0.5", optional = true }
 # String.hash() extension
@@ -42,6 +48,6 @@ md-5 = { version = "0.10", optional = true }
 rquickjs = { version = "0.14", optional = true, default-features = false, features = ["bindgen"] }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt", "time", "test-util"] }
+tokio = { version = "1", features = ["macros", "rt", "time", "test-util", "net", "io-util"] }
 # turns `testing` on for tests/ so a plain `cargo test -p hk-flow` runs the corpus
 hk-flow = { path = ".", features = ["testing"] }

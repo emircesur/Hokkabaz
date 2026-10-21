@@ -4,7 +4,6 @@
 
 use std::path::{Path, PathBuf};
 
-use hk_llm::catalog::Catalog;
 use hk_llm::registry::{KeyRef, ProviderConfig, ProviderKind, ProviderOptions, RegistryError};
 use hk_llm::{Capabilities, ModelInfo, Route};
 use serde::{Deserialize, Serialize};
@@ -255,9 +254,4 @@ pub fn model_dto(m: &ModelInfo) -> ModelDto {
         input_per_mtok: m.cost.map(|c| c.input),
         output_per_mtok: m.cost.map(|c| c.output),
     }
-}
-
-/// Catalog helper kept here so `local.rs` stays about wiring.
-pub fn load_cached_catalog(path: &Path) -> Option<Catalog> {
-    hk_llm::catalog::CatalogStore::new(path).load_cached()
 }

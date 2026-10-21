@@ -1575,12 +1575,15 @@ name = "hk-flow"
 version = "0.0.0"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
  "chrono",
  "chrono-tz",
  "hk-flow",
  "indexmap",
  "jmespath",
  "md-5",
+ "regex",
+ "reqwest 0.12.28",
  "rquickjs",
  "serde",
  "serde_json",

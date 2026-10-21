@@ -4,457 +4,665 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import 'frb_generated.dart';
+
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
-import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
-part 'dto.freezed.dart';
 
-            
-
-            
-
-            /// Where the core runs; picks the secret backend and tool policy.
+/// Where the core runs; picks the secret backend and tool policy.
 enum CoreProfile {
-                    /// Desktop app: OS keyring when available.
-desktop,
-/// Android / iOS: app-private secret file, no sandbox, no shell tool.
-mobile,
-                    ;
-                    
-                }
+  /// Desktop app: OS keyring when available.
+  desktop,
+
+  /// Android / iOS: app-private secret file, no sandbox, no shell tool.
+  mobile,
+}
 
 /// One message of the history the model would see.
-class MessageDto  {
-                final RoleDto role;
-final String content;
-final String? reasoning;
-final List<ToolCallDto> toolCalls;
-/// For `Tool` messages: the call this answers.
-final String? toolCallId;
+class MessageDto {
+  final RoleDto role;
+  final String content;
+  final String? reasoning;
+  final List<ToolCallDto> toolCalls;
 
-                const MessageDto({required this.role ,required this.content ,this.reasoning ,required this.toolCalls ,this.toolCallId ,});
+  /// For `Tool` messages: the call this answers.
+  final String? toolCallId;
 
-                
-                
+  const MessageDto({
+    required this.role,
+    required this.content,
+    this.reasoning,
+    required this.toolCalls,
+    this.toolCallId,
+  });
 
-                
-        @override
-        int get hashCode => role.hashCode^content.hashCode^reasoning.hashCode^toolCalls.hashCode^toolCallId.hashCode;
-        
+  @override
+  int get hashCode =>
+      role.hashCode ^
+      content.hashCode ^
+      reasoning.hashCode ^
+      toolCalls.hashCode ^
+      toolCallId.hashCode;
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is MessageDto &&
-                runtimeType == other.runtimeType
-                && role == other.role&& content == other.content&& reasoning == other.reasoning&& toolCalls == other.toolCalls&& toolCallId == other.toolCallId;
-        
-            }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MessageDto &&
+          runtimeType == other.runtimeType &&
+          role == other.role &&
+          content == other.content &&
+          reasoning == other.reasoning &&
+          toolCalls == other.toolCalls &&
+          toolCallId == other.toolCallId;
+}
 
 /// Tool policy for a turn.
 enum ModeDto {
-                    /// All tools; risky calls ask for approval.
-build,
-/// Read-only filesystem.
-plan,
-                    ;
-                    
-                }
+  /// All tools; risky calls ask for approval.
+  build,
 
-class ModelDto  {
-                /// `provider/id`: what `submit_turn` / `create_session` take as model.
-final String reference;
-final String id;
-final String provider;
-final String name;
-final PlatformInt64 contextWindow;
-final PlatformInt64? maxOutput;
-final bool tools;
-final bool reasoning;
-final bool vision;
-/// USD per million tokens.
-final double? inputPerMtok;
-final double? outputPerMtok;
+  /// Read-only filesystem.
+  plan,
+}
 
-                const ModelDto({required this.reference ,required this.id ,required this.provider ,required this.name ,required this.contextWindow ,this.maxOutput ,required this.tools ,required this.reasoning ,required this.vision ,this.inputPerMtok ,this.outputPerMtok ,});
+class ModelDto {
+  /// `provider/id`: what `submit_turn` / `create_session` take as model.
+  final String reference;
+  final String id;
+  final String provider;
+  final String name;
+  final PlatformInt64 contextWindow;
+  final PlatformInt64? maxOutput;
+  final bool tools;
+  final bool reasoning;
+  final bool vision;
 
-                
-                
+  /// USD per million tokens.
+  final double? inputPerMtok;
+  final double? outputPerMtok;
 
-                
-        @override
-        int get hashCode => reference.hashCode^id.hashCode^provider.hashCode^name.hashCode^contextWindow.hashCode^maxOutput.hashCode^tools.hashCode^reasoning.hashCode^vision.hashCode^inputPerMtok.hashCode^outputPerMtok.hashCode;
-        
+  const ModelDto({
+    required this.reference,
+    required this.id,
+    required this.provider,
+    required this.name,
+    required this.contextWindow,
+    this.maxOutput,
+    required this.tools,
+    required this.reasoning,
+    required this.vision,
+    this.inputPerMtok,
+    this.outputPerMtok,
+  });
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is ModelDto &&
-                runtimeType == other.runtimeType
-                && reference == other.reference&& id == other.id&& provider == other.provider&& name == other.name&& contextWindow == other.contextWindow&& maxOutput == other.maxOutput&& tools == other.tools&& reasoning == other.reasoning&& vision == other.vision&& inputPerMtok == other.inputPerMtok&& outputPerMtok == other.outputPerMtok;
-        
-            }
+  @override
+  int get hashCode =>
+      reference.hashCode ^
+      id.hashCode ^
+      provider.hashCode ^
+      name.hashCode ^
+      contextWindow.hashCode ^
+      maxOutput.hashCode ^
+      tools.hashCode ^
+      reasoning.hashCode ^
+      vision.hashCode ^
+      inputPerMtok.hashCode ^
+      outputPerMtok.hashCode;
 
-class ModelListDto  {
-                final List<ModelDto> models;
-/// Providers that failed to build or list; the rest are still usable.
-final List<ProviderErrorDto> errors;
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ModelDto &&
+          runtimeType == other.runtimeType &&
+          reference == other.reference &&
+          id == other.id &&
+          provider == other.provider &&
+          name == other.name &&
+          contextWindow == other.contextWindow &&
+          maxOutput == other.maxOutput &&
+          tools == other.tools &&
+          reasoning == other.reasoning &&
+          vision == other.vision &&
+          inputPerMtok == other.inputPerMtok &&
+          outputPerMtok == other.outputPerMtok;
+}
 
-                const ModelListDto({required this.models ,required this.errors ,});
+class ModelListDto {
+  final List<ModelDto> models;
 
-                
-                
+  /// Providers that failed to build or list; the rest are still usable.
+  final List<ProviderErrorDto> errors;
 
-                
-        @override
-        int get hashCode => models.hashCode^errors.hashCode;
-        
+  const ModelListDto({required this.models, required this.errors});
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is ModelListDto &&
-                runtimeType == other.runtimeType
-                && models == other.models&& errors == other.errors;
-        
-            }
+  @override
+  int get hashCode => models.hashCode ^ errors.hashCode;
 
-class PendingApprovalDto  {
-                final String approvalId;
-final String callId;
-final String tool;
-final String? detail;
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ModelListDto &&
+          runtimeType == other.runtimeType &&
+          models == other.models &&
+          errors == other.errors;
+}
 
-                const PendingApprovalDto({required this.approvalId ,required this.callId ,required this.tool ,this.detail ,});
+class PendingApprovalDto {
+  final String approvalId;
+  final String callId;
+  final String tool;
+  final String? detail;
 
-                
-                
+  const PendingApprovalDto({
+    required this.approvalId,
+    required this.callId,
+    required this.tool,
+    this.detail,
+  });
 
-                
-        @override
-        int get hashCode => approvalId.hashCode^callId.hashCode^tool.hashCode^detail.hashCode;
-        
+  @override
+  int get hashCode =>
+      approvalId.hashCode ^ callId.hashCode ^ tool.hashCode ^ detail.hashCode;
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is PendingApprovalDto &&
-                runtimeType == other.runtimeType
-                && approvalId == other.approvalId&& callId == other.callId&& tool == other.tool&& detail == other.detail;
-        
-            }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PendingApprovalDto &&
+          runtimeType == other.runtimeType &&
+          approvalId == other.approvalId &&
+          callId == other.callId &&
+          tool == other.tool &&
+          detail == other.detail;
+}
 
-class PreferencesDto  {
-                final String? defaultModel;
-final ModeDto mode;
-/// `None` resets to the default workspace.
-final String? workspaceRoot;
+class PreferencesDto {
+  final String? defaultModel;
+  final ModeDto mode;
 
-                const PreferencesDto({this.defaultModel ,required this.mode ,this.workspaceRoot ,});
+  /// `None` resets to the default workspace.
+  final String? workspaceRoot;
 
-                
-                
+  const PreferencesDto({
+    this.defaultModel,
+    required this.mode,
+    this.workspaceRoot,
+  });
 
-                
-        @override
-        int get hashCode => defaultModel.hashCode^mode.hashCode^workspaceRoot.hashCode;
-        
+  @override
+  int get hashCode =>
+      defaultModel.hashCode ^ mode.hashCode ^ workspaceRoot.hashCode;
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is PreferencesDto &&
-                runtimeType == other.runtimeType
-                && defaultModel == other.defaultModel&& mode == other.mode&& workspaceRoot == other.workspaceRoot;
-        
-            }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PreferencesDto &&
+          runtimeType == other.runtimeType &&
+          defaultModel == other.defaultModel &&
+          mode == other.mode &&
+          workspaceRoot == other.workspaceRoot;
+}
 
 /// One configured provider. The API key itself never crosses FFI: only `has_key`.
-class ProviderDto  {
-                final String id;
-final ProviderKindDto kind;
-final String? baseUrl;
-final bool enabled;
-final bool hasKey;
-/// One of the four fixed providers (cannot be removed, only disabled).
-final bool builtin;
-/// Fixed model ids (custom endpoints; empty = ask the provider).
-final List<String> models;
-/// Why the provider is not usable right now (missing key, bad endpoint), if so.
-final String? error;
+class ProviderDto {
+  final String id;
+  final ProviderKindDto kind;
+  final String? baseUrl;
+  final bool enabled;
+  final bool hasKey;
 
-                const ProviderDto({required this.id ,required this.kind ,this.baseUrl ,required this.enabled ,required this.hasKey ,required this.builtin ,required this.models ,this.error ,});
+  /// One of the four fixed providers (cannot be removed, only disabled).
+  final bool builtin;
 
-                
-                
+  /// Fixed model ids (custom endpoints; empty = ask the provider).
+  final List<String> models;
 
-                
-        @override
-        int get hashCode => id.hashCode^kind.hashCode^baseUrl.hashCode^enabled.hashCode^hasKey.hashCode^builtin.hashCode^models.hashCode^error.hashCode;
-        
+  /// Why the provider is not usable right now (missing key, bad endpoint), if so.
+  final String? error;
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is ProviderDto &&
-                runtimeType == other.runtimeType
-                && id == other.id&& kind == other.kind&& baseUrl == other.baseUrl&& enabled == other.enabled&& hasKey == other.hasKey&& builtin == other.builtin&& models == other.models&& error == other.error;
-        
-            }
+  const ProviderDto({
+    required this.id,
+    required this.kind,
+    this.baseUrl,
+    required this.enabled,
+    required this.hasKey,
+    required this.builtin,
+    required this.models,
+    this.error,
+  });
 
-class ProviderErrorDto  {
-                final String providerId;
-final String message;
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      kind.hashCode ^
+      baseUrl.hashCode ^
+      enabled.hashCode ^
+      hasKey.hashCode ^
+      builtin.hashCode ^
+      models.hashCode ^
+      error.hashCode;
 
-                const ProviderErrorDto({required this.providerId ,required this.message ,});
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProviderDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          kind == other.kind &&
+          baseUrl == other.baseUrl &&
+          enabled == other.enabled &&
+          hasKey == other.hasKey &&
+          builtin == other.builtin &&
+          models == other.models &&
+          error == other.error;
+}
 
-                
-                
+class ProviderErrorDto {
+  final String providerId;
+  final String message;
 
-                
-        @override
-        int get hashCode => providerId.hashCode^message.hashCode;
-        
+  const ProviderErrorDto({required this.providerId, required this.message});
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is ProviderErrorDto &&
-                runtimeType == other.runtimeType
-                && providerId == other.providerId&& message == other.message;
-        
-            }
+  @override
+  int get hashCode => providerId.hashCode ^ message.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProviderErrorDto &&
+          runtimeType == other.runtimeType &&
+          providerId == other.providerId &&
+          message == other.message;
+}
 
 /// Create/update a provider (`save_provider`). Keys go through `set_api_key`.
-class ProviderInputDto  {
-                final String id;
-final ProviderKindDto kind;
-final String? baseUrl;
-final bool enabled;
-final List<String> models;
+class ProviderInputDto {
+  final String id;
+  final ProviderKindDto kind;
+  final String? baseUrl;
+  final bool enabled;
+  final List<String> models;
 
-                const ProviderInputDto({required this.id ,required this.kind ,this.baseUrl ,required this.enabled ,required this.models ,});
+  const ProviderInputDto({
+    required this.id,
+    required this.kind,
+    this.baseUrl,
+    required this.enabled,
+    required this.models,
+  });
 
-                
-                
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      kind.hashCode ^
+      baseUrl.hashCode ^
+      enabled.hashCode ^
+      models.hashCode;
 
-                
-        @override
-        int get hashCode => id.hashCode^kind.hashCode^baseUrl.hashCode^enabled.hashCode^models.hashCode;
-        
-
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is ProviderInputDto &&
-                runtimeType == other.runtimeType
-                && id == other.id&& kind == other.kind&& baseUrl == other.baseUrl&& enabled == other.enabled&& models == other.models;
-        
-            }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProviderInputDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          kind == other.kind &&
+          baseUrl == other.baseUrl &&
+          enabled == other.enabled &&
+          models == other.models;
+}
 
 enum ProviderKindDto {
-                    deepseek,
-/// Any OpenAI-compatible endpoint (needs `base_url`).
-openaiCompat,
-anthropic,
-gemini,
-ollama,
-                    ;
-                    
-                }
+  deepseek,
 
-enum RoleDto {
-                    system,
-user,
-assistant,
-tool,
-                    ;
-                    
-                }
+  /// Any OpenAI-compatible endpoint (needs `base_url`).
+  openaiCompat,
+  anthropic,
+  gemini,
+  ollama,
+}
 
-class SessionDetailDto  {
-                final SessionInfoDto session;
-final List<MessageDto> messages;
-/// Approvals parked right now, for UIs attaching late.
-final List<PendingApprovalDto> pendingApprovals;
+enum RoleDto { system, user, assistant, tool }
 
-                const SessionDetailDto({required this.session ,required this.messages ,required this.pendingApprovals ,});
+class SessionDetailDto {
+  final SessionInfoDto session;
+  final List<MessageDto> messages;
 
-                
-                
+  /// Approvals parked right now, for UIs attaching late.
+  final List<PendingApprovalDto> pendingApprovals;
 
-                
-        @override
-        int get hashCode => session.hashCode^messages.hashCode^pendingApprovals.hashCode;
-        
+  const SessionDetailDto({
+    required this.session,
+    required this.messages,
+    required this.pendingApprovals,
+  });
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is SessionDetailDto &&
-                runtimeType == other.runtimeType
-                && session == other.session&& messages == other.messages&& pendingApprovals == other.pendingApprovals;
-        
-            }
+  @override
+  int get hashCode =>
+      session.hashCode ^ messages.hashCode ^ pendingApprovals.hashCode;
 
-@freezed
-                sealed class SessionEventDto with _$SessionEventDto  {
-                    const SessionEventDto._();
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SessionDetailDto &&
+          runtimeType == other.runtimeType &&
+          session == other.session &&
+          messages == other.messages &&
+          pendingApprovals == other.pendingApprovals;
+}
 
-                     const factory SessionEventDto.turnStarted({   required String turnId , }) = SessionEventDto_TurnStarted;
- const factory SessionEventDto.userMessage({   required String content , }) = SessionEventDto_UserMessage;
- const factory SessionEventDto.textDelta({   required String text , }) = SessionEventDto_TextDelta;
- const factory SessionEventDto.reasoningDelta({   required String text , }) = SessionEventDto_ReasoningDelta;
- /// Model began a tool call. `index` keys the following `ToolCallArgs`.
-const factory SessionEventDto.toolCallStart({   required int index ,  required String callId ,  required String name , }) = SessionEventDto_ToolCallStart;
- /// Raw JSON fragment of the call's arguments, in order.
-const factory SessionEventDto.toolCallArgs({   required int index ,  required String delta , }) = SessionEventDto_ToolCallArgs;
- /// Finished assistant message (replaces the accumulated deltas).
-const factory SessionEventDto.assistantMessage({   required String content ,  String? reasoning , }) = SessionEventDto_AssistantMessage;
- /// Call with parsed arguments, about to run (or wait for approval).
-const factory SessionEventDto.toolCall({   required String callId ,  required String name ,  required String argumentsJson , }) = SessionEventDto_ToolCall;
- const factory SessionEventDto.toolResult({   required String callId ,  required String content ,  required bool isError , }) = SessionEventDto_ToolResult;
- const factory SessionEventDto.approvalRequest({   required String approvalId ,  required String callId ,  required String tool ,  String? detail , }) = SessionEventDto_ApprovalRequest;
- const factory SessionEventDto.approvalResolved({   required String approvalId ,  required bool approved ,  String? reason , }) = SessionEventDto_ApprovalResolved;
- /// Token usage of one finished model request.
-const factory SessionEventDto.usage({   required PlatformInt64 inputTokens ,  required PlatformInt64 outputTokens ,  required PlatformInt64 cacheReadTokens ,  required PlatformInt64 cacheWriteTokens ,  required PlatformInt64 reasoningTokens , }) = SessionEventDto_Usage;
- const factory SessionEventDto.turnEnded({   required String turnId ,  required TurnEndReasonDto reason , }) = SessionEventDto_TurnEnded;
- const factory SessionEventDto.titleChanged({   required String title , }) = SessionEventDto_TitleChanged;
- /// `fatal == false`: a request attempt failed and is being retried.
-const factory SessionEventDto.error({   required String message ,  required bool fatal , }) = SessionEventDto_Error;
+/// Live session feed item. A flat struct (not a data-carrying enum) so the Dart side needs no
+/// `freezed`: switch on `kind`, read the fields its doc lists; the rest are empty.
+///
+/// Subscribe (`session_events`) before `submit_turn`: the feed carries only what happens after
+/// subscribing; use `get_session` for history.
+///
+/// Within a step, `TextDelta` / `ReasoningDelta` / `ToolCallStart` / `ToolCallArgs` stream live,
+/// then the durable events (`AssistantMessage`, `ToolCall`, `ApprovalRequest`, `ToolResult`,
+/// `Usage`, ...) follow a moment later. Durable events are the source of truth; deltas are for
+/// live display.
+class SessionEventDto {
+  final SessionEventKind kind;
+  final String? turnId;
+  final String? text;
+  final String? reasoning;
+  final int? index;
+  final String? callId;
+  final String? name;
+  final String? argumentsJson;
+  final String? approvalId;
+  final String? tool;
+  final String? detail;
+  final String? reason;
+  final bool isError;
+  final bool approved;
+  final bool fatal;
+  final UsageDto? usage;
+  final TurnEndReasonDto? endReason;
 
-                    
+  const SessionEventDto({
+    required this.kind,
+    this.turnId,
+    this.text,
+    this.reasoning,
+    this.index,
+    this.callId,
+    this.name,
+    this.argumentsJson,
+    this.approvalId,
+    this.tool,
+    this.detail,
+    this.reason,
+    required this.isError,
+    required this.approved,
+    required this.fatal,
+    this.usage,
+    this.endReason,
+  });
 
-                    
-                }
+  @override
+  int get hashCode =>
+      kind.hashCode ^
+      turnId.hashCode ^
+      text.hashCode ^
+      reasoning.hashCode ^
+      index.hashCode ^
+      callId.hashCode ^
+      name.hashCode ^
+      argumentsJson.hashCode ^
+      approvalId.hashCode ^
+      tool.hashCode ^
+      detail.hashCode ^
+      reason.hashCode ^
+      isError.hashCode ^
+      approved.hashCode ^
+      fatal.hashCode ^
+      usage.hashCode ^
+      endReason.hashCode;
 
-class SessionInfoDto  {
-                final String id;
-final String? title;
-final String? model;
-final String? cwd;
-final PlatformInt64 createdMs;
-final PlatformInt64 updatedMs;
-final PlatformInt64 eventCount;
-final PlatformInt64 turnCount;
-/// A turn is executing right now.
-final bool running;
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SessionEventDto &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          turnId == other.turnId &&
+          text == other.text &&
+          reasoning == other.reasoning &&
+          index == other.index &&
+          callId == other.callId &&
+          name == other.name &&
+          argumentsJson == other.argumentsJson &&
+          approvalId == other.approvalId &&
+          tool == other.tool &&
+          detail == other.detail &&
+          reason == other.reason &&
+          isError == other.isError &&
+          approved == other.approved &&
+          fatal == other.fatal &&
+          usage == other.usage &&
+          endReason == other.endReason;
+}
 
-                const SessionInfoDto({required this.id ,this.title ,this.model ,this.cwd ,required this.createdMs ,required this.updatedMs ,required this.eventCount ,required this.turnCount ,required this.running ,});
+enum SessionEventKind {
+  /// `turn_id`.
+  turnStarted,
 
-                
-                
+  /// `text`.
+  userMessage,
 
-                
-        @override
-        int get hashCode => id.hashCode^title.hashCode^model.hashCode^cwd.hashCode^createdMs.hashCode^updatedMs.hashCode^eventCount.hashCode^turnCount.hashCode^running.hashCode;
-        
+  /// `text`.
+  textDelta,
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is SessionInfoDto &&
-                runtimeType == other.runtimeType
-                && id == other.id&& title == other.title&& model == other.model&& cwd == other.cwd&& createdMs == other.createdMs&& updatedMs == other.updatedMs&& eventCount == other.eventCount&& turnCount == other.turnCount&& running == other.running;
-        
-            }
+  /// `text`.
+  reasoningDelta,
 
-class SettingsDto  {
-                final List<ProviderDto> providers;
-/// `provider/model` used for new sessions.
-final String? defaultModel;
-final ModeDto mode;
-/// Effective workspace root handed to tools (default: `<data_dir>/workspace`).
-final String workspaceRoot;
-final CoreProfile profile;
-final String dataDir;
+  /// Model began a tool call: `index`, `call_id`, `name`. `index` keys the `ToolCallArgs`.
+  toolCallStart,
 
-                const SettingsDto({required this.providers ,this.defaultModel ,required this.mode ,required this.workspaceRoot ,required this.profile ,required this.dataDir ,});
+  /// `index`, `text` = raw JSON fragment of the arguments, in order.
+  toolCallArgs,
 
-                
-                
+  /// Finished assistant message, replaces the accumulated deltas: `text`, `reasoning`.
+  assistantMessage,
 
-                
-        @override
-        int get hashCode => providers.hashCode^defaultModel.hashCode^mode.hashCode^workspaceRoot.hashCode^profile.hashCode^dataDir.hashCode;
-        
+  /// Call with parsed arguments, about to run or wait for approval: `call_id`, `name`,
+  /// `arguments_json`.
+  toolCall,
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is SettingsDto &&
-                runtimeType == other.runtimeType
-                && providers == other.providers&& defaultModel == other.defaultModel&& mode == other.mode&& workspaceRoot == other.workspaceRoot&& profile == other.profile&& dataDir == other.dataDir;
-        
-            }
+  /// `call_id`, `text` = output, `is_error`.
+  toolResult,
 
-class ToolCallDto  {
-                final String callId;
-final String name;
-/// Arguments as JSON text.
-final String argumentsJson;
+  /// `approval_id`, `call_id`, `tool`, `detail`.
+  approvalRequest,
 
-                const ToolCallDto({required this.callId ,required this.name ,required this.argumentsJson ,});
+  /// `approval_id`, `approved`, `reason`.
+  approvalResolved,
 
-                
-                
+  /// Token usage of one finished model request: `usage`.
+  usage,
 
-                
-        @override
-        int get hashCode => callId.hashCode^name.hashCode^argumentsJson.hashCode;
-        
+  /// `turn_id`, `end_reason`.
+  turnEnded,
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is ToolCallDto &&
-                runtimeType == other.runtimeType
-                && callId == other.callId&& name == other.name&& argumentsJson == other.argumentsJson;
-        
-            }
+  /// `text`.
+  titleChanged,
 
-class TurnAcceptedDto  {
-                final String sessionId;
-/// Another turn was running; the prompt waits behind it.
-final bool queued;
+  /// `text` = message, `fatal`. Non-fatal: a request attempt failed and is being retried.
+  error,
+}
 
-                const TurnAcceptedDto({required this.sessionId ,required this.queued ,});
+class SessionInfoDto {
+  final String id;
+  final String? title;
+  final String? model;
+  final String? cwd;
+  final PlatformInt64 createdMs;
+  final PlatformInt64 updatedMs;
+  final PlatformInt64 eventCount;
+  final PlatformInt64 turnCount;
 
-                
-                
+  /// A turn is executing right now.
+  final bool running;
 
-                
-        @override
-        int get hashCode => sessionId.hashCode^queued.hashCode;
-        
+  const SessionInfoDto({
+    required this.id,
+    this.title,
+    this.model,
+    this.cwd,
+    required this.createdMs,
+    required this.updatedMs,
+    required this.eventCount,
+    required this.turnCount,
+    required this.running,
+  });
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is TurnAcceptedDto &&
-                runtimeType == other.runtimeType
-                && sessionId == other.sessionId&& queued == other.queued;
-        
-            }
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      title.hashCode ^
+      model.hashCode ^
+      cwd.hashCode ^
+      createdMs.hashCode ^
+      updatedMs.hashCode ^
+      eventCount.hashCode ^
+      turnCount.hashCode ^
+      running.hashCode;
 
-enum TurnEndReasonDto {
-                    completed,
-cancelled,
-failed,
-maxSteps,
-                    ;
-                    
-                }
-            
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SessionInfoDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          model == other.model &&
+          cwd == other.cwd &&
+          createdMs == other.createdMs &&
+          updatedMs == other.updatedMs &&
+          eventCount == other.eventCount &&
+          turnCount == other.turnCount &&
+          running == other.running;
+}
+
+class SettingsDto {
+  final List<ProviderDto> providers;
+
+  /// `provider/model` used for new sessions.
+  final String? defaultModel;
+  final ModeDto mode;
+
+  /// Effective workspace root handed to tools (default: `<data_dir>/workspace`).
+  final String workspaceRoot;
+  final CoreProfile profile;
+  final String dataDir;
+
+  const SettingsDto({
+    required this.providers,
+    this.defaultModel,
+    required this.mode,
+    required this.workspaceRoot,
+    required this.profile,
+    required this.dataDir,
+  });
+
+  @override
+  int get hashCode =>
+      providers.hashCode ^
+      defaultModel.hashCode ^
+      mode.hashCode ^
+      workspaceRoot.hashCode ^
+      profile.hashCode ^
+      dataDir.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SettingsDto &&
+          runtimeType == other.runtimeType &&
+          providers == other.providers &&
+          defaultModel == other.defaultModel &&
+          mode == other.mode &&
+          workspaceRoot == other.workspaceRoot &&
+          profile == other.profile &&
+          dataDir == other.dataDir;
+}
+
+class ToolCallDto {
+  final String callId;
+  final String name;
+
+  /// Arguments as JSON text.
+  final String argumentsJson;
+
+  const ToolCallDto({
+    required this.callId,
+    required this.name,
+    required this.argumentsJson,
+  });
+
+  @override
+  int get hashCode => callId.hashCode ^ name.hashCode ^ argumentsJson.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ToolCallDto &&
+          runtimeType == other.runtimeType &&
+          callId == other.callId &&
+          name == other.name &&
+          argumentsJson == other.argumentsJson;
+}
+
+class TurnAcceptedDto {
+  final String sessionId;
+
+  /// Another turn was running; the prompt waits behind it.
+  final bool queued;
+
+  const TurnAcceptedDto({required this.sessionId, required this.queued});
+
+  @override
+  int get hashCode => sessionId.hashCode ^ queued.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TurnAcceptedDto &&
+          runtimeType == other.runtimeType &&
+          sessionId == other.sessionId &&
+          queued == other.queued;
+}
+
+enum TurnEndReasonDto { completed, cancelled, failed, maxSteps }
+
+class UsageDto {
+  final PlatformInt64 inputTokens;
+  final PlatformInt64 outputTokens;
+  final PlatformInt64 cacheReadTokens;
+  final PlatformInt64 cacheWriteTokens;
+  final PlatformInt64 reasoningTokens;
+
+  const UsageDto({
+    required this.inputTokens,
+    required this.outputTokens,
+    required this.cacheReadTokens,
+    required this.cacheWriteTokens,
+    required this.reasoningTokens,
+  });
+
+  @override
+  int get hashCode =>
+      inputTokens.hashCode ^
+      outputTokens.hashCode ^
+      cacheReadTokens.hashCode ^
+      cacheWriteTokens.hashCode ^
+      reasoningTokens.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UsageDto &&
+          runtimeType == other.runtimeType &&
+          inputTokens == other.inputTokens &&
+          outputTokens == other.outputTokens &&
+          cacheReadTokens == other.cacheReadTokens &&
+          cacheWriteTokens == other.cacheWriteTokens &&
+          reasoningTokens == other.reasoningTokens;
+}

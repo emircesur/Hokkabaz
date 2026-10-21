@@ -23,7 +23,7 @@ mod engine;
 mod template;
 
 #[cfg(feature = "expr")]
-pub use engine::{QuickJsEvaluator, default_evaluator};
+pub use engine::{QuickJsEvaluator, default_evaluator, release_default};
 pub use template::{Part, parse_template};
 
 #[derive(Debug, thiserror::Error)]
