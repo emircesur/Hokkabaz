@@ -366,7 +366,11 @@ ChatState reduceEvent(ChatState s, SessionEventDto e) {
           AssistantItem(text: text, reasoning: reasoning, streaming: false),
         );
       }
-      return s.copyWith(items: items, streamingIndex: null, toolIndex: const {});
+      return s.copyWith(
+        items: items,
+        streamingIndex: null,
+        toolIndex: const {},
+      );
 
     case SessionEventKind.toolCall:
       final id = e.callId ?? '';

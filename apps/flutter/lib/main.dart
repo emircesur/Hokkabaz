@@ -8,9 +8,13 @@ import 'theme/theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final rustError = await initRust();
+  final coreError = await initCore(rustError);
   runApp(
     ProviderScope(
-      overrides: [rustInitErrorProvider.overrideWithValue(rustError)],
+      overrides: [
+        rustInitErrorProvider.overrideWithValue(rustError),
+        coreInitErrorProvider.overrideWithValue(coreError),
+      ],
       child: const HokkabazApp(),
     ),
   );
