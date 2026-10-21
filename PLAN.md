@@ -70,7 +70,7 @@ Rules:
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
-| P2.1 | B | models.dev catalog fetch + cache + capability flags; custom endpoints | P1.4, P1.12 | M | fixture | `hk models ls` shows catalog + local | todo |
+| P2.1 | B | models.dev catalog fetch + cache + capability flags; custom endpoints | P1.4, P1.12 | M | fixture | `hk models ls` shows catalog + local | done — CLI `hk models ls` pending (lane C) |
 | P2.2 | B | Ollama native adapter (list, pull progress, chat, tools) | P1.4 | M | fixture | local qwen/llama chat with tools | todo |
 | P2.3 | B | Anthropic adapter (thinking, caching) | P1.4 | M | fixture | fixtures pass | todo |
 | P2.4 | B | Gemini adapter | P1.4 | M | fixture | fixtures pass | todo |

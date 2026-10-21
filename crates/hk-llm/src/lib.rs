@@ -5,6 +5,7 @@
 //! the types in this crate.
 // port: dsh packages/core/llm (stream vocabulary), opencode packages/opencode/src/provider
 
+pub mod catalog;
 pub mod deepseek;
 mod error;
 mod event;
