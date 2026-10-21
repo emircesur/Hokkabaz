@@ -1,0 +1,17 @@
+[package]
+name = "hk-cli"
+description = "Hokkabaz: hk-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "hk"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]

@@ -1,0 +1,13 @@
+[package]
+name = "hk-acp"
+description = "Hokkabaz: hk-acp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]

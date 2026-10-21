@@ -1,0 +1,17 @@
+[package]
+name = "hk-daemon"
+description = "Hokkabaz: hk-daemon"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "hokkabazd"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
