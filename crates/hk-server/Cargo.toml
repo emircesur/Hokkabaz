@@ -10,4 +10,48 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+default = ["server"]
+# HTTP/WS surface. Off => empty crate, so nothing pulls axum on targets that never serve.
+server = [
+  "dep:axum",
+  "dep:async-trait",
+  "dep:futures",
+  "dep:hk-agent",
+  "dep:hk-core",
+  "dep:hk-llm",
+  "dep:hk-session",
+  "dep:hk-store",
+  "dep:hk-tools",
+  "dep:serde",
+  "dep:serde_json",
+  "dep:subtle",
+  "dep:thiserror",
+  "dep:tokio",
+  "dep:tracing",
+  "dep:getrandom",
+]
+
 [dependencies]
+async-trait = { version = "0.1", optional = true }
+axum = { version = "0.8", optional = true, default-features = false, features = ["http1", "json", "tokio", "ws", "query"] }
+futures = { version = "0.3", optional = true }
+getrandom = { version = "0.3", optional = true }
+hk-agent = { version = "0.0.0", path = "../hk-agent", optional = true }
+hk-core = { version = "0.0.0", path = "../hk-core", optional = true }
+hk-llm = { version = "0.0.0", path = "../hk-llm", optional = true }
+hk-session = { version = "0.0.0", path = "../hk-session", optional = true }
+hk-store = { version = "0.0.0", path = "../hk-store", optional = true }
+hk-tools = { version = "0.0.0", path = "../hk-tools", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+subtle = { version = "2", optional = true }
+thiserror = { version = "2", optional = true }
+tokio = { version = "1", features = ["rt", "sync", "net", "time", "macros"], optional = true }
+tracing = { version = "0.1", optional = true }
+
+[dev-dependencies]
+http-body-util = "0.1"
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+tokio = { version = "1", features = ["rt", "macros", "time"] }
