@@ -5,18 +5,18 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use futures::stream;
-use hk_core::{EventBus, Verdict};
+use hk_core::{Effect, EventBus, Verdict};
 use hk_llm::{
     CancellationToken, ChatRequest, EventStream, FinishReason, LlmError, ModelInfo, Provider, Role,
     StreamEvent, Usage,
 };
 use hk_session::{EventKind, NewSession, SessionStore, TurnEndReason, derive_messages};
 use hk_tools::{
-    OutputLimits, Tool, ToolCtx, ToolError, ToolOutput, ToolPipeline, ToolRegistry, ToolSpec,
+    OutputLimits, Risk, Tool, ToolCtx, ToolError, ToolOutput, ToolPipeline, ToolRegistry, ToolSpec,
 };
 use serde_json::{Value, json};
 
-use crate::{Agent, AgentConfig, AgentHandle, AgentPreStep, AgentRequest};
+use crate::{Agent, AgentConfig, AgentHandle, AgentPreStep, AgentRequest, ApprovalRequest, Mode};
 
 type Script = Vec<Result<StreamEvent, LlmError>>;
 type Hook = Box<dyn Fn(usize) + Send + Sync>;
@@ -136,7 +136,31 @@ impl Tool for Slow {
     }
 }
 
+/// Stand-in for write/edit/bash: `Risk::Ask`, records that its body ran.
+struct Gated {
+    name: &'static str,
+    ran: Arc<Mutex<Vec<String>>>,
+}
+#[async_trait]
+impl Tool for Gated {
+    fn spec(&self) -> ToolSpec {
+        ToolSpec {
+            name: self.name.into(),
+            description: "gated".into(),
+            parameters: json!({"type":"object"}),
+        }
+    }
+    fn risk(&self, _: &Value) -> Risk {
+        Risk::Ask
+    }
+    async fn execute(&self, _: ToolCtx, _: Value) -> Result<ToolOutput, ToolError> {
+        self.ran.lock().unwrap().push(self.name.to_owned());
+        Ok(ToolOutput::ok(format!("{} ran", self.name)))
+    }
+}
+
 struct Env {
+    ran: Arc<Mutex<Vec<String>>>,
     agent: Agent,
     fake: Arc<Fake>,
     bus: EventBus,
@@ -153,6 +177,16 @@ fn env_with(fake: Arc<Fake>, cfg: impl FnOnce(&mut AgentConfig)) -> Env {
     let reg = ToolRegistry::new();
     std::mem::forget(reg.register(Arc::new(Echo)).unwrap());
     std::mem::forget(reg.register(Arc::new(Slow)).unwrap());
+    let ran = Arc::new(Mutex::new(Vec::new()));
+    for name in ["write", "edit", "bash"] {
+        std::mem::forget(
+            reg.register(Arc::new(Gated {
+                name,
+                ran: ran.clone(),
+            }))
+            .unwrap(),
+        );
+    }
     let bus = EventBus::new();
     let pipe = ToolPipeline::new(
         reg,
@@ -163,6 +197,7 @@ fn env_with(fake: Arc<Fake>, cfg: impl FnOnce(&mut AgentConfig)) -> Env {
     cfg(&mut c);
     let agent = Agent::new(fake.clone(), pipe, bus.clone(), c, writer).unwrap();
     Env {
+        ran,
         agent,
         fake,
         bus,
@@ -277,7 +312,7 @@ async fn tool_loop_requests_replay_from_log() {
     let last = reqs[1].messages.last().unwrap();
     assert_eq!(last.role, Role::Tool);
     assert_eq!(last.tool_call_id.as_deref(), Some("c1"));
-    assert_eq!(reqs[1].tools[0].name, "echo");
+    assert!(reqs[1].tools.iter().any(|t| t.name == "echo"));
 }
 
 #[tokio::test]
@@ -589,4 +624,211 @@ async fn system_prompt_logged_once() {
         names(&e).iter().filter(|n| *n == "system/message").count(),
         1
     );
+}
+
+/// Answers every approval request as it is announced (after it was logged).
+fn answer(e: &Env, approved: bool, reason: Option<&str>) -> Effect {
+    let h = e.agent.handle();
+    let reason = reason.map(str::to_owned);
+    e.bus.on::<ApprovalRequest, _, _>(move |req| {
+        let (h, reason) = (h.clone(), reason.clone());
+        async move {
+            assert!(h.respond(&req.approval_id, approved, reason));
+        }
+    })
+}
+
+fn approvals(e: &Env) -> Vec<(String, Option<bool>)> {
+    let log = e.store.read(&e.id).unwrap();
+    log.iter()
+        .filter_map(|ev| match &ev.kind {
+            EventKind::ApprovalRequest { tool, .. } => Some((tool.clone(), None)),
+            EventKind::ApprovalResponse { approved, .. } => Some((String::new(), Some(*approved))),
+            _ => None,
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn plan_mode_blocks_write_edit_and_asks_for_bash() {
+    let mut e = env_with(
+        Fake::new(vec![
+            call("c1", "write", "{}"),
+            call("c2", "edit", "{}"),
+            call("c3", "bash", r#"{"command":"ls"}"#),
+            text("done"),
+        ]),
+        |c| c.mode = Mode::Plan,
+    );
+    let _a = answer(&e, true, None);
+    e.agent.handle().submit("plan it");
+    let s = e.agent.run_until_idle().await.unwrap();
+    assert_eq!(s[0].reason, TurnEndReason::Completed);
+
+    let r = results(&e);
+    for (id, name) in [("c1", "write"), ("c2", "edit")] {
+        let (_, content, err) = r.iter().find(|x| x.0 == id).unwrap();
+        assert!(
+            *err && content.contains("plan mode is read-only"),
+            "{name}: {content}"
+        );
+    }
+    assert_eq!(r.iter().find(|x| x.0 == "c3").unwrap().1, "bash ran");
+    assert_eq!(*e.ran.lock().unwrap(), ["bash"]);
+    // only bash asked; the blocked writers never reached a human
+    assert_eq!(
+        approvals(&e),
+        [("bash".to_owned(), None), (String::new(), Some(true))]
+    );
+    // writers are not even offered to the model
+    let offered: Vec<_> = e.fake.requests()[0]
+        .tools
+        .iter()
+        .map(|t| t.name.clone())
+        .collect();
+    assert!(offered.contains(&"bash".to_owned()));
+    assert!(!offered.contains(&"write".to_owned()) && !offered.contains(&"edit".to_owned()));
+    assert_paired(&e);
+}
+
+#[tokio::test]
+async fn build_mode_asks_only_for_ask_risk_tools() {
+    let mut e = env(vec![
+        call("c1", "echo", r#"{"text":"a"}"#),
+        call("c2", "write", "{}"),
+        text("done"),
+    ]);
+    let _a = answer(&e, true, None);
+    e.agent.handle().submit("go");
+    e.agent.run_until_idle().await.unwrap();
+    assert_eq!(
+        approvals(&e),
+        [("write".to_owned(), None), (String::new(), Some(true))]
+    );
+    assert_eq!(*e.ran.lock().unwrap(), ["write"]);
+    let offered: Vec<_> = e.fake.requests()[0]
+        .tools
+        .iter()
+        .map(|t| t.name.clone())
+        .collect();
+    assert!(offered.contains(&"write".to_owned()));
+}
+
+#[tokio::test]
+async fn approval_round_trip_is_logged_before_the_result() {
+    let mut e = env(vec![
+        call("c1", "bash", r#"{"command":"echo hi"}"#),
+        text("ok"),
+    ]);
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let h = e.agent.handle();
+    let s2 = seen.clone();
+    let _l = e.bus.on::<ApprovalRequest, _, _>(move |req| {
+        let (h, s2) = (h.clone(), s2.clone());
+        async move {
+            assert_eq!(
+                h.pending_approvals(),
+                std::slice::from_ref(&req.approval_id)
+            );
+            s2.lock()
+                .unwrap()
+                .push((req.tool.clone(), req.detail.clone(), req.risk));
+            h.respond(&req.approval_id, true, Some("fine".into()));
+        }
+    });
+    e.agent.handle().submit("go");
+    e.agent.run_until_idle().await.unwrap();
+    assert_eq!(
+        *seen.lock().unwrap(),
+        [("bash".to_owned(), Some("echo hi".to_owned()), Risk::Ask)]
+    );
+    assert!(e.agent.handle().pending_approvals().is_empty());
+
+    let n = names(&e);
+    let pos = |k: &str| n.iter().position(|x| x == k).unwrap();
+    assert!(pos("tool/call") < pos("approval/request"));
+    assert!(pos("approval/request") < pos("approval/response"));
+    assert!(pos("approval/response") < pos("tool/result"));
+    let log = e.store.read(&e.id).unwrap();
+    let (rid, pid) = (
+        log.iter().find_map(|x| match &x.kind {
+            EventKind::ApprovalRequest {
+                approval_id,
+                call_id,
+                ..
+            } => {
+                assert_eq!(call_id, "c1");
+                Some(approval_id.clone())
+            }
+            _ => None,
+        }),
+        log.iter().find_map(|x| match &x.kind {
+            EventKind::ApprovalResponse {
+                approval_id,
+                approved,
+                reason,
+            } => {
+                assert!(*approved && reason.as_deref() == Some("fine"));
+                Some(approval_id.clone())
+            }
+            _ => None,
+        }),
+    );
+    assert_eq!(rid, pid);
+    assert_eq!(results(&e)[0].1, "bash ran");
+    // approvals never leak into the model history
+    assert!(
+        !derive_messages(&log)
+            .iter()
+            .any(|m| format!("{m:?}").contains("approval"))
+    );
+}
+
+#[tokio::test]
+async fn denied_call_returns_error_result_and_never_runs() {
+    let mut e = env(vec![call("c1", "write", "{}"), text("ack")]);
+    let _a = answer(&e, false, Some("not now"));
+    e.agent.handle().submit("go");
+    let s = e.agent.run_until_idle().await.unwrap();
+    assert_eq!(s[0].reason, TurnEndReason::Completed);
+    assert!(e.ran.lock().unwrap().is_empty());
+    let r = results(&e);
+    assert!(
+        r[0].2 && r[0].1.contains("denied by user: not now"),
+        "{:?}",
+        r[0]
+    );
+    assert_eq!(
+        approvals(&e),
+        [("write".to_owned(), None), (String::new(), Some(false))]
+    );
+    // the model is told, and the loop continues to a final answer
+    assert_eq!(e.fake.requests().len(), 2);
+    assert_paired(&e);
+}
+
+#[tokio::test]
+async fn cancel_while_parked_closes_the_approval() {
+    let mut e = env(vec![call("c1", "bash", "{}")]);
+    let h = e.agent.handle();
+    let _l = e.bus.on::<ApprovalRequest, _, _>(move |_| {
+        let h = h.clone();
+        async move { h.cancel() }
+    });
+    e.agent.handle().submit("go");
+    let s = e.agent.run_until_idle().await.unwrap();
+    assert_eq!(s[0].reason, TurnEndReason::Cancelled);
+    assert!(e.ran.lock().unwrap().is_empty());
+    assert_eq!(
+        approvals(&e),
+        [("bash".to_owned(), None), (String::new(), Some(false))]
+    );
+    assert!(e.agent.handle().pending_approvals().is_empty());
+    assert_paired(&e);
+}
+
+#[tokio::test]
+async fn respond_to_unknown_id_is_false() {
+    let e = env(vec![]);
+    assert!(!e.agent.handle().respond("appr_nope", true, None));
 }

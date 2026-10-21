@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use hk_llm::{ReasoningEffort, ToolChoice};
 
+use crate::mode::Mode;
+
 /// Static per-agent settings. Mode/model switching (P1.10) swaps these between turns.
 #[derive(Debug, Clone)]
 pub struct AgentConfig {
@@ -21,6 +23,8 @@ pub struct AgentConfig {
     pub reasoning_effort: Option<ReasoningEffort>,
     /// Working directory handed to tools.
     pub cwd: Option<PathBuf>,
+    /// Tool policy: which tools are offered and which calls need approval.
+    pub mode: Mode,
 }
 
 impl AgentConfig {
@@ -35,6 +39,7 @@ impl AgentConfig {
             max_output_tokens: None,
             reasoning_effort: None,
             cwd: None,
+            mode: Mode::Build,
         }
     }
 }

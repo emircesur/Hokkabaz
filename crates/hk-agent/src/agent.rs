@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use hk_core::EventBus;
+use hk_core::{Effect, EventBus};
 use hk_llm::{
     CancellationToken, ChatRequest, FinishReason, LlmError, Provider, StreamEvent, ToolCall,
     ToolSpec, Usage,
@@ -11,11 +11,13 @@ use hk_session::{
     EventKind, RequestHeader, SessionEvent, SessionWriter, TurnEndReason, derive_messages,
     new_session_id, read_log,
 };
-use hk_tools::{ToolCtx, ToolPipeline};
+use hk_tools::{ToolCtx, ToolPipeline, ToolPreExecute};
 use serde_json::{Value, json};
+use tokio::sync::mpsc::UnboundedReceiver;
 
+use crate::approval::{Gate, GateEvent};
 use crate::config::AgentConfig;
-use crate::events::{AgentPreStep, AgentRequest, AgentStream};
+use crate::events::{AgentPreStep, AgentRequest, AgentStream, ApprovalRequest, ApprovalResponse};
 use crate::inbox::AgentHandle;
 
 const CANCELLED_RESULT: &str = "tool call cancelled before it produced a result";
@@ -29,6 +31,9 @@ pub enum AgentError {
     /// Session log read/write failed.
     #[error("session log: {0}")]
     Session(#[from] hk_session::SessionError),
+    /// Mode policy interceptor could not be installed.
+    #[error("policy: {0}")]
+    Policy(#[from] hk_core::CoreError),
 }
 
 type Result<T> = std::result::Result<T, AgentError>;
@@ -77,7 +82,16 @@ pub struct Agent {
     /// In-memory mirror of the log; `derive_messages` runs over this.
     events: Vec<SessionEvent>,
     handle: AgentHandle,
+    gate: Arc<Gate>,
+    gate_rx: UnboundedReceiver<GateEvent>,
+    /// Approvals logged as requested but not yet as answered.
+    open_approvals: Vec<String>,
+    /// Keeps the mode-policy interceptor installed for the agent's lifetime.
+    _policy: Effect,
 }
+
+/// Runs after every other `tools/pre-execute` interceptor so approval is for the final args.
+const POLICY_PRIORITY: i32 = 1000;
 
 impl std::fmt::Debug for Agent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -98,6 +112,12 @@ impl Agent {
         writer: SessionWriter,
     ) -> Result<Self> {
         let events = read_log(writer.path())?;
+        let (gate, gate_rx) = Gate::new(cfg.mode);
+        let g = gate.clone();
+        let policy = bus.intercept::<ToolPreExecute, _, _>(POLICY_PRIORITY, move |e| {
+            let g = g.clone();
+            async move { g.check(e).await }
+        })?;
         Ok(Self {
             cfg,
             provider,
@@ -105,7 +125,11 @@ impl Agent {
             bus,
             writer,
             events,
-            handle: AgentHandle::new(),
+            handle: AgentHandle::new(gate.clone()),
+            gate,
+            gate_rx,
+            open_approvals: Vec::new(),
+            _policy: policy,
         })
     }
 
@@ -116,6 +140,7 @@ impl Agent {
 
     /// Replace settings between turns (mode or model switch).
     pub fn set_config(&mut self, cfg: AgentConfig) {
+        self.gate.set_mode(cfg.mode);
         self.cfg = cfg;
     }
 
@@ -316,6 +341,7 @@ impl Agent {
             .registry()
             .specs()
             .into_iter()
+            .filter(|s| self.gate.mode().exposes(&s.name))
             .map(to_llm_spec)
             .collect();
         request.tool_choice = self.cfg.tool_choice.clone();
@@ -457,6 +483,72 @@ impl Agent {
         Ok((out, Some(Stop::Failed(msg))))
     }
 
+    /// Log an approval event and announce it on the bus (listener-only).
+    async fn log_gate(&mut self, ev: GateEvent) -> Result<()> {
+        match ev {
+            GateEvent::Request {
+                approval_id,
+                call_id,
+                tool,
+                risk,
+                detail,
+            } => {
+                self.open_approvals.push(approval_id.clone());
+                self.log(EventKind::ApprovalRequest {
+                    approval_id: approval_id.clone(),
+                    call_id: call_id.clone(),
+                    tool: tool.clone(),
+                    detail: detail.clone(),
+                })?;
+                let _ = self
+                    .bus
+                    .emit(ApprovalRequest {
+                        approval_id,
+                        call_id,
+                        tool,
+                        risk,
+                        detail,
+                    })
+                    .await;
+            }
+            GateEvent::Response {
+                approval_id,
+                approved,
+                reason,
+            } => {
+                self.open_approvals.retain(|a| *a != approval_id);
+                self.log(EventKind::ApprovalResponse {
+                    approval_id: approval_id.clone(),
+                    approved,
+                    reason: reason.clone(),
+                })?;
+                let _ = self
+                    .bus
+                    .emit(ApprovalResponse {
+                        approval_id,
+                        approved,
+                        reason,
+                    })
+                    .await;
+            }
+        }
+        Ok(())
+    }
+
+    /// A cancelled turn leaves parked approvals unanswered; close them as denied so the log
+    /// never shows a request that is still "pending".
+    async fn cancel_open_approvals(&mut self) -> Result<()> {
+        for approval_id in std::mem::take(&mut self.open_approvals) {
+            self.log_gate(GateEvent::Response {
+                approval_id,
+                approved: false,
+                reason: Some("turn cancelled".to_owned()),
+            })
+            .await?;
+        }
+        Ok(())
+    }
+
     /// Run calls in order through the pipeline. Every call gets exactly one result, also
     /// after a cancel (the remaining ones are answered, not skipped).
     async fn tool_phase(
@@ -476,11 +568,35 @@ impl Agent {
                 session_id: Some(self.writer.session_id().to_owned()),
                 cwd: self.cfg.cwd.clone(),
             };
-            let res = tokio::select! {
-                biased;
-                () = cancel.cancelled() => None,
-                r = tools.run(ctx, &call.name, call.arguments.clone()) => Some(r),
+            let res = {
+                let run = tools.run(ctx, &call.name, call.arguments.clone());
+                tokio::pin!(run);
+                loop {
+                    // Approval traffic is logged here, while the call is parked.
+                    let step = tokio::select! {
+                        biased;
+                        () = cancel.cancelled() => None,
+                        ev = self.gate_rx.recv() => Some(Err(ev)),
+                        r = &mut run => Some(Ok(r)),
+                    };
+                    match step {
+                        None => break None,
+                        Some(Err(ev)) => {
+                            if let Some(ev) = ev {
+                                self.log_gate(ev).await?;
+                            }
+                        }
+                        Some(Ok(r)) => break Some(r),
+                    }
+                }
             };
+            // Responses queued just before the call woke must precede its result.
+            while let Ok(ev) = self.gate_rx.try_recv() {
+                self.log_gate(ev).await?;
+            }
+            if res.is_none() {
+                self.cancel_open_approvals().await?;
+            }
             match res {
                 Some(Ok(o)) => self.log_result(&call.id, o.content, o.is_error)?,
                 Some(Err(e)) => self.log_result(&call.id, e.to_output().content, true)?,

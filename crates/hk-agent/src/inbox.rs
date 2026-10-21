@@ -4,6 +4,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use hk_llm::CancellationToken;
 
+use crate::approval::Gate;
+
 #[derive(Debug, Default)]
 struct Queues {
     /// New work: becomes the user messages of the next turn.
@@ -17,6 +19,7 @@ struct Shared {
     queues: Mutex<Queues>,
     cancel: Mutex<CancellationToken>,
     running: AtomicBool,
+    gate: Arc<Gate>,
 }
 
 /// Cheap clonable control surface for an [`crate::Agent`], usable while it runs.
@@ -24,11 +27,12 @@ struct Shared {
 pub struct AgentHandle(Arc<Shared>);
 
 impl AgentHandle {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(gate: Arc<Gate>) -> Self {
         Self(Arc::new(Shared {
             queues: Mutex::default(),
             cancel: Mutex::new(CancellationToken::new()),
             running: AtomicBool::new(false),
+            gate,
         }))
     }
 
@@ -52,6 +56,17 @@ impl AgentHandle {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .cancel();
+    }
+
+    /// Answer a pending approval (`ApprovalRequest::approval_id`). Returns `false` when the id
+    /// is unknown or was already settled, e.g. the turn was cancelled meanwhile.
+    pub fn respond(&self, approval_id: &str, approved: bool, reason: Option<String>) -> bool {
+        self.0.gate.respond(approval_id, approved, reason)
+    }
+
+    /// Approval ids currently waiting for an answer (for UIs attaching late).
+    pub fn pending_approvals(&self) -> Vec<String> {
+        self.0.gate.pending_ids()
     }
 
     /// A turn is in progress.
