@@ -140,7 +140,7 @@ Integration order after core + AI nodes: implementing agent decides (D14), using
 |---|---|---|---|---|---|---|---|
 | P6.1 | F | `cargo-ndk` build for aarch64 + x86_64; cfg-gate desktop-only deps; mobile profile | P3.1 | M | none | `.so` builds in CI | done — CI untested (apk job); cargokit hardcodes --release so apk job mirrors mobile profile via CARGO_PROFILE_RELEASE_* env; see docs/android-build.md |
 | P6.2 | F | Android Keystore secrets bridge; app-private data dir; SAF file picks | P6.1, P1.12 | M | none | – | todo |
-| P6.3 | C | Mobile layouts: bottom nav, chat full-screen, inspector sheet, approvals via notifications | P3.2 | L | none | – | todo |
+| P6.3 | C | Mobile layouts: bottom nav, chat full-screen, inspector sheet, approvals via notifications | P3.2 | L | none | – | done — no OS notifications (flutter_local_notifications not in pub cache): interface + in-app banner/badge only; inbox may hold stale entries until session reopened |
 | P6.4 | F | Foreground service for long runs / optional local webhook server; battery-aware | P6.1, P4.6 | M | none | – | todo |
 | P6.5 | C | Remote-first UX: pair via QR camera scan, instance switcher | P4.8, P6.3 | S | none | phone controls daemon | todo |
 | P6.7 | B | On-device LLM (`local-llm`, llama-cpp-2): GGUF model manager (HF download, resume, checksum, fit check), desktop + Android aarch64, router offline fallback | P2.5, P6.1 | L | none | offline chat on phone | todo |

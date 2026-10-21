@@ -25,7 +25,13 @@ pub(crate) fn tool_name(raw: &str, fallback: &str) -> String {
     let mut n: String = src
         .trim()
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     n.truncate(64);
     if n.is_empty() { "tool".into() } else { n }
@@ -36,7 +42,9 @@ fn neutralize(v: &Value) -> Value {
     match v {
         Value::String(s) if s.starts_with('=') => Value::String(format!(" {s}")),
         Value::Array(a) => Value::Array(a.iter().map(neutralize).collect()),
-        Value::Object(m) => Value::Object(m.iter().map(|(k, x)| (k.clone(), neutralize(x))).collect()),
+        Value::Object(m) => {
+            Value::Object(m.iter().map(|(k, x)| (k.clone(), neutralize(x))).collect())
+        }
         other => other.clone(),
     }
 }
@@ -100,7 +108,11 @@ impl AgentTool for CodeTool {
     }
 
     async fn call(&self, args: Value) -> Result<String, FlowError> {
-        let query = if self.structured { args } else { Value::String(input_text(&args)) };
+        let query = if self.structured {
+            args
+        } else {
+            Value::String(input_text(&args))
+        };
         let ctx = self.ctx.with_extra_var("__toolInput", query);
         // brace/string aware template scanner keeps the function body in one expression
         let expr = format!(
@@ -245,7 +257,9 @@ impl AgentTool for WorkflowTool {
         Ok(match (jsons.next(), jsons.next()) {
             (None, _) => String::new(),
             (Some(one), None) => one.to_string(),
-            (Some(a), Some(b)) => Value::Array([a, b].into_iter().chain(jsons).collect()).to_string(),
+            (Some(a), Some(b)) => {
+                Value::Array([a, b].into_iter().chain(jsons).collect()).to_string()
+            }
         })
     }
 }
@@ -346,7 +360,11 @@ impl FlowNode for ToolWorkflowNode {
             Some(t) => {
                 let calls = from_ai::scan(t);
                 (
-                    if calls.is_empty() { single_input_schema("Input for the workflow") } else { from_ai::schema_of(&calls) },
+                    if calls.is_empty() {
+                        single_input_schema("Input for the workflow")
+                    } else {
+                        from_ai::schema_of(&calls)
+                    },
                     Some(from_ai::rewrite(t)),
                 )
             }
@@ -415,11 +433,20 @@ mod http_tool {
 
     impl HttpTool {
         /// `{name: value}` object of one section (`Query`/`Headers`/`Body`).
-        fn section(&self, section: &str, args: &Map<String, Value>) -> Result<Map<String, Value>, FlowError> {
+        fn section(
+            &self,
+            section: &str,
+            args: &Map<String, Value>,
+        ) -> Result<Map<String, Value>, FlowError> {
             let ctx = &self.ctx;
             let (switch, spec, json_key, params_key) = match section {
                 "query" => ("sendQuery", "specifyQuery", "jsonQuery", "parametersQuery"),
-                "headers" => ("sendHeaders", "specifyHeaders", "jsonHeaders", "parametersHeaders"),
+                "headers" => (
+                    "sendHeaders",
+                    "specifyHeaders",
+                    "jsonHeaders",
+                    "parametersHeaders",
+                ),
                 _ => ("sendBody", "specifyBody", "jsonBody", "parametersBody"),
             };
             let mut out = Map::new();
@@ -430,9 +457,14 @@ mod http_tool {
                 "json" => {
                     let tpl = param_str(ctx, json_key, 0, "")?;
                     let filled = fill(&tpl, args, &self.placeholders, false);
-                    if let Value::Object(m) = serde_json::from_str(&filled)
-                        .map_err(|e| node_err(ctx, format!("`{json_key}` is not valid JSON after filling placeholders: {e}")))?
-                    {
+                    if let Value::Object(m) = serde_json::from_str(&filled).map_err(|e| {
+                        node_err(
+                            ctx,
+                            format!(
+                                "`{json_key}` is not valid JSON after filling placeholders: {e}"
+                            ),
+                        )
+                    })? {
                         out = m;
                     }
                 }
@@ -443,8 +475,14 @@ mod http_tool {
                 }
                 _ => {
                     for row in raw_array(ctx, &format!("{params_key}.values")) {
-                        let Some(name) = row.get("name").and_then(Value::as_str) else { continue };
-                        match row.get("valueProvider").and_then(Value::as_str).unwrap_or("fieldValue") {
+                        let Some(name) = row.get("name").and_then(Value::as_str) else {
+                            continue;
+                        };
+                        match row
+                            .get("valueProvider")
+                            .and_then(Value::as_str)
+                            .unwrap_or("fieldValue")
+                        {
                             "fieldValue" => {
                                 let v = row.get("value").cloned().unwrap_or(Value::Null);
                                 out.insert(name.to_owned(), ctx.eval_param(&v, 0)?);
@@ -478,7 +516,11 @@ mod http_tool {
             let args = match neutralize(&args) {
                 Value::Object(m) => m,
                 // a model that sends a bare string fills the only placeholder, if any
-                other => match self.placeholders.first().or(self.model_fields.first().map(|f| &f.1)) {
+                other => match self
+                    .placeholders
+                    .first()
+                    .or(self.model_fields.first().map(|f| &f.1))
+                {
                     Some(k) => Map::from_iter([(k.clone(), other)]),
                     None => Map::new(),
                 },
@@ -525,7 +567,9 @@ mod http_tool {
             Ok(match (jsons.next(), jsons.next()) {
                 (None, _) => String::new(),
                 (Some(one), None) => one.to_string(),
-                (Some(a), Some(b)) => Value::Array([a, b].into_iter().chain(jsons).collect()).to_string(),
+                (Some(a), Some(b)) => {
+                    Value::Array([a, b].into_iter().chain(jsons).collect()).to_string()
+                }
             })
         }
     }
@@ -612,20 +656,30 @@ mod http_tool {
             }
             let defs = raw_array(ctx, "placeholderDefinitions.values");
             for name in &placeholders {
-                let def = defs.iter().find(|d| d.get("name").and_then(Value::as_str) == Some(name));
+                let def = defs
+                    .iter()
+                    .find(|d| d.get("name").and_then(Value::as_str) == Some(name));
                 let ty = match def.and_then(|d| d.get("type")).and_then(Value::as_str) {
                     Some(t @ ("number" | "boolean" | "string")) => t,
                     Some("json") => "object",
                     _ => "string",
                 };
-                let desc = def.and_then(|d| d.get("description")).and_then(Value::as_str).unwrap_or("");
+                let desc = def
+                    .and_then(|d| d.get("description"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
                 props.insert(name.clone(), json!({"type": ty, "description": desc}));
                 required.push(json!(name));
             }
             let mut model_fields = Vec::new();
             for (section, switch, spec, params_key) in [
                 ("query", "sendQuery", "specifyQuery", "parametersQuery"),
-                ("headers", "sendHeaders", "specifyHeaders", "parametersHeaders"),
+                (
+                    "headers",
+                    "sendHeaders",
+                    "specifyHeaders",
+                    "parametersHeaders",
+                ),
                 ("body", "sendBody", "specifyBody", "parametersBody"),
             ] {
                 if !param_bool(ctx, switch, i, false)? {
@@ -640,7 +694,9 @@ mod http_tool {
                         for row in raw_array(ctx, &format!("{params_key}.values")) {
                             let (Some(name), provider) = (
                                 row.get("name").and_then(Value::as_str),
-                                row.get("valueProvider").and_then(Value::as_str).unwrap_or("fieldValue"),
+                                row.get("valueProvider")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("fieldValue"),
                             ) else {
                                 continue;
                             };
@@ -648,7 +704,10 @@ mod http_tool {
                                 continue;
                             }
                             let desc = row.get("value").and_then(Value::as_str).unwrap_or("");
-                            props.insert(name.to_owned(), json!({"type": "string", "description": desc}));
+                            props.insert(
+                                name.to_owned(),
+                                json!({"type": "string", "description": desc}),
+                            );
                             if provider == "modelRequired" {
                                 required.push(json!(name));
                             }
@@ -689,6 +748,9 @@ mod tests {
 
     #[test]
     fn model_equals_prefix_is_neutralised() {
-        assert_eq!(neutralize(&json!({"a": "={{ 1 }}", "b": ["=x", "y"]})), json!({"a": " ={{ 1 }}", "b": [" =x", "y"]}));
+        assert_eq!(
+            neutralize(&json!({"a": "={{ 1 }}", "b": ["=x", "y"]})),
+            json!({"a": " ={{ 1 }}", "b": [" =x", "y"]})
+        );
     }
 }

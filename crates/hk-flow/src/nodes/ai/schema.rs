@@ -59,7 +59,11 @@ fn type_ok(ty: &str, v: &Value) -> bool {
     match ty {
         "string" => v.is_string(),
         "number" => v.is_number(),
-        "integer" => v.as_i64().is_some() || v.as_u64().is_some() || v.as_f64().is_some_and(|f| f.fract() == 0.0),
+        "integer" => {
+            v.as_i64().is_some()
+                || v.as_u64().is_some()
+                || v.as_f64().is_some_and(|f| f.fract() == 0.0)
+        }
         "boolean" => v.is_boolean(),
         "object" => v.is_object(),
         "array" => v.is_array(),
@@ -77,7 +81,10 @@ fn check(schema: &Value, v: &Value, path: &str) -> Result<(), String> {
     let Some(s) = schema.as_object() else {
         return Ok(());
     };
-    if let Some(any) = s.get("anyOf").or_else(|| s.get("oneOf")).and_then(Value::as_array)
+    if let Some(any) = s
+        .get("anyOf")
+        .or_else(|| s.get("oneOf"))
+        .and_then(Value::as_array)
         && !any.iter().any(|sub| check(sub, v, path).is_ok())
     {
         return Err(format!("{path}: matches none of the allowed shapes"));
@@ -86,9 +93,7 @@ fn check(schema: &Value, v: &Value, path: &str) -> Result<(), String> {
         Some(Value::String(t)) if !type_ok(t, v) => {
             return Err(format!("{path}: expected {t}"));
         }
-        Some(Value::Array(ts))
-            if !ts.iter().filter_map(Value::as_str).any(|t| type_ok(t, v)) =>
-        {
+        Some(Value::Array(ts)) if !ts.iter().filter_map(Value::as_str).any(|t| type_ok(t, v)) => {
             return Err(format!("{path}: unexpected type"));
         }
         _ => {}
@@ -115,7 +120,9 @@ fn check(schema: &Value, v: &Value, path: &str) -> Result<(), String> {
             }
         }
         if s.get("additionalProperties") == Some(&Value::Bool(false))
-            && let Some(k) = obj.keys().find(|k| props.is_none_or(|p| !p.contains_key(*k)))
+            && let Some(k) = obj
+                .keys()
+                .find(|k| props.is_none_or(|p| !p.contains_key(*k)))
         {
             return Err(format!("{path}: unexpected property `{k}`"));
         }
@@ -144,8 +151,14 @@ mod tests {
 
     #[test]
     fn extracts_from_fence_and_prose() {
-        assert_eq!(extract_json("```json\n{\"a\":1}\n```"), Some(json!({"a": 1})));
-        assert_eq!(extract_json("Sure! {\"a\": [1,2]} done"), Some(json!({"a": [1, 2]})));
+        assert_eq!(
+            extract_json("```json\n{\"a\":1}\n```"),
+            Some(json!({"a": 1}))
+        );
+        assert_eq!(
+            extract_json("Sure! {\"a\": [1,2]} done"),
+            Some(json!({"a": [1, 2]}))
+        );
         assert_eq!(extract_json("nothing"), None);
     }
 
@@ -153,9 +166,21 @@ mod tests {
     fn validates_shapes() {
         let s = json!({"type":"object","properties":{"n":{"type":"integer"},"t":{"type":"array","items":{"type":"string"}}},"required":["n"]});
         assert!(validate(&s, &json!({"n": 2, "t": ["a"]})).is_ok());
-        assert!(validate(&s, &json!({"t": []})).unwrap_err().contains("required"));
-        assert!(validate(&s, &json!({"n": "x"})).unwrap_err().contains("$.n"));
-        assert!(validate(&s, &json!({"n": 1, "t": [1]})).unwrap_err().contains("$.t[0]"));
+        assert!(
+            validate(&s, &json!({"t": []}))
+                .unwrap_err()
+                .contains("required")
+        );
+        assert!(
+            validate(&s, &json!({"n": "x"}))
+                .unwrap_err()
+                .contains("$.n")
+        );
+        assert!(
+            validate(&s, &json!({"n": 1, "t": [1]}))
+                .unwrap_err()
+                .contains("$.t[0]")
+        );
     }
 
     #[test]

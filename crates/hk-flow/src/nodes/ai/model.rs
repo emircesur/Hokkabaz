@@ -123,7 +123,11 @@ pub(crate) async fn collect(mut stream: hk_llm::EventStream) -> Result<Completio
     let tool_calls = calls
         .into_iter()
         .map(|(i, (id, name, args))| ToolCall {
-            id: if id.is_empty() { format!("call_{i}") } else { id },
+            id: if id.is_empty() {
+                format!("call_{i}")
+            } else {
+                id
+            },
             name,
             arguments: if args.trim().is_empty() {
                 json!({})

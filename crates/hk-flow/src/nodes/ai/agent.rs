@@ -138,10 +138,7 @@ pub(crate) async fn run_loop(
             if let Some(m) = &inputs.memory {
                 m.save(&spec.prompt, &c.text).await;
             }
-            return Ok(AgentOutcome {
-                output,
-                steps,
-            });
+            return Ok(AgentOutcome { output, steps });
         }
         let mut assistant = msg(Role::Assistant, c.text.clone());
         assistant.tool_calls = c.tool_calls.clone();
@@ -263,14 +260,22 @@ impl FlowNode for AgentNode {
         if let Some(kind) = raw_param(ctx, "agent").and_then(Value::as_str)
             && matches!(kind, "sqlAgent" | "planAndExecuteAgent")
         {
-            return Err(node_err(ctx, format!("Agent type `{kind}` is not supported; use the tools agent")));
+            return Err(node_err(
+                ctx,
+                format!("Agent type `{kind}` is not supported; use the tools agent"),
+            ));
         }
         let mut out = Vec::new();
         for (i, item) in port(ctx, 0).iter().enumerate() {
             let inputs = SubInputs::resolve(ctx, i).await?;
             let model = inputs.require_model(ctx)?;
             let prompt = Self::prompt(ctx, item, i)?;
-            let system = param_str(ctx, "options.systemMessage", i, "You are a helpful assistant")?;
+            let system = param_str(
+                ctx,
+                "options.systemMessage",
+                i,
+                "You are a helpful assistant",
+            )?;
             let max = param_usize(ctx, "options.maxIterations", i, 10)?;
             let r = run_loop(
                 &model,
@@ -367,7 +372,8 @@ impl FlowNode for HokkabazAgentNode {
                     .run(AgentRunRequest {
                         prompt,
                         system: Some(system).filter(|s| !s.is_empty()),
-                        session_id: Some(param_str(ctx, "sessionId", i, "")?).filter(|s| !s.is_empty()),
+                        session_id: Some(param_str(ctx, "sessionId", i, "")?)
+                            .filter(|s| !s.is_empty()),
                         mode: Some(param_str(ctx, "mode", i, "build")?),
                         model: Some(param_str(ctx, "model", i, "")?).filter(|s| !s.is_empty()),
                         tools: param_list(ctx, "tools", i)?,

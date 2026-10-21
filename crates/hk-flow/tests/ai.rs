@@ -96,16 +96,30 @@ async fn memory_carries_history_across_executions() {
         json!({"Mem": {"ai_memory": [[{"node": "Agent", "type": "ai_memory", "index": 0}]]}}),
     );
     for q in ["I am Ada", "Who am I?"] {
-        let res = run(&ex, wf.clone(), vec![json!({"chatInput": q, "sessionId": "s1"})]).await;
+        let res = run(
+            &ex,
+            wf.clone(),
+            vec![json!({"chatInput": q, "sessionId": "s1"})],
+        )
+        .await;
         assert_eq!(res.status, RunStatus::Success, "{:?}", res.error);
     }
     // a different session sees none of it
-    run(&ex, wf.clone(), vec![json!({"chatInput": "x", "sessionId": "s2"})]).await;
+    run(
+        &ex,
+        wf.clone(),
+        vec![json!({"chatInput": "x", "sessionId": "s2"})],
+    )
+    .await;
     let seen = script.seen();
     // third run has no scripted reply (it fails) but its request shows no foreign history
     assert_eq!(seen.len(), 3);
     assert_eq!(seen[2].messages.len(), 2);
-    let second: Vec<_> = seen[1].messages.iter().map(|m| m.content.as_str()).collect();
+    let second: Vec<_> = seen[1]
+        .messages
+        .iter()
+        .map(|m| m.content.as_str())
+        .collect();
     assert_eq!(second[1..], ["I am Ada", "Hi Ada", "Who am I?"]);
 }
 
@@ -115,7 +129,10 @@ struct EchoRunner(Mutex<Vec<SubWorkflowRequest>>);
 impl SubWorkflowRunner for EchoRunner {
     async fn run(&self, req: SubWorkflowRequest) -> Result<Vec<Item>, FlowError> {
         let json = req.items[0].json.clone();
-        self.0.lock().unwrap_or_else(PoisonError::into_inner).push(req);
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(req);
         let mut out = Map::new();
         out.insert("shipped".into(), json!(true));
         out.insert("saw".into(), Value::Object(json));
@@ -152,7 +169,10 @@ async fn workflow_tool_maps_from_ai_args_and_hides_expressions() {
     );
     let res = run(&ex, wf, vec![json!({"chatInput": "where is it"})]).await;
     assert_eq!(res.status, RunStatus::Success, "{:?}", res.error);
-    assert_eq!(out_json(&res, "Agent"), json!([{"json": {"output": "done"}, "pairedItem": 0}]));
+    assert_eq!(
+        out_json(&res, "Agent"),
+        json!([{"json": {"output": "done"}, "pairedItem": 0}])
+    );
     let reqs = runner.0.lock().unwrap_or_else(PoisonError::into_inner);
     assert_eq!(reqs[0].workflow_id.as_deref(), Some("wf-7"));
     // the model's string reached the sub-workflow verbatim, never evaluated
@@ -160,7 +180,10 @@ async fn workflow_tool_maps_from_ai_args_and_hides_expressions() {
     // tool schema offered to the model came from the $fromAI call
     let tools = &script.seen()[0].tools;
     assert_eq!(tools[0].name, "lookup");
-    assert_eq!(tools[0].parameters["properties"]["orderId"]["description"], "the order id");
+    assert_eq!(
+        tools[0].parameters["properties"]["orderId"]["description"],
+        "the order id"
+    );
 }
 
 #[tokio::test]
@@ -173,7 +196,12 @@ async fn max_iterations_stops_a_looping_agent() {
         chat_models: Some(Arc::new(script)),
         ..NodeHooks::default()
     });
-    let res = run(&ex, agent_wf(vec![], json!({})), vec![json!({"chatInput": "go"})]).await;
+    let res = run(
+        &ex,
+        agent_wf(vec![], json!({})),
+        vec![json!({"chatInput": "go"})],
+    )
+    .await;
     assert_eq!(res.status, RunStatus::Error);
     assert!(res.error.unwrap().message.contains("max iterations"));
 }
@@ -185,7 +213,12 @@ async fn missing_model_is_a_clear_error() {
         "connections": {"Trigger": {"main": [[{"node": "Agent", "type": "main", "index": 0}]]}}});
     let res = run(&ex, wf, vec![json!({})]).await;
     assert_eq!(res.status, RunStatus::Error);
-    assert!(res.error.unwrap().message.contains("Chat Model is required"));
+    assert!(
+        res.error
+            .unwrap()
+            .message
+            .contains("Chat Model is required")
+    );
 }
 
 #[derive(Debug)]
@@ -194,10 +227,12 @@ struct Creds;
 impl CredentialResolver for Creds {
     async fn resolve(&self, ty: &str, _r: &CredentialRef) -> Result<Map<String, Value>, FlowError> {
         assert_eq!(ty, "openAiApi");
-        Ok(json!({"apiKey": "sk-secret-123", "url": "http://localhost:1/v1"})
-            .as_object()
-            .unwrap()
-            .clone())
+        Ok(
+            json!({"apiKey": "sk-secret-123", "url": "http://localhost:1/v1"})
+                .as_object()
+                .unwrap()
+                .clone(),
+        )
     }
 }
 
@@ -207,7 +242,10 @@ struct Spy(ScriptedChatModelFactory, Mutex<Vec<ChatModelSpec>>);
 #[async_trait]
 impl ChatModelFactory for Spy {
     async fn build(&self, spec: ChatModelSpec) -> Result<Arc<dyn ChatModel>, FlowError> {
-        self.1.lock().unwrap_or_else(PoisonError::into_inner).push(spec.clone());
+        self.1
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(spec.clone());
         self.0.build(spec).await
     }
 }
@@ -243,13 +281,29 @@ async fn default_factory_builds_providers_offline() {
         ..ChatModelSpec::default()
     };
     for p in ["openai", "openrouter", "deepseek", "anthropic", "gemini"] {
-        let m = HkLlmChatModelFactory.build(spec(p, Some("k"))).await.unwrap();
+        let m = HkLlmChatModelFactory
+            .build(spec(p, Some("k")))
+            .await
+            .unwrap();
         assert_eq!(m.model_name(), "m");
     }
-    assert!(HkLlmChatModelFactory.build(spec("ollama", None)).await.is_ok());
-    let err = HkLlmChatModelFactory.build(spec("deepseek", None)).await.unwrap_err();
+    assert!(
+        HkLlmChatModelFactory
+            .build(spec("ollama", None))
+            .await
+            .is_ok()
+    );
+    let err = HkLlmChatModelFactory
+        .build(spec("deepseek", None))
+        .await
+        .unwrap_err();
     assert!(err.to_string().contains("missing API key"), "{err}");
-    assert!(HkLlmChatModelFactory.build(spec("nope", None)).await.is_err());
+    assert!(
+        HkLlmChatModelFactory
+            .build(spec("nope", None))
+            .await
+            .is_err()
+    );
 }
 
 #[derive(Debug)]
@@ -346,7 +400,10 @@ async fn http_tool_fills_placeholders_and_model_fields() {
     let req = seen.lock().unwrap_or_else(PoisonError::into_inner)[0].clone();
     let line = req.lines().next().unwrap();
     assert!(line.starts_with("GET /w/S%C3%A3o%20Paulo?"), "{line}");
-    assert!(line.contains("units=metric") && line.contains("lang=en"), "{line}");
+    assert!(
+        line.contains("units=metric") && line.contains("lang=en"),
+        "{line}"
+    );
     let t = &script.seen()[0].tools[0];
     assert_eq!(t.parameters["required"], json!(["city", "units"]));
 }

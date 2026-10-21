@@ -73,7 +73,11 @@ impl ScriptedChatModelFactory {
                                     .and_then(Value::as_str)
                                     .map(str::to_owned)
                                     .unwrap_or_else(|| format!("call_{i}")),
-                                name: c.get("name").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                                name: c
+                                    .get("name")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or_default()
+                                    .to_owned(),
                                 arguments: c.get("arguments").cloned().unwrap_or(Value::Null),
                             })
                             .collect::<Vec<_>>()
@@ -83,8 +87,16 @@ impl ScriptedChatModelFactory {
                     name,
                     Step {
                         reply: Completion {
-                            text: s.get("text").and_then(Value::as_str).unwrap_or_default().to_owned(),
-                            finish: if calls.is_empty() { FinishReason::Stop } else { FinishReason::ToolCalls },
+                            text: s
+                                .get("text")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default()
+                                .to_owned(),
+                            finish: if calls.is_empty() {
+                                FinishReason::Stop
+                            } else {
+                                FinishReason::ToolCalls
+                            },
                             tool_calls: calls,
                             usage: Usage::default(),
                         },
@@ -104,7 +116,11 @@ impl ScriptedChatModelFactory {
     }
 
     fn push_step(&self, model: &str, step: Step) {
-        self.lock().queues.entry(model.to_owned()).or_default().push_back(step);
+        self.lock()
+            .queues
+            .entry(model.to_owned())
+            .or_default()
+            .push_back(step);
     }
 
     /// Queue a plain text reply for `model`.
@@ -147,7 +163,10 @@ impl ChatModel for ScriptedModel {
         tools: Vec<ToolSpec>,
     ) -> Result<Completion, FlowError> {
         let mut s = self.script.lock();
-        let last = messages.last().map(|m| m.content.clone()).unwrap_or_default();
+        let last = messages
+            .last()
+            .map(|m| m.content.clone())
+            .unwrap_or_default();
         s.seen.push(SeenRequest {
             model: self.name.clone(),
             messages,

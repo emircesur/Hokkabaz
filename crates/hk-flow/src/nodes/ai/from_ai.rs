@@ -100,7 +100,12 @@ fn literal(s: &str) -> Value {
     let q = t.chars().next();
     if matches!(q, Some('\'' | '"' | '`')) && t.len() >= 2 && t.ends_with(q.unwrap_or('"')) {
         let inner = &t[1..t.len() - 1];
-        return Value::String(inner.replace("\\'", "'").replace("\\\"", "\"").replace("\\n", "\n"));
+        return Value::String(
+            inner
+                .replace("\\'", "'")
+                .replace("\\\"", "\"")
+                .replace("\\n", "\n"),
+        );
     }
     serde_json::from_str(t).unwrap_or_else(|_| Value::String(t.to_owned()))
 }
@@ -179,9 +184,7 @@ pub(crate) fn rewrite(v: &Value) -> Value {
                 out.push_str(&s[last..a]);
                 let key = Value::String(c.key).to_string();
                 match c.default {
-                    Some(d) => out.push_str(&format!(
-                        "($vars.{FROM_AI_VAR}[{key}] ?? {d})"
-                    )),
+                    Some(d) => out.push_str(&format!("($vars.{FROM_AI_VAR}[{key}] ?? {d})")),
                     None => out.push_str(&format!("$vars.{FROM_AI_VAR}[{key}]")),
                 }
                 last = b;

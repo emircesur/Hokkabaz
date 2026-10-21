@@ -49,7 +49,8 @@ async fn corpus_against_runner() {
             &std::fs::read_to_string(case.dir.join("llm.json")).unwrap_or_else(|e| panic!("{e}")),
         )
         .unwrap_or_else(|e| panic!("{}: llm.json: {e}", case.name));
-        let factory = ScriptedChatModelFactory::from_json(&script).unwrap_or_else(|e| panic!("{e}"));
+        let factory =
+            ScriptedChatModelFactory::from_json(&script).unwrap_or_else(|e| panic!("{e}"));
         let exec = Executor::new(Arc::clone(&registry)).with_config(ExecutorConfig {
             hooks: NodeHooks {
                 chat_models: Some(Arc::new(factory)),

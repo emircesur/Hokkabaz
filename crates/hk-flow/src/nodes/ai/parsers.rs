@@ -26,8 +26,9 @@ impl OutputParser for StructuredParser {
     }
 
     fn parse(&self, text: &str) -> Result<Value, FlowError> {
-        let mut v = extract_json(text)
-            .ok_or_else(|| ai_err("Model output is not valid JSON; cannot apply the output parser"))?;
+        let mut v = extract_json(text).ok_or_else(|| {
+            ai_err("Model output is not valid JSON; cannot apply the output parser")
+        })?;
         // models sometimes wrap the payload in `{"output": ...}` (n8n's own wrapper)
         let declares_output = self
             .schema
@@ -86,7 +87,11 @@ impl StructuredOutputParserNode {
 }
 
 /// JSON parameter given as an object or as a JSON string.
-pub(crate) fn json_param(ctx: &NodeContext, path: &str, i: usize) -> Result<Option<Value>, FlowError> {
+pub(crate) fn json_param(
+    ctx: &NodeContext,
+    path: &str,
+    i: usize,
+) -> Result<Option<Value>, FlowError> {
     match param(ctx, path, i)? {
         Some(Value::String(s)) if s.trim().is_empty() => Ok(None),
         Some(Value::String(s)) => serde_json::from_str(&s)
@@ -99,12 +104,15 @@ pub(crate) fn json_param(ctx: &NodeContext, path: &str, i: usize) -> Result<Opti
 
 /// Schema from `schemaType` + `jsonSchemaExample` / `inputSchema` (shared with the
 /// Information Extractor).
-pub(crate) fn schema_from_params(ctx: &NodeContext, i: usize, manual_key: &str) -> Result<Value, FlowError> {
+pub(crate) fn schema_from_params(
+    ctx: &NodeContext,
+    i: usize,
+    manual_key: &str,
+) -> Result<Value, FlowError> {
     // older versions have no schemaType: manual schema when given, else the example
     let kind = param_str(ctx, "schemaType", i, "")?;
     if kind == "manual" || (kind.is_empty() && raw_param(ctx, manual_key).is_some()) {
-        json_param(ctx, manual_key, i)?
-            .ok_or_else(|| node_err(ctx, "Input schema is empty"))
+        json_param(ctx, manual_key, i)?.ok_or_else(|| node_err(ctx, "Input schema is empty"))
     } else {
         let ex = json_param(ctx, "jsonSchemaExample", i)?
             .ok_or_else(|| node_err(ctx, "JSON example is empty"))?;
@@ -150,8 +158,14 @@ impl OutputParser for ItemListParser {
             format!("`{}`", self.separator)
         };
         match self.count {
-            Some(n) => format!("Your response should be a list of {n} items separated by {sep} (eg: `foo{}bar{}baz`)", self.separator, self.separator),
-            None => format!("Your response should be a list of items separated by {sep} (eg: `foo{}bar{}baz`)", self.separator, self.separator),
+            Some(n) => format!(
+                "Your response should be a list of {n} items separated by {sep} (eg: `foo{}bar{}baz`)",
+                self.separator, self.separator
+            ),
+            None => format!(
+                "Your response should be a list of items separated by {sep} (eg: `foo{}bar{}baz`)",
+                self.separator, self.separator
+            ),
         }
     }
 
@@ -240,15 +254,24 @@ mod tests {
         let p = StructuredParser {
             schema: json!({"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}),
         };
-        assert_eq!(p.parse("```json\n{\"city\":\"Rome\"}\n```").unwrap(), json!({"city": "Rome"}));
-        assert_eq!(p.parse("{\"output\":{\"city\":\"Rome\"}}").unwrap(), json!({"city": "Rome"}));
+        assert_eq!(
+            p.parse("```json\n{\"city\":\"Rome\"}\n```").unwrap(),
+            json!({"city": "Rome"})
+        );
+        assert_eq!(
+            p.parse("{\"output\":{\"city\":\"Rome\"}}").unwrap(),
+            json!({"city": "Rome"})
+        );
         assert!(p.parse("{\"city\": 4}").is_err());
         assert!(p.parse("no json").is_err());
     }
 
     #[test]
     fn item_list() {
-        let p = ItemListParser { separator: "\n".into(), count: Some(2) };
+        let p = ItemListParser {
+            separator: "\n".into(),
+            count: Some(2),
+        };
         assert_eq!(p.parse("a\n b \n\nc").unwrap(), json!(["a", "b"]));
         assert!(p.parse("only").is_err());
     }

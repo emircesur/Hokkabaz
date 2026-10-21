@@ -108,7 +108,10 @@ impl FlowNode for ChainLlmNode {
             let prompt = match param_str(ctx, "promptType", i, "")?.as_str() {
                 "define" => param_str(ctx, "text", i, "")?,
                 "auto" => chat_input(item).ok_or_else(|| {
-                    node_err(ctx, "No prompt specified: expected a field `chatInput` in the input item")
+                    node_err(
+                        ctx,
+                        "No prompt specified: expected a field `chatInput` in the input item",
+                    )
                 })?,
                 // < 1.4: `prompt`; 1.4 without promptType keeps `text`
                 _ => match param(ctx, "prompt", i)? {
@@ -123,7 +126,11 @@ impl FlowNode for ChainLlmNode {
                     Some(m) => to_display(&ctx.eval_param(m, i)?),
                     None => continue,
                 };
-                match row.get("type").and_then(Value::as_str).unwrap_or("HumanMessagePromptTemplate") {
+                match row
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .unwrap_or("HumanMessagePromptTemplate")
+                {
                     "SystemMessagePromptTemplate" => system.push(text),
                     "AIMessagePromptTemplate" => msgs.push(msg(Role::Assistant, text)),
                     _ => msgs.push(msg(Role::User, text)),
@@ -232,13 +239,18 @@ fn categories(ctx: &NodeContext, i: usize) -> Result<Vec<Category>, FlowError> {
 /// Category names the model picked. Accepts `{"categories": [..]}`, `{"category": ".."}`,
 /// a `{name: bool}` map, or bare text that is exactly (or contains) one name.
 fn picked(text: &str, cats: &[Category], multi: bool) -> Vec<usize> {
-    let find = |s: &str| cats.iter().position(|c| c.name.eq_ignore_ascii_case(s.trim()));
+    let find = |s: &str| {
+        cats.iter()
+            .position(|c| c.name.eq_ignore_ascii_case(s.trim()))
+    };
     let mut hits: Vec<usize> = Vec::new();
     match extract_json(text) {
         Some(Value::Object(m)) => {
             let listed = m.get("categories").or_else(|| m.get("category"));
             match listed {
-                Some(Value::Array(a)) => hits.extend(a.iter().filter_map(Value::as_str).filter_map(find)),
+                Some(Value::Array(a)) => {
+                    hits.extend(a.iter().filter_map(Value::as_str).filter_map(find))
+                }
                 Some(Value::String(s)) => hits.extend(find(s)),
                 _ => hits.extend(
                     m.iter()
@@ -318,7 +330,12 @@ impl FlowNode for TextClassifierNode {
                     "Choose exactly one category."
                 }
             );
-            let reply = ask(ctx, &model, vec![msg(Role::System, system), msg(Role::User, text)]).await?;
+            let reply = ask(
+                ctx,
+                &model,
+                vec![msg(Role::System, system), msg(Role::User, text)],
+            )
+            .await?;
             let hits = picked(&reply, &cats, multi);
             let mut it = item.clone();
             it.paired_item = paired(i);
@@ -445,16 +462,24 @@ impl FlowNode for InformationExtractorNode {
                 },
                 json_instructions(&schema)
             );
-            let reply = ask(ctx, &model, vec![msg(Role::System, system), msg(Role::User, text)]).await?;
+            let reply = ask(
+                ctx,
+                &model,
+                vec![msg(Role::System, system), msg(Role::User, text)],
+            )
+            .await?;
             let v = extract_json(&reply)
                 .ok_or_else(|| node_err(ctx, "Model output is not valid JSON"))?;
             // `null` for an omitted optional attribute must not fail type checks
             let v = match v {
-                Value::Object(m) => Value::Object(m.into_iter().filter(|(_, x)| !x.is_null()).collect()),
+                Value::Object(m) => {
+                    Value::Object(m.into_iter().filter(|(_, x)| !x.is_null()).collect())
+                }
                 other => other,
             };
-            validate(&schema, &v)
-                .map_err(|e| node_err(ctx, format!("Model output does not match the schema: {e}")))?;
+            validate(&schema, &v).map_err(|e| {
+                node_err(ctx, format!("Model output does not match the schema: {e}"))
+            })?;
             let mut m = Map::new();
             m.insert("output".into(), v);
             let mut o = Item::new(m);
