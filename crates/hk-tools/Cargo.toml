@@ -10,15 +10,29 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+default = ["pty", "web-fetch"]
+# bash tool over a PTY. Compiled out on android regardless (no shell there).
+pty = ["dep:portable-pty"]
+# web_fetch tool (rustls HTTP client).
+web-fetch = ["dep:reqwest"]
+
 [dependencies]
 async-trait = "0.1.92"
+globset = "0.4"
 hk-core = { version = "0.0.0", path = "../hk-core" }
+ignore = "0.4"
 jsonschema = { version = "0.59.0", default-features = false }
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"], optional = true }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 thiserror = "2"
-tokio = { version = "1.54.0", features = ["sync", "fs"] }
+tokio = { version = "1.54.0", features = ["sync", "fs", "rt", "time"] }
 tracing = "0.1.44"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+portable-pty = { version = "0.9", optional = true }
 
 [dev-dependencies]
 tempfile = "3"

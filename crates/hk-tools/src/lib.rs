@@ -1,6 +1,7 @@
 //! hk-tools: tool registry + guarded execution pipeline.
 // port: dsh packages/core/tools (pipeline shape: pre-execute -> execute -> post-execute)
 
+pub mod builtin;
 mod events;
 mod output;
 mod pipeline;
