@@ -63,7 +63,7 @@ Rules:
 | P1.8 | A | Builtin tools: read, write, edit, glob, grep, bash (portable-pty), web_fetch, todo | P1.7 | L | unit (edit only) | each tool callable via registry | done |
 | P1.9 | A | `hk-agent` loop: turn/step per DESIGN §3.5, inbox, inject, cancellation, missing tool results on failure, max steps | P1.3, P1.4, P1.7 | L | unit | state machine tests w/ fake provider | done |
 | P1.10 | A | Modes `build` / `plan` + approval events (`approval/request|response`) | P1.9 | M | unit | plan mode blocks write, asks for bash | done — Ask call blocks until respond(); CLI must answer |
-| P1.11 | C | `hk-cli`: `hk chat` (line mode) + `hk sessions ls/show`, key from env/keyring | P1.5, P1.10 | M | none | manual: multi-step tool turn with DeepSeek | todo |
+| P1.11 | C | `hk-cli`: `hk chat` (line mode) + `hk sessions ls/show`, key from env/keyring | P1.5, P1.10 | M | none | manual: multi-step tool turn with DeepSeek | done — mock-SSE tested only; needs manual real-DeepSeek run (M1 gate) |
 | P1.12 | A | `hk-store`: SQLite migrations, secrets API (keyring desktop), settings table | P1.1 | M | unit (migrations) | keys stored/retrieved, never logged | done |
 
 ## Phase 2 — Providers breadth, local AI, MCP, sandbox  (milestone **M2: any model, local fallback, MCP tools**)

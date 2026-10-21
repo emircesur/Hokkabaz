@@ -15,3 +15,14 @@ path = "src/main.rs"
 workspace = true
 
 [dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive", "env"] }
+hk-agent = { version = "0.0.0", path = "../../crates/hk-agent" }
+hk-core = { version = "0.0.0", path = "../../crates/hk-core" }
+hk-llm = { version = "0.0.0", path = "../../crates/hk-llm" }
+hk-sandbox = { version = "0.0.0", path = "../../crates/hk-sandbox" }
+hk-session = { version = "0.0.0", path = "../../crates/hk-session" }
+hk-store = { version = "0.0.0", path = "../../crates/hk-store" }
+hk-tools = { version = "0.0.0", path = "../../crates/hk-tools" }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync"] }
