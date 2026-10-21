@@ -3,12 +3,14 @@
 // port: design §3.2 (concept from cordis scope/effect model; no dsh/opencode source ported)
 
 mod bus;
+mod config;
 mod effect;
 mod error;
 mod host;
 mod services;
 
 pub use bus::{Event, EventBus, INTERCEPTABLE_DOMAINS, Rejected, Verdict};
+pub use config::{Config, ConfigError, Layer, LoadOptions, Profile};
 pub use effect::{Effect, EffectHandle, Scope};
 pub use error::CoreError;
 pub use host::{BoxFuture, Ctx, Host, Plugin, PluginId};
