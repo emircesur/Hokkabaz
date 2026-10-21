@@ -8,6 +8,7 @@
 
 import 'api/chat.dart';
 import 'api/core.dart';
+import 'api/flows.dart';
 import 'api/settings.dart';
 
 import 'dart:async';
@@ -96,7 +97,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ModelDto> dco_decode_list_model_dto(dynamic raw);
 
   @protected
+  List<NodeTypeDto> dco_decode_list_node_type_dto(dynamic raw);
+
+  @protected
   List<PendingApprovalDto> dco_decode_list_pending_approval_dto(dynamic raw);
+
+  @protected
+  Float64List dco_decode_list_prim_f_64_strict(dynamic raw);
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
@@ -124,6 +131,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ModelListDto dco_decode_model_list_dto(dynamic raw);
+
+  @protected
+  NodeTypeDto dco_decode_node_type_dto(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
@@ -280,9 +290,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ModelDto> sse_decode_list_model_dto(SseDeserializer deserializer);
 
   @protected
+  List<NodeTypeDto> sse_decode_list_node_type_dto(SseDeserializer deserializer);
+
+  @protected
   List<PendingApprovalDto> sse_decode_list_pending_approval_dto(
     SseDeserializer deserializer,
   );
+
+  @protected
+  Float64List sse_decode_list_prim_f_64_strict(SseDeserializer deserializer);
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
@@ -314,6 +330,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ModelListDto sse_decode_model_list_dto(SseDeserializer deserializer);
+
+  @protected
+  NodeTypeDto sse_decode_node_type_dto(SseDeserializer deserializer);
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
@@ -491,8 +510,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_model_dto(List<ModelDto> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_node_type_dto(
+    List<NodeTypeDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_pending_approval_dto(
     List<PendingApprovalDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_f_64_strict(
+    Float64List self,
     SseSerializer serializer,
   );
 
@@ -537,6 +568,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_model_list_dto(ModelListDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_node_type_dto(NodeTypeDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);

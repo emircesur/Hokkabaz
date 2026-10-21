@@ -295,3 +295,28 @@ impl SessionEventDto {
         }
     }
 }
+
+/// One node type of the flow engine registry (n8n `INodeTypeDescription`, trimmed). Drives the
+/// node picker, port layout and the generated params form.
+#[derive(Debug, Clone)]
+pub struct NodeTypeDto {
+    /// Full workflow `type` string, e.g. `n8n-nodes-base.if`.
+    pub type_name: String,
+    /// Every supported `typeVersion`, ascending.
+    pub versions: Vec<f64>,
+    pub default_version: f64,
+    pub display_name: String,
+    pub description: String,
+    /// n8n groups: `trigger`, `transform`, `output`, ...
+    pub group: Vec<String>,
+    /// Connection type per input (`main`, `ai_tool`, ...). Empty when `inputs_expr` is set.
+    pub inputs: Vec<String>,
+    /// Connection type per output. Empty when `outputs_expr` is set.
+    pub outputs: Vec<String>,
+    /// `={{ ... }}` port declaration that depends on node parameters (Switch, Merge).
+    pub inputs_expr: Option<String>,
+    pub outputs_expr: Option<String>,
+    pub output_names: Vec<String>,
+    /// JSON array of n8n `NodeProperty` objects.
+    pub properties_json: String,
+}

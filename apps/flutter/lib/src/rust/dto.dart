@@ -145,6 +145,84 @@ class ModelListDto {
           errors == other.errors;
 }
 
+/// One node type of the flow engine registry (n8n `INodeTypeDescription`, trimmed). Drives the
+/// node picker, port layout and the generated params form.
+class NodeTypeDto {
+  /// Full workflow `type` string, e.g. `n8n-nodes-base.if`.
+  final String typeName;
+
+  /// Every supported `typeVersion`, ascending.
+  final Float64List versions;
+  final double defaultVersion;
+  final String displayName;
+  final String description;
+
+  /// n8n groups: `trigger`, `transform`, `output`, ...
+  final List<String> group;
+
+  /// Connection type per input (`main`, `ai_tool`, ...). Empty when `inputs_expr` is set.
+  final List<String> inputs;
+
+  /// Connection type per output. Empty when `outputs_expr` is set.
+  final List<String> outputs;
+
+  /// `={{ ... }}` port declaration that depends on node parameters (Switch, Merge).
+  final String? inputsExpr;
+  final String? outputsExpr;
+  final List<String> outputNames;
+
+  /// JSON array of n8n `NodeProperty` objects.
+  final String propertiesJson;
+
+  const NodeTypeDto({
+    required this.typeName,
+    required this.versions,
+    required this.defaultVersion,
+    required this.displayName,
+    required this.description,
+    required this.group,
+    required this.inputs,
+    required this.outputs,
+    this.inputsExpr,
+    this.outputsExpr,
+    required this.outputNames,
+    required this.propertiesJson,
+  });
+
+  @override
+  int get hashCode =>
+      typeName.hashCode ^
+      versions.hashCode ^
+      defaultVersion.hashCode ^
+      displayName.hashCode ^
+      description.hashCode ^
+      group.hashCode ^
+      inputs.hashCode ^
+      outputs.hashCode ^
+      inputsExpr.hashCode ^
+      outputsExpr.hashCode ^
+      outputNames.hashCode ^
+      propertiesJson.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NodeTypeDto &&
+          runtimeType == other.runtimeType &&
+          typeName == other.typeName &&
+          versions == other.versions &&
+          defaultVersion == other.defaultVersion &&
+          displayName == other.displayName &&
+          description == other.description &&
+          group == other.group &&
+          inputs == other.inputs &&
+          outputs == other.outputs &&
+          inputsExpr == other.inputsExpr &&
+          outputsExpr == other.outputsExpr &&
+          outputNames == other.outputNames &&
+          propertiesJson == other.propertiesJson;
+}
+
 class PendingApprovalDto {
   final String approvalId;
   final String callId;

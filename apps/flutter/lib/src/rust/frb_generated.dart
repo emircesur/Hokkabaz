@@ -5,6 +5,7 @@
 
 import 'api/chat.dart';
 import 'api/core.dart';
+import 'api/flows.dart';
 import 'api/settings.dart';
 
 import 'dart:async';
@@ -71,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1896806404;
+  int get rustContentHash => -596026258;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -115,6 +116,8 @@ abstract class RustLibApi extends BaseApi {
 
   Future<ModelListDto> crateApiSettingsListModels();
 
+  List<NodeTypeDto> crateApiFlowsListNodeTypes();
+
   Future<List<SessionInfoDto>> crateApiChatListSessions({
     required int limit,
     required int offset,
@@ -156,6 +159,8 @@ abstract class RustLibApi extends BaseApi {
     ModeDto? mode,
     String? model,
   });
+
+  List<String> crateApiFlowsValidateWorkflow({required String json});
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -467,6 +472,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "list_models", argNames: []);
 
   @override
+  List<NodeTypeDto> crateApiFlowsListNodeTypes() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_node_type_dto,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiFlowsListNodeTypesConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiFlowsListNodeTypesConstMeta =>
+      const TaskConstMeta(debugName: "list_node_types", argNames: []);
+
+  @override
   Future<List<SessionInfoDto>> crateApiChatListSessions({
     required int limit,
     required int offset,
@@ -480,7 +507,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
@@ -509,7 +536,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 13,
             port: port_,
           );
         },
@@ -539,7 +566,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 14,
             port: port_,
           );
         },
@@ -578,7 +605,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 15,
             port: port_,
           );
         },
@@ -611,7 +638,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 16,
             port: port_,
           );
         },
@@ -644,7 +671,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 16,
+              funcId: 17,
               port: port_,
             );
           },
@@ -680,7 +707,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 18,
             port: port_,
           );
         },
@@ -712,7 +739,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 19,
             port: port_,
           );
         },
@@ -748,7 +775,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 20,
             port: port_,
           );
         },
@@ -767,6 +794,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     debugName: "submit_turn",
     argNames: ["sessionId", "prompt", "mode", "model"],
   );
+
+  @override
+  List<String> crateApiFlowsValidateWorkflow({required String json}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(json, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiFlowsValidateWorkflowConstMeta,
+        argValues: [json],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiFlowsValidateWorkflowConstMeta =>
+      const TaskConstMeta(debugName: "validate_workflow", argNames: ["json"]);
 
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw) {
@@ -909,9 +959,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<NodeTypeDto> dco_decode_list_node_type_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_node_type_dto).toList();
+  }
+
+  @protected
   List<PendingApprovalDto> dco_decode_list_pending_approval_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_pending_approval_dto).toList();
+  }
+
+  @protected
+  Float64List dco_decode_list_prim_f_64_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as Float64List;
   }
 
   @protected
@@ -995,6 +1057,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return ModelListDto(
       models: dco_decode_list_model_dto(arr[0]),
       errors: dco_decode_list_provider_error_dto(arr[1]),
+    );
+  }
+
+  @protected
+  NodeTypeDto dco_decode_node_type_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    return NodeTypeDto(
+      typeName: dco_decode_String(arr[0]),
+      versions: dco_decode_list_prim_f_64_strict(arr[1]),
+      defaultVersion: dco_decode_f_64(arr[2]),
+      displayName: dco_decode_String(arr[3]),
+      description: dco_decode_String(arr[4]),
+      group: dco_decode_list_String(arr[5]),
+      inputs: dco_decode_list_String(arr[6]),
+      outputs: dco_decode_list_String(arr[7]),
+      inputsExpr: dco_decode_opt_String(arr[8]),
+      outputsExpr: dco_decode_opt_String(arr[9]),
+      outputNames: dco_decode_list_String(arr[10]),
+      propertiesJson: dco_decode_String(arr[11]),
     );
   }
 
@@ -1438,6 +1522,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<NodeTypeDto> sse_decode_list_node_type_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <NodeTypeDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_node_type_dto(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<PendingApprovalDto> sse_decode_list_pending_approval_dto(
     SseDeserializer deserializer,
   ) {
@@ -1449,6 +1547,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ans_.add(sse_decode_pending_approval_dto(deserializer));
     }
     return ans_;
+  }
+
+  @protected
+  Float64List sse_decode_list_prim_f_64_strict(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getFloat64List(len_);
   }
 
   @protected
@@ -1571,6 +1676,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_models = sse_decode_list_model_dto(deserializer);
     var var_errors = sse_decode_list_provider_error_dto(deserializer);
     return ModelListDto(models: var_models, errors: var_errors);
+  }
+
+  @protected
+  NodeTypeDto sse_decode_node_type_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_typeName = sse_decode_String(deserializer);
+    var var_versions = sse_decode_list_prim_f_64_strict(deserializer);
+    var var_defaultVersion = sse_decode_f_64(deserializer);
+    var var_displayName = sse_decode_String(deserializer);
+    var var_description = sse_decode_String(deserializer);
+    var var_group = sse_decode_list_String(deserializer);
+    var var_inputs = sse_decode_list_String(deserializer);
+    var var_outputs = sse_decode_list_String(deserializer);
+    var var_inputsExpr = sse_decode_opt_String(deserializer);
+    var var_outputsExpr = sse_decode_opt_String(deserializer);
+    var var_outputNames = sse_decode_list_String(deserializer);
+    var var_propertiesJson = sse_decode_String(deserializer);
+    return NodeTypeDto(
+      typeName: var_typeName,
+      versions: var_versions,
+      defaultVersion: var_defaultVersion,
+      displayName: var_displayName,
+      description: var_description,
+      group: var_group,
+      inputs: var_inputs,
+      outputs: var_outputs,
+      inputsExpr: var_inputsExpr,
+      outputsExpr: var_outputsExpr,
+      outputNames: var_outputNames,
+      propertiesJson: var_propertiesJson,
+    );
   }
 
   @protected
@@ -2106,6 +2242,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_node_type_dto(
+    List<NodeTypeDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_node_type_dto(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_pending_approval_dto(
     List<PendingApprovalDto> self,
     SseSerializer serializer,
@@ -2115,6 +2263,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     for (final item in self) {
       sse_encode_pending_approval_dto(item, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_list_prim_f_64_strict(
+    Float64List self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putFloat64List(self);
   }
 
   @protected
@@ -2212,6 +2370,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_model_dto(self.models, serializer);
     sse_encode_list_provider_error_dto(self.errors, serializer);
+  }
+
+  @protected
+  void sse_encode_node_type_dto(NodeTypeDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.typeName, serializer);
+    sse_encode_list_prim_f_64_strict(self.versions, serializer);
+    sse_encode_f_64(self.defaultVersion, serializer);
+    sse_encode_String(self.displayName, serializer);
+    sse_encode_String(self.description, serializer);
+    sse_encode_list_String(self.group, serializer);
+    sse_encode_list_String(self.inputs, serializer);
+    sse_encode_list_String(self.outputs, serializer);
+    sse_encode_opt_String(self.inputsExpr, serializer);
+    sse_encode_opt_String(self.outputsExpr, serializer);
+    sse_encode_list_String(self.outputNames, serializer);
+    sse_encode_String(self.propertiesJson, serializer);
   }
 
   @protected

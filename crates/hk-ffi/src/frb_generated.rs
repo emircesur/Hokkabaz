@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1896806404;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -596026258;
 
 // Section: executor
 
@@ -412,6 +412,35 @@ fn wire__crate__api__settings__list_models_impl(
         },
     )
 }
+fn wire__crate__api__flows__list_node_types_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "list_node_types",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, crate::error::HkError>((move || {
+                let output_ok = crate::api::flows::list_node_types()?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__chat__list_sessions_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -763,6 +792,36 @@ fn wire__crate__api__chat__submit_turn_impl(
         },
     )
 }
+fn wire__crate__api__flows__validate_workflow_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "validate_workflow",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_json = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, crate::error::HkError>((move || {
+                let output_ok = crate::api::flows::validate_workflow(api_json)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
 
 // Section: dart2rust
 
@@ -905,6 +964,18 @@ impl SseDecode for Vec<crate::dto::ModelDto> {
     }
 }
 
+impl SseDecode for Vec<crate::dto::NodeTypeDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::dto::NodeTypeDto>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::dto::PendingApprovalDto> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -912,6 +983,18 @@ impl SseDecode for Vec<crate::dto::PendingApprovalDto> {
         let mut ans_ = vec![];
         for idx_ in 0..len_ {
             ans_.push(<crate::dto::PendingApprovalDto>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<f64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<f64>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -1045,6 +1128,38 @@ impl SseDecode for crate::dto::ModelListDto {
         return crate::dto::ModelListDto {
             models: var_models,
             errors: var_errors,
+        };
+    }
+}
+
+impl SseDecode for crate::dto::NodeTypeDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_typeName = <String>::sse_decode(deserializer);
+        let mut var_versions = <Vec<f64>>::sse_decode(deserializer);
+        let mut var_defaultVersion = <f64>::sse_decode(deserializer);
+        let mut var_displayName = <String>::sse_decode(deserializer);
+        let mut var_description = <String>::sse_decode(deserializer);
+        let mut var_group = <Vec<String>>::sse_decode(deserializer);
+        let mut var_inputs = <Vec<String>>::sse_decode(deserializer);
+        let mut var_outputs = <Vec<String>>::sse_decode(deserializer);
+        let mut var_inputsExpr = <Option<String>>::sse_decode(deserializer);
+        let mut var_outputsExpr = <Option<String>>::sse_decode(deserializer);
+        let mut var_outputNames = <Vec<String>>::sse_decode(deserializer);
+        let mut var_propertiesJson = <String>::sse_decode(deserializer);
+        return crate::dto::NodeTypeDto {
+            type_name: var_typeName,
+            versions: var_versions,
+            default_version: var_defaultVersion,
+            display_name: var_displayName,
+            description: var_description,
+            group: var_group,
+            inputs: var_inputs,
+            outputs: var_outputs,
+            inputs_expr: var_inputsExpr,
+            outputs_expr: var_outputsExpr,
+            output_names: var_outputNames,
+            properties_json: var_propertiesJson,
         };
     }
 }
@@ -1462,15 +1577,15 @@ fn pde_ffi_dispatcher_primary_impl(
         8 => wire__crate__api__settings__get_settings_impl(port, ptr, rust_vec_len, data_len),
         9 => wire__crate__api__chat__inject_impl(port, ptr, rust_vec_len, data_len),
         10 => wire__crate__api__settings__list_models_impl(port, ptr, rust_vec_len, data_len),
-        11 => wire__crate__api__chat__list_sessions_impl(port, ptr, rust_vec_len, data_len),
-        12 => wire__crate__api__settings__refresh_catalog_impl(port, ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__settings__remove_provider_impl(port, ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__chat__respond_approval_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__settings__save_provider_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__chat__session_events_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__settings__set_api_key_impl(port, ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__settings__set_preferences_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__chat__submit_turn_impl(port, ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__chat__list_sessions_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__settings__refresh_catalog_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__settings__remove_provider_impl(port, ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__chat__respond_approval_impl(port, ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__settings__save_provider_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__chat__session_events_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__settings__set_api_key_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__settings__set_preferences_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__chat__submit_turn_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1484,6 +1599,8 @@ fn pde_ffi_dispatcher_sync_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         4 => wire__crate__api__core__core_version_impl(ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__flows__list_node_types_impl(ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__flows__validate_workflow_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1616,6 +1733,32 @@ impl flutter_rust_bridge::IntoDart for crate::dto::ModelListDto {
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::dto::ModelListDto {}
 impl flutter_rust_bridge::IntoIntoDart<crate::dto::ModelListDto> for crate::dto::ModelListDto {
     fn into_into_dart(self) -> crate::dto::ModelListDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::dto::NodeTypeDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.type_name.into_into_dart().into_dart(),
+            self.versions.into_into_dart().into_dart(),
+            self.default_version.into_into_dart().into_dart(),
+            self.display_name.into_into_dart().into_dart(),
+            self.description.into_into_dart().into_dart(),
+            self.group.into_into_dart().into_dart(),
+            self.inputs.into_into_dart().into_dart(),
+            self.outputs.into_into_dart().into_dart(),
+            self.inputs_expr.into_into_dart().into_dart(),
+            self.outputs_expr.into_into_dart().into_dart(),
+            self.output_names.into_into_dart().into_dart(),
+            self.properties_json.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::dto::NodeTypeDto {}
+impl flutter_rust_bridge::IntoIntoDart<crate::dto::NodeTypeDto> for crate::dto::NodeTypeDto {
+    fn into_into_dart(self) -> crate::dto::NodeTypeDto {
         self
     }
 }
@@ -2093,12 +2236,32 @@ impl SseEncode for Vec<crate::dto::ModelDto> {
     }
 }
 
+impl SseEncode for Vec<crate::dto::NodeTypeDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::dto::NodeTypeDto>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::dto::PendingApprovalDto> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::dto::PendingApprovalDto>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<f64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <f64>::sse_encode(item, serializer);
         }
     }
 }
@@ -2202,6 +2365,24 @@ impl SseEncode for crate::dto::ModelListDto {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<crate::dto::ModelDto>>::sse_encode(self.models, serializer);
         <Vec<crate::dto::ProviderErrorDto>>::sse_encode(self.errors, serializer);
+    }
+}
+
+impl SseEncode for crate::dto::NodeTypeDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.type_name, serializer);
+        <Vec<f64>>::sse_encode(self.versions, serializer);
+        <f64>::sse_encode(self.default_version, serializer);
+        <String>::sse_encode(self.display_name, serializer);
+        <String>::sse_encode(self.description, serializer);
+        <Vec<String>>::sse_encode(self.group, serializer);
+        <Vec<String>>::sse_encode(self.inputs, serializer);
+        <Vec<String>>::sse_encode(self.outputs, serializer);
+        <Option<String>>::sse_encode(self.inputs_expr, serializer);
+        <Option<String>>::sse_encode(self.outputs_expr, serializer);
+        <Vec<String>>::sse_encode(self.output_names, serializer);
+        <String>::sse_encode(self.properties_json, serializer);
     }
 }
 

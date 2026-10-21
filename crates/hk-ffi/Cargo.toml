@@ -20,6 +20,7 @@ workspace = true
 async-trait = "0.1"
 flutter_rust_bridge = "=2.11.1"
 futures = "0.3"
+hk-flow = { version = "0.0.0", path = "../hk-flow" }
 hk-llm = { version = "0.0.0", path = "../hk-llm" }
 hk-server = { version = "0.0.0", path = "../hk-server", default-features = false, features = ["runtime"] }
 hk-session = { version = "0.0.0", path = "../hk-session" }
