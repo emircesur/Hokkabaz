@@ -1,7 +1,7 @@
 //! Node trait + registry keyed by `(type, typeVersion)`.
 //!
-//! P4.1 fixes the shape only; the executor (P4.2) fleshes out [`NodeContext`]
-//! (expression scope, static data, sub-node inputs, hooks).
+//! [`NodeContext`] is what the executor (`executor.rs`) hands a node per run; the
+//! expression scope (P4.3) and sub-node inputs will grow it further.
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
@@ -12,6 +12,7 @@ use async_trait::async_trait;
 use crate::description::NodeTypeDescription;
 use crate::error::FlowError;
 use crate::item::Item;
+use crate::run_data::{RunSource, SharedRunData, StaticData};
 use crate::version::{NodeKey, Version};
 use crate::workflow::Node;
 
@@ -27,6 +28,30 @@ pub struct NodeContext {
     pub run_index: usize,
     pub workflow_id: Option<String>,
     pub workflow_name: Option<String>,
+    pub execution_id: Option<String>,
+    /// Where each input port's items came from.
+    pub source: Vec<Option<RunSource>>,
+    /// Results of nodes that already ran in this execution.
+    pub run_data: SharedRunData,
+    /// `getWorkflowStaticData`; scopes `global` and `node:<name>` (see [`node_scope`](crate::run_data::node_scope)).
+    pub static_data: StaticData,
+}
+
+impl NodeContext {
+    /// Context outside an execution (tests, one-off node runs): empty run data/static data.
+    pub fn new(node: Node, input: Vec<Vec<Item>>, run_index: usize) -> Self {
+        Self {
+            node,
+            input,
+            run_index,
+            workflow_id: None,
+            workflow_name: None,
+            execution_id: None,
+            source: Vec::new(),
+            run_data: SharedRunData::new(),
+            static_data: StaticData::default(),
+        }
+    }
 }
 
 #[async_trait]
@@ -142,13 +167,7 @@ mod tests {
         assert!(r.register(noop(json!(1))).is_err());
 
         let n = r.resolve(&node(1.0)).unwrap();
-        let ctx = NodeContext {
-            node: node(1.0),
-            input: vec![vec![Item::from_json(json!({"a": 1}))]],
-            run_index: 0,
-            workflow_id: None,
-            workflow_name: None,
-        };
+        let ctx = NodeContext::new(node(1.0), vec![vec![Item::from_json(json!({"a": 1}))]], 0);
         assert_eq!(n.execute(&ctx).await.unwrap().len(), 1);
         assert_eq!(
             r.latest("n8n-nodes-base.noOp").unwrap().description().name,

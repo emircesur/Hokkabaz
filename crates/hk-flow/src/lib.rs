@@ -8,9 +8,11 @@
 
 pub mod description;
 pub mod error;
+pub mod executor;
 pub mod item;
 pub mod node;
 pub mod raw;
+pub mod run_data;
 #[cfg(feature = "testing")]
 pub mod testing;
 pub mod version;
@@ -21,8 +23,13 @@ pub use description::{
     NodeTypeDescription, PropertyType,
 };
 pub use error::FlowError;
+pub use executor::{ExecuteInput, ExecutionOrder, ExecutionResult, Executor, ExecutorConfig};
 pub use item::{BinaryData, Item, PairedItem, PairedSource};
 pub use node::{FlowNode, NodeContext, NodeOutput, NodeRegistry};
+pub use run_data::{
+    ExecutionRecord, InMemoryRunStore, NodeRun, NodeRunData, RunData, RunError, RunSource,
+    RunStatus, RunStore, SharedRunData, StaticData,
+};
 pub use version::{NodeKey, NodeVersions, Version};
 pub use workflow::{
     ConnectionTarget, Connections, CredentialRef, ErrorMode, MAIN, Node, NodeConnections, PinData,

@@ -13,4 +13,6 @@ pub enum FlowError {
     UnsupportedNode(NodeKey),
     #[error("node `{node}` failed: {message}")]
     Node { node: String, message: String },
+    #[error("run store: {0}")]
+    Store(String),
 }
