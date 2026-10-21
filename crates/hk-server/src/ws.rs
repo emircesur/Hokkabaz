@@ -4,6 +4,10 @@
 //! Commands: `submit`, `inject`, `cancel`, `approve`, plus `subscribe` / `unsubscribe` to
 //! narrow the feed to chosen sessions (default: all). Each command may carry an `id` that the
 //! `command/ack` or `command/error` reply echoes. Mutating commands need the `run` scope.
+//!
+//! With the flow API enabled, `execution/started` and `execution/finished` frames arrive on the
+//! same socket for tokens holding `execution:read` (`session_id` carries the execution id;
+//! `subscribe` accepts an execution id or a workflow id to narrow them).
 
 use std::collections::HashSet;
 
@@ -17,7 +21,7 @@ use serde_json::{Value, json};
 use tokio::sync::broadcast::error::RecvError;
 
 use crate::api::AppState;
-use crate::auth::{Scope, bearer};
+use crate::auth::{Principal, Reject, Scope, authorize, token_from};
 use crate::error::ApiError;
 use crate::runtime::{ApprovalDecision, ServerEvent, TurnMode, TurnRequest};
 
@@ -33,15 +37,16 @@ pub(crate) async fn upgrade(
     headers: HeaderMap,
     Query(q): Query<WsQuery>,
     ws: Result<WebSocketUpgrade, WebSocketUpgradeRejection>,
-) -> Result<Response, ApiError> {
-    let token = bearer(&headers).or(q.access_token.as_deref()).ok_or(ApiError::Unauthorized)?;
-    let scope = s.auth.authenticate(token).ok_or(ApiError::Unauthorized)?;
-    if scope < Scope::Read {
-        return Err(ApiError::Forbidden("read"));
+) -> Result<Response, Reject> {
+    let token = token_from(&headers).or(q.access_token.as_deref());
+    let who = authorize(&s, token)?;
+    // Agent events need `read`, execution events `execution:read`; either opens the socket.
+    if !who.allows(Scope::Read) && !who.allows(Scope::ExecutionRead) {
+        return Err(ApiError::Forbidden("read").into());
     }
     // Upgrade errors only after auth so unauthenticated probes learn nothing about the route.
     let ws = ws.map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    Ok(ws.on_upgrade(move |sock| session(sock, s, scope)))
+    Ok(ws.on_upgrade(move |sock| session(sock, s, who)))
 }
 
 #[derive(Deserialize)]
@@ -86,13 +91,38 @@ struct Envelope {
     cmd: Command,
 }
 
-async fn session(mut sock: WebSocket, s: AppState, scope: Scope) {
+async fn session(mut sock: WebSocket, s: AppState, who: Principal) {
     let mut rx = s.runtime.subscribe();
+    // Execution events (`execution/started|finished`, keyed by execution id) ride the same socket.
+    let mut exec_rx = s.flow.as_ref().filter(|_| who.allows(Scope::ExecutionRead)).map(|f| f.subscribe());
+    let agent_events = who.allows(Scope::Read);
     // Empty = everything.
     let mut filter: HashSet<String> = HashSet::new();
     loop {
         tokio::select! {
-            ev = rx.recv() => match ev {
+            ev = async { match exec_rx.as_mut() { Some(r) => r.recv().await, None => std::future::pending().await } } => match ev {
+                Ok(ev) => {
+                    let wf = ev.data.get("workflow_id").and_then(Value::as_str).unwrap_or_default();
+                    if (filter.is_empty() || filter.contains(&ev.session_id) || filter.contains(wf))
+                        && send(&mut sock, &ev).await.is_err()
+                    {
+                        return;
+                    }
+                }
+                Err(RecvError::Lagged(n)) => {
+                    let lag = ServerEvent {
+                        name: "stream/lagged".into(),
+                        session_id: String::new(),
+                        data: json!({ "skipped": n, "feed": "execution" }),
+                    };
+                    if send(&mut sock, &lag).await.is_err() {
+                        return;
+                    }
+                }
+                // The flow side is gone; keep serving agent events.
+                Err(RecvError::Closed) => exec_rx = None,
+            },
+            ev = rx.recv(), if agent_events => match ev {
                 Ok(ev) => {
                     if (filter.is_empty() || filter.contains(&ev.session_id))
                         && send(&mut sock, &ev).await.is_err()
@@ -114,7 +144,7 @@ async fn session(mut sock: WebSocket, s: AppState, scope: Scope) {
             },
             msg = sock.recv() => match msg {
                 Some(Ok(Message::Text(t))) => {
-                    let Outcome(reply) = handle(&s, scope, &mut filter, t.as_str()).await;
+                    let Outcome(reply) = handle(&s, who, &mut filter, t.as_str()).await;
                     if sock.send(Message::text(reply.to_string())).await.is_err() {
                         return;
                     }
@@ -135,13 +165,13 @@ async fn send(sock: &mut WebSocket, ev: &ServerEvent) -> Result<(), axum::Error>
 /// Reply frame for one client command.
 pub(crate) struct Outcome(pub(crate) Value);
 
-pub(crate) async fn handle(s: &AppState, scope: Scope, filter: &mut HashSet<String>, text: &str) -> Outcome {
+pub(crate) async fn handle(s: &AppState, who: Principal, filter: &mut HashSet<String>, text: &str) -> Outcome {
     let env: Envelope = match serde_json::from_str(text) {
         Ok(e) => e,
         Err(e) => return Outcome(error_frame(None, &ApiError::BadRequest(format!("bad command: {e}")))),
     };
     let id = env.id;
-    Outcome(match run(s, scope, filter, env.cmd).await {
+    Outcome(match run(s, who, filter, env.cmd).await {
         Ok(()) => json!({ "event": "command/ack", "id": id }),
         Err(e) => error_frame(id, &e),
     })
@@ -151,9 +181,9 @@ fn error_frame(id: Option<Value>, e: &ApiError) -> Value {
     json!({ "event": "command/error", "id": id, "data": { "code": e.code(), "message": e.to_string() } })
 }
 
-async fn run(s: &AppState, scope: Scope, filter: &mut HashSet<String>, cmd: Command) -> Result<(), ApiError> {
+async fn run(s: &AppState, who: Principal, filter: &mut HashSet<String>, cmd: Command) -> Result<(), ApiError> {
     let need_run = || {
-        if scope >= Scope::Run { Ok(()) } else { Err(ApiError::Forbidden("run")) }
+        who.require(Scope::Run)
     };
     match cmd {
         Command::Subscribe { session_id } => {

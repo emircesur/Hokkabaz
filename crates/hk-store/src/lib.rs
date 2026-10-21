@@ -2,6 +2,7 @@
 //!
 //! port: none (Hokkabaz-native; see DESIGN §3.12).
 
+pub mod flow;
 pub mod secrets;
 
 use std::path::Path;
@@ -10,6 +11,7 @@ use std::str::FromStr;
 use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 
+pub use flow::{CredentialRow, ExecutionFilter, ExecutionRow, WorkflowRow};
 pub use secrets::{MemorySecretStore, Secret, SecretError, SecretStore};
 
 #[derive(Debug, thiserror::Error)]

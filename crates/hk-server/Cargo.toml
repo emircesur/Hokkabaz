@@ -34,16 +34,31 @@ server = [
   "dep:hk-store",
   "dep:subtle",
   "dep:getrandom",
+  "dep:hk-flow",
+  "dep:hmac",
+  "dep:sha2",
+  "dep:sha1",
+  "dep:base64",
+  "dep:form_urlencoded",
+  "dep:utoipa",
   "tokio/net",
 ]
 
 [dependencies]
 async-trait = { version = "0.1", optional = true }
 axum = { version = "0.8", optional = true, default-features = false, features = ["http1", "json", "tokio", "ws", "query"] }
+base64 = { version = "0.22", optional = true }
+form_urlencoded = { version = "1", optional = true }
 futures = { version = "0.3", optional = true }
+hmac = { version = "0.12", optional = true }
+sha1 = { version = "0.10", optional = true }
+sha2 = { version = "0.10", optional = true }
+utoipa = { version = "5", optional = true, default-features = false, features = ["macros"] }
 getrandom = { version = "0.3", optional = true }
 hk-agent = { version = "0.0.0", path = "../hk-agent", optional = true }
 hk-core = { version = "0.0.0", path = "../hk-core", optional = true }
+# Webhook response types (ResponseSink etc.) and workflow validation only; no QuickJS/reqwest here.
+hk-flow = { version = "0.0.0", path = "../hk-flow", optional = true, default-features = false }
 hk-llm = { version = "0.0.0", path = "../hk-llm", optional = true }
 hk-session = { version = "0.0.0", path = "../hk-session", optional = true }
 hk-store = { version = "0.0.0", path = "../hk-store", optional = true }

@@ -22,7 +22,7 @@ const RUN: &str = "tok-run";
 const ADMIN: &str = "tok-admin";
 
 #[derive(Default)]
-struct Fake {
+pub(crate) struct Fake {
     sessions: Mutex<Vec<SessionInfo>>,
     calls: Mutex<Vec<String>>,
 }
@@ -312,26 +312,26 @@ async fn ws_commands_respect_scope_and_filter() {
     let mut filter = HashSet::new();
 
     let submit = r#"{"cmd":"submit","id":7,"session_id":"s1","prompt":"go"}"#;
-    let Outcome(v) = handle(&s, Scope::Read, &mut filter, submit).await;
+    let Outcome(v) = handle(&s, Principal::of(Scope::Read), &mut filter, submit).await;
     assert_eq!(v["event"], "command/error");
     assert_eq!(v["id"], 7);
     assert_eq!(v["data"]["code"], "forbidden");
 
-    let Outcome(v) = handle(&s, Scope::Run, &mut filter, submit).await;
+    let Outcome(v) = handle(&s, Principal::of(Scope::Run), &mut filter, submit).await;
     assert_eq!(v["event"], "command/ack");
     assert_eq!(v["id"], 7);
 
-    let Outcome(v) = handle(&s, Scope::Run, &mut filter, r#"{"cmd":"approve","approval_id":"appr_0","approved":true}"#).await;
+    let Outcome(v) = handle(&s, Principal::of(Scope::Run), &mut filter, r#"{"cmd":"approve","approval_id":"appr_0","approved":true}"#).await;
     assert_eq!(v["event"], "command/ack");
 
     // Subscribing is allowed for read tokens.
-    let Outcome(v) = handle(&s, Scope::Read, &mut filter, r#"{"cmd":"subscribe","session_id":"s1"}"#).await;
+    let Outcome(v) = handle(&s, Principal::of(Scope::Read), &mut filter, r#"{"cmd":"subscribe","session_id":"s1"}"#).await;
     assert_eq!(v["event"], "command/ack");
     assert!(filter.contains("s1"));
 
-    let Outcome(v) = handle(&s, Scope::Run, &mut filter, "not json").await;
+    let Outcome(v) = handle(&s, Principal::of(Scope::Run), &mut filter, "not json").await;
     assert_eq!(v["data"]["code"], "bad_request");
-    let Outcome(v) = handle(&s, Scope::Run, &mut filter, r#"{"cmd":"explode"}"#).await;
+    let Outcome(v) = handle(&s, Principal::of(Scope::Run), &mut filter, r#"{"cmd":"explode"}"#).await;
     assert_eq!(v["data"]["code"], "bad_request");
 
     let calls = fake.calls();

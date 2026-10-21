@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::routing::{get, post};
+use axum::routing::{any, get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -14,11 +14,13 @@ use tokio::net::TcpListener;
 
 use crate::auth::{Auth, Principal, Scope};
 use crate::error::ApiError;
+use crate::flow::FlowApi;
+use crate::ratelimit::{RateLimit, RateLimiter};
 use crate::runtime::{
     AgentRuntime, ApprovalDecision, CreateSession, SessionDetail, SessionInfo, TurnAccepted,
     TurnRequest,
 };
-use crate::ws;
+use crate::{n8n, openapi, webhook, ws};
 
 const DEFAULT_LIMIT: u32 = 50;
 const MAX_LIMIT: u32 = 200;
@@ -28,6 +30,10 @@ const MAX_LIMIT: u32 = 200;
 pub struct AppState {
     pub runtime: Arc<dyn AgentRuntime>,
     pub auth: Auth,
+    /// n8n-shaped surface (webhooks + REST v1). `None` leaves those routes unmounted.
+    pub flow: Option<FlowApi>,
+    /// Per-token limiter, charged on every authenticated request.
+    pub limiter: Arc<RateLimiter>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -38,13 +44,27 @@ impl std::fmt::Debug for AppState {
 
 impl AppState {
     pub fn new(runtime: Arc<dyn AgentRuntime>, auth: Auth) -> Self {
-        Self { runtime, auth }
+        Self { runtime, auth, flow: None, limiter: Arc::new(RateLimiter::default()) }
+    }
+
+    /// Enable `/webhook`, `/webhook-test` and the n8n REST routes.
+    #[must_use]
+    pub fn with_flow(mut self, flow: FlowApi) -> Self {
+        self.flow = Some(flow);
+        self
+    }
+
+    /// Replace the default token bucket (`None` disables limiting).
+    #[must_use]
+    pub fn with_rate_limit(mut self, cfg: Option<RateLimit>) -> Self {
+        self.limiter = Arc::new(RateLimiter::new(cfg));
+        self
     }
 }
 
 /// The agent API router. Mount under a larger app or hand to [`serve`].
 pub fn router(state: AppState) -> Router {
-    let v1 = Router::new()
+    let mut v1 = Router::new()
         .route("/health", get(health))
         .route("/sessions", get(list_sessions).post(create_session))
         .route("/sessions/{id}", get(get_session))
@@ -53,8 +73,28 @@ pub fn router(state: AppState) -> Router {
         .route("/sessions/{id}/cancel", post(cancel))
         .route("/approvals/{id}", post(approve))
         .route("/models", get(models))
-        .route("/ws", get(ws::upgrade));
-    Router::new().nest("/api/v1", v1).with_state(state)
+        .route("/ws", get(ws::upgrade))
+        .route("/openapi.json", get(openapi::openapi_json));
+    let mut app = Router::new();
+    if state.flow.is_some() {
+        v1 = v1
+            .route("/workflows", get(n8n::list_workflows).post(n8n::create_workflow))
+            .route(
+                "/workflows/{id}",
+                get(n8n::get_workflow).put(n8n::update_workflow).delete(n8n::delete_workflow),
+            )
+            .route("/workflows/{id}/activate", post(n8n::activate_workflow))
+            .route("/workflows/{id}/deactivate", post(n8n::deactivate_workflow))
+            .route("/executions", get(n8n::list_executions))
+            .route("/executions/{id}", get(n8n::get_execution).delete(n8n::delete_execution))
+            .route("/credentials", post(n8n::create_credential))
+            .route("/credentials/{id}", axum::routing::delete(n8n::delete_credential))
+            .route("/credentials/schema/{type_name}", get(n8n::credential_schema));
+        app = app
+            .route("/webhook/{*path}", any(webhook::production))
+            .route("/webhook-test/{*path}", any(webhook::test));
+    }
+    app.nest("/api/v1", v1).with_state(state)
 }
 
 /// Bind `addr` and serve until the process ends.
