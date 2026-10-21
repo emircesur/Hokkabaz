@@ -256,9 +256,7 @@ void main() {
   });
 
   group('flow canvas on phone', () {
-    testWidgets('long-press node multi-selects; ports have touch hit boxes', (
-      t,
-    ) async {
+    testWidgets('long-press node multi-selects', (t) async {
       _phone(t);
       final ed = FlowEditor();
       ed.addRawNode(
