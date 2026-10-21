@@ -7,7 +7,7 @@
 {"seq":6,"ts_ms":1006,"type":"assistant/message","content":"","reasoning":"need ls"}
 {"seq":7,"ts_ms":1007,"type":"tool/call","call_id":"c1","name":"bash","arguments":{"cmd":"ls"}}
 {"seq":8,"ts_ms":1008,"type":"tool/call","call_id":"c2","name":"read","arguments":{"path":"a.txt"}}
-{"seq":9,"ts_ms":1009,"type":"tool/result","call_id":"c1","content":"a.txt\nb.txt"}
+{"seq":9,"ts_ms":1009,"type":"tool/result","call_id":"c1","content":"a.txt\nb.txt","is_error":false}
 {"seq":10,"ts_ms":1010,"type":"tool/result","call_id":"c2","content":"hello","is_error":false}
 {"seq":11,"ts_ms":1011,"type":"step/end","turn_id":"t1","step":0,"finish":"tool_calls","usage":{"input_tokens":100,"output_tokens":20,"cache_read_tokens":0,"cache_write_tokens":0,"reasoning_tokens":5}}
 {"seq":12,"ts_ms":1012,"type":"step/start","turn_id":"t1","step":1}

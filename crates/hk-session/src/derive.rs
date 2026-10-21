@@ -76,9 +76,7 @@ pub fn derive_messages(events: &[SessionEvent]) -> Vec<Message> {
                 kept.extend(rest);
                 out = kept;
                 // Dropped indices invalidate the pointer; later calls re-anchor.
-                last_assistant = out
-                    .iter()
-                    .rposition(|(_, m)| m.role == Role::Assistant);
+                last_assistant = out.iter().rposition(|(_, m)| m.role == Role::Assistant);
             }
             EventKind::SessionStart { .. }
             | EventKind::SessionTitle { .. }

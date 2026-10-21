@@ -82,13 +82,31 @@ fn compaction_drops_old_keeps_system() {
         kind,
     };
     let events = vec![
-        mk(1, EventKind::SystemMessage { content: "sys".into() }),
+        mk(
+            1,
+            EventKind::SystemMessage {
+                content: "sys".into(),
+            },
+        ),
         mk(2, user("old q")),
         mk(3, asst("old a")),
         mk(4, user("recent q")),
-        mk(5, EventKind::CompactionSummary { summary: "S".into(), through_seq: 3 }),
+        mk(
+            5,
+            EventKind::CompactionSummary {
+                summary: "S".into(),
+                through_seq: 3,
+            },
+        ),
         mk(6, asst("new a")),
-        mk(7, EventKind::ToolCall { call_id: "c".into(), name: "t".into(), arguments: json!({}) }),
+        mk(
+            7,
+            EventKind::ToolCall {
+                call_id: "c".into(),
+                name: "t".into(),
+                arguments: json!({}),
+            },
+        ),
     ];
     let msgs = derive_messages(&events);
     let shape: Vec<(Role, &str)> = msgs.iter().map(|m| (m.role, m.content.as_str())).collect();
@@ -122,7 +140,11 @@ fn writer_reader_roundtrip_and_index() {
         turn_id: "t1".into(),
         step: 0,
         finish: None,
-        usage: Some(Usage { input_tokens: 7, output_tokens: 3, ..Usage::default() }),
+        usage: Some(Usage {
+            input_tokens: 7,
+            output_tokens: 3,
+            ..Usage::default()
+        }),
     })
     .unwrap();
     // Index not refreshed until turn end.
@@ -145,15 +167,24 @@ fn writer_reader_roundtrip_and_index() {
 #[test]
 fn reopen_continues_seq_and_repairs_torn_tail() {
     let (_d, store) = store();
-    let mut w = store.create(NewSession { id: Some("s".into()), ..Default::default() }).unwrap();
+    let mut w = store
+        .create(NewSession {
+            id: Some("s".into()),
+            ..Default::default()
+        })
+        .unwrap();
     w.append(user("a")).unwrap();
     w.sync().unwrap();
     let path = w.path().to_owned();
     drop(w);
 
     // Crash mid-line.
-    std::fs::OpenOptions::new().append(true).open(&path).unwrap()
-        .write_all(br#"{"seq":2,"ts_ms":1,"type":"user/mess"#).unwrap();
+    std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .unwrap()
+        .write_all(br#"{"seq":2,"ts_ms":1,"type":"user/mess"#)
+        .unwrap();
     assert_eq!(store.read("s").unwrap().len(), 2);
 
     let mut w = store.open_writer("s").unwrap();
@@ -168,12 +199,21 @@ fn reopen_continues_seq_and_repairs_torn_tail() {
 #[test]
 fn reopen_keeps_valid_line_missing_newline() {
     let (_d, store) = store();
-    let mut w = store.create(NewSession { id: Some("s".into()), ..Default::default() }).unwrap();
+    let mut w = store
+        .create(NewSession {
+            id: Some("s".into()),
+            ..Default::default()
+        })
+        .unwrap();
     let path = w.path().to_owned();
     w.sync().unwrap();
     drop(w);
-    std::fs::OpenOptions::new().append(true).open(&path).unwrap()
-        .write_all(br#"{"seq":1,"ts_ms":1,"type":"user/message","content":"x"}"#).unwrap();
+    std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .unwrap()
+        .write_all(br#"{"seq":1,"ts_ms":1,"type":"user/message","content":"x"}"#)
+        .unwrap();
     let mut w = store.open_writer("s").unwrap();
     assert_eq!(w.next_seq(), 2);
     w.append(user("y")).unwrap();
@@ -183,7 +223,12 @@ fn reopen_keeps_valid_line_missing_newline() {
 #[test]
 fn mid_log_corruption_is_error() {
     let (_d, store) = store();
-    let w = store.create(NewSession { id: Some("s".into()), ..Default::default() }).unwrap();
+    let w = store
+        .create(NewSession {
+            id: Some("s".into()),
+            ..Default::default()
+        })
+        .unwrap();
     let path = w.path().to_owned();
     drop(w);
     let mut text = std::fs::read_to_string(&path).unwrap();
@@ -191,7 +236,10 @@ fn mid_log_corruption_is_error() {
     text.push_str(r#"{"seq":2,"ts_ms":1,"type":"user/message","content":"x"}"#);
     text.push('\n');
     std::fs::write(&path, text).unwrap();
-    assert!(matches!(store.read("s"), Err(SessionError::Corrupt { line: 2, .. })));
+    assert!(matches!(
+        store.read("s"),
+        Err(SessionError::Corrupt { line: 2, .. })
+    ));
 }
 
 fn seeded(store: &SessionStore) {
@@ -215,7 +263,10 @@ fn seeded(store: &SessionStore) {
 }
 
 fn texts(events: &[SessionEvent]) -> Vec<String> {
-    derive_messages(events).into_iter().map(|m| m.content).collect()
+    derive_messages(events)
+        .into_iter()
+        .map(|m| m.content)
+        .collect()
 }
 
 #[test]
@@ -223,26 +274,50 @@ fn fork_after_turn_copies_prefix() {
     let (_d, store) = store();
     seeded(&store);
     let mut f = store
-        .fork("src", &ForkPoint::AfterTurn("t1".into()), NewSession { id: Some("f".into()), ..Default::default() })
+        .fork(
+            "src",
+            &ForkPoint::AfterTurn("t1".into()),
+            NewSession {
+                id: Some("f".into()),
+                ..Default::default()
+            },
+        )
         .unwrap();
     let events = store.read("f").unwrap();
     assert_eq!(texts(&events), ["q1", "a1"]);
     // Parent link + inherited metadata.
     match &events[0].kind {
-        EventKind::SessionStart { parent, title, model, .. } => {
-            assert_eq!(parent.as_ref().unwrap(), &ParentRef { session_id: "src".into(), seq: 4 });
+        EventKind::SessionStart {
+            parent,
+            title,
+            model,
+            ..
+        } => {
+            assert_eq!(
+                parent.as_ref().unwrap(),
+                &ParentRef {
+                    session_id: "src".into(),
+                    seq: 4
+                }
+            );
             assert_eq!(title.as_deref(), Some("Src"));
             assert_eq!(model.as_deref(), Some("m"));
         }
         k => panic!("{k:?}"),
     }
     // Original seqs preserved; fork is appendable and diverges from source.
-    assert_eq!(events.iter().map(|e| e.seq).collect::<Vec<_>>(), [0, 1, 2, 3, 4]);
+    assert_eq!(
+        events.iter().map(|e| e.seq).collect::<Vec<_>>(),
+        [0, 1, 2, 3, 4]
+    );
     f.append(turn_start("t9")).unwrap();
     f.append(user("other")).unwrap();
     f.sync().unwrap();
     assert_eq!(texts(&store.read("f").unwrap()), ["q1", "a1", "other"]);
-    assert_eq!(texts(&store.read("src").unwrap()), ["q1", "a1", "q2", "a2", "q3"]);
+    assert_eq!(
+        texts(&store.read("src").unwrap()),
+        ["q1", "a1", "q2", "a2", "q3"]
+    );
     let row = store.index().get("f").unwrap().unwrap();
     assert_eq!(row.parent.unwrap().session_id, "src");
 }
@@ -252,7 +327,14 @@ fn fork_before_turn_and_errors() {
     let (_d, store) = store();
     seeded(&store);
     store
-        .fork("src", &ForkPoint::BeforeTurn("t2".into()), NewSession { id: Some("f".into()), ..Default::default() })
+        .fork(
+            "src",
+            &ForkPoint::BeforeTurn("t2".into()),
+            NewSession {
+                id: Some("f".into()),
+                ..Default::default()
+            },
+        )
         .unwrap();
     assert_eq!(texts(&store.read("f").unwrap()), ["q1", "a1"]);
 
@@ -281,9 +363,15 @@ fn rebuild_index_matches_live_rows_and_ids_are_checked() {
     assert_eq!(store.index().get("src").unwrap().unwrap(), live);
     assert_eq!(store.index().list(10, 0).unwrap().len(), 1);
 
-    assert!(matches!(store.read("../etc"), Err(SessionError::InvalidId(_))));
     assert!(matches!(
-        store.create(NewSession { id: Some("src".into()), ..Default::default() }),
+        store.read("../etc"),
+        Err(SessionError::InvalidId(_))
+    ));
+    assert!(matches!(
+        store.create(NewSession {
+            id: Some("src".into()),
+            ..Default::default()
+        }),
         Err(SessionError::AlreadyExists(_))
     ));
 }
