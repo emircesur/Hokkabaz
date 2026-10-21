@@ -1,0 +1,8 @@
+{
+  "description": "Merge by field id, keepNonMatches: only the items without a partner, input 1 first.",
+  "status": "active",
+  "nodes": [
+    "merge"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.merge/"
+}

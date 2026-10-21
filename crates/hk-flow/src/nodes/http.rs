@@ -244,7 +244,10 @@ async fn resolve_auth(ctx: &NodeContext, i: usize) -> Result<Auth, FlowError> {
             }
         }
         other => {
-            return Err(node_err(ctx, format!("Auth type `{other}` is not supported")));
+            return Err(node_err(
+                ctx,
+                format!("Auth type `{other}` is not supported"),
+            ));
         }
     }
     Ok(auth)
@@ -266,7 +269,11 @@ fn build_req(ctx: &NodeContext, i: usize, auth: &Auth, item: &Item) -> Result<Re
                 query.extend(text_pairs(&o));
             }
         } else {
-            query.extend(pairs_of(ctx, "queryParameters.parameters", i)?.into_iter().map(|(k, v)| (k, to_display(&v))));
+            query.extend(
+                pairs_of(ctx, "queryParameters.parameters", i)?
+                    .into_iter()
+                    .map(|(k, v)| (k, to_display(&v))),
+            );
         }
     }
     query.extend(auth.query.iter().cloned());
@@ -278,7 +285,11 @@ fn build_req(ctx: &NodeContext, i: usize, auth: &Auth, item: &Item) -> Result<Re
                 headers.extend(text_pairs(&o));
             }
         } else {
-            headers.extend(pairs_of(ctx, "headerParameters.parameters", i)?.into_iter().map(|(k, v)| (k, to_display(&v))));
+            headers.extend(
+                pairs_of(ctx, "headerParameters.parameters", i)?
+                    .into_iter()
+                    .map(|(k, v)| (k, to_display(&v))),
+            );
         }
     }
     headers.extend(auth.headers.iter().cloned());
@@ -330,7 +341,9 @@ fn build_req(ctx: &NodeContext, i: usize, auth: &Auth, item: &Item) -> Result<Re
                     .binary
                     .as_ref()
                     .and_then(|b| b.get(&prop))
-                    .ok_or_else(|| node_err(ctx, format!("Item has no binary property `{prop}`")))?;
+                    .ok_or_else(|| {
+                        node_err(ctx, format!("Item has no binary property `{prop}`"))
+                    })?;
                 let data = base64::engine::general_purpose::STANDARD
                     .decode(bin.data.as_bytes())
                     .map_err(|_| node_err(ctx, "Binary data is not valid base64"))?;
@@ -344,11 +357,20 @@ fn build_req(ctx: &NodeContext, i: usize, auth: &Auth, item: &Item) -> Result<Re
                 }
             }
             other => {
-                return Err(node_err(ctx, format!("Body content type `{other}` is not supported")));
+                return Err(node_err(
+                    ctx,
+                    format!("Body content type `{other}` is not supported"),
+                ));
             }
         };
     }
-    Ok(Req { method, url, query, headers, body })
+    Ok(Req {
+        method,
+        url,
+        query,
+        headers,
+        body,
+    })
 }
 
 fn client_for(ctx: &NodeContext, i: usize) -> Result<reqwest::Client, FlowError> {
@@ -368,10 +390,20 @@ fn client_for(ctx: &NodeContext, i: usize) -> Result<reqwest::Client, FlowError>
         let p = reqwest::Proxy::all(&proxy).map_err(|_| node_err(ctx, "Invalid proxy URL"))?;
         b = b.proxy(p);
     }
-    b.build().map_err(|e| node_err(ctx, format!("Could not build HTTP client: {}", e.without_url())))
+    b.build().map_err(|e| {
+        node_err(
+            ctx,
+            format!("Could not build HTTP client: {}", e.without_url()),
+        )
+    })
 }
 
-async fn send(ctx: &NodeContext, client: &reqwest::Client, auth: &Auth, req: &Req) -> Result<Resp, FlowError> {
+async fn send(
+    ctx: &NodeContext,
+    client: &reqwest::Client,
+    auth: &Auth,
+    req: &Req,
+) -> Result<Resp, FlowError> {
     let url = reqwest::Url::parse(&req.url)
         .map_err(|_| node_err(ctx, format!("Invalid URL: {}", req.url)))?;
     if !matches!(url.scheme(), "http" | "https") {
@@ -396,7 +428,9 @@ async fn send(ctx: &NodeContext, client: &reqwest::Client, auth: &Auth, req: &Re
             .header("content-type", "application/json")
             .body(v.to_string()),
         Body::Form(p) => rb.form(p),
-        Body::Raw { content_type, data } => rb.header("content-type", content_type.as_str()).body(data.clone()),
+        Body::Raw { content_type, data } => rb
+            .header("content-type", content_type.as_str())
+            .body(data.clone()),
     };
     let res = rb
         .send()
@@ -424,7 +458,12 @@ async fn send(ctx: &NodeContext, client: &reqwest::Client, auth: &Auth, req: &Re
     let bytes = res
         .bytes()
         .await
-        .map_err(|e| node_err(ctx, format!("Reading the response failed: {}", e.without_url())))?
+        .map_err(|e| {
+            node_err(
+                ctx,
+                format!("Reading the response failed: {}", e.without_url()),
+            )
+        })?
         .to_vec();
     Ok(Resp {
         status: status.as_u16(),
@@ -444,7 +483,10 @@ fn is_json_type(ct: &str) -> bool {
 
 fn is_text_type(ct: &str) -> bool {
     let ct = ct.to_ascii_lowercase();
-    ct.starts_with("text/") || ct.contains("xml") || ct.contains("javascript") || ct.contains("x-www-form-urlencoded")
+    ct.starts_with("text/")
+        || ct.contains("xml")
+        || ct.contains("javascript")
+        || ct.contains("x-www-form-urlencoded")
 }
 
 /// Parsed body as expressions see it (`$response.body`).
@@ -459,9 +501,19 @@ fn body_value(resp: &Resp) -> Value {
 }
 
 fn response_to_items(ctx: &NodeContext, i: usize, resp: &Resp) -> Result<Vec<Item>, FlowError> {
-    let mut format = param_str(ctx, "options.response.response.responseFormat", i, "autodetect")?;
+    let mut format = param_str(
+        ctx,
+        "options.response.response.responseFormat",
+        i,
+        "autodetect",
+    )?;
     let full = param_bool(ctx, "options.response.response.fullResponse", i, false)?;
-    let prop = param_str(ctx, "options.response.response.outputPropertyName", i, "data")?;
+    let prop = param_str(
+        ctx,
+        "options.response.response.outputPropertyName",
+        i,
+        "data",
+    )?;
     if format == "autodetect" {
         format = if is_json_type(&resp.content_type) {
             "json"
@@ -481,14 +533,23 @@ fn response_to_items(ctx: &NodeContext, i: usize, resp: &Resp) -> Result<Vec<Ite
                 Value::Null
             } else {
                 serde_json::from_str::<Value>(&text).map_err(|e| {
-                    node_err(ctx, format!("The response is not valid JSON: {e} [item {i}]"))
+                    node_err(
+                        ctx,
+                        format!("The response is not valid JSON: {e} [item {i}]"),
+                    )
                 })?
             }
         }
         "file" => {
             let b = BinaryData {
                 data: base64::engine::general_purpose::STANDARD.encode(&resp.bytes),
-                mime_type: resp.content_type.split(';').next().unwrap_or("").trim().to_owned(),
+                mime_type: resp
+                    .content_type
+                    .split(';')
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .to_owned(),
                 file_size: Some(Value::from(resp.bytes.len())),
                 ..BinaryData::default()
             };
@@ -502,7 +563,13 @@ fn response_to_items(ctx: &NodeContext, i: usize, resp: &Resp) -> Result<Vec<Ite
 
     if full {
         let mut o = Map::new();
-        let body = if format == "file" { Value::Null } else if format == "text" { body.get(&prop).cloned().unwrap_or(Value::Null) } else { body };
+        let body = if format == "file" {
+            Value::Null
+        } else if format == "text" {
+            body.get(&prop).cloned().unwrap_or(Value::Null)
+        } else {
+            body
+        };
         o.insert("body".into(), body);
         o.insert("headers".into(), Value::Object(resp.headers.clone()));
         o.insert("statusCode".into(), Value::from(resp.status));
@@ -540,7 +607,11 @@ fn rewrite_page_expr(v: &Value) -> Value {
                 .replace("$pageCount", "$vars.__hk_page"),
         ),
         Value::Array(a) => Value::Array(a.iter().map(rewrite_page_expr).collect()),
-        Value::Object(o) => Value::Object(o.iter().map(|(k, x)| (k.clone(), rewrite_page_expr(x))).collect()),
+        Value::Object(o) => Value::Object(
+            o.iter()
+                .map(|(k, x)| (k.clone(), rewrite_page_expr(x)))
+                .collect(),
+        ),
         other => other.clone(),
     }
 }
@@ -551,7 +622,8 @@ fn page_scope(ctx: &NodeContext, resp: &Resp, page: usize) -> NodeContext {
         "headers": resp.headers,
         "statusCode": resp.status,
     });
-    ctx.with_extra_var("__hk_response", r).with_extra_var("__hk_page", Value::from(page))
+    ctx.with_extra_var("__hk_response", r)
+        .with_extra_var("__hk_page", Value::from(page))
 }
 
 fn upsert(list: &mut Vec<(String, String)>, k: &str, v: String) {
@@ -583,21 +655,42 @@ fn read_pagination(ctx: &NodeContext, i: usize) -> Result<Option<Pagination>, Fl
     let max = param_usize(ctx, &format!("{base}.maxRequests"), i, 100)?;
     Ok(Some(Pagination {
         mode,
-        complete_when: param_str(ctx, &format!("{base}.paginationCompleteWhen"), i, "responseIsEmpty")?,
+        complete_when: param_str(
+            ctx,
+            &format!("{base}.paginationCompleteWhen"),
+            i,
+            "responseIsEmpty",
+        )?,
         status_codes: param_list(ctx, &format!("{base}.statusCodesWhenComplete"), i)?
             .iter()
             .filter_map(|s| s.parse().ok())
             .collect(),
-        complete_expr: raw_param(ctx, &format!("{base}.completeExpression")).cloned().unwrap_or(Value::Null),
-        next_url: raw_param(ctx, &format!("{base}.nextURL")).cloned().unwrap_or(Value::Null),
+        complete_expr: raw_param(ctx, &format!("{base}.completeExpression"))
+            .cloned()
+            .unwrap_or(Value::Null),
+        next_url: raw_param(ctx, &format!("{base}.nextURL"))
+            .cloned()
+            .unwrap_or(Value::Null),
         params: raw_array(ctx, &format!("{base}.parameters.parameters")).to_vec(),
         // a hard stop even without `limitPagesFetched`: runaway pagination must end
-        max_requests: if limit { max.max(1) } else { max.clamp(1, 1000) },
-        interval: Duration::from_millis(param_f64(ctx, &format!("{base}.requestInterval"), i, 0.0)?.max(0.0) as u64),
+        max_requests: if limit {
+            max.max(1)
+        } else {
+            max.clamp(1, 1000)
+        },
+        interval: Duration::from_millis(
+            param_f64(ctx, &format!("{base}.requestInterval"), i, 0.0)?.max(0.0) as u64,
+        ),
     }))
 }
 
-fn page_is_last(ctx: &NodeContext, p: &Pagination, scope: &NodeContext, resp: &Resp, i: usize) -> Result<bool, FlowError> {
+fn page_is_last(
+    ctx: &NodeContext,
+    p: &Pagination,
+    scope: &NodeContext,
+    resp: &Resp,
+    i: usize,
+) -> Result<bool, FlowError> {
     Ok(match p.complete_when.as_str() {
         "receiveSpecificStatusCodes" => p.status_codes.contains(&resp.status),
         "other" => {
@@ -626,7 +719,10 @@ fn check_status(ctx: &NodeContext, i: usize, resp: &Resp) -> Result<(), FlowErro
     }
     Err(node_err(
         ctx,
-        format!("The service returned an error: {} {} [item {i}]", resp.status, resp.reason),
+        format!(
+            "The service returned an error: {} {} [item {i}]",
+            resp.status, resp.reason
+        ),
     ))
 }
 
@@ -660,8 +756,7 @@ async fn run_item(ctx: &NodeContext, i: usize, item: &Item) -> Result<Vec<Item>,
             if next.is_empty() || next == "undefined" {
                 break;
             }
-            let base = reqwest::Url::parse(&req.url)
-                .map_err(|_| node_err(ctx, "Invalid URL"))?;
+            let base = reqwest::Url::parse(&req.url).map_err(|_| node_err(ctx, "Invalid URL"))?;
             req.url = base
                 .join(&next)
                 .map_err(|_| node_err(ctx, "Next URL from the response is not a valid URL"))?
@@ -672,8 +767,12 @@ async fn run_item(ctx: &NodeContext, i: usize, item: &Item) -> Result<Vec<Item>,
         } else {
             for prm in &p.params {
                 let ty = prm.get("type").and_then(Value::as_str).unwrap_or("qs");
-                let name = to_display(&scope.eval_param(prm.get("name").unwrap_or(&Value::Null), i)?);
-                let val = scope.eval_param(&rewrite_page_expr(prm.get("value").unwrap_or(&Value::Null)), i)?;
+                let name =
+                    to_display(&scope.eval_param(prm.get("name").unwrap_or(&Value::Null), i)?);
+                let val = scope.eval_param(
+                    &rewrite_page_expr(prm.get("value").unwrap_or(&Value::Null)),
+                    i,
+                )?;
                 if name.is_empty() {
                     continue;
                 }

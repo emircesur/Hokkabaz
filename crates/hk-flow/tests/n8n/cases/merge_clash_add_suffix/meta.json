@@ -1,0 +1,8 @@
+{
+  "description": "Merge by position with resolveClash addSuffix: clashing fields get _1 / _2, others untouched.",
+  "status": "active",
+  "nodes": [
+    "merge"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.merge/"
+}

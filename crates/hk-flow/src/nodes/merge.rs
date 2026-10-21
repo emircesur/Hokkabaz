@@ -94,13 +94,12 @@ struct MergeOpts {
 impl MergeOpts {
     fn read(ctx: &NodeContext) -> Result<Self, FlowError> {
         let base = "options.clashHandling.values";
-        let clash = match param_str(ctx, &format!("{base}.resolveClash"), 0, "preferInput2")?
-            .as_str()
-        {
-            "preferInput1" => Clash::PreferInput1,
-            "addSuffix" => Clash::AddSuffix,
-            _ => Clash::PreferInput2,
-        };
+        let clash =
+            match param_str(ctx, &format!("{base}.resolveClash"), 0, "preferInput2")?.as_str() {
+                "preferInput1" => Clash::PreferInput1,
+                "addSuffix" => Clash::AddSuffix,
+                _ => Clash::PreferInput2,
+            };
         Ok(Self {
             clash,
             deep: param_str(ctx, &format!("{base}.mergeMode"), 0, "deepMerge")? != "shallowMerge",
@@ -118,11 +117,19 @@ fn merge_json(a: &Map<String, Value>, b: &Map<String, Value>, o: MergeOpts) -> M
     let mut out = Map::new();
     if o.clash == Clash::AddSuffix {
         for (k, v) in a {
-            let key = if b.contains_key(k) { format!("{k}_1") } else { k.clone() };
+            let key = if b.contains_key(k) {
+                format!("{k}_1")
+            } else {
+                k.clone()
+            };
             out.insert(key, v.clone());
         }
         for (k, v) in b {
-            let key = if a.contains_key(k) { format!("{k}_2") } else { k.clone() };
+            let key = if a.contains_key(k) {
+                format!("{k}_2")
+            } else {
+                k.clone()
+            };
             out.insert(key, v.clone());
         }
         return out;
@@ -142,8 +149,7 @@ fn merge_json(a: &Map<String, Value>, b: &Map<String, Value>, o: MergeOpts) -> M
                     continue;
                 }
                 let (pref, other) = if prefer2 { (bv, &*av) } else { (&*av, bv) };
-                let chosen = if o.override_empty && is_empty_value(pref) && !is_empty_value(other)
-                {
+                let chosen = if o.override_empty && is_empty_value(pref) && !is_empty_value(other) {
                     other.clone()
                 } else {
                     pref.clone()
@@ -165,8 +171,16 @@ fn merge_items(a: &Item, b: &Item, ai: usize, bi: usize, o: MergeOpts) -> Item {
         item.binary = Some(bin);
     }
     item.paired_item = Some(PairedItem::Many(vec![
-        PairedSource { item: ai, input: None, extra: Map::new() },
-        PairedSource { item: bi, input: Some(1), extra: Map::new() },
+        PairedSource {
+            item: ai,
+            input: None,
+            extra: Map::new(),
+        },
+        PairedSource {
+            item: bi,
+            input: Some(1),
+            extra: Map::new(),
+        },
     ]));
     item
 }
@@ -202,8 +216,16 @@ impl FlowNode for MergeNode {
                 let which = param_str(ctx, "output", 0, "input1")?;
                 let out = match which.as_str() {
                     "empty" => vec![Item::default()],
-                    "input2" => b.iter().enumerate().map(|(i, it)| from_port(it, i, 1)).collect(),
-                    _ => a.iter().enumerate().map(|(i, it)| from_port(it, i, 0)).collect(),
+                    "input2" => b
+                        .iter()
+                        .enumerate()
+                        .map(|(i, it)| from_port(it, i, 1))
+                        .collect(),
+                    _ => a
+                        .iter()
+                        .enumerate()
+                        .map(|(i, it)| from_port(it, i, 0))
+                        .collect(),
                 };
                 Ok(vec![out])
             }
@@ -214,7 +236,11 @@ impl FlowNode for MergeNode {
                 match by.as_str() {
                     "combineByPosition" => {
                         let unpaired = param_bool(ctx, "options.includeUnpaired", 0, false)?;
-                        let n = if unpaired { a.len().max(b.len()) } else { a.len().min(b.len()) };
+                        let n = if unpaired {
+                            a.len().max(b.len())
+                        } else {
+                            a.len().min(b.len())
+                        };
                         let mut out = Vec::with_capacity(n);
                         for i in 0..n {
                             out.push(match (a.get(i), b.get(i)) {
@@ -251,7 +277,11 @@ fn match_fields(ctx: &NodeContext) -> Result<Vec<(String, String)>, FlowError> {
             .iter()
             .filter_map(|v| {
                 let f1 = v.get("field1")?.as_str()?.to_owned();
-                let f2 = v.get("field2").and_then(Value::as_str).unwrap_or(&f1).to_owned();
+                let f2 = v
+                    .get("field2")
+                    .and_then(Value::as_str)
+                    .unwrap_or(&f1)
+                    .to_owned();
                 Some((f1, f2))
             })
             .collect();
@@ -283,7 +313,10 @@ fn combine_by_fields(
 ) -> Result<Vec<Item>, FlowError> {
     let pairs = match_fields(ctx)?;
     if pairs.is_empty() {
-        return Err(node_err(ctx, "You need to define at least one pair of fields to match"));
+        return Err(node_err(
+            ctx,
+            "You need to define at least one pair of fields to match",
+        ));
     }
     let dot = !param_bool(ctx, "options.disableDotNotation", 0, false)?;
     let join = param_str(ctx, "joinMode", 0, "keepMatches")?;
@@ -381,7 +414,11 @@ fn combine_by_fields(
             }
         }
         "keepEverything" => {
-            out.extend(matched.iter().map(|&(i, j)| merge_items(&a[i], &b[j], i, j, o)));
+            out.extend(
+                matched
+                    .iter()
+                    .map(|&(i, j)| merge_items(&a[i], &b[j], i, j, o)),
+            );
             out.extend(unmatched1.iter().map(|&i| from_port(&a[i], i, 0)));
             out.extend(unmatched2.iter().map(|&j| from_port(&b[j], j, 1)));
         }

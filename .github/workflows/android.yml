@@ -1,0 +1,135 @@
+name: android
+
+# Replaces the old stub job in ci.yml. Path-filtered: only runs when something that
+# can change the Android .so / APK changes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/**"
+      - "apps/flutter/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/android.yml"
+  pull_request:
+    paths:
+      - "crates/**"
+      - "apps/flutter/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  NDK_VERSION: r27c
+  # Same knobs as [profile.mobile] in Cargo.toml. cargokit (flutter job) hardcodes
+  # `cargo build --release`, so mirror the profile through env overrides there.
+  MOBILE_PROFILE_ENV: |
+    CARGO_PROFILE_RELEASE_OPT_LEVEL=s
+    CARGO_PROFILE_RELEASE_LTO=thin
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+    CARGO_PROFILE_RELEASE_STRIP=symbols
+    CARGO_PROFILE_RELEASE_DEBUG=false
+
+permissions:
+  contents: read
+
+jobs:
+  # Gate: android target must never compile desktop-only crates.
+  audit:
+    name: no desktop-only deps on android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: |
+          for t in aarch64-linux-android x86_64-linux-android; do
+            tree=$(cargo tree -p hk-ffi --target "$t" -e normal --prefix none)
+            if echo "$tree" | grep -E '^(landlock|hk-acp|hk-sandbox|hk-mcp|hk-plugin|wasmtime|portable-pty|axum|rmcp) '; then
+              echo "::error::desktop-only dep leaked into $t"; exit 1
+            fi
+          done
+
+  so:
+    name: libhk_ffi.so (${{ matrix.abi }})
+    needs: audit
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            triple: aarch64-linux-android
+          - abi: x86_64
+            triple: x86_64-linux-android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.triple }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.triple }}-mobile
+      - uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-ndk
+      - name: Build (mobile profile)
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          cargo ndk -t ${{ matrix.abi }} -o out/jniLibs build -p hk-ffi --profile mobile
+          ls -l out/jniLibs/${{ matrix.abi }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libhk_ffi-${{ matrix.abi }}
+          path: out/jniLibs/${{ matrix.abi }}/libhk_ffi.so
+          if-no-files-found: error
+          retention-days: 14
+
+  # Heavier (flutter + gradle + cargokit builds 3 ABIs): main pushes and manual runs only.
+  apk:
+    name: flutter apk
+    needs: so
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/flutter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: apk
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          cache-dependency-path: apps/flutter/pubspec.lock
+      - run: flutter pub get
+      - name: Build APK
+        run: |
+          export $(echo "$MOBILE_PROFILE_ENV" | xargs)
+          flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hokkabaz-apk
+          path: apps/flutter/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14

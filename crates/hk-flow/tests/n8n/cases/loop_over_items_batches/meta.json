@@ -1,0 +1,9 @@
+{
+  "description": "Loop Over Items batch size 2 over 5 items: loop output emits 2,2,1 items; after the last batch returns, the done output emits all processed items once.",
+  "status": "active",
+  "nodes": [
+    "set",
+    "splitInBatches"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.splitInBatches/"
+}

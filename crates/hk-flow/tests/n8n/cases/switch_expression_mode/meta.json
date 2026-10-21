@@ -1,0 +1,8 @@
+{
+  "description": "Switch expression mode: the output index is computed per item.",
+  "status": "active",
+  "nodes": [
+    "switch"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.switch/"
+}

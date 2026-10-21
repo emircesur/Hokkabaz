@@ -1,0 +1,8 @@
+{
+  "description": "Aggregate individual field: values collected into one list; items lacking the field are skipped.",
+  "status": "active",
+  "nodes": [
+    "aggregate"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.aggregate/"
+}

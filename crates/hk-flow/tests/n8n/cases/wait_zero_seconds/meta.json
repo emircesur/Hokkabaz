@@ -1,0 +1,8 @@
+{
+  "description": "Wait with a zero interval passes items through unchanged.",
+  "status": "active",
+  "nodes": [
+    "wait"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.wait/"
+}

@@ -152,8 +152,16 @@ impl FlowNode for LimitNode {
         let items = port(ctx, 0);
         let max = param_usize(ctx, "maxItems", 0, 1)?;
         let keep_last = param_str(ctx, "keep", 0, "firstItems")? == "lastItems";
-        let start = if keep_last { items.len().saturating_sub(max) } else { 0 };
-        let end = if keep_last { items.len() } else { max.min(items.len()) };
+        let start = if keep_last {
+            items.len().saturating_sub(max)
+        } else {
+            0
+        };
+        let end = if keep_last {
+            items.len()
+        } else {
+            max.min(items.len())
+        };
         let out = items[start..end]
             .iter()
             .enumerate()
@@ -254,13 +262,19 @@ impl FlowNode for SortNode {
                 for f in raw_array(ctx, "sortFieldsUi.sortField") {
                     let name = f.get("fieldName").and_then(Value::as_str).unwrap_or("");
                     if name.is_empty() {
-                        return Err(node_err(ctx, "No sorting specified. Please add a field to sort by"));
+                        return Err(node_err(
+                            ctx,
+                            "No sorting specified. Please add a field to sort by",
+                        ));
                     }
                     let desc = f.get("order").and_then(Value::as_str) == Some("descending");
                     keys.push((name.to_owned(), desc));
                 }
                 if keys.is_empty() {
-                    return Err(node_err(ctx, "No sorting specified. Please add a field to sort by"));
+                    return Err(node_err(
+                        ctx,
+                        "No sorting specified. Please add a field to sort by",
+                    ));
                 }
                 let null = Value::Null;
                 idx.sort_by(|&x, &y| {
@@ -365,7 +379,10 @@ impl FlowNode for RemoveDuplicatesNode {
             Vec::new()
         };
         if compare == "selectedFields" && selected.is_empty() {
-            return Err(node_err(ctx, "No fields specified. Please add a field to compare on"));
+            return Err(node_err(
+                ctx,
+                "No fields specified. Please add a field to compare on",
+            ));
         }
 
         let mut seen: HashSet<String> = HashSet::new();
@@ -463,7 +480,11 @@ impl AggregateNode {
 fn all_sources(n: usize) -> Option<PairedItem> {
     Some(PairedItem::Many(
         (0..n)
-            .map(|item| PairedSource { item, input: None, extra: Map::new() })
+            .map(|item| PairedSource {
+                item,
+                input: None,
+                extra: Map::new(),
+            })
             .collect(),
     ))
 }
@@ -521,14 +542,23 @@ impl FlowNode for AggregateNode {
             let merge_lists = param_bool(ctx, "options.mergeLists", 0, false)?;
             let specs = raw_array(ctx, "fieldsToAggregate.fieldToAggregate");
             if specs.is_empty() {
-                return Err(node_err(ctx, "No fields specified. Please add a field to aggregate"));
+                return Err(node_err(
+                    ctx,
+                    "No fields specified. Please add a field to aggregate",
+                ));
             }
             for spec in specs {
-                let field = spec.get("fieldToAggregate").and_then(Value::as_str).unwrap_or("");
+                let field = spec
+                    .get("fieldToAggregate")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
                 if field.is_empty() {
                     return Err(node_err(ctx, "Field to aggregate is empty"));
                 }
-                let rename = spec.get("renameField").and_then(Value::as_bool).unwrap_or(false);
+                let rename = spec
+                    .get("renameField")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
                 let out_name = match spec.get("outputFieldName").and_then(Value::as_str) {
                     Some(n) if rename && !n.is_empty() => n,
                     _ => field,

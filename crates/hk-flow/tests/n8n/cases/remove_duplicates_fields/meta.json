@@ -1,0 +1,8 @@
+{
+  "description": "Remove Duplicates (v1): first occurrence kept; compare all fields, or only selected fields.",
+  "status": "active",
+  "nodes": [
+    "removeDuplicates"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.removeDuplicates/"
+}

@@ -1,0 +1,66 @@
+{
+  "name": "limit_first_and_last",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000001",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "maxItems": 2,
+        "keep": "firstItems"
+      },
+      "id": "00000000-0000-4000-8000-000000000002",
+      "name": "First",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "maxItems": 2,
+        "keep": "lastItems"
+      },
+      "id": "00000000-0000-4000-8000-000000000003",
+      "name": "Last",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "First",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Last",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

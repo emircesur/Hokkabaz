@@ -1,0 +1,82 @@
+{
+  "name": "set_type_coercion",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000001",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "n",
+              "value": "42",
+              "type": "number"
+            },
+            {
+              "id": "2",
+              "name": "b",
+              "value": "true",
+              "type": "boolean"
+            },
+            {
+              "id": "3",
+              "name": "o",
+              "value": "{\"x\": 1}",
+              "type": "object"
+            },
+            {
+              "id": "4",
+              "name": "a",
+              "value": "[1,2]",
+              "type": "array"
+            },
+            {
+              "id": "5",
+              "name": "s",
+              "value": "={{ 7 }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "00000000-0000-4000-8000-000000000002",
+      "name": "Set",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

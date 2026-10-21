@@ -1,0 +1,26 @@
+[
+  {
+    "json": {
+      "team": "b",
+      "score": 9
+    }
+  },
+  {
+    "json": {
+      "team": "a",
+      "score": 10
+    }
+  },
+  {
+    "json": {
+      "team": "a",
+      "score": 2
+    }
+  },
+  {
+    "json": {
+      "team": "b",
+      "score": 100
+    }
+  }
+]

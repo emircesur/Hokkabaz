@@ -1,0 +1,116 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "id": 1,
+                "name": "Ada"
+              }
+            },
+            {
+              "json": {
+                "id": 2,
+                "name": "Bob"
+              }
+            },
+            {
+              "json": {
+                "id": 3,
+                "name": "Cat"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Users": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "id": 1,
+                "name": "Ada"
+              }
+            },
+            {
+              "json": {
+                "id": 2,
+                "name": "Bob"
+              }
+            },
+            {
+              "json": {
+                "id": 3,
+                "name": "Cat"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Orders": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "id": 1,
+                "total": 100
+              }
+            },
+            {
+              "json": {
+                "id": 2,
+                "total": 200
+              }
+            },
+            {
+              "json": {
+                "id": 9,
+                "total": 300
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Merge": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "id": 1,
+                "name": "Ada",
+                "total": 100
+              }
+            },
+            {
+              "json": {
+                "id": 2,
+                "name": "Bob",
+                "total": 200
+              }
+            },
+            {
+              "json": {
+                "id": 3,
+                "name": "Cat"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

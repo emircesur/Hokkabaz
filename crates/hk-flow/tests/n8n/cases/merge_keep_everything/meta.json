@@ -1,0 +1,8 @@
+{
+  "description": "Merge by field id, keepEverything (outer join): matches merged, then unmatched input 1, then unmatched input 2.",
+  "status": "active",
+  "nodes": [
+    "merge"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.merge/"
+}

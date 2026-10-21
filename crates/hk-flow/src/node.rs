@@ -12,8 +12,8 @@ use serde_json::Value;
 
 use crate::description::NodeTypeDescription;
 use crate::error::FlowError;
-use crate::hooks::{ExecScratch, NodeHooks};
 use crate::expr::{ExprEnv, ExprError, ExprScope, ExpressionEvaluator, ScopeBase, resolve_value};
+use crate::hooks::{ExecScratch, NodeHooks};
 use crate::item::Item;
 use crate::run_data::{RunSource, SharedRunData, StaticData};
 use crate::version::{NodeKey, Version};

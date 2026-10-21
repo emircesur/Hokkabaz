@@ -1,0 +1,8 @@
+{
+  "description": "Merge by field id, enrichInput1 (left join): every input 1 item kept, matches enriched.",
+  "status": "active",
+  "nodes": [
+    "merge"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.merge/"
+}

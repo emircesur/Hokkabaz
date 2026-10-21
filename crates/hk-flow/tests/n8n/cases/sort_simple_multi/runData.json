@@ -1,0 +1,70 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "team": "b",
+                "score": 9
+              }
+            },
+            {
+              "json": {
+                "team": "a",
+                "score": 10
+              }
+            },
+            {
+              "json": {
+                "team": "a",
+                "score": 2
+              }
+            },
+            {
+              "json": {
+                "team": "b",
+                "score": 100
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Sort": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "team": "a",
+                "score": 10
+              }
+            },
+            {
+              "json": {
+                "team": "a",
+                "score": 2
+              }
+            },
+            {
+              "json": {
+                "team": "b",
+                "score": 100
+              }
+            },
+            {
+              "json": {
+                "team": "b",
+                "score": 9
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

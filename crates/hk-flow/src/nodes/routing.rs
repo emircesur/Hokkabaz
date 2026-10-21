@@ -242,9 +242,7 @@ impl FlowNode for SwitchNode {
                     }
                 }
             }
-            if !matched
-                && let Some(fb) = fallback_idx
-            {
+            if !matched && let Some(fb) = fallback_idx {
                 if fb >= out.len() {
                     out.resize_with(fb + 1, Vec::new);
                 }

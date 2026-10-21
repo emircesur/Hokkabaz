@@ -1,0 +1,20 @@
+[
+  {
+    "json": {
+      "id": 1,
+      "name": "Ada"
+    }
+  },
+  {
+    "json": {
+      "id": 2,
+      "name": "Bob"
+    }
+  },
+  {
+    "json": {
+      "id": 3,
+      "name": "Cat"
+    }
+  }
+]

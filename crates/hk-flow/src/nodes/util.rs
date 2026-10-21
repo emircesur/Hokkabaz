@@ -94,11 +94,19 @@ pub(crate) fn param_usize(
     default: usize,
 ) -> Result<usize, FlowError> {
     let f = param_f64(ctx, path, i, default as f64)?;
-    Ok(if f.is_finite() && f >= 0.0 { f as usize } else { default })
+    Ok(if f.is_finite() && f >= 0.0 {
+        f as usize
+    } else {
+        default
+    })
 }
 
 /// Comma separated list parameter (`"a, b"`), trimmed, empties dropped.
-pub(crate) fn param_list(ctx: &NodeContext, path: &str, i: usize) -> Result<Vec<String>, FlowError> {
+pub(crate) fn param_list(
+    ctx: &NodeContext,
+    path: &str,
+    i: usize,
+) -> Result<Vec<String>, FlowError> {
     Ok(match param(ctx, path, i)? {
         Some(Value::String(s)) => split_list(&s),
         Some(Value::Array(a)) => a.iter().map(to_display).collect(),
@@ -199,7 +207,9 @@ fn write_canonical(v: &Value, out: &mut String) {
         }
         Value::Number(n) => match n.as_f64() {
             // 1 and 1.0 are the same JS number
-            Some(f) if f.fract() == 0.0 && f.abs() < 9.0e15 => out.push_str(&(f as i64).to_string()),
+            Some(f) if f.fract() == 0.0 && f.abs() < 9.0e15 => {
+                out.push_str(&(f as i64).to_string())
+            }
             _ => out.push_str(&n.to_string()),
         },
         other => out.push_str(&other.to_string()),

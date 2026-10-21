@@ -1,0 +1,8 @@
+{
+  "description": "Date & Time v2 with fixed dates: format (Luxon tokens), add/subtract, extract part, difference in units, round down/up. Output holds only the new field.",
+  "status": "active",
+  "nodes": [
+    "dateTime"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.dateTime/"
+}

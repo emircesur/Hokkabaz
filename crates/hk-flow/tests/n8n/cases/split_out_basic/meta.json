@@ -1,0 +1,8 @@
+{
+  "description": "Split Out: one item per array element; other fields dropped by default, kept with allOtherFields.",
+  "status": "active",
+  "nodes": [
+    "splitOut"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.splitOut/"
+}

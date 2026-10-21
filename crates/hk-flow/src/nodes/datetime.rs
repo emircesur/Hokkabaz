@@ -82,7 +82,13 @@ impl DateTimeNode {
     }
 }
 
-fn parse_in(ctx: &NodeContext, v: &Value, tz: Tz, what: &str, i: usize) -> Result<chrono::DateTime<Tz>, FlowError> {
+fn parse_in(
+    ctx: &NodeContext,
+    v: &Value,
+    tz: Tz,
+    what: &str,
+    i: usize,
+) -> Result<chrono::DateTime<Tz>, FlowError> {
     parse_date(v, tz).ok_or_else(|| {
         node_err(
             ctx,
@@ -110,12 +116,23 @@ fn iso_duration(parts: &[(&str, f64)]) -> String {
         };
         let val = if *u == "milliseconds" { n / 1000.0 } else { *n };
         let s = format!("{}{}", num(val).to_string().trim_matches('"'), t.0);
-        if t.1 { time.push_str(&s) } else { date.push_str(&s) }
+        if t.1 {
+            time.push_str(&s)
+        } else {
+            date.push_str(&s)
+        }
     }
     if date.is_empty() && time.is_empty() {
         return "PT0S".into();
     }
-    format!("P{date}{}", if time.is_empty() { String::new() } else { format!("T{time}") })
+    format!(
+        "P{date}{}",
+        if time.is_empty() {
+            String::new()
+        } else {
+            format!("T{time}")
+        }
+    )
 }
 
 /// Largest `k >= 0` with `start + k units <= end` (calendar units).
@@ -125,8 +142,7 @@ fn whole_units(start: chrono::DateTime<Tz>, end: chrono::DateTime<Tz>, unit: &st
         "quarters" => 3,
         _ => 1,
     };
-    let approx = (i64::from(end.year()) - i64::from(start.year())) * 12
-        + i64::from(end.month0())
+    let approx = (i64::from(end.year()) - i64::from(start.year())) * 12 + i64::from(end.month0())
         - i64::from(start.month0());
     let mut k = approx / months_per;
     while k > 0 && add_unit(start, unit, k as f64).is_none_or(|d| d > end) {
@@ -205,7 +221,11 @@ impl FlowNode for DateTimeNode {
             };
             let tz = parse_zone(&tz_name);
             let include_input = param_bool(ctx, "options.includeInputFields", i, false)?;
-            let mut json = if include_input { item.json.clone() } else { Map::new() };
+            let mut json = if include_input {
+                item.json.clone()
+            } else {
+                Map::new()
+            };
             let field = |default: &str| -> Result<String, FlowError> {
                 param_str(ctx, "outputFieldName", i, default)
                     .map(|s| if s.is_empty() { default.to_owned() } else { s })
@@ -214,11 +234,17 @@ impl FlowNode for DateTimeNode {
             match op.as_str() {
                 "getCurrentDate" => {
                     let now = ctx.expr.now_ms.unwrap_or_else(now_millis);
-                    let mut d = from_millis(now, tz).ok_or_else(|| node_err(ctx, "time out of range"))?;
+                    let mut d =
+                        from_millis(now, tz).ok_or_else(|| node_err(ctx, "time out of range"))?;
                     if !param_bool(ctx, "includeTime", i, true)? {
                         d = start_of(d, "day").unwrap_or(d);
                     }
-                    set_path(&mut json, &field("currentDate")?, Value::String(to_iso(&d)), false);
+                    set_path(
+                        &mut json,
+                        &field("currentDate")?,
+                        Value::String(to_iso(&d)),
+                        false,
+                    );
                 }
                 "addToDate" | "subtractFromDate" => {
                     let v = param_or(ctx, "date", i, Value::Null)?;
@@ -230,7 +256,12 @@ impl FlowNode for DateTimeNode {
                     let unit = param_str(ctx, "timeUnit", i, "days")?;
                     let r = add_unit(d, &unit, amount)
                         .ok_or_else(|| node_err(ctx, format!("Unknown time unit `{unit}`")))?;
-                    set_path(&mut json, &field("newDate")?, Value::String(to_iso(&r)), false);
+                    set_path(
+                        &mut json,
+                        &field("newDate")?,
+                        Value::String(to_iso(&r)),
+                        false,
+                    );
                 }
                 "formatDate" => {
                     let v = param_or(ctx, "date", i, Value::Null)?;
@@ -260,7 +291,12 @@ impl FlowNode for DateTimeNode {
                     let v = if param_bool(ctx, "options.isoString", i, false)? {
                         Value::String(iso_duration(&parts))
                     } else {
-                        Value::Object(parts.iter().map(|(u, n)| ((*u).to_owned(), num(*n))).collect())
+                        Value::Object(
+                            parts
+                                .iter()
+                                .map(|(u, n)| ((*u).to_owned(), num(*n)))
+                                .collect(),
+                        )
                     };
                     set_path(&mut json, &field("timeDifference")?, v, false);
                 }
@@ -288,7 +324,12 @@ impl FlowNode for DateTimeNode {
                         start_of(d, &param_str(ctx, "toNearest", i, "day")?)
                     }
                     .ok_or_else(|| node_err(ctx, "Unknown rounding unit"))?;
-                    set_path(&mut json, &field("roundedDate")?, Value::String(to_iso(&r)), false);
+                    set_path(
+                        &mut json,
+                        &field("roundedDate")?,
+                        Value::String(to_iso(&r)),
+                        false,
+                    );
                 }
                 other => return Err(node_err(ctx, format!("Unknown operation `{other}`"))),
             }

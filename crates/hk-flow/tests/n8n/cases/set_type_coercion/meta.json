@@ -1,0 +1,8 @@
+{
+  "description": "Set coerces assigned values to the declared type: numeric string to number, 'true' to boolean, JSON text to object/array.",
+  "status": "active",
+  "nodes": [
+    "set"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.set/"
+}

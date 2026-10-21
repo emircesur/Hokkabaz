@@ -1,0 +1,226 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "n": 1
+              }
+            },
+            {
+              "json": {
+                "n": 2
+              }
+            },
+            {
+              "json": {
+                "n": 3
+              }
+            },
+            {
+              "json": {
+                "n": 4
+              }
+            },
+            {
+              "json": {
+                "n": 5
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Loop": [
+    {
+      "data": {
+        "main": [
+          [],
+          [
+            {
+              "json": {
+                "n": 1
+              }
+            },
+            {
+              "json": {
+                "n": 2
+              }
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "data": {
+        "main": [
+          [],
+          [
+            {
+              "json": {
+                "n": 3
+              }
+            },
+            {
+              "json": {
+                "n": 4
+              }
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "data": {
+        "main": [
+          [],
+          [
+            {
+              "json": {
+                "n": 5
+              }
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "n": 1,
+                "seen": true
+              }
+            },
+            {
+              "json": {
+                "n": 2,
+                "seen": true
+              }
+            },
+            {
+              "json": {
+                "n": 3,
+                "seen": true
+              }
+            },
+            {
+              "json": {
+                "n": 4,
+                "seen": true
+              }
+            },
+            {
+              "json": {
+                "n": 5,
+                "seen": true
+              }
+            }
+          ],
+          []
+        ]
+      }
+    }
+  ],
+  "Mark": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "n": 1,
+                "seen": true
+              }
+            },
+            {
+              "json": {
+                "n": 2,
+                "seen": true
+              }
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "n": 3,
+                "seen": true
+              }
+            },
+            {
+              "json": {
+                "n": 4,
+                "seen": true
+              }
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "n": 5,
+                "seen": true
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Done": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "n": 1,
+                "seen": true
+              }
+            },
+            {
+              "json": {
+                "n": 2,
+                "seen": true
+              }
+            },
+            {
+              "json": {
+                "n": 3,
+                "seen": true
+              }
+            },
+            {
+              "json": {
+                "n": 4,
+                "seen": true
+              }
+            },
+            {
+              "json": {
+                "n": 5,
+                "seen": true
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

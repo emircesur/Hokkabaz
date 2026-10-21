@@ -1,0 +1,8 @@
+{
+  "description": "Filter string operators with ignoreCase: contains / startsWith are case-insensitive.",
+  "status": "active",
+  "nodes": [
+    "filter"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.filter/"
+}

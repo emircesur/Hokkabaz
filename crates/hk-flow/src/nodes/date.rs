@@ -13,7 +13,9 @@ pub(crate) fn parse_zone(name: &str) -> Tz {
     if let Ok(tz) = name.parse::<Tz>() {
         return tz;
     }
-    if let Some(rest) = name.strip_prefix("UTC").or_else(|| name.strip_prefix("GMT"))
+    if let Some(rest) = name
+        .strip_prefix("UTC")
+        .or_else(|| name.strip_prefix("GMT"))
         && let Some(sign) = rest.chars().next()
         && (sign == '+' || sign == '-')
     {

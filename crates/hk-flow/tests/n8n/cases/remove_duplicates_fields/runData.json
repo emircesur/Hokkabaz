@@ -1,0 +1,86 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "email": "a@x",
+                "n": 1
+              }
+            },
+            {
+              "json": {
+                "email": "a@x",
+                "n": 1
+              }
+            },
+            {
+              "json": {
+                "email": "a@x",
+                "n": 2
+              }
+            },
+            {
+              "json": {
+                "email": "b@x",
+                "n": 3
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "AllFields": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "email": "a@x",
+                "n": 1
+              }
+            },
+            {
+              "json": {
+                "email": "a@x",
+                "n": 2
+              }
+            },
+            {
+              "json": {
+                "email": "b@x",
+                "n": 3
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "ByEmail": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "email": "a@x",
+                "n": 1
+              }
+            },
+            {
+              "json": {
+                "email": "b@x",
+                "n": 3
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

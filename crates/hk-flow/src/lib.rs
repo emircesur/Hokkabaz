@@ -30,9 +30,9 @@ pub use description::{
 };
 pub use error::FlowError;
 pub use executor::{ExecuteInput, ExecutionOrder, ExecutionResult, Executor, ExecutorConfig};
-pub use expr::{ExprEnv, ExprError, ExprLimits, ExprScope, ExpressionEvaluator};
 #[cfg(feature = "expr")]
 pub use expr::QuickJsEvaluator;
+pub use expr::{ExprEnv, ExprError, ExprLimits, ExprScope, ExpressionEvaluator};
 pub use hooks::{
     CollectingSink, CredentialResolver, ExecScratch, NodeHooks, ResponseBody, ResponseSink,
     SubWorkflowRequest, SubWorkflowRunner, WebhookResponse,

@@ -1,0 +1,8 @@
+{
+  "description": "Set includeOtherFields with include=selected / except; dot paths resolve.",
+  "status": "active",
+  "nodes": [
+    "set"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.set/"
+}

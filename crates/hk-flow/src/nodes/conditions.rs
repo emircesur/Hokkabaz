@@ -331,21 +331,49 @@ mod tests {
 
     #[test]
     fn string_ops_and_case() {
-        assert_eq!(cmp("string", "endsWith", json!("a@corp.io"), json!("corp.io")), Ok(true));
-        assert_eq!(cmp("string", "notEquals", json!(null), json!("x")), Ok(true));
         assert_eq!(
-            compare("string", "equals", &json!("ABC"), &json!("abc"), false, false, Tz::UTC),
+            cmp("string", "endsWith", json!("a@corp.io"), json!("corp.io")),
             Ok(true)
         );
-        assert_eq!(cmp("string", "regex", json!("abc123"), json!("/^[a-z]+\\d+$/")), Ok(true));
+        assert_eq!(
+            cmp("string", "notEquals", json!(null), json!("x")),
+            Ok(true)
+        );
+        assert_eq!(
+            compare(
+                "string",
+                "equals",
+                &json!("ABC"),
+                &json!("abc"),
+                false,
+                false,
+                Tz::UTC
+            ),
+            Ok(true)
+        );
+        assert_eq!(
+            cmp("string", "regex", json!("abc123"), json!("/^[a-z]+\\d+$/")),
+            Ok(true)
+        );
     }
 
     #[test]
     fn existence_and_arrays() {
         assert_eq!(cmp("string", "notEmpty", json!(""), json!(null)), Ok(false));
         assert_eq!(cmp("array", "lengthGt", json!([1, 2]), json!(1)), Ok(true));
-        assert_eq!(cmp("array", "contains", json!([1, "a"]), json!("a")), Ok(true));
-        assert_eq!(cmp("dateTime", "before", json!("2024-01-01"), json!("2024-06-01T00:00:00Z")), Ok(true));
+        assert_eq!(
+            cmp("array", "contains", json!([1, "a"]), json!("a")),
+            Ok(true)
+        );
+        assert_eq!(
+            cmp(
+                "dateTime",
+                "before",
+                json!("2024-01-01"),
+                json!("2024-06-01T00:00:00Z")
+            ),
+            Ok(true)
+        );
         assert_eq!(cmp("boolean", "true", json!(true), json!(null)), Ok(true));
     }
 }

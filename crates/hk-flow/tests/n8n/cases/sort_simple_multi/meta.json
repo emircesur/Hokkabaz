@@ -1,0 +1,8 @@
+{
+  "description": "Sort by several fields: first field ascending, ties broken by the second descending; numbers sort numerically.",
+  "status": "active",
+  "nodes": [
+    "sort"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.sort/"
+}

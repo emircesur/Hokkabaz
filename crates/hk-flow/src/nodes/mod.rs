@@ -50,6 +50,7 @@ pub use transform::{
 
 /// Every core node implementation in this crate.
 pub fn core_nodes() -> Vec<Arc<dyn FlowNode>> {
+    #[cfg_attr(not(feature = "http"), allow(unused_mut))]
     let mut v: Vec<Arc<dyn FlowNode>> = vec![
         Arc::new(SetNode::new()),
         Arc::new(IfNode::new()),
@@ -90,10 +91,24 @@ mod tests {
         let mut r = NodeRegistry::new();
         register_core_nodes(&mut r).unwrap();
         assert!(register_core_nodes(&mut r).is_err());
-        for t in ["set", "if", "switch", "filter", "merge", "splitInBatches", "noOp", "dateTime",
-            "aggregate", "splitOut", "sort", "limit", "removeDuplicates", "wait",
-            "executeWorkflow", "respondToWebhook"]
-        {
+        for t in [
+            "set",
+            "if",
+            "switch",
+            "filter",
+            "merge",
+            "splitInBatches",
+            "noOp",
+            "dateTime",
+            "aggregate",
+            "splitOut",
+            "sort",
+            "limit",
+            "removeDuplicates",
+            "wait",
+            "executeWorkflow",
+            "respondToWebhook",
+        ] {
             assert!(r.latest(&format!("n8n-nodes-base.{t}")).is_some(), "{t}");
         }
     }

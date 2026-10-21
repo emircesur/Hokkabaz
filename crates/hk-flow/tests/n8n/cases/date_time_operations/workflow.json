@@ -1,0 +1,186 @@
+{
+  "name": "date_time_operations",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "00000000-0000-4000-8000-000000000001",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "operation": "formatDate",
+        "date": "={{ $json.d }}",
+        "format": "custom",
+        "customFormat": "EEE, dd MMM yyyy HH:mm 'UTC' ZZ",
+        "outputFieldName": "text"
+      },
+      "id": "00000000-0000-4000-8000-000000000002",
+      "name": "Format",
+      "type": "n8n-nodes-base.dateTime",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "operation": "addToDate",
+        "date": "={{ $json.d }}",
+        "magnitude": 10,
+        "timeUnit": "days"
+      },
+      "id": "00000000-0000-4000-8000-000000000003",
+      "name": "Add",
+      "type": "n8n-nodes-base.dateTime",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "operation": "subtractFromDate",
+        "date": "={{ $json.d }}",
+        "magnitude": 2,
+        "timeUnit": "months",
+        "outputFieldName": "earlier"
+      },
+      "id": "00000000-0000-4000-8000-000000000004",
+      "name": "Sub",
+      "type": "n8n-nodes-base.dateTime",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "operation": "extractDate",
+        "date": "={{ $json.d }}",
+        "extract": "week"
+      },
+      "id": "00000000-0000-4000-8000-000000000005",
+      "name": "Part",
+      "type": "n8n-nodes-base.dateTime",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "operation": "getTimeBetweenDates",
+        "startDate": "={{ $json.d }}",
+        "endDate": "={{ $json.e }}",
+        "units": [
+          "day",
+          "hour"
+        ]
+      },
+      "id": "00000000-0000-4000-8000-000000000006",
+      "name": "Between",
+      "type": "n8n-nodes-base.dateTime",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "operation": "roundDate",
+        "date": "={{ $json.d }}",
+        "mode": "roundDown",
+        "toNearest": "hour"
+      },
+      "id": "00000000-0000-4000-8000-000000000007",
+      "name": "Down",
+      "type": "n8n-nodes-base.dateTime",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "operation": "roundDate",
+        "date": "={{ $json.d }}",
+        "mode": "roundUp",
+        "to": "month"
+      },
+      "id": "00000000-0000-4000-8000-000000000008",
+      "name": "Up",
+      "type": "n8n-nodes-base.dateTime",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Add",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sub",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Part",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Between",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Down",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

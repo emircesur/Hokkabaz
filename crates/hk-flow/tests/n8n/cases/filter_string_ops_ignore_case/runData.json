@@ -1,0 +1,47 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "name": "Ada Lovelace"
+              }
+            },
+            {
+              "json": {
+                "name": "Bob"
+              }
+            },
+            {
+              "json": {
+                "name": "canada"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Filter": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "name": "Ada Lovelace"
+              }
+            },
+            {
+              "json": {
+                "name": "canada"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

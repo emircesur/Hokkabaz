@@ -1,0 +1,46 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "id": 1,
+                "secret": "x"
+              }
+            },
+            {
+              "json": {
+                "id": 2,
+                "secret": "y"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Aggregate": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "rows": [
+                  {
+                    "id": 1
+                  },
+                  {
+                    "id": 2
+                  }
+                ]
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

@@ -90,7 +90,9 @@ impl FlowNode for WaitNode {
             other => {
                 return Err(node_err(
                     ctx,
-                    format!("Wait resume mode `{other}` needs the durable wait, which is not available yet"),
+                    format!(
+                        "Wait resume mode `{other}` needs the durable wait, which is not available yet"
+                    ),
                 ));
             }
         };
@@ -164,7 +166,10 @@ impl FlowNode for ExecuteWorkflowNode {
 
     async fn execute(&self, ctx: &NodeContext) -> Result<NodeOutput, FlowError> {
         let Some(runner) = ctx.hooks.sub_workflow.clone() else {
-            return Err(node_err(ctx, "Execute Workflow is not available in this runtime"));
+            return Err(node_err(
+                ctx,
+                "Execute Workflow is not available in this runtime",
+            ));
         };
         let items = port(ctx, 0);
         let (id, json) = match param_str(ctx, "source", 0, "database")?.as_str() {
@@ -190,7 +195,12 @@ impl FlowNode for ExecuteWorkflowNode {
                     _ => return Err(node_err(ctx, "No workflow selected")),
                 }
             }
-            other => return Err(node_err(ctx, format!("Unsupported workflow source `{other}`"))),
+            other => {
+                return Err(node_err(
+                    ctx,
+                    format!("Unsupported workflow source `{other}`"),
+                ));
+            }
         };
         let wait = param_bool(ctx, "options.waitForSubWorkflow", 0, true)?;
         let req = |items: Vec<Item>| SubWorkflowRequest {
@@ -286,7 +296,10 @@ impl FlowNode for RespondToWebhookNode {
 
         let body = match with.as_str() {
             "allIncomingItems" => wrap(Value::Array(
-                items.iter().map(|i| Value::Object(i.json.clone())).collect(),
+                items
+                    .iter()
+                    .map(|i| Value::Object(i.json.clone()))
+                    .collect(),
             ))
             .into(),
             "firstIncomingItem" => items
@@ -299,7 +312,9 @@ impl FlowNode for RespondToWebhookNode {
                 match v {
                     Value::String(s) => serde_json::from_str::<Value>(&s)
                         .map(wrap)
-                        .map_err(|e| node_err(ctx, format!("Invalid JSON in 'Response Body': {e}")))?
+                        .map_err(|e| {
+                            node_err(ctx, format!("Invalid JSON in 'Response Body': {e}"))
+                        })?
                         .into(),
                     other => wrap(other).into(),
                 }
@@ -313,14 +328,25 @@ impl FlowNode for RespondToWebhookNode {
                     .first()
                     .and_then(|i| i.binary.as_ref())
                     .and_then(|b| b.get(&prop))
-                    .ok_or_else(|| node_err(ctx, format!("No binary data `{prop}` on the first input item")))?;
+                    .ok_or_else(|| {
+                        node_err(
+                            ctx,
+                            format!("No binary data `{prop}` on the first input item"),
+                        )
+                    })?;
                 let data = base64::engine::general_purpose::STANDARD
                     .decode(bin.data.as_bytes())
                     .map_err(|e| node_err(ctx, format!("Binary data is not valid base64: {e}")))?;
-                ResponseBody::Binary { mime_type: bin.mime_type.clone(), data }
+                ResponseBody::Binary {
+                    mime_type: bin.mime_type.clone(),
+                    data,
+                }
             }
             other => {
-                return Err(node_err(ctx, format!("Respond With `{other}` is not supported")));
+                return Err(node_err(
+                    ctx,
+                    format!("Respond With `{other}` is not supported"),
+                ));
             }
         };
 
@@ -338,7 +364,11 @@ impl FlowNode for RespondToWebhookNode {
         }
 
         if let Some(sink) = &ctx.hooks.response {
-            sink.respond(WebhookResponse { status, headers, body });
+            sink.respond(WebhookResponse {
+                status,
+                headers,
+                body,
+            });
         }
         Ok(vec![items.to_vec()])
     }
