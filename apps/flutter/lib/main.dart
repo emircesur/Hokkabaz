@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/router.dart';
+import 'app/theme_mode.dart';
 import 'ffi/ffi.dart';
 import 'theme/theme.dart';
 
@@ -30,8 +31,7 @@ class HokkabazApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
-      // Dark-first (DESIGN §4.7); user override comes with Settings.
-      themeMode: ThemeMode.dark,
+      themeMode: ref.watch(themeModeProvider),
       routerConfig: ref.watch(routerProvider),
     );
   }

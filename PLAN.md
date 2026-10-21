@@ -89,11 +89,11 @@ Rules:
 |---|---|---|---|---|---|---|---|
 | P3.1 📜 | C | `hk-ffi` API v1: core init/shutdown, chat commands, session event stream, models, settings; `CoreHandle` trait (Local impl) | P1.11 | M | none | Dart bindings generated, no panics cross FFI | done — SessionEventDto flat struct+kind enum (no freezed); android/headless secrets plaintext 0600 file until P6.2; hk-server `runtime` feature added |
 | P3.2 | C | Chat screen: sessions list, conversation stream, reasoning collapse, tool cards, diff viewer | P3.1 | L | none | DESIGN §4.3 layout works | done — inspector pane + model chip deferred (P3.3/P3.4); no widget test yet (reduceEvent candidate) |
-| P3.3 | C | Composer: `@` files/MCP, `/` commands, mode + model chips, image paste | P3.2 | M | none | – | todo |
+| P3.3 | C | Composer: `@` files/MCP, `/` commands, mode + model chips, image paste | P3.2 | M | none | – | partial — image paste not possible w/o native plugin (stub, no UI); MCP mentions placeholder; not run in live app |
 | P3.4 | C | Inspector: context, todo/plan, cost, subagent tree, files changed | P3.2 | M | none | – | todo |
 | P3.5 | C | Approvals inbox + inline cards | P3.2, P1.10 | S | none | approve/deny round-trip | partial — inline approval card done; inbox screen todo; no "always for session" option in respond_approval |
 | P3.6 | C | Models screen: providers, keys, local models (Ollama pull), routing | P2.1, P2.5 | M | none | – | done — Ollama pull/routing = placeholder card (P6.8); not run vs live core |
-| P3.7 | C | Command palette, keyboard shortcuts, light/dark | P3.2 | S | none | – | todo |
+| P3.7 | C | Command palette, keyboard shortcuts, light/dark | P3.2 | S | none | – | done — theme persisted via file in support dir; not run in live app |
 
 ## Phase 4 — n8n-compatible flow engine, server, instances  (milestone **M4: n8n webhook → AI agent → HTTP flow imports and runs on hokkabazd**)
 

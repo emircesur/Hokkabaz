@@ -82,6 +82,18 @@ class ChatMode extends Notifier<ModeDto> {
 
 final chatModeProvider = NotifierProvider<ChatMode, ModeDto>(ChatMode.new);
 
+/// Model override for new turns (`provider/model`); null = session default.
+class ComposerModel extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? reference) => state = reference;
+}
+
+final composerModelProvider = NotifierProvider<ComposerModel, String?>(
+  ComposerModel.new,
+);
+
 /// One open conversation: history + live feed + actions.
 class ChatController extends Notifier<ChatState> {
   ChatController(this.sessionId);
@@ -153,7 +165,7 @@ class ChatController extends Notifier<ChatState> {
     );
   }
 
-  Future<void> send(String prompt, ModeDto mode) async {
+  Future<void> send(String prompt, ModeDto mode, {String? model}) async {
     final text = prompt.trim();
     if (text.isEmpty) return;
     try {
@@ -161,7 +173,12 @@ class ChatController extends Notifier<ChatState> {
       if (state.running) {
         await chat.inject(sessionId: sessionId, text: text);
       } else {
-        await chat.submitTurn(sessionId: sessionId, prompt: text, mode: mode);
+        await chat.submitTurn(
+          sessionId: sessionId,
+          prompt: text,
+          mode: mode,
+          model: model,
+        );
       }
     } catch (e) {
       _notice(describeError(e));
