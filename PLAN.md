@@ -74,7 +74,7 @@ Rules:
 | P2.2 | B | Ollama native adapter (list, pull progress, chat, tools) | P1.4 | M | fixture | local qwen/llama chat with tools | todo |
 | P2.3 | B | Anthropic adapter (thinking, caching) | P1.4 | M | fixture | fixtures pass | todo |
 | P2.4 | B | Gemini adapter | P1.4 | M | fixture | fixtures pass | todo |
-| P2.5 | B | Router: per-agent model, fallback chain, retry/backoff, token meter + cost projection | P2.1 | M | unit | fallback on 5xx/timeout tested | todo |
+| P2.5 | B | Router: per-agent model, fallback chain, retry/backoff, token meter + cost projection | P2.1 | M | unit | fallback on 5xx/timeout tested | done — no route-answered signal in StreamEvent (log only via tracing) |
 | P2.6 | B | `hk-mcp` via rmcp: stdio + streamable HTTP, tools into registry, resources/prompts listing | P1.7 | M | none | filesystem MCP server usable in chat | done — tool names `mcp.<srv>.<tool>`: dots invalid for OpenAI-style APIs, map before send; rmcp pulls reqwest 0.13 (check android) |
 | P2.7 | A | `hk-sandbox`: policy model, landlock backend, seatbelt backend, none+allowlist; bash wraps argv | P1.8 | L | unit (policy) | write outside root denied on Linux | done — hk-tools bash wiring pending; hosts call maybe_run_helper() |
 | P2.8 | A | Subagents (`task` tool), parallel limit, linked child sessions | P1.9 | M | unit | parent receives child result | todo |
@@ -106,6 +106,7 @@ Rules:
 | P4.3c | D | Core n8n nodes: Set/Edit Fields, If, Switch, Filter, Merge (all modes), Loop Over Items, Wait (durable), Execute Workflow (+Trigger), Error Trigger, NoOp, Respond to Webhook, HTTP Request, Date & Time, Aggregate/Split Out, Sort, Limit, Remove Duplicates | P4.3 | L | fixture | corpus cases per node pass | todo |
 | P4.4 | D | Triggers (n8n types): Manual, Schedule, Webhook, Form, Chat, Execute Workflow Trigger + native app event, file watch; durable waits survive restart | P4.2 | M | unit (cron) | – | todo |
 | P4.5 | D | n8n LangChain nodes on hk-llm/hk-agent: AI Agent, chat model sub-nodes (DeepSeek, OpenAI, Anthropic, Gemini, Ollama, OpenRouter), memory, tool sub-nodes, output parsers, Basic LLM Chain, Text Classifier, Information Extractor; + native Hokkabaz Agent node | P4.3, P1.9 | L | fixture | n8n AI agent template imports and runs on DeepSeek | todo |
+| P4.6a 📜 | D | `hk-server` agent API (first slice of P4.6): axum REST `/api/v1` sessions list\/show\/create, submit turn, inject, cancel, approval respond, models list; WS `/api/v1/ws` session event stream + commands; bearer token auth + scopes | P1.11 | M | unit (auth, routing) | curl creates session, streams events over WS, approves a tool call | todo |
 | P4.6 📜 | D | `hk-server` (axum): n8n-shaped webhooks (`/webhook`, `/webhook-test`, response modes) + HMAC presets, REST v1 mirroring n8n public API (workflows, executions, credentials), WS event/command mux, token scopes, rate limit | P4.2 | L | unit (auth) | OpenAPI doc generated | todo |
 | P4.7 | D | `hokkabazd`: daemon profile, systemd unit, Dockerfile, pairing QR endpoint | P4.6 | M | none | docker run → webhook triggers flow | todo |
 | P4.8 | C | `RemoteCore` impl of `CoreHandle` (WS/REST) + Instances screen + pairing | P4.6, P3.1 | M | none | desktop controls remote daemon | todo |

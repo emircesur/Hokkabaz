@@ -13,6 +13,7 @@ mod model;
 pub mod openai;
 mod provider;
 mod request;
+pub mod router;
 mod usage;
 
 pub use error::{LlmError, Result};
@@ -20,5 +21,6 @@ pub use event::{FinishReason, StreamEvent};
 pub use model::{Capabilities, ModelCost, ModelInfo};
 pub use provider::{EventStream, Provider};
 pub use request::{ChatRequest, Message, ReasoningEffort, Role, ToolCall, ToolChoice, ToolSpec};
+pub use router::{Meter, Projection, Route, RouteTotals, Router};
 pub use tokio_util::sync::CancellationToken;
 pub use usage::{Cost, Usage};
