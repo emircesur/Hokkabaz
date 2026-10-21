@@ -47,7 +47,7 @@ Rules:
 | P0.2 | F | CI: `fmt`, `clippy`, `check` on Linux; tests only on changed crates (path filters); Android build job stub | P0.1 | S | none | CI green on main | wip (yaml done; green-on-main unverified) |
 | P0.3 | F | `docs/UPSTREAM.md` (pinned SHAs, concept map), `THIRD_PARTY_NOTICES.md`; license files deferred (D10) | – | S | none | files exist | done — UPSTREAM.md + THIRD_PARTY_NOTICES.md; MIT texts to add before release; license deferred |
 | P0.4 | C | Flutter app skeleton (`apps/flutter`), go_router + Riverpod, theme tokens from DESIGN §4.7, empty screens for 7 tabs | – | M | none | `flutter analyze` clean, runs on Linux desktop | done — fonts not bundled; Linux build unverified (no GTK here) |
-| P0.5 | C | flutter_rust_bridge v2 wiring: `hk-ffi` exposes `core_version()` + a demo stream | P0.1, P0.4 | S | none | desktop app shows version from Rust | todo |
+| P0.5 | C | flutter_rust_bridge v2 wiring: `hk-ffi` exposes `core_version()` + a demo stream | P0.1, P0.4 | S | none | desktop app shows version from Rust | done — linux+apk debug build ok (libhk_ffi.so bundled); RustLib.init runtime load not exercised; cargokit patched (marked hk:) |
 
 ## Phase 1 — Core engine + DeepSeek chat in CLI  (milestone **M1: `hk chat` talks to DeepSeek with tools**)
 
