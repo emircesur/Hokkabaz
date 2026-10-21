@@ -10,6 +10,7 @@ pub mod catalog;
 pub mod deepseek;
 mod error;
 mod event;
+pub mod gemini;
 mod model;
 pub mod ollama;
 pub mod openai;

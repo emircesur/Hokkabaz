@@ -1,0 +1,2 @@
+{"candidates":[{"content":{"role":"model","parts":[{"text":"Looking."}]},"index":0}],"usageMetadata":{"promptTokenCount":50,"candidatesTokenCount":2,"totalTokenCount":52}}
+{"candidates":[{"content":{"role":"model","parts":[{"functionCall":{"name":"ls","args":{"path":"src"}},"thoughtSignature":"SIG-TURN-1"},{"functionCall":{"name":"pwd","args":{}}}]},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":50,"candidatesTokenCount":9,"totalTokenCount":59}}

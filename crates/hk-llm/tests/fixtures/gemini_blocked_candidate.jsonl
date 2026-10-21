@@ -1,0 +1,2 @@
+{"candidates":[{"content":{"role":"model","parts":[{"text":"Sure, first"}]},"index":0}],"usageMetadata":{"promptTokenCount":7,"totalTokenCount":9}}
+{"candidates":[{"finishReason":"SAFETY","index":0,"safetyRatings":[{"category":"HARM_CATEGORY_HARASSMENT","probability":"HIGH","blocked":true}]}],"usageMetadata":{"promptTokenCount":7,"candidatesTokenCount":2,"totalTokenCount":9}}

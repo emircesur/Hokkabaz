@@ -1,0 +1,3 @@
+{"candidates":[{"content":{"role":"model","parts":[{"text":"Let me ","thought":true}]},"index":0}],"usageMetadata":{"promptTokenCount":30,"totalTokenCount":30}}
+{"candidates":[{"content":{"role":"model","parts":[{"text":"think.","thought":true}]},"index":0}],"usageMetadata":{"promptTokenCount":30,"totalTokenCount":30}}
+{"candidates":[{"content":{"role":"model","parts":[{"text":"42","thoughtSignature":"TXT-SIG"}]},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":30,"candidatesTokenCount":1,"totalTokenCount":71,"thoughtsTokenCount":40}}
