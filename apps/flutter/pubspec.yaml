@@ -39,6 +39,7 @@ dependencies:
   flutter_rust_bridge: 2.11.1
   rust_lib_hokkabaz:
     path: rust_builder
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:

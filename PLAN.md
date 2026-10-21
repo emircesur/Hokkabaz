@@ -92,7 +92,7 @@ Rules:
 | P3.3 | C | Composer: `@` files/MCP, `/` commands, mode + model chips, image paste | P3.2 | M | none | – | todo |
 | P3.4 | C | Inspector: context, todo/plan, cost, subagent tree, files changed | P3.2 | M | none | – | todo |
 | P3.5 | C | Approvals inbox + inline cards | P3.2, P1.10 | S | none | approve/deny round-trip | todo |
-| P3.6 | C | Models screen: providers, keys, local models (Ollama pull), routing | P2.1, P2.5 | M | none | – | todo |
+| P3.6 | C | Models screen: providers, keys, local models (Ollama pull), routing | P2.1, P2.5 | M | none | – | done — Ollama pull/routing = placeholder card (P6.8); not run vs live core |
 | P3.7 | C | Command palette, keyboard shortcuts, light/dark | P3.2 | S | none | – | todo |
 
 ## Phase 4 — n8n-compatible flow engine, server, instances  (milestone **M4: n8n webhook → AI agent → HTTP flow imports and runs on hokkabazd**)

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../screens/chat_screen.dart';
+import '../screens/models/models_screen.dart';
 import '../screens/placeholder_screen.dart';
 import 'destinations.dart';
 import 'shell.dart';
@@ -22,6 +23,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                 key: state.pageKey,
                 child: d.path == '/chat'
                     ? ChatScreen(title: d.label, icon: d.icon)
+                    : d.path == '/models'
+                    ? const ModelsScreen()
                     : PlaceholderScreen(title: d.label, icon: d.icon),
               ),
             ),
