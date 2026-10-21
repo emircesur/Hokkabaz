@@ -44,7 +44,7 @@ pub use hooks::{
     SubWorkflowRequest, SubWorkflowRunner, WebhookResponse,
 };
 pub use item::{BinaryData, Item, PairedItem, PairedSource};
-pub use node::{FlowNode, NodeContext, NodeOutput, NodeRegistry};
+pub use node::{FlowNode, NodeContext, NodeOutput, NodeRegistry, SubNodeEnv, Supplied};
 pub use nodes::register_core_nodes;
 pub use run_data::{
     ExecutionRecord, InMemoryRunStore, NodeRun, NodeRunData, RunData, RunError, RunSource,

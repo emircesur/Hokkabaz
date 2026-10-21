@@ -103,6 +103,16 @@ pub struct NodeHooks {
     /// The executor can park a suspended execution (it has a `WaitStore`). Set by the
     /// executor; nodes must not suspend when this is false.
     pub durable_wait: bool,
+    /// Builds chat models for the `lmChat*` nodes. `None` = hk-llm providers built straight
+    /// from the node's credential ([`HkLlmChatModelFactory`](crate::nodes::ai::HkLlmChatModelFactory)).
+    #[cfg(feature = "ai")]
+    pub chat_models: Option<Arc<dyn crate::nodes::ai::ChatModelFactory>>,
+    /// Runs the full hk-agent loop for `hokkabaz.agent`; the server/FFI supplies it.
+    #[cfg(feature = "ai")]
+    pub agent_runner: Option<Arc<dyn crate::nodes::ai::AgentRunner>>,
+    /// Chat history behind `memoryBufferWindow`.
+    #[cfg(feature = "ai")]
+    pub chat_memory: crate::nodes::ai::ChatMemoryStore,
 }
 
 impl Default for NodeHooks {
@@ -113,6 +123,12 @@ impl Default for NodeHooks {
             credentials: None,
             max_inline_wait: Duration::from_secs(65),
             durable_wait: false,
+            #[cfg(feature = "ai")]
+            chat_models: None,
+            #[cfg(feature = "ai")]
+            agent_runner: None,
+            #[cfg(feature = "ai")]
+            chat_memory: crate::nodes::ai::ChatMemoryStore::new(),
         }
     }
 }
