@@ -1,0 +1,9 @@
+Copy-Item: D:\a\Hokkabaz\Hokkabaz\scripts\package-windows.ps1:49
+Line |
+  49 |  Copy-Item LICENSE, THIRD_PARTY_NOTICES.md $stage
+     |  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Cannot find path 'D:\a\Hokkabaz\Hokkabaz\LICENSE' because it does not exist.
+
+at <ScriptBlock>, D:\a\Hokkabaz\Hokkabaz\scripts\package-windows.ps1: line 49
+at <ScriptBlock>, D:\a\_temp\29717eb5-001c-4d66-8d43-b1e602460157.ps1: line 2
+at <ScriptBlock>, <No file>: line 1
