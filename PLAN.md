@@ -44,7 +44,7 @@ Rules:
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
 | P0.1 | F | Cargo workspace skeleton with all crates (empty lib + `todo!()`-free stubs), edition 2024, shared lints, `rust-toolchain.toml` | – | S | none | `cargo check --workspace` green | done — 14 crates + 2 apps, strict lints, clippy -D warnings clean |
-| P0.2 | F | CI: `fmt`, `clippy`, `check` on Linux; tests only on changed crates (path filters); Android build job stub | P0.1 | S | none | CI green on main | wip (yaml done; green-on-main unverified) |
+| P0.2 | F | CI: `fmt`, `clippy`, `check` on Linux; tests only on changed crates (path filters); Android build job stub | P0.1 | S | none | CI green on main | done — CI also runs on claude/** branches and workflow_dispatch; fmt runs on workspace members only (scripts/fmt.sh) |
 | P0.3 | F | `docs/UPSTREAM.md` (pinned SHAs, concept map), `THIRD_PARTY_NOTICES.md`; license files deferred (D10) | – | S | none | files exist | done — UPSTREAM.md + THIRD_PARTY_NOTICES.md; MIT texts to add before release; license deferred |
 | P0.4 | C | Flutter app skeleton (`apps/flutter`), go_router + Riverpod, theme tokens from DESIGN §4.7, empty screens for 7 tabs | – | M | none | `flutter analyze` clean, runs on Linux desktop | done — fonts not bundled; Linux build unverified (no GTK here) |
 | P0.5 | C | flutter_rust_bridge v2 wiring: `hk-ffi` exposes `core_version()` + a demo stream | P0.1, P0.4 | S | none | desktop app shows version from Rust | done — linux+apk debug build ok (libhk_ffi.so bundled); RustLib.init runtime load not exercised; cargokit patched (marked hk:) |
@@ -119,18 +119,18 @@ Rules:
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
-| P5.1 📜 | E | WIT world `hokkabaz-plugin`: tools, nodes, triggers, hooks, settings; capability manifest `plugin.toml` | P1.7, P4.1 | M | none | WIT reviewed by A + D leads | todo |
-| P5.2 | E | `hk-plugin` host on wasmtime: load, capability-scoped imports (http, kv, secrets, log, fs, emit), unload | P5.1 | L | unit (caps) | sample plugin adds tool + node | todo |
-| P5.3 | E | Rust plugin SDK crate + template + `hk plugin new/build/install` | P5.2 | M | none | – | todo |
-| P5.3b | E | GitHub plugin registry: `hokkabaz-plugins` repo layout (index.json, manifests), CI manifest/hash validation, Releases artifacts; in-app browse/install/update | P5.3 | M | none | plugin installed from GitHub registry | todo |
+| P5.1 📜 | E | WIT world `hokkabaz-plugin`: tools, nodes, triggers, hooks, settings; capability manifest `plugin.toml` | P1.7, P4.1 | M | none | WIT reviewed by A + D leads | done — wit/hokkabaz-plugin.wit (ABI v1, JSON payloads) |
+| P5.2 | E | `hk-plugin` host on wasmtime: load, capability-scoped imports (http, kv, secrets, log, fs, emit), unload | P5.1 | L | unit (caps) | sample plugin adds tool + node | done — wasmtime host, capability checks per call, epoch+memory limits; e2e test with sample plugin |
+| P5.3 | E | Rust plugin SDK crate + template + `hk plugin new/build/install` | P5.2 | M | none | – | done — sdk/rust/hk-plugin-sdk, `hk plugin new/build/install/ls/remove/index-entry/verify-index`; docs/PLUGINS.md |
+| P5.3b | E | GitHub plugin registry: `hokkabaz-plugins` repo layout (index.json, manifests), CI manifest/hash validation, Releases artifacts; in-app browse/install/update | P5.3 | M | none | plugin installed from GitHub registry | done — registry-template/ (index.json, validate workflow), in-app browse/install/update (hash-verified); default registry repo `hokkabaz-plugins` still to be created on GitHub |
 | P5.4 | E | Integration framework: n8n credential types, node/trigger helpers matching n8n node descriptions, polling trigger base | P4.3c | M | none | – | done — todo: hk-server CredentialSchemas adapter, daemon PollingHost+StaticDataStore wiring, credentials/test route, OAuth2 token flow; authenticate templates only `{{$credentials.path}}` |
 | P5.5 | E | T1 batch A: HTTP Request, GitHub, Gitea/Forgejo, Git, n8n | P5.4 | L | none | – | done — GitHub review/user minimal; no binary file download, no webhook creation, no n8n workflow create/update/delete; trigger events/labels are comma-string fields; git node desktop only (android = unsupported error) |
 | P5.6 | E | T1 batch B: Telegram, Matrix, ntfy, Gotify, Email IMAP/SMTP, RSS | P5.4 | L | none | – | done — Telegram webhook mode skipped; first poll may flood stale queued updates; SMTP/IMAP no skip-cert-check (private CA unsupported), no live-server tests; Matrix filters, IMAP customEmailConfig skipped; gotify fields use n8n names appApiToken/clientApiToken |
 | P5.7 | E | T1 batch C: SQLite, PostgreSQL, Redis, S3/MinIO, SearXNG (+ `web_search` tool), Ollama node | P5.4 | L | none | – | done — Redis own RESP2 client, no Redis Trigger; PG one statement/query, param types limited, no live-server test; S3 folder ops skipped; SearXNG web_search tool NOT wired into daemon (needs base-URL config) |
-| P5.8 | C | Plugins screen: installed, MCP servers (trust prompt), integrations, credentials editor | P5.2, P5.4 | M | none | – | todo |
-| P5.9 | D | n8n instance sync: pull/push workflows + credential metadata via n8n API; credential import mapping | P4.6 | M | none | flows pulled from live n8n run locally | todo |
-| P5.10 | D | Remote delegation: run unimplemented node types on configured n8n instance | P5.9 | M | none | flow with unsupported node runs end-to-end | todo |
-| P5.11 | D | Coverage report: rank node types by usage in n8n public templates, track % supported in `docs/N8N_COVERAGE.md`; drives integration order | P4.1b | S | none | report generated | todo |
+| P5.8 | C | Plugins screen: installed, MCP servers (trust prompt), integrations, credentials editor | P5.2, P5.4 | M | none | – | done — Plugins screen: plugins, MCP (trust prompt), credentials, n8n; node credential picker |
+| P5.9 | D | n8n instance sync: pull/push workflows + credential metadata via n8n API; credential import mapping | P4.6 | M | none | flows pulled from live n8n run locally | done — n8nApi credential link, list/pull/push, credential mapping by type+name; docs/N8N_SYNC.md |
+| P5.10 | D | Remote delegation: run unimplemented node types on configured n8n instance | P5.9 | M | none | flow with unsupported node runs end-to-end | done — delegation via temporary webhook workflow on the instance (opt-in); e2e test against fake API |
+| P5.11 | D | Coverage report: rank node types by usage in n8n public templates, track % supported in `docs/N8N_COVERAGE.md`; drives integration order | P4.1b | S | none | report generated | done — docs/N8N_COVERAGE.md generated (`cargo run -p hk-ffi --example coverage`); ranking list is hand-curated, replace with real template counts when available |
 
 Integration order after core + AI nodes: implementing agent decides (D14), using P5.11 report + own judgment. T1/T2 lists in DESIGN §3.11 are suggestions, not commitments.
 
@@ -141,22 +141,22 @@ Integration order after core + AI nodes: implementing agent decides (D14), using
 | P6.1 | F | `cargo-ndk` build for aarch64 + x86_64; cfg-gate desktop-only deps; mobile profile | P3.1 | M | none | `.so` builds in CI | done — CI untested (apk job); cargokit hardcodes --release so apk job mirrors mobile profile via CARGO_PROFILE_RELEASE_* env; see docs/android-build.md |
 | P6.2 | F | Android Keystore secrets bridge; app-private data dir; SAF file picks | P6.1, P1.12 | M | none | – | done — secrets file ChaCha20-Poly1305 encrypted with a 32-byte key wrapped by the Android Keystore (Kotlin MethodChannel); plaintext file migrates; SAF picks via file_picker; not run on a device |
 | P6.3 | C | Mobile layouts: bottom nav, chat full-screen, inspector sheet, approvals via notifications | P3.2 | L | none | – | done — no OS notifications (flutter_local_notifications not in pub cache): interface + in-app banner/badge only; inbox may hold stale entries until session reopened |
-| P6.4 | F | Foreground service for long runs / optional local webhook server; battery-aware | P6.1, P4.6 | M | none | – | todo |
+| P6.4 | F | Foreground service for long runs / optional local webhook server; battery-aware | P6.1, P4.6 | M | none | – | done — Android foreground service while turns run, approval notifications, battery-saver hint |
 | P6.5 | C | Remote-first UX: pair via QR camera scan, instance switcher | P4.8, P6.3 | S | none | phone controls daemon | done — QR scan (mobile_scanner) fills the pairing link on Android/iOS; paste still works; not run on a device |
-| P6.7 | B | On-device LLM (`local-llm`, llama-cpp-2): GGUF model manager (HF download, resume, checksum, fit check), desktop + Android aarch64, router offline fallback | P2.5, P6.1 | L | none | offline chat on phone | done — hk-local (llama.cpp desktop; Android build pending verification), docs/LOCAL_MODELS.md |
-| P6.8 | C | Local models UI: browse/download/delete, device-class recommendations, offline indicator | P6.7, P3.6 | M | none | – | todo |
+| P6.7 | B | On-device LLM (`local-llm`, llama-cpp-2): GGUF model manager (HF download, resume, checksum, fit check), desktop + Android aarch64, router offline fallback | P2.5, P6.1 | L | none | offline chat on phone | done — hk-local: llama.cpp provider (desktop verified with a real Qwen2.5-0.5B: answer + tool call), catalog, offline fallback chain; Android build wired (static libc++), see notes in docs/LOCAL_MODELS.md |
+| P6.8 | C | Local models UI: browse/download/delete, device-class recommendations, offline indicator | P6.7, P3.6 | M | none | – | done — Models tab: catalog with fit check, resumable verified download, custom GGUF, offline fallback |
 | P6.6 | F | Release signing, F-Droid metadata, GitHub Releases APK | P6.1 | S | none | signed APK published | partial — signing via android/key.properties or env (scripts/gen-android-keystore.sh), release.yml (tag v* → signed APKs + Windows zip → GitHub Release), fastlane metadata; no F-Droid inclusion request; no keystore generated (owner must create one) |
 
 ## Phase 7 — Hardening & extras  (milestone **M7: v1.0**)
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
-| P7.2 | E | T2 integrations as n8n node types, ordered by P5.11 report (GitLab, Home Assistant, Nextcloud, Discord, Docker, Qdrant, …) | P5.4 | L | fixture | ≥ 80% of top-500 template node usages supported | todo |
+| P7.2 | E | T2 integrations as n8n node types, ordered by P5.11 report (GitLab, Home Assistant, Nextcloud, Discord, Docker, Qdrant, …) | P5.4 | L | fixture | ≥ 80% of top-500 template node usages supported | partial — Slack, GraphQL, HTML, XML, Markdown, Crypto, Execute Command (opt-in), Summarize, Compare Datasets, Rename Keys, Convert/Extract File, legacy Function nodes added; far from 80% of top-500 (see N8N_COVERAGE.md); unsupported nodes can run on a linked n8n |
 | P7.2b | D | Code node Python mode | P4.3b | M | fixture | – | done — python3 subprocess, opt-in (HOKKABAZ_ALLOW_PYTHON=1), desktop only |
-| P7.3 | E | JS/Python plugin SDK docs (jco, componentize-py) | P5.3 | S | none | – | todo |
-| P7.4 | A | Security pass: redaction audit, injection tagging, webhook fuzz (one-off) | P4.6 | M | unit | – | todo |
-| P7.5 | F | Desktop packaging: AppImage/deb, dmg, msi; auto-update channel | P3.7 | M | none | – | todo |
-| P7.6 | F | Docs: user guide, plugin guide, deploy guides (Docker, systemd, Railway, Pi) | M5 | M | none | – | todo |
+| P7.3 | E | JS/Python plugin SDK docs (jco, componentize-py) | P5.3 | S | none | – | done — docs/PLUGINS.md (Rust SDK; component-model note for jco/componentize-py/TinyGo) |
+| P7.4 | A | Security pass: redaction audit, injection tagging, webhook fuzz (one-off) | P4.6 | M | unit | – | done — untrusted-content tagging, webhook fuzz test, redaction audit; docs/SECURITY.md |
+| P7.5 | F | Desktop packaging: AppImage/deb, dmg, msi; auto-update channel | P3.7 | M | none | – | done (CI-built, not run locally) — .deb, AppImage, tar.gz, macOS dmg (unsigned), Windows installer (Inno Setup, not MSI); update check in Settings (manual, no auto-install) |
+| P7.6 | F | Docs: user guide, plugin guide, deploy guides (Docker, systemd, Railway, Pi) | M5 | M | none | – | done — docs/USER_GUIDE.md, DEPLOY.md (Docker, systemd, Railway, Pi), PLUGINS.md |
 
 ---
 
