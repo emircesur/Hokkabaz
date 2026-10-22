@@ -1,0 +1,8 @@
+{
+  "description": "Summarize: sum and count per group.",
+  "status": "active",
+  "nodes": [
+    "summarize"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.summarize/"
+}

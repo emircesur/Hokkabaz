@@ -103,6 +103,13 @@ pub fn trigger_nodes() -> Vec<TriggerNode> {
             json!([]),
         ),
         trigger(
+            crate::triggers::LEGACY_START_TYPE,
+            "Start",
+            json!([1]),
+            "Starts the workflow (legacy; use Manual Trigger)",
+            json!([]),
+        ),
+        trigger(
             SCHEDULE_TYPE,
             "Schedule Trigger",
             json!([1, 1.1, 1.2]),

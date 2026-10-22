@@ -1,0 +1,54 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "country": "TR",
+                "amount": 10
+              }
+            },
+            {
+              "json": {
+                "country": "DE",
+                "amount": 5
+              }
+            },
+            {
+              "json": {
+                "country": "TR",
+                "amount": 20
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Summarize": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "country": "TR",
+                "sum_amount": 30,
+                "count_amount": 2
+              }
+            },
+            {
+              "json": {
+                "country": "DE",
+                "sum_amount": 5,
+                "count_amount": 1
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

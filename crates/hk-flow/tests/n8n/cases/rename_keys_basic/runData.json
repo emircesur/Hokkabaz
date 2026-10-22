@@ -1,0 +1,34 @@
+{
+  "Trigger": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "first_name": "Ada",
+                "age": 36
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "Rename": [
+    {
+      "data": {
+        "main": [
+          [
+            {
+              "json": {
+                "name": "Ada",
+                "age": 36
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "description": "Convert to File (CSV) then Extract from File (CSV) returns the rows.",
+  "status": "active",
+  "nodes": [
+    "convertToFile",
+    "extractFromFile"
+  ],
+  "docs": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.converttofile/"
+}

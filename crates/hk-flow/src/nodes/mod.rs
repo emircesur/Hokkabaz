@@ -14,6 +14,7 @@
 //! | No Operation | `noOp` | 1 |
 //! | Date & Time | `dateTime` | 2 |
 //! | Aggregate, Split Out, Sort, Limit | | 1 |
+//! | Sticky Note, Stop and Error, Summarize, Rename Keys, Compare Datasets, Convert to / Extract from File (CSV, JSON, text), Function / Function Item | | see `more` |
 //! | Remove Duplicates | `removeDuplicates` | 1, 1.1, 2 (current-input only) |
 //! | Wait | `wait` | 1, 1.1 (inline sleep; long, webhook, form = durable, see `triggers::wait`) |
 //! | Execute Workflow | `executeWorkflow` | 1 - 1.2 (needs a [`SubWorkflowRunner`](crate::hooks::SubWorkflowRunner)) |
@@ -38,6 +39,7 @@ mod flow_control;
 #[cfg(feature = "http")]
 mod http;
 mod merge;
+mod more;
 mod routing;
 mod set;
 mod transform;
@@ -77,6 +79,15 @@ pub fn core_nodes() -> Vec<Arc<dyn FlowNode>> {
         Arc::new(WaitNode::new()),
         Arc::new(ExecuteWorkflowNode::new()),
         Arc::new(RespondToWebhookNode::new()),
+        Arc::new(more::StickyNoteNode::new()),
+        Arc::new(more::StopAndErrorNode::new()),
+        Arc::new(more::SummarizeNode::new()),
+        Arc::new(more::RenameKeysNode::new()),
+        Arc::new(more::CompareDatasetsNode::new()),
+        Arc::new(more::ConvertToFileNode::new()),
+        Arc::new(more::ExtractFromFileNode::new()),
+        Arc::new(more::LegacyFunctionNode::new(false)),
+        Arc::new(more::LegacyFunctionNode::new(true)),
     ];
     #[cfg(feature = "http")]
     v.push(Arc::new(HttpRequestNode::new()));

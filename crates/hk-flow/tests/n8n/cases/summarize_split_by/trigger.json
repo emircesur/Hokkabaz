@@ -1,0 +1,20 @@
+[
+  {
+    "json": {
+      "country": "TR",
+      "amount": 10
+    }
+  },
+  {
+    "json": {
+      "country": "DE",
+      "amount": 5
+    }
+  },
+  {
+    "json": {
+      "country": "TR",
+      "amount": 20
+    }
+  }
+]

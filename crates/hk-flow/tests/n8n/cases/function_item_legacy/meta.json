@@ -1,0 +1,8 @@
+{
+  "description": "Legacy Function Item node edits item per input.",
+  "status": "active",
+  "nodes": [
+    "functionItem"
+  ],
+  "docs": "https://docs.n8n.io/"
+}

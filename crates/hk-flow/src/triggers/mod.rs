@@ -44,6 +44,8 @@ pub use webhook::{
 };
 
 pub const MANUAL_TYPE: &str = "n8n-nodes-base.manualTrigger";
+/// Pre-manualTrigger entry node of old exports.
+pub const LEGACY_START_TYPE: &str = "n8n-nodes-base.start";
 pub const FORM_TYPE: &str = "n8n-nodes-base.formTrigger";
 pub const CHAT_TYPE: &str = "@n8n/n8n-nodes-langchain.chatTrigger";
 pub const EXECUTE_WORKFLOW_TRIGGER_TYPE: &str = "n8n-nodes-base.executeWorkflowTrigger";
@@ -65,7 +67,7 @@ pub enum TriggerKind {
 impl TriggerKind {
     pub fn of_type(node_type: &str) -> Option<Self> {
         Some(match node_type {
-            MANUAL_TYPE => Self::Manual,
+            MANUAL_TYPE | LEGACY_START_TYPE => Self::Manual,
             SCHEDULE_TYPE => Self::Schedule,
             WEBHOOK_TYPE => Self::Webhook,
             FORM_TYPE => Self::Form,
