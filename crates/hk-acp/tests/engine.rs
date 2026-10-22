@@ -5,11 +5,12 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use hk_acp::{
-    AcpEngine, ApprovalPrompt, Approver, Decision, EngineEvent, EngineOptions, SessionMapper, StopReason,
+    AcpEngine, ApprovalPrompt, Approver, Decision, EngineEvent, EngineOptions, SessionMapper,
+    StopReason,
 };
 use hk_session::{EventKind, NewSession, SessionStore, TurnEndReason, derive_messages};
 use serde_json::{Value, json};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, ReadHalf, WriteHalf, DuplexStream};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream, ReadHalf, WriteHalf};
 
 type Seen = Arc<Mutex<Vec<Value>>>;
 
@@ -39,7 +40,8 @@ impl Agent {
 
     /// Send a request and wait for its response, recording any `session/cancel` seen meanwhile.
     async fn ask(&mut self, id: u64, method: &str, params: Value) -> (Value, bool) {
-        self.send(json!({"jsonrpc":"2.0","id":id,"method":method,"params":params})).await;
+        self.send(json!({"jsonrpc":"2.0","id":id,"method":method,"params":params}))
+            .await;
         let mut cancelled = false;
         loop {
             let m = self.next().await.expect("client hung up");
@@ -58,18 +60,32 @@ impl Agent {
             match m["method"].as_str() {
                 Some("initialize") => {
                     assert_eq!(m["params"]["protocolVersion"], 1);
-                    assert_eq!(m["params"]["clientCapabilities"]["fs"]["readTextFile"], true);
+                    assert_eq!(
+                        m["params"]["clientCapabilities"]["fs"]["readTextFile"],
+                        true
+                    );
                     assert_eq!(m["params"]["clientCapabilities"]["terminal"], false);
-                    self.reply(id, json!({"protocolVersion":1,"agentCapabilities":{},"authMethods":[],
-                        "agentInfo":{"name":"fake","version":"0"}})).await;
+                    self.reply(
+                        id,
+                        json!({"protocolVersion":1,"agentCapabilities":{},"authMethods":[],
+                        "agentInfo":{"name":"fake","version":"0"}}),
+                    )
+                    .await;
                 }
                 Some("session/new") => {
                     assert_eq!(m["params"]["cwd"], self.root.to_str().unwrap());
                     self.reply(id, json!({"sessionId":"sess-1"})).await;
                 }
                 Some("session/prompt") => {
-                    let text = m["params"]["prompt"][0]["text"].as_str().unwrap().to_owned();
-                    let stop = if text == "wait" { self.wait_turn().await } else { self.full_turn().await };
+                    let text = m["params"]["prompt"][0]["text"]
+                        .as_str()
+                        .unwrap()
+                        .to_owned();
+                    let stop = if text == "wait" {
+                        self.wait_turn().await
+                    } else {
+                        self.full_turn().await
+                    };
                     self.reply(id, json!({"stopReason": stop})).await;
                 }
                 _ => {}
@@ -78,16 +94,26 @@ impl Agent {
     }
 
     async fn reply(&mut self, id: Option<Value>, result: Value) {
-        self.send(json!({"jsonrpc":"2.0","id":id,"result":result})).await;
+        self.send(json!({"jsonrpc":"2.0","id":id,"result":result}))
+            .await;
     }
 
     async fn full_turn(&mut self) -> &'static str {
-        self.update(json!({"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"hmm"}})).await;
+        self.update(
+            json!({"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"hmm"}}),
+        )
+        .await;
         self.update(json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Reading "}})).await;
-        self.update(json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"file."}})).await;
+        self.update(
+            json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"file."}}),
+        )
+        .await;
         self.update(json!({"sessionUpdate":"plan","entries":[{"content":"read","priority":"high","status":"pending"}]})).await;
-        self.update(json!({"sessionUpdate":"tool_call","toolCallId":"c1","title":"Edit a.txt","kind":"edit",
-            "status":"pending","rawInput":{"path":"a.txt"}})).await;
+        self.update(
+            json!({"sessionUpdate":"tool_call","toolCallId":"c1","title":"Edit a.txt","kind":"edit",
+            "status":"pending","rawInput":{"path":"a.txt"}}),
+        )
+        .await;
 
         let (resp, _) = self
             .ask(
@@ -102,25 +128,47 @@ impl Agent {
 
         let file = self.root.join("a.txt");
         let (w, _) = self
-            .ask(101, "fs/write_text_file", json!({"sessionId":"sess-1","path":file,"content":"l1\nl2\n"}))
+            .ask(
+                101,
+                "fs/write_text_file",
+                json!({"sessionId":"sess-1","path":file,"content":"l1\nl2\n"}),
+            )
             .await;
         self.seen.lock().unwrap().push(w);
         let (r, _) = self
-            .ask(102, "fs/read_text_file", json!({"sessionId":"sess-1","path":file,"line":2}))
+            .ask(
+                102,
+                "fs/read_text_file",
+                json!({"sessionId":"sess-1","path":file,"line":2}),
+            )
             .await;
         self.seen.lock().unwrap().push(r);
         let (esc, _) = self
-            .ask(103, "fs/read_text_file", json!({"sessionId":"sess-1","path":"/etc/passwd"}))
+            .ask(
+                103,
+                "fs/read_text_file",
+                json!({"sessionId":"sess-1","path":"/etc/passwd"}),
+            )
             .await;
         self.seen.lock().unwrap().push(esc);
         let (term, _) = self
-            .ask(104, "terminal/create", json!({"sessionId":"sess-1","command":"ls"}))
+            .ask(
+                104,
+                "terminal/create",
+                json!({"sessionId":"sess-1","command":"ls"}),
+            )
             .await;
         self.seen.lock().unwrap().push(term);
 
-        self.update(json!({"sessionUpdate":"tool_call_update","toolCallId":"c1","status":"completed",
-            "content":[{"type":"content","content":{"type":"text","text":"edited"}}]})).await;
-        self.update(json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Done."}})).await;
+        self.update(
+            json!({"sessionUpdate":"tool_call_update","toolCallId":"c1","status":"completed",
+            "content":[{"type":"content","content":{"type":"text","text":"edited"}}]}),
+        )
+        .await;
+        self.update(
+            json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Done."}}),
+        )
+        .await;
         "end_turn"
     }
 
@@ -180,7 +228,9 @@ async fn start(approver: Arc<dyn Approver>) -> (AcpEngine, Seen, tempfile::TempD
         }
         .run(),
     );
-    let engine = AcpEngine::connect(cr, cw, EngineOptions::new(root, approver)).await.unwrap();
+    let engine = AcpEngine::connect(cr, cw, EngineOptions::new(root, approver))
+        .await
+        .unwrap();
     (engine, seen, dir)
 }
 
@@ -198,15 +248,35 @@ async fn full_turn_maps_to_session_log() {
     while let Ok(e) = rx.try_recv() {
         evs.push(e);
     }
-    assert!(evs.iter().any(|e| matches!(e, EngineEvent::Plan(p) if p.len() == 1)));
-    assert!(evs.iter().any(|e| matches!(e, EngineEvent::ApprovalRequested(p) if p.call_id == "c1")));
-    assert!(evs.iter().any(|e| matches!(e, EngineEvent::ApprovalResolved { approved: true, .. })));
+    assert!(
+        evs.iter()
+            .any(|e| matches!(e, EngineEvent::Plan(p) if p.len() == 1))
+    );
+    assert!(
+        evs.iter()
+            .any(|e| matches!(e, EngineEvent::ApprovalRequested(p) if p.call_id == "c1"))
+    );
+    assert!(
+        evs.iter()
+            .any(|e| matches!(e, EngineEvent::ApprovalResolved { approved: true, .. }))
+    );
 
     let seen = seen.lock().unwrap().clone();
-    assert_eq!(seen[0]["outcome"], json!({"outcome":"selected","optionId":"yes"}));
-    assert_eq!(std::fs::read_to_string(dir.path().join("a.txt")).unwrap(), "l1\nl2\n");
+    assert_eq!(
+        seen[0]["outcome"],
+        json!({"outcome":"selected","optionId":"yes"})
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("a.txt")).unwrap(),
+        "l1\nl2\n"
+    );
     assert_eq!(seen[2]["result"]["content"], "l2\n");
-    assert!(seen[3]["error"]["message"].as_str().unwrap().contains("outside workspace"));
+    assert!(
+        seen[3]["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("outside workspace")
+    );
     assert_eq!(seen[4]["error"]["code"], -32601);
 
     // Map into a real session log and replay it.
@@ -225,7 +295,10 @@ async fn full_turn_maps_to_session_log() {
     let log = store.read(w.session_id()).unwrap();
     assert!(matches!(
         log.last().unwrap().kind,
-        EventKind::TurnEnd { reason: TurnEndReason::Completed, .. }
+        EventKind::TurnEnd {
+            reason: TurnEndReason::Completed,
+            ..
+        }
     ));
     let msgs = derive_messages(&log);
     let dump = serde_json::to_string(&msgs).unwrap();
@@ -240,10 +313,19 @@ async fn denied_permission_selects_reject_option() {
     let (mut engine, seen, _dir) = start(Arc::new(Scripted(Decision::Deny))).await;
     let mut rx = engine.take_events().unwrap();
     engine.prompt("hello").await.unwrap();
-    assert_eq!(seen.lock().unwrap()[0]["outcome"], json!({"outcome":"selected","optionId":"no"}));
+    assert_eq!(
+        seen.lock().unwrap()[0]["outcome"],
+        json!({"outcome":"selected","optionId":"no"})
+    );
     let mut denied = false;
     while let Ok(e) = rx.try_recv() {
-        denied |= matches!(e, EngineEvent::ApprovalResolved { approved: false, .. });
+        denied |= matches!(
+            e,
+            EngineEvent::ApprovalResolved {
+                approved: false,
+                ..
+            }
+        );
     }
     assert!(denied);
 }
@@ -263,9 +345,16 @@ async fn cancel_resolves_parked_permission_and_prompt() {
         }
     }
     engine.cancel();
-    let stop = tokio::time::timeout(std::time::Duration::from_secs(5), turn).await.unwrap().unwrap().unwrap();
+    let stop = tokio::time::timeout(std::time::Duration::from_secs(5), turn)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
     assert_eq!(stop, StopReason::Cancelled);
-    assert_eq!(seen.lock().unwrap()[0], json!({"outcome":{"outcome":"cancelled"}}));
+    assert_eq!(
+        seen.lock().unwrap()[0],
+        json!({"outcome":{"outcome":"cancelled"}})
+    );
 }
 
 #[tokio::test]
@@ -274,8 +363,12 @@ async fn agent_hangup_fails_pending_call() {
     let (c, a) = tokio::io::duplex(4096);
     let (cr, cw) = tokio::io::split(c);
     drop(a);
-    let err = AcpEngine::connect(cr, cw, EngineOptions::new(dir.path().to_path_buf(), Arc::new(hk_acp::DenyAll)))
-        .await
-        .unwrap_err();
+    let err = AcpEngine::connect(
+        cr,
+        cw,
+        EngineOptions::new(dir.path().to_path_buf(), Arc::new(hk_acp::DenyAll)),
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(err, hk_acp::AcpError::Closed), "{err}");
 }

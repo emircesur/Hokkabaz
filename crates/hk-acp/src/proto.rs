@@ -89,7 +89,9 @@ pub enum StopReason {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {
-    Text { text: String },
+    Text {
+        text: String,
+    },
     #[serde(other)]
     Other,
 }
@@ -161,12 +163,20 @@ pub struct PlanEntry {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "sessionUpdate", rename_all = "snake_case")]
 pub enum SessionUpdate {
-    UserMessageChunk { content: ContentBlock },
-    AgentMessageChunk { content: ContentBlock },
-    AgentThoughtChunk { content: ContentBlock },
+    UserMessageChunk {
+        content: ContentBlock,
+    },
+    AgentMessageChunk {
+        content: ContentBlock,
+    },
+    AgentThoughtChunk {
+        content: ContentBlock,
+    },
     ToolCall(ToolCallFields),
     ToolCallUpdate(ToolCallFields),
-    Plan { entries: Vec<PlanEntry> },
+    Plan {
+        entries: Vec<PlanEntry>,
+    },
     /// available_commands_update, current_mode_update, future kinds: ignored.
     #[serde(other)]
     Other,
@@ -256,7 +266,9 @@ mod tests {
             "update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "hi"}}
         }))
         .unwrap();
-        assert!(matches!(n.update, SessionUpdate::AgentMessageChunk { content } if content.as_text() == Some("hi")));
+        assert!(
+            matches!(n.update, SessionUpdate::AgentMessageChunk { content } if content.as_text() == Some("hi"))
+        );
 
         let n: SessionNotification = serde_json::from_value(json!({
             "sessionId": "s1",

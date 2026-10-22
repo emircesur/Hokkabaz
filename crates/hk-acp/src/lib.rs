@@ -12,7 +12,8 @@ pub mod spec;
 pub mod workspace;
 
 pub use engine::{
-    AcpEngine, AcpError, ApprovalPrompt, Approver, Decision, DenyAll, EngineEvent, EngineOptions, ToolInfo,
+    AcpEngine, AcpError, ApprovalPrompt, Approver, Decision, DenyAll, EngineEvent, EngineOptions,
+    ToolInfo,
 };
 pub use map::SessionMapper;
 pub use proto::StopReason;

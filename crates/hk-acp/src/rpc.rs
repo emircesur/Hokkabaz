@@ -42,7 +42,10 @@ impl RpcError {
     }
 
     pub fn method_not_found(method: &str) -> Self {
-        Self::new(code::METHOD_NOT_FOUND, format!("method not supported by this client: {method}"))
+        Self::new(
+            code::METHOD_NOT_FOUND,
+            format!("method not supported by this client: {method}"),
+        )
     }
 }
 
@@ -81,7 +84,8 @@ struct Raw {
 /// Decode one line. Requests and notifications are told apart by `id`; a response has no
 /// `method`.
 pub fn decode(line: &str) -> Result<Message, RpcError> {
-    let raw: Raw = serde_json::from_str(line).map_err(|e| RpcError::new(code::PARSE_ERROR, e.to_string()))?;
+    let raw: Raw =
+        serde_json::from_str(line).map_err(|e| RpcError::new(code::PARSE_ERROR, e.to_string()))?;
     let params = raw.params.unwrap_or(Value::Null);
     match (raw.method, raw.id) {
         (Some(method), Some(id)) if !id.is_null() => Ok(Message::Request { id, method, params }),
@@ -93,7 +97,10 @@ pub fn decode(line: &str) -> Result<Message, RpcError> {
             };
             Ok(Message::Response { id, result })
         }
-        (None, None) => Err(RpcError::new(code::PARSE_ERROR, "message has neither method nor id")),
+        (None, None) => Err(RpcError::new(
+            code::PARSE_ERROR,
+            "message has neither method nor id",
+        )),
     }
 }
 
@@ -135,7 +142,10 @@ mod tests {
     #[test]
     fn notification_has_no_id() {
         let line = encode_notification("session/cancel", &json!({"sessionId": "s"}));
-        assert!(matches!(decode(&line).unwrap(), Message::Notification { .. }));
+        assert!(matches!(
+            decode(&line).unwrap(),
+            Message::Notification { .. }
+        ));
     }
 
     #[test]
@@ -167,7 +177,9 @@ mod tests {
 
     #[test]
     fn string_ids_and_garbage() {
-        let Message::Request { id, .. } = decode(r#"{"jsonrpc":"2.0","id":"a-1","method":"m"}"#).unwrap() else {
+        let Message::Request { id, .. } =
+            decode(r#"{"jsonrpc":"2.0","id":"a-1","method":"m"}"#).unwrap()
+        else {
             panic!("not a request")
         };
         assert_eq!(id, json!("a-1"));
@@ -177,7 +189,10 @@ mod tests {
 
     #[test]
     fn response_encoding_echoes_id() {
-        let line = encode_response(&json!("x"), &Err(RpcError::method_not_found("terminal/create")));
+        let line = encode_response(
+            &json!("x"),
+            &Err(RpcError::method_not_found("terminal/create")),
+        );
         let v: Value = serde_json::from_str(&line).unwrap();
         assert_eq!(v["id"], "x");
         assert_eq!(v["error"]["code"], code::METHOD_NOT_FOUND);

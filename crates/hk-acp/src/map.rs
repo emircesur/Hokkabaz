@@ -80,13 +80,20 @@ impl SessionMapper {
                     // Duplicate announcement: treat as an update.
                     self.tool_update(info, &mut out);
                 } else {
-                    let name = info.title.clone().or_else(|| info.kind.clone()).unwrap_or_else(|| "tool".into());
+                    let name = info
+                        .title
+                        .clone()
+                        .or_else(|| info.kind.clone())
+                        .unwrap_or_else(|| "tool".into());
                     self.names.insert(info.id.clone(), name.clone());
                     self.open_calls.push(info.id.clone());
                     out.push(EventKind::ToolCall {
                         call_id: info.id.clone(),
                         name,
-                        arguments: info.raw_input.clone().unwrap_or_else(|| json!({"kind": info.kind})),
+                        arguments: info
+                            .raw_input
+                            .clone()
+                            .unwrap_or_else(|| json!({"kind": info.kind})),
                     });
                     self.tool_update(info, &mut out);
                 }
@@ -256,30 +263,59 @@ mod tests {
             .collect();
         assert_eq!(
             kinds,
-            ["turn", "user", "step", "asst", "call", "result", "asst", "stepend", "turnend"]
+            [
+                "turn", "user", "step", "asst", "call", "result", "asst", "stepend", "turnend"
+            ]
         );
-        assert!(matches!(&log[3], EventKind::AssistantMessage { content, .. } if content == "let me look"));
-        assert!(matches!(&log[5], EventKind::ToolResult { content, is_error: false, .. } if content == "file body"));
+        assert!(
+            matches!(&log[3], EventKind::AssistantMessage { content, .. } if content == "let me look")
+        );
+        assert!(
+            matches!(&log[5], EventKind::ToolResult { content, is_error: false, .. } if content == "file body")
+        );
     }
 
     #[test]
     fn toolcall_without_text_gets_empty_assistant_and_open_calls_fail_on_cancel() {
         let mut m = SessionMapper::new("t");
         let mut log = m.push(&EngineEvent::ToolCall(tool("c1", None, None)));
-        assert!(matches!(&log[0], EventKind::AssistantMessage { content, .. } if content.is_empty()));
+        assert!(
+            matches!(&log[0], EventKind::AssistantMessage { content, .. } if content.is_empty())
+        );
         log.extend(m.finish(StopReason::Cancelled));
         assert!(log.iter().any(|k| matches!(k, EventKind::ToolResult { content, is_error: true, .. } if content == "cancelled")));
-        assert!(matches!(log.last(), Some(EventKind::TurnEnd { reason: TurnEndReason::Cancelled, .. })));
+        assert!(matches!(
+            log.last(),
+            Some(EventKind::TurnEnd {
+                reason: TurnEndReason::Cancelled,
+                ..
+            })
+        ));
     }
 
     #[test]
     fn failed_status_and_no_duplicate_results() {
         let mut m = SessionMapper::new("t");
         m.push(&EngineEvent::ToolCall(tool("c1", None, None)));
-        let a = m.push(&EngineEvent::ToolUpdate(tool("c1", Some(ToolStatus::Failed), Some("boom"))));
-        let b = m.push(&EngineEvent::ToolUpdate(tool("c1", Some(ToolStatus::Failed), Some("boom"))));
-        assert!(matches!(&a[0], EventKind::ToolResult { is_error: true, .. }));
+        let a = m.push(&EngineEvent::ToolUpdate(tool(
+            "c1",
+            Some(ToolStatus::Failed),
+            Some("boom"),
+        )));
+        let b = m.push(&EngineEvent::ToolUpdate(tool(
+            "c1",
+            Some(ToolStatus::Failed),
+            Some("boom"),
+        )));
+        assert!(matches!(
+            &a[0],
+            EventKind::ToolResult { is_error: true, .. }
+        ));
         assert!(b.is_empty());
-        assert!(m.finish(StopReason::EndTurn).iter().all(|k| !matches!(k, EventKind::ToolResult { .. })));
+        assert!(
+            m.finish(StopReason::EndTurn)
+                .iter()
+                .all(|k| !matches!(k, EventKind::ToolResult { .. }))
+        );
     }
 }

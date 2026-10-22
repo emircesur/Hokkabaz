@@ -15,10 +15,11 @@ use tokio::sync::{mpsc, watch};
 
 use crate::client::{CallError, Connection, Handler};
 use crate::proto::{
-    ClientCapabilities, ContentBlock, FsCapabilities, Implementation, InitializeParams, InitializeResult,
-    NewSessionParams, NewSessionResult, PROTOCOL_VERSION, PermissionOption, PermissionOptionKind,
-    PermissionRequest, PlanEntry, PromptParams, PromptResult, ReadTextFileParams, SessionNotification,
-    SessionUpdate, StopReason, ToolCallFields, ToolStatus, WriteTextFileParams, tool_content_text,
+    ClientCapabilities, ContentBlock, FsCapabilities, Implementation, InitializeParams,
+    InitializeResult, NewSessionParams, NewSessionResult, PROTOCOL_VERSION, PermissionOption,
+    PermissionOptionKind, PermissionRequest, PlanEntry, PromptParams, PromptResult,
+    ReadTextFileParams, SessionNotification, SessionUpdate, StopReason, ToolCallFields, ToolStatus,
+    WriteTextFileParams, tool_content_text,
 };
 use crate::rpc::RpcError;
 use crate::workspace::Workspace;
@@ -139,7 +140,9 @@ pub struct EngineOptions {
 
 impl std::fmt::Debug for EngineOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("EngineOptions").field("cwd", &self.cwd).finish_non_exhaustive()
+        f.debug_struct("EngineOptions")
+            .field("cwd", &self.cwd)
+            .finish_non_exhaustive()
     }
 }
 
@@ -230,7 +233,10 @@ impl AcpEngine {
 
     /// Spawn the engine process (stdio transport) and handshake. Desktop only.
     #[cfg(not(target_os = "android"))]
-    pub async fn spawn(spec: &crate::spec::EngineSpec, opts: EngineOptions) -> Result<Self, AcpError> {
+    pub async fn spawn(
+        spec: &crate::spec::EngineSpec,
+        opts: EngineOptions,
+    ) -> Result<Self, AcpError> {
         use std::process::Stdio;
         use tokio::io::{AsyncBufReadExt, BufReader};
 
@@ -246,7 +252,8 @@ impl AcpEngine {
             command: spec.command.clone(),
             source,
         })?;
-        let (Some(stdin), Some(stdout), Some(stderr)) = (child.stdin.take(), child.stdout.take(), child.stderr.take())
+        let (Some(stdin), Some(stdout), Some(stderr)) =
+            (child.stdin.take(), child.stdout.take(), child.stderr.take())
         else {
             return Err(AcpError::Protocol("child stdio not piped".into()));
         };
@@ -321,7 +328,8 @@ impl AcpEngine {
     /// spec requires; the pending `prompt` then resolves with `StopReason::Cancelled`.
     pub fn cancel(&self) {
         self.cancel_tx.send_modify(|g| *g += 1);
-        self.conn.notify("session/cancel", &json!({"sessionId": self.session_id}));
+        self.conn
+            .notify("session/cancel", &json!({"sessionId": self.session_id}));
     }
 
     /// Close stdin (agent sees EOF), give the child a moment, then kill it.
@@ -335,7 +343,9 @@ impl AcpEngine {
         drop(conn);
         #[cfg(not(target_os = "android"))]
         if let Some(mut c) = child
-            && tokio::time::timeout(Duration::from_secs(2), c.wait()).await.is_err()
+            && tokio::time::timeout(Duration::from_secs(2), c.wait())
+                .await
+                .is_err()
         {
             let _ = c.kill().await;
         }
@@ -376,10 +386,12 @@ impl Handler for Dispatcher {
             }
         };
         let ev = match n.update {
-            SessionUpdate::AgentMessageChunk { content } => content.as_text().map(|t| EngineEvent::Text(t.to_owned())),
-            SessionUpdate::AgentThoughtChunk { content } => {
-                content.as_text().map(|t| EngineEvent::Thought(t.to_owned()))
+            SessionUpdate::AgentMessageChunk { content } => {
+                content.as_text().map(|t| EngineEvent::Text(t.to_owned()))
             }
+            SessionUpdate::AgentThoughtChunk { content } => content
+                .as_text()
+                .map(|t| EngineEvent::Thought(t.to_owned())),
             SessionUpdate::ToolCall(f) => Some(EngineEvent::ToolCall(f.into())),
             SessionUpdate::ToolCallUpdate(f) => Some(EngineEvent::ToolUpdate(f.into())),
             SessionUpdate::Plan { entries } => Some(EngineEvent::Plan(entries)),
@@ -394,18 +406,19 @@ impl Handler for Dispatcher {
     async fn on_request(&self, method: &str, params: Value) -> Result<Value, RpcError> {
         match method {
             "session/request_permission" => {
-                let req = serde_json::from_value(params).map_err(|e| RpcError::invalid_params(e.to_string()))?;
+                let req = serde_json::from_value(params)
+                    .map_err(|e| RpcError::invalid_params(e.to_string()))?;
                 Ok(self.permission(req).await)
             }
             "fs/read_text_file" => {
-                let p: ReadTextFileParams =
-                    serde_json::from_value(params).map_err(|e| RpcError::invalid_params(e.to_string()))?;
+                let p: ReadTextFileParams = serde_json::from_value(params)
+                    .map_err(|e| RpcError::invalid_params(e.to_string()))?;
                 let content = self.workspace.read_text(&p.path, p.line, p.limit)?;
                 Ok(json!({"content": content}))
             }
             "fs/write_text_file" => {
-                let p: WriteTextFileParams =
-                    serde_json::from_value(params).map_err(|e| RpcError::invalid_params(e.to_string()))?;
+                let p: WriteTextFileParams = serde_json::from_value(params)
+                    .map_err(|e| RpcError::invalid_params(e.to_string()))?;
                 self.workspace.write_text(&p.path, &p.content)?;
                 Ok(Value::Null)
             }
@@ -417,16 +430,24 @@ impl Handler for Dispatcher {
 
 impl Dispatcher {
     async fn permission(&self, req: PermissionRequest) -> Value {
-        let approval_id = format!("appr_{}", self.next_approval.fetch_add(1, Ordering::Relaxed));
+        let approval_id = format!(
+            "appr_{}",
+            self.next_approval.fetch_add(1, Ordering::Relaxed)
+        );
         let info: ToolInfo = req.tool_call.into();
         let prompt = ApprovalPrompt {
             approval_id: approval_id.clone(),
             call_id: info.id.clone(),
-            title: info.title.clone().unwrap_or_else(|| info.kind.clone().unwrap_or_else(|| "tool".into())),
+            title: info
+                .title
+                .clone()
+                .unwrap_or_else(|| info.kind.clone().unwrap_or_else(|| "tool".into())),
             kind: info.kind.clone(),
             detail: detail_of(&info),
         };
-        let _ = self.events.send(EngineEvent::ApprovalRequested(prompt.clone()));
+        let _ = self
+            .events
+            .send(EngineEvent::ApprovalRequested(prompt.clone()));
 
         let mut cancel = self.cancel.clone();
         cancel.borrow_and_update();
@@ -507,12 +528,27 @@ mod tests {
     #[test]
     fn option_picking() {
         use PermissionOptionKind::*;
-        let all = [opt("a", AllowOnce), opt("A", AllowAlways), opt("r", RejectOnce)];
-        assert_eq!(pick_option(&all, Decision::AllowOnce).unwrap().option_id, "a");
-        assert_eq!(pick_option(&all, Decision::AllowAlways).unwrap().option_id, "A");
+        let all = [
+            opt("a", AllowOnce),
+            opt("A", AllowAlways),
+            opt("r", RejectOnce),
+        ];
+        assert_eq!(
+            pick_option(&all, Decision::AllowOnce).unwrap().option_id,
+            "a"
+        );
+        assert_eq!(
+            pick_option(&all, Decision::AllowAlways).unwrap().option_id,
+            "A"
+        );
         assert_eq!(pick_option(&all, Decision::Deny).unwrap().option_id, "r");
         let only_allow = [opt("A", AllowAlways)];
-        assert_eq!(pick_option(&only_allow, Decision::AllowOnce).unwrap().option_id, "A");
+        assert_eq!(
+            pick_option(&only_allow, Decision::AllowOnce)
+                .unwrap()
+                .option_id,
+            "A"
+        );
         assert!(pick_option(&only_allow, Decision::Deny).is_none());
     }
 }

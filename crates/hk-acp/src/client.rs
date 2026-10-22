@@ -64,7 +64,11 @@ impl Connection {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();
         lock(&self.pending).insert(id, tx);
-        if self.out.send(rpc::encode_request(id, method, params)).is_err() {
+        if self
+            .out
+            .send(rpc::encode_request(id, method, params))
+            .is_err()
+        {
             lock(&self.pending).remove(&id);
             return Err(CallError::Closed);
         }
@@ -76,7 +80,9 @@ impl Connection {
 
     /// Fire-and-forget. `false` when the connection is gone.
     pub fn notify(&self, method: &str, params: &Value) -> bool {
-        self.out.send(rpc::encode_notification(method, params)).is_ok()
+        self.out
+            .send(rpc::encode_notification(method, params))
+            .is_ok()
     }
 }
 
@@ -88,7 +94,9 @@ impl Drop for Connection {
     }
 }
 
-fn lock(p: &Pending) -> std::sync::MutexGuard<'_, HashMap<u64, oneshot::Sender<Result<Value, RpcError>>>> {
+fn lock(
+    p: &Pending,
+) -> std::sync::MutexGuard<'_, HashMap<u64, oneshot::Sender<Result<Value, RpcError>>>> {
     p.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
@@ -131,7 +139,9 @@ async fn read_loop<R: AsyncRead + Unpin>(
                     None => tracing::debug!(%id, "acp response without pending call"),
                 }
             }
-            Ok(Message::Notification { method, params }) => handler.on_notification(&method, params),
+            Ok(Message::Notification { method, params }) => {
+                handler.on_notification(&method, params)
+            }
             Ok(Message::Request { id, method, params }) => {
                 let (h, out) = (handler.clone(), out.clone());
                 tokio::spawn(async move {

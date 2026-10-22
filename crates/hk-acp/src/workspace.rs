@@ -28,7 +28,9 @@ impl Workspace {
     pub fn resolve(&self, raw: &str) -> Result<PathBuf, RpcError> {
         let p = Path::new(raw);
         if !p.is_absolute() {
-            return Err(RpcError::invalid_params(format!("path must be absolute: {raw}")));
+            return Err(RpcError::invalid_params(format!(
+                "path must be absolute: {raw}"
+            )));
         }
         let norm = lexical_normalize(p);
         // Canonicalize the deepest existing ancestor (follows symlinks), then re-append the
@@ -39,8 +41,11 @@ impl Workspace {
             match existing.canonicalize() {
                 Ok(c) => break c,
                 Err(_) => {
-                    let (Some(parent), Some(name)) = (existing.parent(), existing.file_name()) else {
-                        return Err(RpcError::invalid_params(format!("unresolvable path: {raw}")));
+                    let (Some(parent), Some(name)) = (existing.parent(), existing.file_name())
+                    else {
+                        return Err(RpcError::invalid_params(format!(
+                            "unresolvable path: {raw}"
+                        )));
                     };
                     tail.push(name);
                     existing = parent;
@@ -58,7 +63,12 @@ impl Workspace {
         }
     }
 
-    pub fn read_text(&self, raw: &str, line: Option<u32>, limit: Option<u32>) -> Result<String, RpcError> {
+    pub fn read_text(
+        &self,
+        raw: &str,
+        line: Option<u32>,
+        limit: Option<u32>,
+    ) -> Result<String, RpcError> {
         let path = self.resolve(raw)?;
         let meta = std::fs::metadata(&path).map_err(|e| io_err(&e, raw))?;
         if meta.len() > MAX_READ_BYTES {
@@ -122,8 +132,15 @@ mod tests {
         let (d, w) = ws();
         let inside = d.path().join("a/b.txt");
         w.write_text(inside.to_str().unwrap(), "x\ny\nz\n").unwrap();
-        assert_eq!(w.read_text(inside.to_str().unwrap(), None, None).unwrap(), "x\ny\nz\n");
-        assert_eq!(w.read_text(inside.to_str().unwrap(), Some(2), Some(1)).unwrap(), "y\n");
+        assert_eq!(
+            w.read_text(inside.to_str().unwrap(), None, None).unwrap(),
+            "x\ny\nz\n"
+        );
+        assert_eq!(
+            w.read_text(inside.to_str().unwrap(), Some(2), Some(1))
+                .unwrap(),
+            "y\n"
+        );
         assert!(w.resolve("/etc/passwd").is_err());
         assert!(w.resolve("relative.txt").is_err());
         let dotdot = format!("{}/../outside.txt", d.path().display());
@@ -140,13 +157,18 @@ mod tests {
         std::os::unix::fs::symlink(out.path(), d.path().join("link")).unwrap();
         let via = format!("{}/link/secret", d.path().display());
         assert!(w.read_text(&via, None, None).is_err());
-        assert!(w.write_text(&format!("{}/link/new", d.path().display()), "x").is_err());
+        assert!(
+            w.write_text(&format!("{}/link/new", d.path().display()), "x")
+                .is_err()
+        );
     }
 
     #[test]
     fn missing_file_maps_to_not_found() {
         let (d, w) = ws();
-        let e = w.read_text(d.path().join("nope").to_str().unwrap(), None, None).unwrap_err();
+        let e = w
+            .read_text(d.path().join("nope").to_str().unwrap(), None, None)
+            .unwrap_err();
         assert_eq!(e.code, code::RESOURCE_NOT_FOUND);
     }
 }

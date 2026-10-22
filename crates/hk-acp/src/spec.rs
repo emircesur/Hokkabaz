@@ -55,7 +55,10 @@ impl EngineSpec {
 
     /// `acp.engines.<name>` from config, if present. Missing `command` is an error.
     pub fn from_config(cfg: &Config, name: &str) -> Result<Option<Self>, SpecError> {
-        let Some(t) = cfg.get(&format!("acp.engines.{name}")).and_then(|v| v.as_table()) else {
+        let Some(t) = cfg
+            .get(&format!("acp.engines.{name}"))
+            .and_then(|v| v.as_table())
+        else {
             return Ok(None);
         };
         let bad = |m: &str| SpecError::Invalid(name.to_owned(), m.to_owned());
@@ -70,7 +73,11 @@ impl EngineSpec {
                 .as_array()
                 .ok_or_else(|| bad("`args` must be an array"))?
                 .iter()
-                .map(|a| a.as_str().map(str::to_owned).ok_or_else(|| bad("`args` must be strings")))
+                .map(|a| {
+                    a.as_str()
+                        .map(str::to_owned)
+                        .ok_or_else(|| bad("`args` must be strings"))
+                })
                 .collect::<Result<_, _>>()?,
         };
         let env = match t.get("env") {
@@ -163,15 +170,23 @@ mod tests {
     #[test]
     fn builtin_and_command_line() {
         let s = EngineSpec::resolve(None, "dsh").unwrap();
-        assert_eq!((s.command.as_str(), s.args.as_slice()), ("dsh", &["--profile".to_owned(), "acp".to_owned()][..]));
+        assert_eq!(
+            (s.command.as_str(), s.args.as_slice()),
+            ("dsh", &["--profile".to_owned(), "acp".to_owned()][..])
+        );
         let s = EngineSpec::resolve(None, "mycmd --flag 'a b'").unwrap();
         assert_eq!(s.args, ["--flag", "a b"]);
-        assert!(matches!(EngineSpec::resolve(None, "  "), Err(SpecError::Empty)));
+        assert!(matches!(
+            EngineSpec::resolve(None, "  "),
+            Err(SpecError::Empty)
+        ));
     }
 
     #[test]
     fn config_overrides_builtin() {
-        let c = cfg("[acp.engines.dsh]\ncommand = \"/opt/dsh\"\nargs = [\"--profile\", \"acp\", \"-v\"]\n[acp.engines.dsh.env]\nFOO = \"bar\"\n");
+        let c = cfg(
+            "[acp.engines.dsh]\ncommand = \"/opt/dsh\"\nargs = [\"--profile\", \"acp\", \"-v\"]\n[acp.engines.dsh.env]\nFOO = \"bar\"\n",
+        );
         let s = EngineSpec::resolve(Some(&c), "dsh").unwrap();
         assert_eq!(s.command, "/opt/dsh");
         assert_eq!(s.args.len(), 3);
@@ -182,8 +197,14 @@ mod tests {
     #[test]
     fn invalid_and_disabled() {
         let c = cfg("[acp.engines.x]\nargs = []\n");
-        assert!(matches!(EngineSpec::resolve(Some(&c), "x"), Err(SpecError::Invalid(..))));
+        assert!(matches!(
+            EngineSpec::resolve(Some(&c), "x"),
+            Err(SpecError::Invalid(..))
+        ));
         let c = cfg("[acp]\nenabled = false\n");
-        assert!(matches!(EngineSpec::resolve(Some(&c), "dsh"), Err(SpecError::Disabled)));
+        assert!(matches!(
+            EngineSpec::resolve(Some(&c), "dsh"),
+            Err(SpecError::Disabled)
+        ));
     }
 }
