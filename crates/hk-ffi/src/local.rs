@@ -166,6 +166,7 @@ impl LocalCore {
         ));
         runtime.add_tools(hk_studio::studio_tools(studio_svc.clone()));
         crate::studio::install(crate::studio::Ctx { svc: studio_svc, settings: studio_settings, store: store.clone(), secrets: secrets.clone() });
+        crate::n8n_sync::install(creds.clone()).await?;
         crate::credentials::install(creds);
 
         // Plugins + MCP servers: their tools join the agent's tool set, plugin nodes the registry.
@@ -557,6 +558,7 @@ impl CoreHandle for LocalCore {
         crate::studio::uninstall();
         crate::plugins::uninstall();
         crate::credentials::uninstall();
+        crate::n8n_sync::uninstall();
         // Stop running turns so nothing keeps calling providers after the app tore the core down.
         if let Ok(rows) = self.i.runtime.list_sessions(u32::MAX, 0).await {
             for s in rows.into_iter().filter(|s| s.running) {

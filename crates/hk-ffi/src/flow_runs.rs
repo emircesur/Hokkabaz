@@ -586,6 +586,9 @@ async fn execute(shared: Arc<Shared>, id: String, live: Arc<Live>, plan: Plan, m
     };
     let mut cfg = cfg;
     cfg.hooks.credentials = Some(shared.credentials.clone());
+    if let Ok(link) = crate::n8n_sync::get() {
+        cfg.hooks.remote_nodes = link.delegate().await;
+    }
     // Registry is read per run so plugin installs apply to the next run without a restart.
     let exec = Executor::new(crate::nodes::registry()).with_store(store).with_config(cfg);
     let mut input = ExecuteInput::new(plan.start.clone(), plan.items.clone());

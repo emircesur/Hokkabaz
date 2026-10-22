@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../ffi/ffi.dart';
 import '../../theme/tokens.dart';
 import 'credential_dialogs.dart';
+import 'n8n_tab.dart';
 import 'plugins_models.dart';
 import 'plugins_providers.dart';
 
@@ -20,7 +21,7 @@ class PluginsScreen extends ConsumerWidget {
     final text = Theme.of(context).textTheme;
     final hk = context.hk;
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -46,7 +47,7 @@ class PluginsScreen extends ConsumerWidget {
               const TabBar(
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
-                tabs: [Tab(text: 'Plugins'), Tab(text: 'MCP servers'), Tab(text: 'Credentials')],
+                tabs: [Tab(text: 'Plugins'), Tab(text: 'MCP servers'), Tab(text: 'Credentials'), Tab(text: 'n8n')],
               ),
               Expanded(
                 child: backendError != null
@@ -54,7 +55,7 @@ class PluginsScreen extends ConsumerWidget {
                         padding: const EdgeInsets.all(HkTokens.s4),
                         child: Text(backendError, style: TextStyle(color: hk.err)),
                       )
-                    : const TabBarView(children: [_PluginsTab(), _McpTab(), _CredentialsTab()]),
+                    : const TabBarView(children: [_PluginsTab(), _McpTab(), _CredentialsTab(), N8nTab()]),
               ),
             ],
           ),

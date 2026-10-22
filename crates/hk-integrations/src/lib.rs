@@ -37,6 +37,8 @@ pub mod gitea;
 pub mod github;
 #[cfg(feature = "int-n8n")]
 pub mod n8n;
+#[cfg(feature = "int-n8n")]
+pub mod n8n_remote;
 
 #[cfg(any(
     feature = "int-telegram",

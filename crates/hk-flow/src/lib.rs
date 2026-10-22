@@ -40,7 +40,7 @@ pub use expr::{
     ExprEnv, ExprError, ExprLimits, ExprScope, ExpressionEvaluator, ScriptMode, ScriptOutput,
 };
 pub use hooks::{
-    CollectingSink, CredentialResolver, ExecScratch, NodeHooks, ResponseBody, ResponseSink,
+    CollectingSink, CredentialResolver, ExecScratch, NodeHooks, RemoteNodeRunner, ResponseBody, ResponseSink,
     SubWorkflowRequest, SubWorkflowRunner, WebhookResponse,
 };
 pub use item::{BinaryData, Item, PairedItem, PairedSource};

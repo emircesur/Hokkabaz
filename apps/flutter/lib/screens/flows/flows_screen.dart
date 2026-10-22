@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/breakpoints.dart';
 import '../../src/rust/api/flow_runs.dart' as run_api;
+import '../../src/rust/api/n8n.dart' as n8n_api;
 import '../../theme/tokens.dart';
 import '../chat/chat_providers.dart' show describeError;
 import '../runs/runs_providers.dart';
@@ -319,6 +320,15 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
       );
     } on FlowFormatException catch (e) {
       _toast('Import failed: ${e.message}');
+    }
+  }
+
+  Future<void> _pushToN8n() async {
+    try {
+      final id = await n8n_api.n8NPush(workflowJson: _editor.exportWorkflow());
+      _toast('Created workflow $id on your n8n instance');
+    } on Object catch (e) {
+      _toast('Push failed: ${describeError(e)}');
     }
   }
 
@@ -824,6 +834,8 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
                     ClipboardData(text: _editor.exportWorkflow()),
                   );
                   _toast('Workflow JSON copied');
+                case 'n8n':
+                  _pushToN8n();
               }
             },
             itemBuilder: (_) => [
@@ -844,6 +856,11 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
                 const PopupMenuItem(
                   value: 'export',
                   child: Text('Export JSON...'),
+                ),
+              if (hasFlow)
+                const PopupMenuItem(
+                  value: 'n8n',
+                  child: Text('Push to linked n8n instance'),
                 ),
             ],
           ),

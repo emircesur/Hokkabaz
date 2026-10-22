@@ -91,6 +91,20 @@ pub trait CredentialResolver: Send + Sync + fmt::Debug {
     ) -> Result<Map<String, Value>, FlowError>;
 }
 
+// ---------------------------------------------------------------- remote nodes
+
+/// Runs a node this engine has no implementation for somewhere that does (a configured n8n
+/// instance). Only consulted when the registry has no `(type, version)`; the node's
+/// credentials/parameters travel with it, expressions that reach other nodes will not resolve.
+#[async_trait]
+pub trait RemoteNodeRunner: Send + Sync + fmt::Debug {
+    async fn run_node(
+        &self,
+        node: &crate::workflow::Node,
+        input: &[crate::item::Item],
+    ) -> Result<Vec<Vec<crate::item::Item>>, FlowError>;
+}
+
 // ----------------------------------------------------------------------- bundle
 
 #[derive(Debug, Clone)]
@@ -98,6 +112,8 @@ pub struct NodeHooks {
     pub sub_workflow: Option<Arc<dyn SubWorkflowRunner>>,
     pub response: Option<Arc<dyn ResponseSink>>,
     pub credentials: Option<Arc<dyn CredentialResolver>>,
+    /// Fallback for unsupported node types; `None` fails them as before.
+    pub remote_nodes: Option<Arc<dyn RemoteNodeRunner>>,
     /// Longest Wait handled in-process; longer ones suspend the execution (durable wait).
     pub max_inline_wait: Duration,
     /// The executor can park a suspended execution (it has a `WaitStore`). Set by the
@@ -121,6 +137,7 @@ impl Default for NodeHooks {
             sub_workflow: None,
             response: None,
             credentials: None,
+            remote_nodes: None,
             max_inline_wait: Duration::from_secs(65),
             durable_wait: false,
             #[cfg(feature = "ai")]

@@ -919,6 +919,10 @@ impl<'a> Run<'a> {
                 main_output_count(imp.as_ref()),
                 call_with_retry(imp, node, &ctx).await,
             ),
+            Err(FlowError::UnsupportedNode(key)) => match &ctx.hooks.remote_nodes {
+                Some(remote) => (None, remote.run_node(node, ctx.input.first().map(Vec::as_slice).unwrap_or(&[])).await),
+                None => (None, Err(FlowError::UnsupportedNode(key))),
+            },
             Err(e) => (None, Err(e)),
         };
 
