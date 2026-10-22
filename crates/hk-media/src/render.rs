@@ -97,7 +97,11 @@ impl RenderHandle {
 
     pub async fn wait(self) -> Result<RenderReport> {
         // Keep the sender alive until the task ends; dropping it would cancel.
-        let Self { join, cancel: _keep, .. } = self;
+        let Self {
+            join,
+            cancel: _keep,
+            ..
+        } = self;
         join.await
             .map_err(|e| MediaError::Io(std::io::Error::other(e.to_string())))?
     }
@@ -135,8 +139,14 @@ fn spawn(tools: &Tools, args: Vec<String>, total: f64, output: PathBuf) -> Resul
         .kill_on_drop(true)
         .spawn()
         .map_err(|e| crate::proc::spawn_err(&bin, e))?;
-    let stdout = child.stdout.take().ok_or_else(|| MediaError::Parse("no stdout pipe".into()))?;
-    let stderr = child.stderr.take().ok_or_else(|| MediaError::Parse("no stderr pipe".into()))?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| MediaError::Parse("no stdout pipe".into()))?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| MediaError::Parse("no stderr pipe".into()))?;
 
     let (tx, rx) = watch::channel(Progress::default());
     let out_task = tokio::spawn(async move {
@@ -154,7 +164,9 @@ fn spawn(tools: &Tools, args: Vec<String>, total: f64, output: PathBuf) -> Resul
     let err_task = tokio::spawn(async move {
         let mut lines = BufReader::new(stderr).lines();
         while let Ok(Some(line)) = lines.next_line().await {
-            let mut t = tail_w.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut t = tail_w
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             if t.len() == TAIL {
                 t.pop_front();
             }
@@ -181,7 +193,9 @@ fn spawn(tools: &Tools, args: Vec<String>, total: f64, output: PathBuf) -> Resul
         let tx = out_task.await.ok();
         let _ = err_task.await;
         if !status.success() {
-            let tail = tail.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let tail = tail
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             return Err(MediaError::Failed {
                 bin: bin.display().to_string(),
                 code: status.code(),
@@ -208,7 +222,12 @@ fn spawn(tools: &Tools, args: Vec<String>, total: f64, output: PathBuf) -> Resul
 }
 
 #[cfg(target_os = "android")]
-fn spawn(_tools: &Tools, _args: Vec<String>, _total: f64, _output: PathBuf) -> Result<RenderHandle> {
+fn spawn(
+    _tools: &Tools,
+    _args: Vec<String>,
+    _total: f64,
+    _output: PathBuf,
+) -> Result<RenderHandle> {
     Err(MediaError::Unsupported)
 }
 
@@ -226,11 +245,16 @@ mod tests {
         assert_eq!((s.frame, s.out_time, s.speed), (50, 2.0, 2.5));
         assert!((s.fraction - 0.2).abs() < 1e-9);
         assert!(!s.finished);
-        let end = ["frame=250", "out_time_us=10040000", "speed=N/A", "progress=end"]
-            .iter()
-            .filter_map(|l| p.feed(l))
-            .last()
-            .unwrap();
+        let end = [
+            "frame=250",
+            "out_time_us=10040000",
+            "speed=N/A",
+            "progress=end",
+        ]
+        .iter()
+        .filter_map(|l| p.feed(l))
+        .last()
+        .unwrap();
         assert!(end.finished);
         assert_eq!(end.fraction, 1.0);
         assert_eq!(end.speed, 2.5, "N/A keeps previous speed");
@@ -239,7 +263,11 @@ mod tests {
     #[test]
     fn unknown_total_gives_zero_until_end() {
         let mut p = ProgressParser::new(0.0);
-        let s = ["out_time_us=1000000", "progress=continue"].iter().filter_map(|l| p.feed(l)).last().unwrap();
+        let s = ["out_time_us=1000000", "progress=continue"]
+            .iter()
+            .filter_map(|l| p.feed(l))
+            .last()
+            .unwrap();
         assert_eq!(s.fraction, 0.0);
     }
 }

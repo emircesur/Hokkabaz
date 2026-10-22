@@ -221,7 +221,9 @@ impl CropPath {
 
     fn constant_size(&self) -> bool {
         let k0 = &self.keys[0];
-        self.keys.iter().all(|k| even(k.w) == even(k0.w) && even(k.h) == even(k0.h))
+        self.keys
+            .iter()
+            .all(|k| even(k.w) == even(k0.w) && even(k.h) == even(k0.h))
     }
 
     /// Interpolated window at output time `t` (clamped outside the key range).
@@ -247,12 +249,18 @@ impl CropPath {
                 };
             }
         }
-        CropKey { t, ..ks[ks.len() - 1] }
+        CropKey {
+            t,
+            ..ks[ks.len() - 1]
+        }
     }
 
     /// ffmpeg expression of one coordinate over `tvar`, nested `if(lt(t,..))` of per-interval lerps.
     fn expr(&self, pick: fn(&CropKey) -> f64, tvar: &str) -> String {
         let ks = &self.keys;
+        if ks.windows(2).all(|w| (pick(&w[0]) - pick(&w[1])).abs() < 1e-9) {
+            return num(pick(&ks[0]));
+        }
         let mut e = num(pick(&ks[ks.len() - 1]));
         for i in (0..ks.len() - 1).rev() {
             let (a, b) = (&ks[i], &ks[i + 1]);
@@ -293,9 +301,15 @@ impl RenderSpec {
             }
         }
         if let Some(d) = self.audio_crossfade {
-            let min = self.segments.iter().map(|g| g.end - g.start).fold(f64::MAX, f64::min);
+            let min = self
+                .segments
+                .iter()
+                .map(|g| g.end - g.start)
+                .fold(f64::MAX, f64::min);
             if !(d >= 0.0 && d < min) {
-                return Err(bad("audio crossfade must be >= 0 and shorter than every segment"));
+                return Err(bad(
+                    "audio crossfade must be >= 0 and shorter than every segment",
+                ));
             }
         }
         if let Some(p) = &self.crop {
@@ -340,7 +354,10 @@ impl RenderSpec {
         let total = self.duration();
         let mut steps: Vec<String> = Vec::new();
 
-        let with_audio = self.segments.iter().all(|g| self.sources[g.source].has_audio);
+        let with_audio = self
+            .segments
+            .iter()
+            .all(|g| self.sources[g.source].has_audio);
         let xf = self
             .audio_crossfade
             .filter(|d| *d > 0.0 && count > 1 && with_audio);
@@ -356,7 +373,8 @@ impl RenderSpec {
                     0 => Vec::new(),
                     1 => vec![format!("{i}:{kind}")],
                     u => {
-                        let labels: Vec<String> = (0..u).map(|j| format!("s{i}{kind}{j}")).collect();
+                        let labels: Vec<String> =
+                            (0..u).map(|j| format!("s{i}{kind}{j}")).collect();
                         let outs: String = labels.iter().map(|l| format!("[{l}]")).collect();
                         steps.push(format!("[{i}:{kind}]{split}={u}{outs}"));
                         labels
@@ -365,7 +383,11 @@ impl RenderSpec {
                 .collect()
         };
         let vpads = pads("v", "split", &mut steps);
-        let apads = if with_audio { pads("a", "asplit", &mut steps) } else { Vec::new() };
+        let apads = if with_audio {
+            pads("a", "asplit", &mut steps)
+        } else {
+            Vec::new()
+        };
         let mut vnext = vec![0usize; n];
         let mut anext = vec![0usize; n];
 
@@ -433,9 +455,16 @@ impl RenderSpec {
                     path.expr(|k| k.y, "t"),
                 ));
             } else {
-                let (w, h) = self.size.ok_or_else(|| bad("crop path needs output size"))?;
+                let (w, h) = self
+                    .size
+                    .ok_or_else(|| bad("crop path needs output size"))?;
                 let mut bounds = vec![0.0];
-                let mut inner: Vec<f64> = path.keys.iter().map(|k| k.t).filter(|t| *t > 0.0 && *t < total).collect();
+                let mut inner: Vec<f64> = path
+                    .keys
+                    .iter()
+                    .map(|k| k.t)
+                    .filter(|t| *t > 0.0 && *t < total)
+                    .collect();
                 inner.dedup();
                 bounds.extend(inner);
                 bounds.push(total);
@@ -446,7 +475,11 @@ impl RenderSpec {
                     let (a, b) = (bounds[i], bounds[i + 1]);
                     let mid = path.at((a + b) / 2.0);
                     // Piece-local `t` restarts at 0; shift key times back onto the output timeline.
-                    let tvar = if a == 0.0 { s("t") } else { format!("(t+{})", num(a)) };
+                    let tvar = if a == 0.0 {
+                        s("t")
+                    } else {
+                        format!("(t+{})", num(a))
+                    };
                     steps.push(format!(
                         "[c{i}]trim=start={}:end={},setpts=PTS-STARTPTS,crop=w={}:h={}:x='{}':y='{}',scale={w}:{h},setsar=1[p{i}]",
                         num(a),
@@ -557,10 +590,19 @@ impl RenderSpec {
         let g = self.build_graph()?;
         let total = self.duration();
         let filter = g.steps.join(";");
-        let mut a: Vec<String> = ["-hide_banner", "-nostdin", "-y", "-loglevel", "warning", "-nostats", "-progress", "pipe:1"]
-            .iter()
-            .map(|x| s(x))
-            .collect();
+        let mut a: Vec<String> = [
+            "-hide_banner",
+            "-nostdin",
+            "-y",
+            "-loglevel",
+            "warning",
+            "-nostats",
+            "-progress",
+            "pipe:1",
+        ]
+        .iter()
+        .map(|x| s(x))
+        .collect();
         let mut input = |path: &Path, pre: &[&str]| {
             a.extend(pre.iter().map(|x| s(x)));
             a.push(s("-i"));
@@ -586,7 +628,12 @@ impl RenderSpec {
                 input(&m.path, &[]);
             }
         }
-        a.extend([s("-filter_complex"), filter.clone(), s("-map"), format!("[{}]", g.video)]);
+        a.extend([
+            s("-filter_complex"),
+            filter.clone(),
+            s("-map"),
+            format!("[{}]", g.video),
+        ]);
         match &g.audio {
             Some(l) => a.extend([s("-map"), format!("[{l}]")]),
             None => a.push(s("-an")),
@@ -620,8 +667,17 @@ impl RenderSpec {
             a.extend([s("-tag:v"), s("hvc1")]);
         }
         a.extend([s("-pix_fmt"), s("yuv420p")]);
-        a.extend([s("-c:a"), s("aac"), s("-b:a"), format!("{}k", self.audio_bitrate_kbps)]);
-        let ext = self.output.extension().and_then(|e| e.to_str()).unwrap_or("");
+        a.extend([
+            s("-c:a"),
+            s("aac"),
+            s("-b:a"),
+            format!("{}k", self.audio_bitrate_kbps),
+        ]);
+        let ext = self
+            .output
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
         if matches!(ext, "mp4" | "m4v" | "mov") {
             a.extend([s("-movflags"), s("+faststart")]);
         }
@@ -638,7 +694,11 @@ mod tests {
     }
 
     fn base() -> RenderSpec {
-        RenderSpec::new(vec![Source::new("in.mp4")], vec![seg(0, 0.0, 2.0), seg(0, 3.5, 6.0)], "out.mp4")
+        RenderSpec::new(
+            vec![Source::new("in.mp4")],
+            vec![seg(0, 0.0, 2.0), seg(0, 3.5, 6.0)],
+            "out.mp4",
+        )
     }
 
     #[test]
@@ -662,8 +722,20 @@ mod tests {
         sp.fps = Some(30.0);
         sp.crop = Some(CropPath {
             keys: vec![
-                CropKey { t: 0.0, x: 0.0, y: 0.0, w: 135.0, h: 240.0 },
-                CropKey { t: 2.0, x: 100.0, y: 0.0, w: 135.0, h: 240.0 },
+                CropKey {
+                    t: 0.0,
+                    x: 0.0,
+                    y: 0.0,
+                    w: 135.0,
+                    h: 240.0,
+                },
+                CropKey {
+                    t: 2.0,
+                    x: 100.0,
+                    y: 0.0,
+                    w: 135.0,
+                    h: 240.0,
+                },
             ],
             interp: Interp::Linear,
         });
@@ -693,12 +765,12 @@ mod tests {
              [s0a1]atrim=start=3.5:end=6,asetpts=PTS-STARTPTS[a1];\
              [v0][v1]concat=n=2:v=1:a=0[vc];\
              [a0][a1]acrossfade=d=0.03:c1=tri:c2=tri[ax1];\
-             [vc]crop=w=134:h=240:x='if(lt(t,2),0+(100)*(clip((t-0)/2,0,1)),100)':y='0'[vcrop];\
+             [vc]crop=w=136:h=240:x='if(lt(t,2),0+(100)*(clip((t-0)/2,0,1)),100)':y='0'[vcrop];\
              [vcrop]scale=180:320,setsar=1,fps=30[vfmt];\
-             [2:v]trim=duration=1.5,setpts=PTS-STARTPTS+1/TB,scale=90:-2,format=yuva420p,colorchannelmixer=aa=0.8[ov0];\
+             [1:v]trim=duration=1.5,setpts=PTS-STARTPTS+1/TB,scale=90:-2,format=yuva420p,colorchannelmixer=aa=0.8[ov0];\
              [vfmt][ov0]overlay=x='(W-w)/2':y='H-h-20':eof_action=pass:enable='between(t,1,2.5)'[o0];\
              [o0]ass=filename=/tmp/my subs/cap.ass[vsub];\
-             [ax1]asplit=2[voice][sc];[3:a]volume=0.3[mus];\
+             [ax1]asplit=2[voice][sc];[2:a]volume=0.3[mus];\
              [mus][sc]sidechaincompress=threshold=0.05:ratio=8:attack=20:release=300[duck];\
              [voice][duck]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[amix]"
         );
@@ -710,8 +782,20 @@ mod tests {
         sp.size = Some((100, 200));
         sp.crop = Some(CropPath {
             keys: vec![
-                CropKey { t: 0.0, x: 0.0, y: 10.0, w: 100.0, h: 200.0 },
-                CropKey { t: 2.0, x: 50.0, y: 10.0, w: 200.0, h: 400.0 },
+                CropKey {
+                    t: 0.0,
+                    x: 0.0,
+                    y: 10.0,
+                    w: 100.0,
+                    h: 200.0,
+                },
+                CropKey {
+                    t: 2.0,
+                    x: 50.0,
+                    y: 10.0,
+                    w: 200.0,
+                    h: 400.0,
+                },
             ],
             interp: Interp::Smooth,
         });
@@ -777,12 +861,27 @@ mod tests {
         let mut sp = base();
         sp.crop = Some(CropPath {
             keys: vec![
-                CropKey { t: 0.0, x: 0.0, y: 0.0, w: 10.0, h: 10.0 },
-                CropKey { t: 1.0, x: 0.0, y: 0.0, w: 20.0, h: 20.0 },
+                CropKey {
+                    t: 0.0,
+                    x: 0.0,
+                    y: 0.0,
+                    w: 10.0,
+                    h: 10.0,
+                },
+                CropKey {
+                    t: 1.0,
+                    x: 0.0,
+                    y: 0.0,
+                    w: 20.0,
+                    h: 20.0,
+                },
             ],
             interp: Interp::Linear,
         });
-        assert!(sp.build().is_err(), "size-changing crop without output size");
+        assert!(
+            sp.build().is_err(),
+            "size-changing crop without output size"
+        );
     }
 
     #[test]

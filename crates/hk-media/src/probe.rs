@@ -61,7 +61,11 @@ impl MediaInfo {
     pub fn display_size(&self) -> Option<(u32, u32)> {
         let v = self.video()?;
         let (w, h) = (v.width?, v.height?);
-        Some(if v.rotation % 180 == 90 { (h, w) } else { (w, h) })
+        Some(if v.rotation % 180 == 90 {
+            (h, w)
+        } else {
+            (w, h)
+        })
     }
 }
 

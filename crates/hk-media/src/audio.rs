@@ -49,12 +49,29 @@ fn s(v: &str) -> String {
 }
 
 fn wav_args(src: &Path, dst: &Path, spec: AudioSpec, window: Option<Range>) -> Vec<String> {
-    let mut a = vec![s("-hide_banner"), s("-nostdin"), s("-y"), s("-loglevel"), s("error")];
+    let mut a = vec![
+        s("-hide_banner"),
+        s("-nostdin"),
+        s("-y"),
+        s("-loglevel"),
+        s("error"),
+    ];
     if let Some(w) = window {
         // Before -i: fast seek, still sample-accurate when transcoding.
-        a.extend([s("-ss"), crate::fmt::num(w.start), s("-t"), crate::fmt::num(w.duration())]);
+        a.extend([
+            s("-ss"),
+            crate::fmt::num(w.start),
+            s("-t"),
+            crate::fmt::num(w.duration()),
+        ]);
     }
-    a.extend([s("-i"), src.display().to_string(), s("-vn"), s("-ac"), spec.channels.to_string()]);
+    a.extend([
+        s("-i"),
+        src.display().to_string(),
+        s("-vn"),
+        s("-ac"),
+        spec.channels.to_string(),
+    ]);
     a.extend([
         s("-ar"),
         spec.sample_rate.to_string(),
@@ -120,7 +137,12 @@ impl Tools {
     }
 
     /// Silent spans of `src` quieter than `noise_db` (e.g. -30.0) lasting at least `min_dur` seconds.
-    pub async fn silencedetect(&self, src: &Path, noise_db: f64, min_dur: f64) -> Result<Vec<Range>> {
+    pub async fn silencedetect(
+        &self,
+        src: &Path,
+        noise_db: f64,
+        min_dur: f64,
+    ) -> Result<Vec<Range>> {
         let args = [
             s("-hide_banner"),
             s("-nostdin"),
@@ -148,19 +170,29 @@ pub async fn extract_audio(src: &Path, dst: &Path, spec: AudioSpec) -> Result<()
 }
 
 pub async fn silencedetect(src: &Path, noise_db: f64, min_dur: f64) -> Result<Vec<Range>> {
-    Tools::from_env().silencedetect(src, noise_db, min_dur).await
+    Tools::from_env()
+        .silencedetect(src, noise_db, min_dur)
+        .await
 }
 
 fn after<'a>(line: &'a str, key: &str) -> Option<&'a str> {
     let rest = line.split_once(key)?.1.trim_start();
-    Some(rest.split(|c: char| c.is_whitespace() || c == '|').next().unwrap_or(rest))
+    Some(
+        rest.split(|c: char| c.is_whitespace() || c == '|')
+            .next()
+            .unwrap_or(rest),
+    )
 }
 
 /// `Duration: HH:MM:SS.xx,` header line.
 fn header_duration(line: &str) -> Option<f64> {
     let t = after(line, "Duration:")?.trim_end_matches(',');
     let mut p = t.split(':');
-    let (h, m, sec): (f64, f64, f64) = (p.next()?.parse().ok()?, p.next()?.parse().ok()?, p.next()?.parse().ok()?);
+    let (h, m, sec): (f64, f64, f64) = (
+        p.next()?.parse().ok()?,
+        p.next()?.parse().ok()?,
+        p.next()?.parse().ok()?,
+    );
     Some(h * 3600.0 + m * 60.0 + sec)
 }
 
@@ -210,7 +242,13 @@ mod tests {
     fn chunks_short_and_exact() {
         assert_eq!(plan_chunks(30.0, 100.0, 5.0).unwrap().len(), 1);
         let c = plan_chunks(100.0, 100.0, 0.0).unwrap();
-        assert_eq!(c, vec![Range { start: 0.0, end: 100.0 }]);
+        assert_eq!(
+            c,
+            vec![Range {
+                start: 0.0,
+                end: 100.0
+            }]
+        );
     }
 
     #[test]
@@ -227,7 +265,16 @@ mod tests {
             [silencedetect @ 0x55] silence_start: 8.25\n";
         assert_eq!(
             parse_silencedetect(log),
-            vec![Range { start: 0.0, end: 1.5 }, Range { start: 8.25, end: 10.5 }]
+            vec![
+                Range {
+                    start: 0.0,
+                    end: 1.5
+                },
+                Range {
+                    start: 8.25,
+                    end: 10.5
+                }
+            ]
         );
     }
 
@@ -237,7 +284,10 @@ mod tests {
             Path::new("a.mp4"),
             Path::new("o.wav"),
             AudioSpec::default(),
-            Some(Range { start: 5.0, end: 15.5 }),
+            Some(Range {
+                start: 5.0,
+                end: 15.5,
+            }),
         );
         let ss = a.iter().position(|x| x == "-ss").unwrap();
         let i = a.iter().position(|x| x == "-i").unwrap();

@@ -12,26 +12,53 @@ fn s(v: &str) -> String {
 
 pub(crate) fn thumbnail_args(src: &Path, at: f64, dst: &Path, width: u32) -> Vec<String> {
     vec![
-        s("-hide_banner"), s("-nostdin"), s("-y"), s("-loglevel"), s("error"),
-        s("-ss"), num(at),
-        s("-i"), src.display().to_string(),
-        s("-frames:v"), s("1"),
-        s("-vf"), format!("scale={width}:-2"),
-        s("-q:v"), s("3"),
+        s("-hide_banner"),
+        s("-nostdin"),
+        s("-y"),
+        s("-loglevel"),
+        s("error"),
+        s("-ss"),
+        num(at),
+        s("-i"),
+        src.display().to_string(),
+        s("-frames:v"),
+        s("1"),
+        s("-vf"),
+        format!("scale={width}:-2"),
+        s("-q:v"),
+        s("3"),
         dst.display().to_string(),
     ]
 }
 
 pub(crate) fn proxy_args(src: &Path, dst: &Path, height: u32) -> Vec<String> {
     vec![
-        s("-hide_banner"), s("-nostdin"), s("-y"), s("-loglevel"), s("error"),
-        s("-i"), src.display().to_string(),
-        s("-vf"), format!("scale=-2:{height}"),
-        s("-c:v"), s("libx264"), s("-preset"), s("veryfast"), s("-crf"), s("30"),
+        s("-hide_banner"),
+        s("-nostdin"),
+        s("-y"),
+        s("-loglevel"),
+        s("error"),
+        s("-i"),
+        src.display().to_string(),
+        s("-vf"),
+        format!("scale=-2:{height}"),
+        s("-c:v"),
+        s("libx264"),
+        s("-preset"),
+        s("veryfast"),
+        s("-crf"),
+        s("30"),
         // Short GOP keeps scrubbing/seeking responsive in the player.
-        s("-g"), s("15"), s("-pix_fmt"), s("yuv420p"),
-        s("-c:a"), s("aac"), s("-b:a"), s("64k"),
-        s("-movflags"), s("+faststart"),
+        s("-g"),
+        s("15"),
+        s("-pix_fmt"),
+        s("yuv420p"),
+        s("-c:a"),
+        s("aac"),
+        s("-b:a"),
+        s("64k"),
+        s("-movflags"),
+        s("+faststart"),
         dst.display().to_string(),
     ]
 }
@@ -73,6 +100,9 @@ mod tests {
 
     #[test]
     fn proxy_scales_by_height() {
-        assert!(proxy_args(Path::new("a.mp4"), Path::new("p.mp4"), 360).contains(&"scale=-2:360".to_string()));
+        assert!(
+            proxy_args(Path::new("a.mp4"), Path::new("p.mp4"), 360)
+                .contains(&"scale=-2:360".to_string())
+        );
     }
 }
