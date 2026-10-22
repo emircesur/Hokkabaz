@@ -54,6 +54,10 @@ pub struct ChatArgs {
     /// Print model reasoning (dimmed) while it streams.
     #[arg(long)]
     pub show_reasoning: bool,
+    /// Run an external ACP agent instead of the native loop: `dsh`, `opencode`, a name from
+    /// `[acp.engines.<name>]`, or a quoted command line (`--engine "my-agent --acp"`).
+    #[arg(long)]
+    pub engine: Option<String>,
 }
 
 /// Live-output state shared by the bus listeners.
@@ -92,6 +96,9 @@ impl Ui {
 }
 
 pub async fn run(paths: &Paths, args: ChatArgs) -> Result<()> {
+    if let Some(engine) = args.engine.clone() {
+        return crate::acp_chat::run(paths, args, &engine).await;
+    }
     let key = auth::deepseek_key()?;
     let mut provider = DeepSeek::new(key).context("build DeepSeek client")?;
     if let Some(u) = &args.base_url {

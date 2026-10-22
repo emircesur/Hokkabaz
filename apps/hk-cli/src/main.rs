@@ -1,15 +1,18 @@
 //! `hk`: Hokkabaz CLI.
 
+mod acp_chat;
 mod auth;
 mod chat;
 mod paths;
 mod sessions;
 mod term;
+mod tui;
 
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use std::io::IsTerminal;
 use hk_session::SessionStore;
 
 #[derive(Debug, Parser)]
@@ -19,13 +22,15 @@ struct Cli {
     #[arg(long, global = true, env = "HOKKABAZ_HOME")]
     data_dir: Option<PathBuf>,
     #[command(subcommand)]
-    cmd: Cmd,
+    cmd: Option<Cmd>,
 }
 
 #[derive(Debug, Subcommand)]
 enum Cmd {
     /// Chat with the agent (REPL, or one-shot with a prompt).
     Chat(chat::ChatArgs),
+    /// Full-screen terminal UI (default when run bare in a terminal).
+    Tui(tui::TuiArgs),
     /// Inspect stored sessions.
     Sessions {
         #[command(subcommand)]
@@ -62,14 +67,25 @@ fn main() -> Result<()> {
     // Landlock helper re-exec: must run before anything else touches the process.
     hk_sandbox::maybe_run_helper();
     let cli = Cli::parse();
+    let cmd = match cli.cmd {
+        Some(c) => c,
+        None if std::io::stdout().is_terminal() && std::io::stdin().is_terminal() => {
+            Cmd::Tui(tui::TuiArgs::default())
+        }
+        None => {
+            let _ = Cli::command().print_help();
+            return Ok(());
+        }
+    };
     let paths = paths::Paths::resolve(cli.data_dir)?;
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .context("tokio runtime")?
         .block_on(async move {
-            match cli.cmd {
+            match cmd {
                 Cmd::Chat(args) => chat::run(&paths, args).await,
+                Cmd::Tui(args) => tui::run(&paths, args).await,
                 Cmd::Sessions { cmd } => {
                     let store = SessionStore::open(paths.sessions()).context("open session store")?;
                     match cmd {

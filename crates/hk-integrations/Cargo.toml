@@ -14,7 +14,7 @@ workspace = true
 # Pure-HTTP integrations are android-safe, so they are on by default. An integration that
 # needs a native dep must gate it with cfg(not(target_os = "android")) and stay out of here.
 default = ["all-integrations"]
-all-integrations = ["int-ntfy", "int-github", "int-gitea", "int-git", "int-n8n", "int-telegram", "int-matrix", "int-gotify", "int-email", "int-rss"]
+all-integrations = ["int-ntfy", "int-github", "int-gitea", "int-git", "int-n8n", "int-telegram", "int-matrix", "int-gotify", "int-email", "int-rss", "int-sqlite", "int-postgres", "int-redis", "int-s3", "int-searxng", "int-ollama"]
 # ntfy.sh: send notification
 int-ntfy = []
 # GitHub node + polling GitHub Trigger
@@ -35,6 +35,18 @@ int-gotify = []
 int-email = ["dep:lettre", "dep:async-imap", "dep:mail-parser", "dep:tokio-rustls", "dep:webpki-roots", "dep:futures-util", "tokio/net", "tokio/io-util"]
 # RSS Feed Read + RSS Feed Trigger (feed-rs)
 int-rss = ["dep:feed-rs"]
+# SQLite node (rusqlite, bundled sqlite: same libsqlite3-sys copy as hk-session / sqlx)
+int-sqlite = ["dep:rusqlite"]
+# PostgreSQL node (tokio-postgres over tokio-rustls/ring; no openssl)
+int-postgres = ["dep:tokio-postgres", "dep:bytes", "dep:tokio-postgres-rustls", "dep:tokio-rustls", "dep:webpki-roots", "tokio/net", "tokio/io-util"]
+# Redis node (tiny RESP2 client over tokio TCP, optional rustls)
+int-redis = ["dep:tokio-rustls", "dep:webpki-roots", "tokio/net", "tokio/io-util"]
+# S3 / MinIO node (hand-rolled SigV4 over reqwest; no aws-sdk)
+int-s3 = ["dep:hmac", "dep:sha2"]
+# SearXNG node + `web_search` agent tool
+int-searxng = ["dep:hk-tools"]
+# Ollama node
+int-ollama = []
 
 [dependencies]
 # expr: node parameters (`={{ ... }}`) evaluate through the QuickJS engine; http: shared reqwest stack
@@ -57,6 +69,17 @@ webpki-roots = { version = "1", optional = true }
 futures-util = { version = "0.3", default-features = false, features = ["std"], optional = true }
 # int-rss
 feed-rs = { version = "3", optional = true }
+# int-sqlite: same version/features as hk-session so the workspace links one sqlite3 copy
+rusqlite = { version = "0.32", features = ["bundled"], optional = true }
+# int-postgres
+tokio-postgres = { version = "0.7", features = ["with-serde_json-1"], optional = true }
+tokio-postgres-rustls = { version = "0.13", optional = true }
+bytes = { version = "1", optional = true }
+# int-s3
+hmac = { version = "0.12", optional = true }
+sha2 = { version = "0.10", optional = true }
+# int-searxng: `web_search` implements the hk-tools `Tool` trait (no pty / web-fetch needed)
+hk-tools = { version = "0.0.0", path = "../hk-tools", default-features = false, optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "time", "test-util", "net", "io-util"] }

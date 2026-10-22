@@ -1,6 +1,6 @@
 [package]
 name = "hk-acp"
-description = "Hokkabaz: hk-acp"
+description = "Hokkabaz: ACP client, drives external agents (dsh, opencode) as engines"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,4 +10,25 @@ publish = false
 [lints]
 workspace = true
 
+# Desktop only. Nothing android-reachable may depend on this crate (hk-ffi does not); the child
+# process spawn is additionally cfg(not(android)).
 [dependencies]
+async-trait = "0.1"
+hk-core = { version = "0.0.0", path = "../hk-core" }
+hk-session = { version = "0.0.0", path = "../hk-session" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt", "sync", "time", "io-util", "process"] }
+tracing = "0.1"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["rt", "macros", "time", "io-util"] }
+
+# Scripted agent for the spawn test (real stdio, no dsh/opencode needed). Not shipped.
+[[bin]]
+name = "fake-acp-agent"
+path = "src/bin/fake_acp_agent.rs"
+test = false
+doc = false

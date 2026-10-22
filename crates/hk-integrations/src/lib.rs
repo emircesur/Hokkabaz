@@ -40,9 +40,31 @@ pub mod n8n;
     feature = "int-matrix",
     feature = "int-gotify",
     feature = "int-email",
-    feature = "int-rss"
+    feature = "int-rss",
+    feature = "int-sqlite",
+    feature = "int-postgres",
+    feature = "int-redis",
+    feature = "int-s3",
+    feature = "int-searxng",
+    feature = "int-ollama"
 ))]
 pub(crate) mod kit;
+#[cfg(any(feature = "int-sqlite", feature = "int-postgres"))]
+pub(crate) mod sql;
+#[cfg(any(feature = "int-postgres", feature = "int-redis"))]
+pub(crate) mod tls;
+#[cfg(feature = "int-sqlite")]
+pub mod sqlite;
+#[cfg(feature = "int-postgres")]
+pub mod postgres;
+#[cfg(feature = "int-redis")]
+pub mod redis;
+#[cfg(feature = "int-s3")]
+pub mod s3;
+#[cfg(feature = "int-searxng")]
+pub mod searxng;
+#[cfg(feature = "int-ollama")]
+pub mod ollama;
 #[cfg(feature = "int-telegram")]
 pub mod telegram;
 #[cfg(feature = "int-matrix")]
@@ -58,6 +80,8 @@ pub use credentials::{
     AppliedAuth, Authenticate, CredentialError, CredentialType, CredentialTypes, builtin_types,
 };
 pub use poll::{PollRegistry, PollingHost, PollingTrigger};
+#[cfg(feature = "int-searxng")]
+pub use searxng::searxng_web_search_tool;
 
 use hk_flow::{FlowError, NodeRegistry};
 
@@ -100,5 +124,17 @@ pub fn register_integrations_with_polling(
     email::register(nodes, creds, polls)?;
     #[cfg(feature = "int-rss")]
     rss::register(nodes, creds, polls)?;
+    #[cfg(feature = "int-sqlite")]
+    sqlite::register(nodes, creds)?;
+    #[cfg(feature = "int-postgres")]
+    postgres::register(nodes, creds)?;
+    #[cfg(feature = "int-redis")]
+    redis::register(nodes, creds)?;
+    #[cfg(feature = "int-s3")]
+    s3::register(nodes, creds)?;
+    #[cfg(feature = "int-searxng")]
+    searxng::register(nodes, creds)?;
+    #[cfg(feature = "int-ollama")]
+    ollama::register(nodes, creds)?;
     Ok(())
 }
