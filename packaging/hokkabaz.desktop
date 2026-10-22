@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Hokkabaz
+Comment=AI agents, automation flows and video studio
+Exec=hokkabaz
+Icon=hokkabaz
+Categories=Utility;Development;
+Terminal=false

@@ -9,6 +9,7 @@ import '../screens/models/models_screen.dart';
 import '../screens/placeholder_screen.dart';
 import '../screens/plugins/plugins_screen.dart';
 import '../screens/runs/runs_screen.dart';
+import '../screens/settings/settings_screen.dart';
 import '../screens/studio/studio_screen.dart';
 import 'destinations.dart';
 import 'shell.dart';
@@ -36,6 +37,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                     ? const StudioScreen()
                     : d.path == '/instances'
                     ? const InstancesScreen()
+                    : d.path == '/settings'
+                    ? const SettingsScreen()
                     : d.path == '/plugins'
                     ? const PluginsScreen()
                     : d.path == '/models'
