@@ -369,8 +369,8 @@ impl RemoteNodeRunner for N8nRemote {
             ),
         };
         let path = token();
-        let wf = shim_workflow(node, &path).map_err(&fail)?;
-        let created = self.client.create_workflow(&wf).await.map_err(&fail)?;
+        let wf = shim_workflow(node, &path).map_err(fail)?;
+        let created = self.client.create_workflow(&wf).await.map_err(fail)?;
         let id = created["id"]
             .as_str()
             .map(str::to_owned)
@@ -383,7 +383,7 @@ impl RemoteNodeRunner for N8nRemote {
         // Clean up whatever happened; a leftover workflow is named `hokkabaz-delegate-*`.
         let _ = self.client.set_active(&id, false).await;
         let _ = self.client.delete_workflow(&id).await;
-        let value = result.map_err(&fail)?;
+        let value = result.map_err(fail)?;
         let items: Vec<Item> = match value {
             Value::Array(a) => a
                 .into_iter()
