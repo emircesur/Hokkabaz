@@ -43,6 +43,8 @@ pub mod git;
 pub mod gitea;
 #[cfg(feature = "int-github")]
 pub mod github;
+#[cfg(feature = "int-image")]
+pub mod image_edit;
 #[cfg(feature = "int-kafka")]
 pub mod kafka;
 #[cfg(feature = "int-n8n")]
@@ -81,7 +83,8 @@ pub mod gotify;
     feature = "int-ssh",
     feature = "int-kafka",
     feature = "int-mongodb",
-    feature = "int-ftp"
+    feature = "int-ftp",
+    feature = "int-image"
 ))]
 pub(crate) mod kit;
 #[cfg(feature = "int-matrix")]
@@ -200,6 +203,8 @@ pub fn register_integrations_with_polling(
     ftp::register(nodes, creds)?;
     #[cfg(feature = "int-kafka")]
     kafka::register(nodes, creds)?;
+    #[cfg(feature = "int-image")]
+    image_edit::register(nodes, creds)?;
     #[cfg(all(feature = "int-mongodb", not(target_os = "android")))]
     mongodb::register(nodes, creds)?;
     #[cfg(feature = "int-saas")]

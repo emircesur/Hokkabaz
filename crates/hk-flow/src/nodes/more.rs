@@ -589,7 +589,7 @@ impl ConvertToFileNode {
     }
 }
 
-fn csv_cell(v: &Value, delim: char) -> String {
+pub(crate) fn csv_cell(v: &Value, delim: char) -> String {
     let s = match v {
         Value::Null => String::new(),
         Value::String(s) => s.clone(),
@@ -602,7 +602,7 @@ fn csv_cell(v: &Value, delim: char) -> String {
     }
 }
 
-fn make_binary(bytes: &[u8], mime: &str, name: &str, ext: &str) -> BinaryData {
+pub(crate) fn make_binary(bytes: &[u8], mime: &str, name: &str, ext: &str) -> BinaryData {
     BinaryData {
         data: B64.encode(bytes),
         mime_type: mime.to_owned(),
@@ -624,7 +624,7 @@ fn human_size(n: usize) -> String {
     }
 }
 
-fn with_binary(prop: &str, b: BinaryData) -> Item {
+pub(crate) fn with_binary(prop: &str, b: BinaryData) -> Item {
     let mut it = Item::default();
     let mut m = IndexMap::new();
     m.insert(prop.to_owned(), b);

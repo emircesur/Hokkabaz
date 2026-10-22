@@ -36,6 +36,7 @@ mod conditions;
 mod convert;
 pub(crate) mod date;
 mod datetime;
+mod files;
 mod flow_control;
 #[cfg(feature = "http")]
 mod http;
@@ -91,6 +92,8 @@ pub fn core_nodes() -> Vec<Arc<dyn FlowNode>> {
         Arc::new(more::LegacyFunctionNode::new(false)),
         Arc::new(more::LegacyFunctionNode::new(true)),
         Arc::new(more::ItemListsNode::new()),
+        Arc::new(files::ReadWriteFileNode::new()),
+        Arc::new(files::SpreadsheetFileNode::new()),
         Arc::new(convert::HtmlNode::new()),
         Arc::new(convert::MarkdownNode::new()),
         Arc::new(convert::XmlNode::new()),

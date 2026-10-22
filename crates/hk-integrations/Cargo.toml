@@ -14,7 +14,7 @@ workspace = true
 # Pure-HTTP integrations are android-safe, so they are on by default. An integration that
 # needs a native dep must gate it with cfg(not(target_os = "android")) and stay out of here.
 default = ["all-integrations"]
-all-integrations = ["int-ntfy", "int-github", "int-gitea", "int-git", "int-n8n", "int-telegram", "int-matrix", "int-gotify", "int-email", "int-rss", "int-sqlite", "int-postgres", "int-redis", "int-s3", "int-searxng", "int-ollama", "int-slack", "int-saas", "int-mysql", "int-mqtt", "int-rabbitmq", "int-ftp", "int-ssh", "int-kafka", "int-mongodb"]
+all-integrations = ["int-ntfy", "int-github", "int-gitea", "int-git", "int-n8n", "int-telegram", "int-matrix", "int-gotify", "int-email", "int-rss", "int-sqlite", "int-postgres", "int-redis", "int-s3", "int-searxng", "int-ollama", "int-slack", "int-saas", "int-mysql", "int-mqtt", "int-rabbitmq", "int-ftp", "int-ssh", "int-kafka", "int-mongodb", "int-image"]
 # ntfy.sh: send notification
 int-ntfy = []
 # GitHub node + polling GitHub Trigger
@@ -61,6 +61,8 @@ int-ssh = ["dep:russh"]
 int-kafka = ["dep:rskafka"]
 # MongoDB (official driver; desktop builds)
 int-mongodb = ["dep:mongodb"]
+# Edit Image node (resize, crop, rotate, blur, convert; `image` crate)
+int-image = ["dep:image"]
 # Slack node (Web API, bot token)
 int-slack = []
 # Data-driven REST integrations: crates/hk-integrations/specs/*.json (Notion, Stripe, Anthropic, Google, ...)
@@ -105,6 +107,7 @@ rumqttc = { version = "0.24", optional = true }
 lapin = { version = "2", optional = true }
 russh = { version = "0.63.1", default-features = false, features = ["flate2", "ring", "rsa"], optional = true }
 rskafka = { version = "0.6.0", default-features = false, features = ["transport-tls"], optional = true }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"], optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "time", "test-util", "net", "io-util"] }
