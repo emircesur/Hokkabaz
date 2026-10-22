@@ -33,6 +33,12 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
     super.dispose();
   }
 
+  Future<void> _always() async {
+    setState(() => _busy = true);
+    ref.read(chatControllerProvider(widget.sessionId).notifier).allowAlways(widget.tool.name);
+    if (mounted) setState(() => _busy = false);
+  }
+
   Future<void> _respond(bool approved) async {
     setState(() => _busy = true);
     await ref
@@ -61,18 +67,31 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
       onPressed: _busy ? null : () => _respond(true),
       child: const Text('Approve'),
     );
+    final always = TextButton(
+      style: style,
+      onPressed: _busy ? null : _always,
+      child: Text('Always allow ${widget.tool.name}', overflow: TextOverflow.ellipsis),
+    );
     if (narrow) {
-      return Row(
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(child: deny),
-          const SizedBox(width: HkTokens.s2),
-          Expanded(child: approve),
+          Row(
+            children: [
+              Expanded(child: deny),
+              const SizedBox(width: HkTokens.s2),
+              Expanded(child: approve),
+            ],
+          ),
+          always,
         ],
       );
     }
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
+        Flexible(child: always),
+        const SizedBox(width: HkTokens.s2),
         deny,
         const SizedBox(width: HkTokens.s2),
         approve,

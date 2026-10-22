@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../ffi/notifications.dart';
+import '../screens/chat/approvals_inbox.dart';
 import '../screens/chat/chat_providers.dart';
 import '../theme/tokens.dart';
 import 'breakpoints.dart';
@@ -118,6 +119,10 @@ class AppShell extends ConsumerWidget {
                 notice: elsewhere.first,
                 total: elsewhere.length,
                 onTap: () {
+                  if (elsewhere.length > 1) {
+                    showApprovalsInbox(context);
+                    return;
+                  }
                   ref
                       .read(selectedSessionProvider.notifier)
                       .select(elsewhere.first.sessionId);

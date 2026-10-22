@@ -102,6 +102,29 @@ class ChatController extends Notifier<ChatState> {
   final String sessionId;
   StreamSubscription<SessionEventDto>? _sub;
 
+  /// Tools the user chose to always allow in this session (client-side rule: the core only
+  /// knows one-shot decisions, so matching requests are answered here, instantly).
+  final Set<String> _alwaysAllow = {};
+  final Set<String> _autoAnswered = {};
+
+  Set<String> get alwaysAllowed => Set.unmodifiable(_alwaysAllow);
+
+  void allowAlways(String tool) {
+    _alwaysAllow.add(tool);
+    _autoAnswer();
+  }
+
+  void revokeAlways(String tool) => _alwaysAllow.remove(tool);
+
+  void _autoAnswer() {
+    for (final t in state.pendingApprovals) {
+      final id = t.approval!.id;
+      if (_alwaysAllow.contains(t.name) && _autoAnswered.add(id)) {
+        unawaited(respond(id, approved: true, reason: 'always allowed in this session'));
+      }
+    }
+  }
+
   /// Live events that arrive while history is still loading; replayed after.
   final List<SessionEventDto> _early = [];
   bool _historyReady = false;
@@ -151,6 +174,7 @@ class ChatController extends Notifier<ChatState> {
       return;
     }
     state = reduceEvent(state, e);
+    _autoAnswer();
     _syncApprovals();
     if (e.kind == SessionEventKind.titleChanged ||
         e.kind == SessionEventKind.turnEnded) {
