@@ -28,8 +28,8 @@ jobs:
         with:
           workspaces: ". -> target"
       - name: Install Vulkan SDK
-        # GPU builds: llama.cpp (in hk_ffi.dll) and whisper.cpp (hk-whisper.exe) compile their Vulkan
-        # backends against it. At run time they only need vulkan-1.dll, which every GPU driver ships.
+        # GPU build of whisper.cpp (hk-whisper.exe) compiles its Vulkan backend against it. At run time
+        # it only needs vulkan-1.dll, which every GPU driver ships (and the app bundles).
         shell: pwsh
         env:
           VULKAN_VERSION: 1.4.313.2
@@ -57,7 +57,13 @@ jobs:
         env:
           CARGO_TARGET_DIR: 'C:\hkw'
         run: |
+          # GPU (Vulkan) helper; if that build breaks, ship the CPU one rather than no helper.
           cargo build --release -p hk-whisper --features vulkan
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "::warning::hk-whisper Vulkan build failed; shipping the CPU helper"
+            cargo build --release -p hk-whisper
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
           Copy-Item C:\hkw\release\hk-whisper.exe apps/flutter/build/windows/x64/runner/Release/
       - name: Package
         shell: pwsh
@@ -74,3 +80,37 @@ jobs:
             hokkabaz-windows-x64.zip
             dist/hokkabaz-windows-x64-setup.exe
           if-no-files-found: error
+
+  # Not shipped yet: shows whether llama.cpp's Vulkan backend builds here, with the full log.
+  llama-vulkan:
+    runs-on: windows-latest
+    continue-on-error: true
+    env:
+      LIBCLANG_PATH: 'C:\Program Files\LLVM\bin'
+      CARGO_TARGET_DIR: 'C:\hlv'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Vulkan SDK
+        # GPU build of whisper.cpp (hk-whisper.exe) compiles its Vulkan backend against it. At run time
+        # it only needs vulkan-1.dll, which every GPU driver ships (and the app bundles).
+        shell: pwsh
+        env:
+          VULKAN_VERSION: 1.4.313.2
+        run: |
+          $exe = "$env:RUNNER_TEMP\vulkansdk.exe"
+          curl.exe -sSfL -o $exe "https://sdk.lunarg.com/sdk/download/$env:VULKAN_VERSION/windows/vulkansdk-windows-X64-$env:VULKAN_VERSION.exe"
+          Start-Process -FilePath $exe -ArgumentList '--root','C:\VulkanSDK','--accept-licenses','--default-answer','--confirm-command','install' -Wait -NoNewWindow
+          if (-not (Test-Path 'C:\VulkanSDK\Bin\glslc.exe')) { Get-ChildItem C:\VulkanSDK; throw 'Vulkan SDK install failed' }
+          Add-Content $env:GITHUB_ENV 'VULKAN_SDK=C:\VulkanSDK'
+          Add-Content $env:GITHUB_PATH 'C:\VulkanSDK\Bin'
+      - name: Build hk-local with llama-vulkan
+        shell: pwsh
+        run: cargo build --release -p hk-local --features llama-openmp,llama-vulkan -vv 2>&1 | Select-Object -Last 400
+      - name: CMake logs
+        if: always()
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse C:\hlv -Include *.log -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match 'vulkan-shaders-gen' } |
+            ForEach-Object { "==== $($_.FullName)"; Get-Content $_ -Tail 80 }

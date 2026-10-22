@@ -66,8 +66,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install Vulkan SDK
-        # GPU builds: llama.cpp (in hk_ffi.dll) and whisper.cpp (hk-whisper.exe) compile their Vulkan
-        # backends against it. At run time they only need vulkan-1.dll, which every GPU driver ships.
+        # GPU build of whisper.cpp (hk-whisper.exe) compiles its Vulkan backend against it. At run time
+        # it only needs vulkan-1.dll, which every GPU driver ships (and the app bundles).
         shell: pwsh
         env:
           VULKAN_VERSION: 1.4.313.2
@@ -92,7 +92,13 @@ jobs:
         env:
           CARGO_TARGET_DIR: 'C:\hkw'
         run: |
+          # GPU (Vulkan) helper; if that build breaks, ship the CPU one rather than no helper.
           cargo build --release -p hk-whisper --features vulkan
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "::warning::hk-whisper Vulkan build failed; shipping the CPU helper"
+            cargo build --release -p hk-whisper
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
           Copy-Item C:\hkw\release\hk-whisper.exe apps/flutter/build/windows/x64/runner/Release/
       - shell: pwsh
         run: |

@@ -58,9 +58,10 @@ webpki-roots = "1"
 [target.'cfg(target_os = "linux")'.dependencies]
 hk-local = { version = "0.0.0", path = "../hk-local", features = ["llama-openmp"] }
 
-# Windows: GPU offload through Vulkan (any vendor); the build needs the Vulkan SDK (VULKAN_SDK).
+# Windows: CPU for now. `llama-vulkan` (GPU offload) is built by the `llama-vulkan` probe job in
+# .github/workflows/windows.yml until its shader generator builds under the Visual Studio generator.
 [target.'cfg(target_os = "windows")'.dependencies]
-hk-local = { version = "0.0.0", path = "../hk-local", features = ["llama-openmp", "llama-vulkan"] }
+hk-local = { version = "0.0.0", path = "../hk-local", features = ["llama-openmp"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hk-local = { version = "0.0.0", path = "../hk-local", features = ["llama"] }
