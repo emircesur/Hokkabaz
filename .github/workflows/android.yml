@@ -49,6 +49,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
       - run: |
           for t in aarch64-linux-android x86_64-linux-android; do
@@ -72,6 +74,8 @@ jobs:
             triple: x86_64-linux-android
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.triple }}
@@ -109,6 +113,8 @@ jobs:
         working-directory: apps/flutter
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:

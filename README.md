@@ -11,3 +11,8 @@ Native, open-source AI agent harness + automation workbench. Rust core, Flutter 
 Built on ideas from [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) and [OpenCode](https://github.com/anomalyco/opencode).
 
 Status: planning. See [DESIGN.md](DESIGN.md), [PLAN.md](PLAN.md), [CLAUDE.md](CLAUDE.md).
+
+
+## Cloning
+
+Concat (the included video editor engine) is a git submodule. Clone with `git clone --recurse-submodules`, or run `git submodule update --init` afterwards; Cargo needs `third_party/concat` on disk to resolve the workspace.
