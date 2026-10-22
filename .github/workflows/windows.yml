@@ -4,10 +4,8 @@ on:
   workflow_dispatch:
   push:
     tags: ["v*"]
-    paths:
-      - "apps/flutter/**"
-      - "crates/**"
-      - ".github/workflows/windows.yml"
+    # Runs on every push of the working branch so a Windows build is always waiting in Actions.
+    branches: ["claude/amazing-fermat-ykjmuh"]
 
 jobs:
   build:
@@ -15,13 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false  # Concat is not needed by the default build
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: "3.47.7"
           channel: stable
           cache: true
       - name: Flutter pub get
