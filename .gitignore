@@ -7,3 +7,8 @@
 /apps/flutter/.dart_tool/
 /apps/flutter/.flutter-plugins-dependencies
 apps/flutter/android/.kotlin/
+
+# android release signing material
+apps/flutter/android/key.properties
+*.jks
+*.keystore

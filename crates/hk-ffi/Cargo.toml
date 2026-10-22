@@ -34,6 +34,7 @@ hk-studio = { version = "0.0.0", path = "../hk-studio" }
 hk-stt = { version = "0.0.0", path = "../hk-stt" }
 hk-store = { version = "0.0.0", path = "../hk-store" }
 # RemoteCore transport: rustls + ring only (same stack hk-llm already ships on android), no openssl.
+ring = "0.17"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 serde = { version = "1", features = ["derive"] }

@@ -18,6 +18,11 @@ Stream<int> demoTicker({required int count, required int intervalMs}) => RustLib
     .api
     .crateApiCoreDemoTicker(count: count, intervalMs: intervalMs);
 
+/// Hand over the 32-byte master key kept in the platform keystore (Android Keystore / iOS
+/// Keychain). With it, the secrets file is encrypted at rest. Call before `core_init`.
+void setSecretMasterKey({required List<int> key}) =>
+    RustLib.instance.api.crateApiCoreSetSecretMasterKey(key: key);
+
 /// Start the in-process core rooted at `data_dir` (created if missing). Calling it again replaces
 /// the running core (Flutter hot restart keeps the native lib loaded).
 Future<void> coreInit({

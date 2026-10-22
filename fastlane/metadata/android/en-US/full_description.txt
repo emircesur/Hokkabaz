@@ -1,0 +1,8 @@
+Hokkabaz is an open, local-first AI workspace:
+
+* Chat with an agent that can use tools, in plan or build mode, with any provider you configure (DeepSeek, OpenAI-compatible, Anthropic, Gemini, Ollama) - your own keys, kept encrypted on the device.
+* Build and run n8n-compatible workflows with AI nodes, webhooks, schedules and many integrations.
+* Studio: turn long videos into captioned, vertical, scored short clips; edit by deleting words from the transcript; let the agent do it for you. (Rendering needs a desktop or a Hokkabaz server with ffmpeg.)
+* Pair this phone with your own Hokkabaz server and control it from anywhere.
+
+No account, no tracking, no ads. Licensed AGPL-3.0-or-later.

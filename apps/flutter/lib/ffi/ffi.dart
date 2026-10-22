@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -7,6 +8,18 @@ import '../src/rust/api/core.dart' as core;
 import '../src/rust/api/instances.dart' as instances;
 import '../src/rust/dto.dart' show CoreProfile, InstanceKindDto;
 import '../src/rust/frb_generated.dart';
+
+/// On Android the secrets file is encrypted with a key wrapped by the Android Keystore. If the
+/// keystore is unavailable the core falls back to its plain 0600 file instead of failing.
+Future<void> _installMasterKey() async {
+  if (!Platform.isAndroid) return;
+  try {
+    final key = await const MethodChannel('hokkabaz/keystore').invokeMethod<Uint8List>('dataKey');
+    if (key != null) core.setSecretMasterKey(key: key);
+  } catch (_) {
+    // Fall through: plaintext 0600 file in the app-private dir.
+  }
+}
 
 /// Loads the Rust lib once at startup. Failure is non-fatal: the UI shows the
 /// error instead of crashing, so a missing native lib never blocks the shell.
@@ -26,6 +39,7 @@ Future<String?> initCore(String? rustError) async {
   if (rustError != null) return null;
   try {
     final dir = await getApplicationSupportDirectory();
+    await _installMasterKey();
     await core.coreInit(
       dataDir: dir.path,
       profile: (Platform.isAndroid || Platform.isIOS)
