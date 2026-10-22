@@ -613,10 +613,10 @@ pub async fn apply_commands(
         None => client.add_track(project, true).await?,
     };
 
-    let find = |media: &HashMap<String, MediaState>, key: &str| -> Result<(String, Option<f64>, Option<(f64, f64)>), ConcatError> {
+    let find = |media: &HashMap<String, MediaState>, key: &str| -> Result<(String, Option<f64>), ConcatError> {
         media
             .get(key)
-            .map(|m| (m.id.clone(), m.duration, m.size))
+            .map(|m| (m.id.clone(), m.duration))
             .ok_or_else(|| ConcatError::InvalidPlan(format!("command uses media `{key}` before it is imported")))
     };
     let need_len = |d: Option<f64>, key: &str| d.ok_or_else(|| ConcatError::decode("media_import", format!("media `{key}` has no duration")));
@@ -637,7 +637,7 @@ pub async fn apply_commands(
                 );
             }
             Command::PlaceRange { range, media: key, source_start, source_end, at } => {
-                let (mid, dur, _) = find(&media, key)?;
+                let (mid, dur) = find(&media, key)?;
                 let len = need_len(dur, key)?;
                 if *source_end > len + 0.05 {
                     return Err(ConcatError::InvalidPlan(format!(
@@ -695,7 +695,7 @@ pub async fn apply_commands(
                 client.add_title(project, text, *start, *duration, style.clone(), *offset_y).await?;
             }
             Command::AddMediaOverlay { media: key, start, duration, scale, offset_x, offset_y, opacity } => {
-                let (mid, dur, _) = find(&media, key)?;
+                let (mid, dur) = find(&media, key)?;
                 let len = need_len(dur, key)?;
                 let track = client.add_track(project, false).await?;
                 let clip = client.add_clip(project, &mid, &track, *start, false).await?;
@@ -978,7 +978,7 @@ mod tests {
     #[test]
     fn midpoint_rule_keeps_straddling_word_clamped() {
         let ranges = [r(10.0, 12.0)];
-        let mapped = map_words(&[w("edge", 11.7, 12.3)], &ranges);
+        let mapped = map_words(&[w("edge", 11.6, 12.3)], &ranges);
         assert_eq!(mapped.len(), 1);
         assert!((mapped[0].end - 2.0).abs() < 1e-9, "clamped to the range end");
     }

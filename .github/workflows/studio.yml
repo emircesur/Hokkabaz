@@ -1,0 +1,68 @@
+name: studio
+
+# Builds hk-concat with the in-process Concat engine (cargo feature `engine`, off elsewhere).
+# Stub: written but never run by the author (needs a real Ubuntu runner with FFmpeg 7 dev libs).
+# Path-filtered so day-to-day PRs do not pay for the heavy Concat dependency tree.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/hk-concat/**"
+      - "third_party/concat"
+      - ".gitmodules"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/studio.yml"
+  pull_request:
+    paths:
+      - "crates/hk-concat/**"
+      - "third_party/concat"
+      - ".gitmodules"
+      - ".github/workflows/studio.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: studio-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+permissions:
+  contents: read
+
+jobs:
+  concat-engine:
+    name: hk-concat --features engine (ffmpeg 7)
+    # ubuntu-24.04 ships FFmpeg 6.1, so FFmpeg 7 comes from a PPA (unverified); a newer runner
+    # image with 7.x in main works without the PPA step.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: FFmpeg 7 dev libs + build tools
+        run: |
+          sudo add-apt-repository -y ppa:ubuntuhandbook1/ffmpeg7
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
+            libswresample-dev libavfilter-dev libavdevice-dev \
+            pkg-config cmake clang libclang-dev g++
+          v=$(pkg-config --modversion libavcodec)
+          echo "libavcodec $v"
+          # libavcodec 61.x == FFmpeg 7.x
+          case "$v" in 61.*|62.*) ;; *) echo "FFmpeg 7+ required, got libavcodec $v"; exit 1;; esac
+
+      # Repo toolchain is `stable` (rust-toolchain.toml); Concat needs >= 1.93.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo check -p hk-concat --features engine --all-targets
+      - run: cargo clippy -p hk-concat --features engine --all-targets -- -D warnings
+      - run: cargo test -p hk-concat --features engine

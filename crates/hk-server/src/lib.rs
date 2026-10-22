@@ -15,6 +15,8 @@
 mod api;
 #[cfg(feature = "server")]
 mod auth;
+#[cfg(feature = "concat")]
+mod concat_tools;
 mod error;
 #[cfg(feature = "server")]
 mod flow;
@@ -47,6 +49,8 @@ mod ws;
 pub use api::{AppState, router, serve, serve_listener};
 #[cfg(feature = "server")]
 pub use auth::{Auth, AuthError, Grants, Principal, Reject, Scope};
+#[cfg(feature = "concat")]
+pub use concat_tools::{ConcatConfig, ConcatSession, concat_tools};
 #[cfg(feature = "server")]
 pub use flow::{BuiltinCredentialSchemas, CredentialSchemas, FlowApi, WorkflowActivator};
 #[cfg(feature = "server")]

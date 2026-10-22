@@ -644,10 +644,7 @@ async fn effect(c: &ConcatClient, a: &Map<String, Value>) -> Result<Value, Conca
             to_json(&c.set_effects(s(a, "path")?, s(a, "clip_id")?, chain).await?.timeline)
         }
         "transition" => {
-            let t = match opt_s(a, "id") {
-                Some(id) => Some((id, opt_n(a, "duration").unwrap_or(0.5))),
-                None => None,
-            };
+            let t = opt_s(a, "id").map(|id| (id, opt_n(a, "duration").unwrap_or(0.5)));
             to_json(&c.set_transition(s(a, "path")?, s(a, "clip_id")?, t).await?.timeline)
         }
         "layer" => {

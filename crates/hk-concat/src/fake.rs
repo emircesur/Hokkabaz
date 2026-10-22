@@ -56,7 +56,7 @@ struct Project {
 }
 
 #[derive(Default)]
-struct State {
+pub struct State {
     projects: BTreeMap<String, Project>,
     jobs: u32,
     status_calls: HashMap<String, u32>,

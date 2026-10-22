@@ -63,11 +63,8 @@ impl Rpc {
             let stderr = stderr.clone();
             tokio::spawn(async move {
                 let mut lines = BufReader::new(reader).lines();
-                loop {
-                    match lines.next_line().await {
-                        Ok(Some(line)) => dispatch(&pending, &line),
-                        Ok(None) | Err(_) => break,
-                    }
+                while let Ok(Some(line)) = lines.next_line().await {
+                    dispatch(&pending, &line);
                 }
                 let tail = stderr.lock().unwrap_or_else(PoisonError::into_inner).clone();
                 let waiting: Vec<_> =

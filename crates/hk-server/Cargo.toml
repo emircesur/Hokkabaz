@@ -26,6 +26,9 @@ runtime = [
   "dep:tokio",
   "dep:tracing",
 ]
+# `concat_*` agent tools (Concat video editor bridge, hk-concat). Off by default; desktop daemon builds
+# enable it. Registration: `AgentRuntime::add_tools(hk_server::concat_tools(session))`.
+concat = ["runtime", "dep:hk-concat"]
 # HTTP/WS surface on top of `runtime`. Off => nothing pulls axum on targets that never serve.
 server = [
   "runtime",
@@ -58,6 +61,7 @@ qrcode = { version = "0.14", optional = true, default-features = false, features
 utoipa = { version = "5", optional = true, default-features = false, features = ["macros"] }
 getrandom = { version = "0.3", optional = true }
 hk-agent = { version = "0.0.0", path = "../hk-agent", optional = true }
+hk-concat = { version = "0.0.0", path = "../hk-concat", optional = true }
 hk-core = { version = "0.0.0", path = "../hk-core", optional = true }
 # Webhook response types (ResponseSink etc.) and workflow validation only; no QuickJS/reqwest here.
 hk-flow = { version = "0.0.0", path = "../hk-flow", optional = true, default-features = false }
