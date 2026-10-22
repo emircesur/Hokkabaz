@@ -44,7 +44,7 @@ Rules:
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
 | P0.1 | F | Cargo workspace skeleton with all crates (empty lib + `todo!()`-free stubs), edition 2024, shared lints, `rust-toolchain.toml` | – | S | none | `cargo check --workspace` green | done — 14 crates + 2 apps, strict lints, clippy -D warnings clean |
-| P0.2 | F | CI: `fmt`, `clippy`, `check` on Linux; tests only on changed crates (path filters); Android build job stub | P0.1 | S | none | CI green on main | done — CI also runs on claude/** branches and workflow_dispatch; fmt runs on workspace members only (scripts/fmt.sh) |
+| P0.2 | F | CI: `fmt`, `clippy`, `check` on Linux; tests only on changed crates (path filters); Android build job stub | P0.1 | S | none | CI green on main | done — CI green on claude/** (fmt, clippy, tests); also runs on workflow_dispatch; fmt on workspace members only (scripts/fmt.sh) |
 | P0.3 | F | `docs/UPSTREAM.md` (pinned SHAs, concept map), `THIRD_PARTY_NOTICES.md`; license files deferred (D10) | – | S | none | files exist | done — UPSTREAM.md + THIRD_PARTY_NOTICES.md; MIT texts to add before release; license deferred |
 | P0.4 | C | Flutter app skeleton (`apps/flutter`), go_router + Riverpod, theme tokens from DESIGN §4.7, empty screens for 7 tabs | – | M | none | `flutter analyze` clean, runs on Linux desktop | done — fonts not bundled; Linux build unverified (no GTK here) |
 | P0.5 | C | flutter_rust_bridge v2 wiring: `hk-ffi` exposes `core_version()` + a demo stream | P0.1, P0.4 | S | none | desktop app shows version from Rust | done — linux+apk debug build ok (libhk_ffi.so bundled); RustLib.init runtime load not exercised; cargokit patched (marked hk:) |
