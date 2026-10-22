@@ -13,8 +13,9 @@ String relativeTime(int ms, {int? nowMs}) {
   if (ms <= 0) return 'unknown time';
   final diff = (nowMs ?? DateTime.now().millisecondsSinceEpoch) - ms;
   if (diff < 45 * 1000) return 'just now';
-  if (diff < 60 * 60 * 1000)
+  if (diff < 60 * 60 * 1000) {
     return '${(diff / 60000).round().clamp(1, 59)} min ago';
+  }
   if (diff < 24 * 3600 * 1000) return '${diff ~/ 3600000} h ago';
   if (diff < 7 * 24 * 3600 * 1000) return '${diff ~/ 86400000} d ago';
   return formatTime(ms).substring(0, 10);
