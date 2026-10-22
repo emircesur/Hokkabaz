@@ -95,6 +95,7 @@ pub fn router(state: AppState) -> Router {
             )
             .route("/workflows/{id}/activate", post(n8n::activate_workflow))
             .route("/workflows/{id}/deactivate", post(n8n::deactivate_workflow))
+            .route("/workflows/{id}/run", post(n8n::run_workflow))
             .route("/executions", get(n8n::list_executions))
             .route("/executions/{id}", get(n8n::get_execution).delete(n8n::delete_execution))
             .route("/credentials", post(n8n::create_credential))

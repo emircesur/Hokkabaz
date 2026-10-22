@@ -277,6 +277,34 @@ class FlowEditor extends ChangeNotifier {
     notifyListeners();
   }
 
+  // pin data
+
+  bool isPinned(String node) => _wf.pinData.containsKey(node);
+
+  /// Freeze [node]'s output to [items] (n8n `pinData`: `{node: [{json: ..}]}`). Runs in
+  /// test mode emit these instead of executing the node.
+  void pinItems(String node, List<Map<String, dynamic>> items) {
+    if (!_wf.hasNode(node)) return;
+    _commit(_wf.withField('pinData', {..._wf.pinData, node: deepCopy(items)}));
+  }
+
+  void unpin(String node) {
+    if (!isPinned(node)) return;
+    final rest = {
+      for (final e in _wf.pinData.entries)
+        if (e.key != node) e.key: e.value,
+    };
+    _commit(
+      rest.isEmpty ? _wf.withoutField('pinData') : _wf.withField('pinData', rest),
+    );
+  }
+
+  /// Mirror the instance's activation flag into the document.
+  void setActive(bool active) {
+    if (_wf.active == active) return;
+    _commit(_wf.withField('active', active));
+  }
+
   /// Rename and rewrite connections + pinData. Returns false when the name is
   /// empty or taken.
   bool renameNode(String from, String to) {

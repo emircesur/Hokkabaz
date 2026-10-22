@@ -4,6 +4,7 @@
 
 pub mod chat;
 pub mod core;
+pub mod flow_runs;
 pub mod flows;
 pub mod instances;
 pub mod settings;

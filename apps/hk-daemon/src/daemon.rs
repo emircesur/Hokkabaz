@@ -105,7 +105,7 @@ pub async fn assemble(
     }
     let base = FlowApi::new(o.store.clone(), o.secrets.clone());
     let flow = FlowRuntime::start(base.clone(), flow_cfg).context("start flow runtime")?;
-    let api = base.with_webhooks(flow.webhook_handler()).with_activator(flow.activator());
+    let api = base.with_webhooks(flow.webhook_handler()).with_activator(flow.activator()).with_test_runner(flow.clone());
     let n = flow.activate_stored().await.context("activate stored workflows")?;
     // Waits whose time passed while the daemon was down resume now, not at the first tick.
     let resumed = flow.resume_due(now_ms()).await;

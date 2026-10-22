@@ -124,7 +124,7 @@ Rules:
 | P5.3 | E | Rust plugin SDK crate + template + `hk plugin new/build/install` | P5.2 | M | none | – | todo |
 | P5.3b | E | GitHub plugin registry: `hokkabaz-plugins` repo layout (index.json, manifests), CI manifest/hash validation, Releases artifacts; in-app browse/install/update | P5.3 | M | none | plugin installed from GitHub registry | todo |
 | P5.4 | E | Integration framework: n8n credential types, node/trigger helpers matching n8n node descriptions, polling trigger base | P4.3c | M | none | – | done — todo: hk-server CredentialSchemas adapter, daemon PollingHost+StaticDataStore wiring, credentials/test route, OAuth2 token flow; authenticate templates only `{{$credentials.path}}` |
-| P5.5 | E | T1 batch A: HTTP Request, GitHub, Gitea/Forgejo, Git, n8n | P5.4 | L | none | – | todo |
+| P5.5 | E | T1 batch A: HTTP Request, GitHub, Gitea/Forgejo, Git, n8n | P5.4 | L | none | – | done — GitHub review/user minimal; no binary file download, no webhook creation, no n8n workflow create/update/delete; trigger events/labels are comma-string fields; git node desktop only (android = unsupported error) |
 | P5.6 | E | T1 batch B: Telegram, Matrix, ntfy, Gotify, Email IMAP/SMTP, RSS | P5.4 | L | none | – | todo |
 | P5.7 | E | T1 batch C: SQLite, PostgreSQL, Redis, S3/MinIO, SearXNG (+ `web_search` tool), Ollama node | P5.4 | L | none | – | todo |
 | P5.8 | C | Plugins screen: installed, MCP servers (trust prompt), integrations, credentials editor | P5.2, P5.4 | M | none | – | todo |

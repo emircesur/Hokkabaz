@@ -26,11 +26,12 @@ use hk_store::{Secret, SecretStore, Store};
 use tokio::sync::{Mutex, broadcast};
 
 use crate::dto::{
-    CoreProfile, CreateSessionDto, MessageDto, ModeDto, ModelListDto, PendingApprovalDto, PreferencesDto,
+    CoreProfile, CreateSessionDto, FlowRunDetailDto, FlowRunEventDto, FlowRunModeDto, FlowRunSummaryDto, MessageDto, ModeDto, ModelListDto, PendingApprovalDto, PreferencesDto,
     ProviderDto, ProviderErrorDto, ProviderInputDto, RoleDto, SessionDetailDto, SessionEventDto, SessionEventKind,
     SessionInfoDto, SettingsDto, ToolCallDto, TurnAcceptedDto, TurnRequestDto,
 };
 use crate::error::{HkError, HkErrorKind};
+use crate::flow_runs::LocalFlows;
 use crate::handle::CoreHandle;
 use crate::settings::{self, Stored};
 use crate::{events, secrets};
@@ -104,6 +105,7 @@ struct Inner {
     catalog_store: CatalogStore,
     reload: Arc<Reloadable>,
     runtime: LocalRuntime,
+    flows: LocalFlows,
     extras: Vec<Arc<dyn Provider>>,
     shutdown: CancellationToken,
 }
@@ -146,6 +148,7 @@ impl LocalCore {
             max_steps: 50,
         })?;
 
+        let flows = LocalFlows::new(&data_dir)?;
         let core = Arc::new(Self {
             i: Arc::new(Inner {
                 profile,
@@ -158,6 +161,7 @@ impl LocalCore {
                 catalog_store,
                 reload,
                 runtime,
+                flows,
                 extras: opts.extra_providers,
                 shutdown: CancellationToken::new(),
             }),
@@ -490,6 +494,36 @@ impl CoreHandle for LocalCore {
             shutdown: self.i.shutdown.clone(),
         };
         Ok(stream::unfold(st, Feed::next).boxed())
+    }
+
+    async fn run_workflow(
+        &self,
+        workflow_json: String,
+        mode: FlowRunModeDto,
+        trigger_node: Option<String>,
+        input_items_json: Option<String>,
+        pin_data_json: Option<String>,
+    ) -> Result<String, HkError> {
+        self.i.flows.start(&workflow_json, mode, trigger_node.as_deref(), input_items_json.as_deref(), pin_data_json.as_deref())
+    }
+
+    fn run_events(&self, run_id: &str) -> Result<BoxStream<'static, FlowRunEventDto>, HkError> {
+        self.i.flows.events(run_id)
+    }
+
+    async fn list_runs(&self, workflow_id: Option<String>, limit: u32) -> Result<Vec<FlowRunSummaryDto>, HkError> {
+        self.i.flows.list(workflow_id, limit).await
+    }
+
+    async fn get_run(&self, run_id: &str) -> Result<FlowRunDetailDto, HkError> {
+        self.i.flows.get(run_id).await
+    }
+
+    async fn set_workflow_active(&self, _workflow_json: String, _active: bool) -> Result<bool, HkError> {
+        Err(HkError::new(
+            HkErrorKind::Unsupported,
+            "Activating a workflow needs a connected instance; this app only runs it on demand",
+        ))
     }
 
     async fn shutdown(&self) {

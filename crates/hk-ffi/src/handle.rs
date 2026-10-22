@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use futures::stream::BoxStream;
 
 use crate::dto::{
-    CoreProfile, CreateSessionDto, ModelListDto, PreferencesDto, ProviderInputDto, SessionDetailDto,
+    CoreProfile, CreateSessionDto, FlowRunDetailDto, FlowRunEventDto, FlowRunModeDto, FlowRunSummaryDto, ModelListDto, PreferencesDto, ProviderInputDto, SessionDetailDto,
     SessionEventDto, SessionInfoDto, SettingsDto, TurnAcceptedDto, TurnRequestDto,
 };
 use crate::error::{HkError, HkErrorKind};
@@ -47,6 +47,26 @@ pub trait CoreHandle: Send + Sync + 'static {
     ) -> Result<(), HkError>;
     /// Live feed for one session; ends on `shutdown`.
     fn session_events(&self, session_id: &str) -> Result<BoxStream<'static, SessionEventDto>, HkError>;
+
+    /// Start a test/manual run of a workflow (n8n JSON) and return its run id. The run continues in
+    /// the background; follow it with `run_events`. Pin data in `pin_data_json` replaces the
+    /// workflow's own `pinData` for this run. Bad input fails here, before an id exists.
+    async fn run_workflow(
+        &self,
+        workflow_json: String,
+        mode: FlowRunModeDto,
+        trigger_node: Option<String>,
+        input_items_json: Option<String>,
+        pin_data_json: Option<String>,
+    ) -> Result<String, HkError>;
+    /// Replays then follows a run until its terminal event. Unknown id => `NotFound`.
+    fn run_events(&self, run_id: &str) -> Result<BoxStream<'static, FlowRunEventDto>, HkError>;
+    /// Newest first; `workflow_id` filters.
+    async fn list_runs(&self, workflow_id: Option<String>, limit: u32) -> Result<Vec<FlowRunSummaryDto>, HkError>;
+    async fn get_run(&self, run_id: &str) -> Result<FlowRunDetailDto, HkError>;
+    /// Arm / disarm the workflow's triggers on the instance (uploads it first). Local core:
+    /// `Unsupported`. Returns the resulting active flag.
+    async fn set_workflow_active(&self, workflow_json: String, active: bool) -> Result<bool, HkError>;
 
     /// Stop background work. Idempotent.
     async fn shutdown(&self);

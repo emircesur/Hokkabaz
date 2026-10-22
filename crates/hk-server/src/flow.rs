@@ -10,6 +10,7 @@ use serde_json::{Map, Value, json};
 use tokio::sync::broadcast;
 
 use crate::error::ApiError;
+use crate::flow_tools::FlowToolHost;
 use crate::runtime::ServerEvent;
 use crate::webhook::{WebhookHandler, WebhookRegistry};
 
@@ -68,6 +69,8 @@ pub struct FlowApi {
     pub secrets: Arc<dyn SecretStore>,
     pub webhooks: Arc<dyn WebhookHandler>,
     pub activator: Option<Arc<dyn WorkflowActivator>>,
+    /// Backs `POST /workflows/{id}/run` (manual-mode test runs). Without one the route answers 400.
+    pub test_runner: Option<Arc<dyn FlowToolHost>>,
     pub credential_schemas: Arc<dyn CredentialSchemas>,
     events: broadcast::Sender<ServerEvent>,
 }
@@ -87,6 +90,7 @@ impl FlowApi {
             secrets,
             webhooks: Arc::new(WebhookRegistry::new()),
             activator: None,
+            test_runner: None,
             credential_schemas: Arc::new(BuiltinCredentialSchemas),
             events,
         }
@@ -101,6 +105,12 @@ impl FlowApi {
     #[must_use]
     pub fn with_activator(mut self, a: Arc<dyn WorkflowActivator>) -> Self {
         self.activator = Some(a);
+        self
+    }
+
+    #[must_use]
+    pub fn with_test_runner(mut self, r: Arc<dyn FlowToolHost>) -> Self {
+        self.test_runner = Some(r);
         self
     }
 

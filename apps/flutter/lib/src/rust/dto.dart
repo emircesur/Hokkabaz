@@ -16,6 +16,196 @@ enum CoreProfile {
   mobile,
 }
 
+class FlowRunDetailDto {
+  final FlowRunSummaryDto summary;
+
+  /// n8n `runData` (`{node: [{startTime, executionTime, data:{main}, error, ..}]}`), truncated
+  /// like the events; each run also carries `itemCounts` (true count per output).
+  final String runDataJson;
+
+  /// Workflow as it was when the run started, when known.
+  final String? workflowJson;
+
+  const FlowRunDetailDto({
+    required this.summary,
+    required this.runDataJson,
+    this.workflowJson,
+  });
+
+  @override
+  int get hashCode =>
+      summary.hashCode ^ runDataJson.hashCode ^ workflowJson.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FlowRunDetailDto &&
+          runtimeType == other.runtimeType &&
+          summary == other.summary &&
+          runDataJson == other.runDataJson &&
+          workflowJson == other.workflowJson;
+}
+
+/// One step of a run, in order. A late subscriber replays from the start.
+class FlowRunEventDto {
+  final String runId;
+  final FlowRunEventKind kind;
+  final String? node;
+
+  /// Index among the runs of `node` (loops run a node more than once).
+  final int runIndex;
+
+  /// `NodeFinished`: `success` / `error`; `RunFinished`: `success` / `waiting`.
+  final String? status;
+
+  /// Items emitted over all outputs (`NodeFinished`), true count even when `output_json` is cut.
+  final int itemCount;
+  final PlatformInt64 startedMs;
+  final PlatformInt64 durationMs;
+
+  /// `NodeFinished`: n8n `data.main` (`[[{json:..}, ..], null, ..]`), truncated, binary payloads
+  /// and credential headers removed.
+  final String? outputJson;
+
+  /// `output_json` lost items to the size cap.
+  final bool truncated;
+  final String? error;
+
+  const FlowRunEventDto({
+    required this.runId,
+    required this.kind,
+    this.node,
+    required this.runIndex,
+    this.status,
+    required this.itemCount,
+    required this.startedMs,
+    required this.durationMs,
+    this.outputJson,
+    required this.truncated,
+    this.error,
+  });
+
+  @override
+  int get hashCode =>
+      runId.hashCode ^
+      kind.hashCode ^
+      node.hashCode ^
+      runIndex.hashCode ^
+      status.hashCode ^
+      itemCount.hashCode ^
+      startedMs.hashCode ^
+      durationMs.hashCode ^
+      outputJson.hashCode ^
+      truncated.hashCode ^
+      error.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FlowRunEventDto &&
+          runtimeType == other.runtimeType &&
+          runId == other.runId &&
+          kind == other.kind &&
+          node == other.node &&
+          runIndex == other.runIndex &&
+          status == other.status &&
+          itemCount == other.itemCount &&
+          startedMs == other.startedMs &&
+          durationMs == other.durationMs &&
+          outputJson == other.outputJson &&
+          truncated == other.truncated &&
+          error == other.error;
+}
+
+enum FlowRunEventKind {
+  runStarted,
+  nodeStarted,
+  nodeFinished,
+
+  /// Terminal; `status` is `success` or `waiting`.
+  runFinished,
+
+  /// Terminal; `error` says why (a failed node, or the run could not start).
+  runError,
+}
+
+/// How `run_workflow` treats `pinData`.
+enum FlowRunModeDto {
+  /// Test run from the canvas: pinned nodes emit their pinned items instead of executing.
+  test,
+
+  /// Live run once: pins are ignored, nodes really execute. Still not an activation.
+  manual,
+}
+
+class FlowRunSummaryDto {
+  /// Local runs `run-<ms>-<n>`; remote runs the instance's execution id.
+  final String id;
+  final String? workflowId;
+  final String workflowName;
+
+  /// `test` / `manual` for runs started here; the instance's mode (`trigger`, `webhook`, ..) otherwise.
+  final String mode;
+
+  /// `running` / `success` / `error` / `waiting` / `canceled`.
+  final String status;
+  final PlatformInt64 startedMs;
+  final PlatformInt64? finishedMs;
+  final PlatformInt64 durationMs;
+  final String? error;
+
+  /// Nodes that produced at least one run.
+  final int nodeCount;
+
+  /// Ran on a remote instance.
+  final bool remote;
+
+  const FlowRunSummaryDto({
+    required this.id,
+    this.workflowId,
+    required this.workflowName,
+    required this.mode,
+    required this.status,
+    required this.startedMs,
+    this.finishedMs,
+    required this.durationMs,
+    this.error,
+    required this.nodeCount,
+    required this.remote,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      workflowId.hashCode ^
+      workflowName.hashCode ^
+      mode.hashCode ^
+      status.hashCode ^
+      startedMs.hashCode ^
+      finishedMs.hashCode ^
+      durationMs.hashCode ^
+      error.hashCode ^
+      nodeCount.hashCode ^
+      remote.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FlowRunSummaryDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          workflowId == other.workflowId &&
+          workflowName == other.workflowName &&
+          mode == other.mode &&
+          status == other.status &&
+          startedMs == other.startedMs &&
+          finishedMs == other.finishedMs &&
+          durationMs == other.durationMs &&
+          error == other.error &&
+          nodeCount == other.nodeCount &&
+          remote == other.remote;
+}
+
 /// One entry of the instance book. The token is stored in the secret backend and never
 /// crosses FFI: only `has_token`.
 class InstanceDto {

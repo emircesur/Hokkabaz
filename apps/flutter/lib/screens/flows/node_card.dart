@@ -5,6 +5,7 @@ import '../../app/breakpoints.dart';
 import '../../theme/tokens.dart';
 import 'canvas_geometry.dart';
 import 'model/node_types.dart';
+import 'model/run_overlay.dart';
 
 Color categoryColor(NodeCategory c) => switch (c) {
   NodeCategory.trigger => HkTokens.nodeTrigger,
@@ -60,11 +61,19 @@ class NodeCard extends StatelessWidget {
     required this.selected,
     required this.callbacks,
     this.pendingFrom,
+    this.overlay,
+    this.pinned = false,
   });
 
   final NodeLayout layout;
   final bool selected;
   final NodeCardCallbacks callbacks;
+
+  /// What this node did in the run shown on the canvas, if any.
+  final NodeOverlay? overlay;
+
+  /// Output frozen in the workflow's `pinData`.
+  final bool pinned;
 
   /// Port being dragged from; opposite-kind ports light up as drop targets.
   final PortRef? pendingFrom;
@@ -86,8 +95,11 @@ class NodeCard extends StatelessWidget {
     final hit = isTouchLayout(context) ? kPortHitTouch : kPortHitMouse;
     final shortName = layout.info?.displayName ?? shortType(node.type);
 
+    final failed = overlay?.status == NodeStatus.error;
     final border = selected
         ? hk.accent
+        : failed
+        ? hk.err
         : unsupported
         ? hk.warn
         : hk.border;
@@ -183,6 +195,14 @@ class NodeCard extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Positioned(left: kPortPad, top: kPortPad, child: card),
+          if (overlay != null || pinned)
+            Positioned(
+              right: kPortPad + 6,
+              top: kPortPad - 11,
+              child: IgnorePointer(
+                child: RunBadge(overlay: overlay, pinned: pinned),
+              ),
+            ),
           for (final p in layout.outputs.where(
             (p) => p.spec.isMain && p.spec.label.isNotEmpty,
           ))
@@ -290,6 +310,63 @@ class _PortDotState extends State<_PortDot> {
               ? dot
               : Transform.rotate(angle: 0.785398, child: dot),
         ),
+      ),
+    );
+  }
+}
+
+/// Status / item count / duration chip on a node card, plus a pin marker. Errors
+/// show their message on the Output tab of the node panel.
+class RunBadge extends StatelessWidget {
+  const RunBadge({super.key, this.overlay, this.pinned = false});
+
+  final NodeOverlay? overlay;
+  final bool pinned;
+
+  @override
+  Widget build(BuildContext context) {
+    final hk = context.hk;
+    final o = overlay;
+    final (icon, color) = switch (o?.status) {
+      NodeStatus.success => (Icons.check_circle, hk.ok),
+      NodeStatus.error => (Icons.error, hk.err),
+      NodeStatus.waiting => (Icons.pause_circle, hk.warn),
+      NodeStatus.running => (Icons.sync, hk.info),
+      null => (Icons.push_pin, hk.accent2),
+    };
+    final style = Theme.of(context).textTheme.labelSmall;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: hk.surface,
+        borderRadius: BorderRadius.circular(HkTokens.radiusChip),
+        border: Border.all(color: color),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (pinned && o != null) ...[
+            Icon(Icons.push_pin, size: 12, color: hk.accent2),
+            const SizedBox(width: 3),
+          ],
+          if (o?.status == NodeStatus.running)
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 2, color: color),
+            )
+          else
+            Icon(icon, size: 12, color: color),
+          if (o != null && o.status != NodeStatus.running) ...[
+            const SizedBox(width: 4),
+            Text(
+              o.status == NodeStatus.error
+                  ? 'Error'
+                  : '${itemsLabel(o.itemCount)} \u00b7 ${formatDuration(o.durationMs)}',
+              style: style?.copyWith(color: hk.text),
+            ),
+          ],
+        ],
       ),
     );
   }

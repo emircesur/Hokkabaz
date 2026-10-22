@@ -8,6 +8,7 @@ use axum::extract::{Path, Query, State};
 use axum::Json;
 use hk_store::{CredentialRow, ExecutionFilter, ExecutionRow, Secret, WorkflowRow};
 use serde::Deserialize;
+use std::time::Duration;
 use serde_json::{Map, Value, json};
 use utoipa::IntoParams;
 
@@ -315,6 +316,76 @@ pub(crate) async fn deactivate_workflow(
     f.webhooks.unregister_owner(&id);
     let row = f.store.set_workflow_active(&id, false).await?.unwrap_or(row);
     Ok(Json(workflow_json(&row)))
+}
+
+/// Test runs are interactive; anything longer is abandoned (the executor keeps no handle to cancel).
+const RUN_TIMEOUT: Duration = Duration::from_secs(120);
+const MAX_RUN_ITEMS: usize = 200;
+
+#[derive(Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RunBody {
+    /// Trigger node that emits `items`; default = the workflow's Manual Trigger.
+    trigger_node: Option<String>,
+    /// Items the trigger emits (default: one empty item).
+    #[schema(value_type = Option<Vec<Object>>)]
+    items: Option<Vec<Value>>,
+    /// Overrides the stored `pinData` for this run only.
+    #[schema(value_type = Option<Object>)]
+    pin_data: Option<Value>,
+}
+
+#[utoipa::path(
+    post, path = "/api/v1/workflows/{id}/run", tag = "workflows",
+    params(("id" = String, Path, description = "Workflow id")),
+    request_body = RunBody,
+    responses((status = 200, description = "`{executionId, status, error?}`; fetch the data from /executions/{id}?includeData=true"), (status = 400), (status = 404)),
+    security(("bearer" = []), ("n8nApiKey" = []))
+)]
+pub(crate) async fn run_workflow(
+    p: Principal,
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<RunBody>,
+) -> Result<Json<Value>, ApiError> {
+    use hk_flow::triggers::{TriggerKind, find_trigger};
+    p.require(Scope::WorkflowWrite)?;
+    let f = flow(&s)?;
+    let host = f
+        .test_runner
+        .clone()
+        .ok_or_else(|| ApiError::BadRequest("this instance cannot run test executions".into()))?;
+    let row = find_workflow(f, &id).await?;
+    let mut json = workflow_json(&row);
+    if let (Some(pin), Value::Object(m)) = (body.pin_data, &mut json) {
+        m.insert("pinData".into(), pin);
+    }
+    let wf = hk_flow::Workflow::from_json_value(json).map_err(|e| ApiError::BadRequest(format!("invalid workflow: {e}")))?;
+    let start = match body.trigger_node {
+        Some(n) => match wf.node(&n) {
+            Some(node) if !node.is_disabled() => node.name.clone(),
+            _ => return Err(ApiError::BadRequest(format!("triggerNode `{n}` is not an enabled node"))),
+        },
+        None => find_trigger(&wf, TriggerKind::Manual)
+            .map(|t| t.name.clone())
+            .ok_or_else(|| ApiError::BadRequest("workflow has no Manual Trigger; pass triggerNode".into()))?,
+    };
+    let items = match body.items {
+        None => vec![hk_flow::Item::default()],
+        Some(v) if v.len() <= MAX_RUN_ITEMS && v.iter().all(Value::is_object) => v.into_iter().map(hk_flow::Item::from_json).collect(),
+        Some(_) => return Err(ApiError::BadRequest(format!("`items` must be an array of up to {MAX_RUN_ITEMS} objects"))),
+    };
+    let run = host.run_test(crate::flow_tools::TestRun { workflow: wf, workflow_id: Some(id), start_node: start, items });
+    let res = match tokio::time::timeout(RUN_TIMEOUT, run).await {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => return Err(ApiError::BadRequest(format!("run failed: {e}"))),
+        Err(_) => return Err(ApiError::Internal("run exceeded 120s and was abandoned".into())),
+    };
+    Ok(Json(json!({
+        "executionId": res.execution_id,
+        "status": serde_json::to_value(res.status).unwrap_or(Value::Null),
+        "error": res.error.map(|e| e.message),
+    })))
 }
 
 // ----------------------------------------------------------------- executions

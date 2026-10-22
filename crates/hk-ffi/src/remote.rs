@@ -31,11 +31,13 @@ use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::{self, Message};
 
 use crate::dto::{
-    CoreProfile, CreateSessionDto, InstanceStateDto, InstanceStatusDto, ModeDto, ModelListDto, PreferencesDto,
+    CoreProfile, CreateSessionDto, FlowRunDetailDto, FlowRunEventDto, FlowRunEventKind, FlowRunModeDto,
+    FlowRunSummaryDto, InstanceStateDto, InstanceStatusDto, ModeDto, ModelListDto, PreferencesDto,
     ProviderInputDto, SessionDetailDto, SessionEventDto, SessionEventKind, SessionInfoDto, SettingsDto,
     TurnAcceptedDto, TurnRequestDto,
 };
 use crate::error::{HkError, HkErrorKind};
+use crate::flow_runs::{self, DETAIL_MAX_BYTES, DETAIL_MAX_ITEMS, MAX_INPUT_ITEMS};
 use crate::handle::CoreHandle;
 use crate::local::{message_dto, pending_approvals, session_dto};
 use crate::{events, settings};
@@ -62,6 +64,8 @@ struct Inner {
     /// Feeds still attaching, per session: commands wait for them so a turn submitted right after
     /// `session_events` cannot start before the socket listens.
     feeds: Mutex<Vec<(String, watch::Receiver<bool>)>>,
+    /// App workflow id -> id of its copy on the instance (see [`Inner::ensure_workflow`]).
+    flow_ids: Mutex<std::collections::HashMap<String, String>>,
 }
 
 /// Remote [`CoreHandle`]. Cheap to share via `Arc`.
@@ -215,6 +219,7 @@ impl RemoteCore {
                 profile,
                 shutdown: CancellationToken::new(),
                 feeds: Mutex::default(),
+                flow_ids: Mutex::default(),
             }),
         }))
     }
@@ -241,6 +246,7 @@ pub async fn probe(id: &str, base_url: &str, token: Option<&Secret>) -> Instance
         profile: CoreProfile::Desktop,
         shutdown: CancellationToken::new(),
         feeds: Mutex::default(),
+        flow_ids: Mutex::default(),
     };
     let started = Instant::now();
     let health: Result<Value, HkError> = inner.json(inner.http.get(inner.url(&["health"]))).await;
@@ -276,6 +282,7 @@ pub async fn exchange_pairing(base_url: &str, pairing_token: &str) -> Result<Sec
         profile: CoreProfile::Desktop,
         shutdown: CancellationToken::new(),
         feeds: Mutex::default(),
+        flow_ids: Mutex::default(),
     };
     let rb = inner.http.post(inner.url(&["pairing", "exchange"])).json(&json!({ "token": pairing_token }));
     match inner.json::<Exchanged>(rb).await {
@@ -407,8 +414,244 @@ impl CoreHandle for RemoteCore {
         Ok(stream::unfold(rx, |mut rx| async move { rx.recv().await.map(|e| (e, rx)) }).boxed())
     }
 
+    async fn run_workflow(
+        &self,
+        workflow_json: String,
+        mode: FlowRunModeDto,
+        trigger_node: Option<String>,
+        input_items_json: Option<String>,
+        pin_data_json: Option<String>,
+    ) -> Result<String, HkError> {
+        let mut body = serde_json::Map::new();
+        if let Some(n) = trigger_node {
+            body.insert("triggerNode".into(), json!(n));
+        }
+        if let Some(items) = input_items_json.filter(|s| !s.trim().is_empty()) {
+            let v: Value = serde_json::from_str(&items).map_err(|e| HkError::invalid(format!("input items JSON: {e}")))?;
+            if !v.as_array().is_some_and(|a| a.len() <= MAX_INPUT_ITEMS) {
+                return Err(HkError::invalid(format!("input items must be an array of up to {MAX_INPUT_ITEMS} objects")));
+            }
+            body.insert("items".into(), v);
+        }
+        // `Manual` ignores pins: an empty override beats the pinData stored with the uploaded copy.
+        let pin = match (mode, pin_data_json.filter(|s| !s.trim().is_empty())) {
+            (FlowRunModeDto::Manual, _) => Some(json!({})),
+            (FlowRunModeDto::Test, Some(p)) => {
+                Some(serde_json::from_str::<Value>(&p).map_err(|e| HkError::invalid(format!("pin data JSON: {e}")))?)
+            }
+            (FlowRunModeDto::Test, None) => None,
+        };
+        if let Some(p) = pin {
+            body.insert("pinData".into(), p);
+        }
+        let rid = self.i.ensure_workflow(&workflow_json).await?;
+        // The reply comes when the run is done; long runs are the instance's 120 s limit, not ours.
+        let rb = self.i.request(Method::POST, &["workflows", &rid, "run"]).timeout(RUN_TIMEOUT).json(&Value::Object(body));
+        let reply: Value = self.i.json(rb).await?;
+        reply
+            .get("executionId")
+            .map(|v| v.as_str().map_or_else(|| v.to_string(), str::to_owned))
+            .ok_or_else(|| HkError::internal("instance answered a run without an execution id"))
+    }
+
+    fn run_events(&self, run_id: &str) -> Result<BoxStream<'static, FlowRunEventDto>, HkError> {
+        let (i, id) = (self.i.clone(), run_id.to_owned());
+        // The instance runs to completion before answering, so the history is the whole story.
+        Ok(stream::once(async move {
+            match i.run_detail(&id).await {
+                Ok(d) => flow_runs::events_from_detail(&d),
+                Err(e) => {
+                    let mut ev = FlowRunEventDto::new(&id, FlowRunEventKind::RunError);
+                    ev.status = Some("error".into());
+                    ev.error = Some(e.message);
+                    vec![ev]
+                }
+            }
+        })
+        .flat_map(stream::iter)
+        .boxed())
+    }
+
+    async fn list_runs(&self, workflow_id: Option<String>, limit: u32) -> Result<Vec<FlowRunSummaryDto>, HkError> {
+        let limit = limit.clamp(1, 250).to_string();
+        let mut q = vec![("limit", limit)];
+        if let Some(w) = workflow_id {
+            // The app's id is not the instance's: translate through the upload map.
+            let rid = lock(&self.i.flow_ids).get(&w).cloned().unwrap_or(w);
+            q.push(("workflowId", rid));
+        }
+        let page: Value = self.i.json(self.i.request(Method::GET, &["executions"]).query(&q)).await?;
+        let names = self.i.workflow_names().await;
+        Ok(page
+            .get("data")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .map(|e| execution_summary(e, &names, None, None))
+            .collect())
+    }
+
+    async fn get_run(&self, run_id: &str) -> Result<FlowRunDetailDto, HkError> {
+        self.i.run_detail(run_id).await
+    }
+
+    async fn set_workflow_active(&self, workflow_json: String, active: bool) -> Result<bool, HkError> {
+        let rid = self.i.ensure_workflow(&workflow_json).await?;
+        let verb = if active { "activate" } else { "deactivate" };
+        let wf: Value = self.i.json(self.i.request(Method::POST, &["workflows", &rid, verb])).await?;
+        Ok(wf.get("active").and_then(Value::as_bool).unwrap_or(active))
+    }
+
     async fn shutdown(&self) {
         self.i.shutdown.cancel();
+    }
+}
+
+/// Test runs answer when finished (instance cap 120 s).
+const RUN_TIMEOUT: Duration = Duration::from_secs(130);
+/// Workflows scanned when looking for an earlier upload of the same app workflow.
+const UPLOAD_SCAN_PAGES: usize = 4;
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// n8n execution JSON -> list row. `name` / `error` / `nodes` are known only for detail reads.
+fn execution_summary(
+    e: &Value,
+    names: &std::collections::HashMap<String, String>,
+    error: Option<String>,
+    nodes: Option<u32>,
+) -> FlowRunSummaryDto {
+    let ms = |k: &str| e.get(k).and_then(Value::as_str).and_then(flow_runs::parse_iso);
+    let started = ms("startedAt").unwrap_or(0);
+    let finished = ms("stoppedAt");
+    let wid = e.get("workflowId").and_then(Value::as_str).map(str::to_owned);
+    FlowRunSummaryDto {
+        id: e.get("id").map(|v| v.as_str().map_or_else(|| v.to_string(), str::to_owned)).unwrap_or_default(),
+        workflow_name: wid.as_ref().and_then(|w| names.get(w).cloned()).unwrap_or_else(|| "Workflow".into()),
+        workflow_id: wid,
+        mode: e.get("mode").and_then(Value::as_str).unwrap_or("manual").to_owned(),
+        status: e.get("status").and_then(Value::as_str).unwrap_or("unknown").to_owned(),
+        started_ms: started,
+        finished_ms: finished,
+        duration_ms: finished.map_or(0, |f| (f - started).max(0)),
+        error,
+        node_count: nodes.unwrap_or(0),
+        remote: true,
+    }
+}
+
+impl Inner {
+    /// Workflow id -> name for the list; failure just means generic names.
+    async fn workflow_names(&self) -> std::collections::HashMap<String, String> {
+        let page: Result<Value, _> =
+            self.json(self.request(Method::GET, &["workflows"]).query(&[("limit", "250")])).await;
+        page.ok()
+            .and_then(|p| p.get("data").cloned())
+            .and_then(|d| d.as_array().cloned())
+            .into_iter()
+            .flatten()
+            .filter_map(|w| Some((w.get("id")?.as_str()?.to_owned(), w.get("name")?.as_str()?.to_owned())))
+            .collect()
+    }
+
+    /// The instance's copy of an app workflow, created / refreshed so a run sees the canvas as
+    /// it is now. The copy is tagged `meta.hokkabaz.localId` (the app's workflow id), which is
+    /// how a later session finds it again; a rename in the app updates it, not duplicates it.
+    async fn ensure_workflow(&self, workflow_json: &str) -> Result<String, HkError> {
+        let mut wf: Value =
+            serde_json::from_str(workflow_json).map_err(|e| HkError::invalid(format!("workflow JSON: {e}")))?;
+        let obj = wf.as_object_mut().ok_or_else(|| HkError::invalid("workflow must be a JSON object"))?;
+        let local_id = obj
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| HkError::invalid("workflow has no id"))?
+            .to_owned();
+        let meta = obj.entry("meta").or_insert_with(|| json!({}));
+        if !meta.is_object() {
+            *meta = json!({});
+        }
+        if let Some(m) = meta.as_object_mut() {
+            let h = m.entry("hokkabaz").or_insert_with(|| json!({}));
+            if let Some(h) = h.as_object_mut() {
+                h.insert("localId".into(), json!(local_id));
+            }
+        }
+
+        let mut known = lock(&self.flow_ids).get(&local_id).cloned();
+        let mut cursor: Option<String> = None;
+        for _ in 0..UPLOAD_SCAN_PAGES {
+            if known.is_some() {
+                break;
+            }
+            let mut q = vec![("limit", "250".to_owned())];
+            if let Some(c) = &cursor {
+                q.push(("cursor", c.clone()));
+            }
+            let page: Value = self.json(self.request(Method::GET, &["workflows"]).query(&q)).await?;
+            known = page
+                .get("data")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .find(|w| w.pointer("/meta/hokkabaz/localId").and_then(Value::as_str) == Some(local_id.as_str()))
+                .and_then(|w| w.get("id").and_then(Value::as_str))
+                .map(str::to_owned);
+            cursor = page.get("nextCursor").and_then(Value::as_str).map(str::to_owned);
+            if cursor.is_none() {
+                break;
+            }
+        }
+        let remote_id = match known {
+            Some(rid) => {
+                let put = self.request(Method::PUT, &["workflows", &rid]).json(&wf);
+                match self.send(put).await {
+                    Ok(_) => rid,
+                    // Deleted on the instance since we cached it: create it again below.
+                    Err(e) if e.kind == HkErrorKind::NotFound => self.create_workflow(&wf).await?,
+                    Err(e) => return Err(e),
+                }
+            }
+            None => self.create_workflow(&wf).await?,
+        };
+        lock(&self.flow_ids).insert(local_id, remote_id.clone());
+        Ok(remote_id)
+    }
+
+    async fn create_workflow(&self, wf: &Value) -> Result<String, HkError> {
+        let created: Value = self.json(self.request(Method::POST, &["workflows"]).json(wf)).await?;
+        created
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| HkError::internal("instance created a workflow without an id"))
+    }
+
+    async fn run_detail(&self, id: &str) -> Result<FlowRunDetailDto, HkError> {
+        let e: Value =
+            self.json(self.request(Method::GET, &["executions", id]).query(&[("includeData", "true")])).await?;
+        let result = e.pointer("/data/resultData");
+        let mut run_data = result.and_then(|r| r.get("runData")).cloned().unwrap_or_else(|| json!({}));
+        flow_runs::shrink_run_data(&mut run_data, DETAIL_MAX_ITEMS, DETAIL_MAX_BYTES);
+        let error = result.and_then(|r| r.pointer("/error/message")).and_then(Value::as_str).map(str::to_owned);
+        let nodes = u32::try_from(run_data.as_object().map_or(0, serde_json::Map::len)).unwrap_or(u32::MAX);
+        let wf: Option<Value> = match e.get("workflowId").and_then(Value::as_str) {
+            Some(w) => self.json(self.request(Method::GET, &["workflows", w])).await.ok(),
+            None => None,
+        };
+        let mut names = std::collections::HashMap::new();
+        if let (Some(w), Some(n)) =
+            (e.get("workflowId").and_then(Value::as_str), wf.as_ref().and_then(|w| w.get("name")).and_then(Value::as_str))
+        {
+            names.insert(w.to_owned(), n.to_owned());
+        }
+        Ok(FlowRunDetailDto {
+            summary: execution_summary(&e, &names, error, Some(nodes)),
+            run_data_json: run_data.to_string(),
+            workflow_json: wf.map(|w| w.to_string()),
+        })
     }
 }
 

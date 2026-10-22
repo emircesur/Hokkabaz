@@ -153,12 +153,12 @@ impl Modify for Security {
         webhook_get, webhook_post, webhook_test_get, webhook_test_post,
         crate::n8n::list_workflows, crate::n8n::create_workflow, crate::n8n::get_workflow,
         crate::n8n::update_workflow, crate::n8n::delete_workflow, crate::n8n::activate_workflow,
-        crate::n8n::deactivate_workflow,
+        crate::n8n::deactivate_workflow, crate::n8n::run_workflow,
         crate::n8n::list_executions, crate::n8n::get_execution, crate::n8n::delete_execution,
         crate::n8n::create_credential, crate::n8n::delete_credential, crate::n8n::credential_schema,
     ),
     components(schemas(
-        WorkflowBody, WorkflowDoc, WorkflowList, ExecutionDoc, ExecutionList, CredentialBody, CredentialDoc
+        WorkflowBody, WorkflowDoc, WorkflowList, crate::n8n::RunBody, ExecutionDoc, ExecutionList, CredentialBody, CredentialDoc
     )),
     modifiers(&Security)
 )]

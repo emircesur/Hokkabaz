@@ -24,6 +24,36 @@ pub mod template;
 #[cfg(feature = "int-ntfy")]
 pub mod ntfy;
 
+#[cfg(any(feature = "int-github", feature = "int-gitea", feature = "int-n8n"))]
+pub mod pathparam;
+#[cfg(feature = "int-git")]
+pub mod git;
+#[cfg(feature = "int-gitea")]
+pub mod gitea;
+#[cfg(feature = "int-github")]
+pub mod github;
+#[cfg(feature = "int-n8n")]
+pub mod n8n;
+
+#[cfg(any(
+    feature = "int-telegram",
+    feature = "int-matrix",
+    feature = "int-gotify",
+    feature = "int-email",
+    feature = "int-rss"
+))]
+pub(crate) mod kit;
+#[cfg(feature = "int-telegram")]
+pub mod telegram;
+#[cfg(feature = "int-matrix")]
+pub mod matrix;
+#[cfg(feature = "int-gotify")]
+pub mod gotify;
+#[cfg(feature = "int-email")]
+pub mod email;
+#[cfg(feature = "int-rss")]
+pub mod rss;
+
 pub use credentials::{
     AppliedAuth, Authenticate, CredentialError, CredentialType, CredentialTypes, builtin_types,
 };
@@ -52,5 +82,23 @@ pub fn register_integrations_with_polling(
     }
     #[cfg(feature = "int-ntfy")]
     ntfy::register(nodes, creds)?;
+    #[cfg(feature = "int-github")]
+    github::register(nodes, creds, polls)?;
+    #[cfg(feature = "int-gitea")]
+    gitea::register(nodes, creds)?;
+    #[cfg(feature = "int-git")]
+    git::register(nodes, creds)?;
+    #[cfg(feature = "int-n8n")]
+    n8n::register(nodes, creds)?;
+    #[cfg(feature = "int-telegram")]
+    telegram::register(nodes, creds, polls)?;
+    #[cfg(feature = "int-matrix")]
+    matrix::register(nodes, creds)?;
+    #[cfg(feature = "int-gotify")]
+    gotify::register(nodes, creds)?;
+    #[cfg(feature = "int-email")]
+    email::register(nodes, creds, polls)?;
+    #[cfg(feature = "int-rss")]
+    rss::register(nodes, creds, polls)?;
     Ok(())
 }

@@ -8,6 +8,7 @@
 
 import 'api/chat.dart';
 import 'api/core.dart';
+import 'api/flow_runs.dart';
 import 'api/flows.dart';
 import 'api/instances.dart';
 import 'api/settings.dart';
@@ -31,6 +32,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw);
+
+  @protected
+  RustStreamSink<FlowRunEventDto> dco_decode_StreamSink_flow_run_event_dto_Sse(
+    dynamic raw,
+  );
 
   @protected
   RustStreamSink<SessionEventDto> dco_decode_StreamSink_session_event_dto_Sse(
@@ -77,6 +83,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double dco_decode_f_64(dynamic raw);
 
   @protected
+  FlowRunDetailDto dco_decode_flow_run_detail_dto(dynamic raw);
+
+  @protected
+  FlowRunEventDto dco_decode_flow_run_event_dto(dynamic raw);
+
+  @protected
+  FlowRunEventKind dco_decode_flow_run_event_kind(dynamic raw);
+
+  @protected
+  FlowRunModeDto dco_decode_flow_run_mode_dto(dynamic raw);
+
+  @protected
+  FlowRunSummaryDto dco_decode_flow_run_summary_dto(dynamic raw);
+
+  @protected
   HkError dco_decode_hk_error(dynamic raw);
 
   @protected
@@ -102,6 +123,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<FlowRunSummaryDto> dco_decode_list_flow_run_summary_dto(dynamic raw);
 
   @protected
   List<InstanceDto> dco_decode_list_instance_dto(dynamic raw);
@@ -233,6 +257,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
+  RustStreamSink<FlowRunEventDto> sse_decode_StreamSink_flow_run_event_dto_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RustStreamSink<SessionEventDto> sse_decode_StreamSink_session_event_dto_Sse(
     SseDeserializer deserializer,
   );
@@ -285,6 +314,23 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
+  FlowRunDetailDto sse_decode_flow_run_detail_dto(SseDeserializer deserializer);
+
+  @protected
+  FlowRunEventDto sse_decode_flow_run_event_dto(SseDeserializer deserializer);
+
+  @protected
+  FlowRunEventKind sse_decode_flow_run_event_kind(SseDeserializer deserializer);
+
+  @protected
+  FlowRunModeDto sse_decode_flow_run_mode_dto(SseDeserializer deserializer);
+
+  @protected
+  FlowRunSummaryDto sse_decode_flow_run_summary_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   HkError sse_decode_hk_error(SseDeserializer deserializer);
 
   @protected
@@ -312,6 +358,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<FlowRunSummaryDto> sse_decode_list_flow_run_summary_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<InstanceDto> sse_decode_list_instance_dto(SseDeserializer deserializer);
@@ -456,6 +507,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_flow_run_event_dto_Sse(
+    RustStreamSink<FlowRunEventDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_session_event_dto_Sse(
     RustStreamSink<SessionEventDto> self,
     SseSerializer serializer,
@@ -519,6 +576,36 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
+  void sse_encode_flow_run_detail_dto(
+    FlowRunDetailDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_flow_run_event_dto(
+    FlowRunEventDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_flow_run_event_kind(
+    FlowRunEventKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_flow_run_mode_dto(
+    FlowRunModeDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_flow_run_summary_dto(
+    FlowRunSummaryDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_hk_error(HkError self, SseSerializer serializer);
 
   @protected
@@ -553,6 +640,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_flow_run_summary_dto(
+    List<FlowRunSummaryDto> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_instance_dto(

@@ -21,10 +21,12 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use indexmap::IndexMap;
 use serde_json::{Map, Value, json};
 use tokio::task::JoinHandle;
 
 use hk_flow::description::NodeTypeDescription;
+use hk_flow::item::BinaryData;
 use hk_flow::run_data::{StaticData, node_scope};
 use hk_flow::triggers::{
     Activation, TriggerEvent, TriggerHost, TriggerKind, TriggerMode, TriggerSink,
@@ -44,11 +46,18 @@ pub const DEDUPE_WINDOW: usize = 1000;
 pub struct PolledItem {
     pub id: String,
     pub json: Value,
+    /// Binary properties (mail attachments) carried to the emitted item.
+    pub binary: Option<IndexMap<String, BinaryData>>,
 }
 
 impl PolledItem {
     pub fn new(id: impl Into<String>, json: Value) -> Self {
-        Self { id: id.into(), json }
+        Self { id: id.into(), json, binary: None }
+    }
+
+    pub fn with_binary(mut self, binary: IndexMap<String, BinaryData>) -> Self {
+        self.binary = Some(binary).filter(|b| !b.is_empty());
+        self
     }
 }
 
@@ -243,7 +252,9 @@ pub async fn run_poll(
     for it in &batch.items {
         if known.insert(it.id.as_str()) {
             fresh_ids.push(it.id.clone());
-            fresh.push(Item::from_json(it.json.clone()));
+            let mut item = Item::from_json(it.json.clone());
+            item.binary.clone_from(&it.binary);
+            fresh.push(item);
         }
     }
     seen.extend(fresh_ids);
@@ -340,7 +351,15 @@ impl FlowNode for PollingNode {
         }
         let cx = PollContext::from_node_context(ctx);
         let batch = self.0.poll(&cx, None).await?;
-        let items: Vec<Item> = batch.items.into_iter().map(|i| Item::from_json(i.json)).collect();
+        let items: Vec<Item> = batch
+            .items
+            .into_iter()
+            .map(|i| {
+                let mut item = Item::from_json(i.json);
+                item.binary = i.binary;
+                item
+            })
+            .collect();
         Ok(vec![if items.is_empty() { vec![Item::default()] } else { items }])
     }
 }

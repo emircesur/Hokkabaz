@@ -367,3 +367,99 @@ pub struct InstanceStatusDto {
     /// Why it is not online.
     pub message: Option<String>,
 }
+
+// ---------------------------------------------------------------------------------- flow runs
+
+/// How `run_workflow` treats `pinData`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FlowRunModeDto {
+    /// Test run from the canvas: pinned nodes emit their pinned items instead of executing.
+    Test,
+    /// Live run once: pins are ignored, nodes really execute. Still not an activation.
+    Manual,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FlowRunEventKind {
+    RunStarted,
+    NodeStarted,
+    NodeFinished,
+    /// Terminal; `status` is `success` or `waiting`.
+    RunFinished,
+    /// Terminal; `error` says why (a failed node, or the run could not start).
+    RunError,
+}
+
+/// One step of a run, in order. A late subscriber replays from the start.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FlowRunEventDto {
+    pub run_id: String,
+    pub kind: FlowRunEventKind,
+    pub node: Option<String>,
+    /// Index among the runs of `node` (loops run a node more than once).
+    pub run_index: u32,
+    /// `NodeFinished`: `success` / `error`; `RunFinished`: `success` / `waiting`.
+    pub status: Option<String>,
+    /// Items emitted over all outputs (`NodeFinished`), true count even when `output_json` is cut.
+    pub item_count: u32,
+    pub started_ms: i64,
+    pub duration_ms: i64,
+    /// `NodeFinished`: n8n `data.main` (`[[{json:..}, ..], null, ..]`), truncated, binary payloads
+    /// and credential headers removed.
+    pub output_json: Option<String>,
+    /// `output_json` lost items to the size cap.
+    pub truncated: bool,
+    pub error: Option<String>,
+}
+
+impl FlowRunEventDto {
+    pub(crate) fn new(run_id: &str, kind: FlowRunEventKind) -> Self {
+        Self {
+            run_id: run_id.to_owned(),
+            kind,
+            node: None,
+            run_index: 0,
+            status: None,
+            item_count: 0,
+            started_ms: 0,
+            duration_ms: 0,
+            output_json: None,
+            truncated: false,
+            error: None,
+        }
+    }
+
+    pub fn is_terminal(&self) -> bool {
+        matches!(self.kind, FlowRunEventKind::RunFinished | FlowRunEventKind::RunError)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FlowRunSummaryDto {
+    /// Local runs `run-<ms>-<n>`; remote runs the instance's execution id.
+    pub id: String,
+    pub workflow_id: Option<String>,
+    pub workflow_name: String,
+    /// `test` / `manual` for runs started here; the instance's mode (`trigger`, `webhook`, ..) otherwise.
+    pub mode: String,
+    /// `running` / `success` / `error` / `waiting` / `canceled`.
+    pub status: String,
+    pub started_ms: i64,
+    pub finished_ms: Option<i64>,
+    pub duration_ms: i64,
+    pub error: Option<String>,
+    /// Nodes that produced at least one run.
+    pub node_count: u32,
+    /// Ran on a remote instance.
+    pub remote: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FlowRunDetailDto {
+    pub summary: FlowRunSummaryDto,
+    /// n8n `runData` (`{node: [{startTime, executionTime, data:{main}, error, ..}]}`), truncated
+    /// like the events; each run also carries `itemCounts` (true count per output).
+    pub run_data_json: String,
+    /// Workflow as it was when the run started, when known.
+    pub workflow_json: Option<String>,
+}

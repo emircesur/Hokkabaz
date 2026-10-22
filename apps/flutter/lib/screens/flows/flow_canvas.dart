@@ -9,6 +9,7 @@ import '../../theme/tokens.dart';
 import 'canvas_geometry.dart';
 import 'model/flow_editor.dart';
 import 'model/node_types.dart';
+import 'model/run_overlay.dart';
 import 'model/workflow_model.dart';
 import 'node_card.dart';
 
@@ -32,6 +33,7 @@ class FlowCanvas extends StatefulWidget {
     required this.onOpenNode,
     required this.onMessage,
     required this.onSave,
+    this.overlay,
   });
 
   final FlowEditor editor;
@@ -42,6 +44,9 @@ class FlowCanvas extends StatefulWidget {
   final void Function(String node) onOpenNode;
   final void Function(String message) onMessage;
   final VoidCallback onSave;
+
+  /// Execution overlay (status badges) of the run being shown.
+  final RunOverlay? overlay;
 
   @override
   State<FlowCanvas> createState() => FlowCanvasState();
@@ -457,6 +462,8 @@ class FlowCanvasState extends State<FlowCanvas> {
                     selected: sel.contains(l.node.name),
                     callbacks: _callbacks(l.node.name),
                     pendingFrom: _pendingFrom,
+                    overlay: widget.overlay?.of(l.node.name),
+                    pinned: widget.editor.isPinned(l.node.name),
                   ),
                 ),
               if (selEnds != null) _edgeHandle(selEdge!, selEnds, hk),

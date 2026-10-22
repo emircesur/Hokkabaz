@@ -5,6 +5,7 @@
 
 import 'api/chat.dart';
 import 'api/core.dart';
+import 'api/flow_runs.dart';
 import 'api/flows.dart';
 import 'api/instances.dart';
 import 'api/settings.dart';
@@ -73,7 +74,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -737633130;
+  int get rustContentHash => -101633661;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -114,6 +115,8 @@ abstract class RustLibApi extends BaseApi {
     required int intervalMs,
   });
 
+  Future<FlowRunDetailDto> crateApiFlowRunsGetRun({required String runId});
+
   Future<SessionDetailDto> crateApiChatGetSession({required String sessionId});
 
   Future<SettingsDto> crateApiSettingsGetSettings();
@@ -132,6 +135,11 @@ abstract class RustLibApi extends BaseApi {
   Future<ModelListDto> crateApiSettingsListModels();
 
   List<NodeTypeDto> crateApiFlowsListNodeTypes();
+
+  Future<List<FlowRunSummaryDto>> crateApiFlowRunsListRuns({
+    String? workflowId,
+    required int limit,
+  });
 
   Future<List<SessionInfoDto>> crateApiChatListSessions({
     required int limit,
@@ -158,6 +166,16 @@ abstract class RustLibApi extends BaseApi {
     String? reason,
   });
 
+  Stream<FlowRunEventDto> crateApiFlowRunsRunEvents({required String runId});
+
+  Future<String> crateApiFlowRunsRunWorkflow({
+    required String workflowJson,
+    required FlowRunModeDto mode,
+    String? triggerNode,
+    String? inputItemsJson,
+    String? pinDataJson,
+  });
+
   Future<SettingsDto> crateApiSettingsSaveProvider({
     required ProviderInputDto input,
   });
@@ -175,6 +193,11 @@ abstract class RustLibApi extends BaseApi {
 
   Future<SettingsDto> crateApiSettingsSetPreferences({
     required PreferencesDto prefs,
+  });
+
+  Future<bool> crateApiFlowRunsSetWorkflowActive({
+    required String workflowJson,
+    required bool active,
   });
 
   Future<TurnAcceptedDto> crateApiChatSubmitTurn({
@@ -447,6 +470,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<FlowRunDetailDto> crateApiFlowRunsGetRun({required String runId}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(runId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 9,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_flow_run_detail_dto,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiFlowRunsGetRunConstMeta,
+        argValues: [runId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiFlowRunsGetRunConstMeta =>
+      const TaskConstMeta(debugName: "get_run", argNames: ["runId"]);
+
+  @override
   Future<SessionDetailDto> crateApiChatGetSession({required String sessionId}) {
     return handler.executeNormal(
       NormalTask(
@@ -456,7 +507,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
@@ -483,7 +534,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -515,7 +566,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
@@ -545,7 +596,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 13,
             port: port_,
           );
         },
@@ -572,7 +623,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 14,
             port: port_,
           );
         },
@@ -599,7 +650,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 15,
             port: port_,
           );
         },
@@ -623,7 +674,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_node_type_dto,
@@ -640,6 +691,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "list_node_types", argNames: []);
 
   @override
+  Future<List<FlowRunSummaryDto>> crateApiFlowRunsListRuns({
+    String? workflowId,
+    required int limit,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_opt_String(workflowId, serializer);
+          sse_encode_u_32(limit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_flow_run_summary_dto,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiFlowRunsListRunsConstMeta,
+        argValues: [workflowId, limit],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiFlowRunsListRunsConstMeta => const TaskConstMeta(
+    debugName: "list_runs",
+    argNames: ["workflowId", "limit"],
+  );
+
+  @override
   Future<List<SessionInfoDto>> crateApiChatListSessions({
     required int limit,
     required int offset,
@@ -653,7 +738,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 18,
             port: port_,
           );
         },
@@ -687,7 +772,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 19,
             port: port_,
           );
         },
@@ -717,7 +802,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 20,
             port: port_,
           );
         },
@@ -745,7 +830,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 21,
             port: port_,
           );
         },
@@ -775,7 +860,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 22,
             port: port_,
           );
         },
@@ -814,7 +899,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 23,
             port: port_,
           );
         },
@@ -836,6 +921,92 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Stream<FlowRunEventDto> crateApiFlowRunsRunEvents({required String runId}) {
+    final sink = RustStreamSink<FlowRunEventDto>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_String(runId, serializer);
+            sse_encode_StreamSink_flow_run_event_dto_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 24,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_hk_error,
+          ),
+          constMeta: kCrateApiFlowRunsRunEventsConstMeta,
+          argValues: [runId, sink],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiFlowRunsRunEventsConstMeta =>
+      const TaskConstMeta(debugName: "run_events", argNames: ["runId", "sink"]);
+
+  @override
+  Future<String> crateApiFlowRunsRunWorkflow({
+    required String workflowJson,
+    required FlowRunModeDto mode,
+    String? triggerNode,
+    String? inputItemsJson,
+    String? pinDataJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(workflowJson, serializer);
+          sse_encode_flow_run_mode_dto(mode, serializer);
+          sse_encode_opt_String(triggerNode, serializer);
+          sse_encode_opt_String(inputItemsJson, serializer);
+          sse_encode_opt_String(pinDataJson, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 25,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiFlowRunsRunWorkflowConstMeta,
+        argValues: [
+          workflowJson,
+          mode,
+          triggerNode,
+          inputItemsJson,
+          pinDataJson,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiFlowRunsRunWorkflowConstMeta =>
+      const TaskConstMeta(
+        debugName: "run_workflow",
+        argNames: [
+          "workflowJson",
+          "mode",
+          "triggerNode",
+          "inputItemsJson",
+          "pinDataJson",
+        ],
+      );
+
+  @override
   Future<SettingsDto> crateApiSettingsSaveProvider({
     required ProviderInputDto input,
   }) {
@@ -847,7 +1018,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 26,
             port: port_,
           );
         },
@@ -875,7 +1046,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 27,
             port: port_,
           );
         },
@@ -908,7 +1079,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 24,
+              funcId: 28,
               port: port_,
             );
           },
@@ -944,7 +1115,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 29,
             port: port_,
           );
         },
@@ -976,7 +1147,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 30,
             port: port_,
           );
         },
@@ -993,6 +1164,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSettingsSetPreferencesConstMeta =>
       const TaskConstMeta(debugName: "set_preferences", argNames: ["prefs"]);
+
+  @override
+  Future<bool> crateApiFlowRunsSetWorkflowActive({
+    required String workflowJson,
+    required bool active,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(workflowJson, serializer);
+          sse_encode_bool(active, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 31,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiFlowRunsSetWorkflowActiveConstMeta,
+        argValues: [workflowJson, active],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiFlowRunsSetWorkflowActiveConstMeta =>
+      const TaskConstMeta(
+        debugName: "set_workflow_active",
+        argNames: ["workflowJson", "active"],
+      );
 
   @override
   Future<TurnAcceptedDto> crateApiChatSubmitTurn({
@@ -1012,7 +1218,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1039,7 +1245,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(json, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
@@ -1059,6 +1265,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   AnyhowException dco_decode_AnyhowException(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AnyhowException(raw as String);
+  }
+
+  @protected
+  RustStreamSink<FlowRunEventDto> dco_decode_StreamSink_flow_run_event_dto_Sse(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
   }
 
   @protected
@@ -1148,6 +1362,73 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  FlowRunDetailDto dco_decode_flow_run_detail_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return FlowRunDetailDto(
+      summary: dco_decode_flow_run_summary_dto(arr[0]),
+      runDataJson: dco_decode_String(arr[1]),
+      workflowJson: dco_decode_opt_String(arr[2]),
+    );
+  }
+
+  @protected
+  FlowRunEventDto dco_decode_flow_run_event_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
+    return FlowRunEventDto(
+      runId: dco_decode_String(arr[0]),
+      kind: dco_decode_flow_run_event_kind(arr[1]),
+      node: dco_decode_opt_String(arr[2]),
+      runIndex: dco_decode_u_32(arr[3]),
+      status: dco_decode_opt_String(arr[4]),
+      itemCount: dco_decode_u_32(arr[5]),
+      startedMs: dco_decode_i_64(arr[6]),
+      durationMs: dco_decode_i_64(arr[7]),
+      outputJson: dco_decode_opt_String(arr[8]),
+      truncated: dco_decode_bool(arr[9]),
+      error: dco_decode_opt_String(arr[10]),
+    );
+  }
+
+  @protected
+  FlowRunEventKind dco_decode_flow_run_event_kind(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return FlowRunEventKind.values[raw as int];
+  }
+
+  @protected
+  FlowRunModeDto dco_decode_flow_run_mode_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return FlowRunModeDto.values[raw as int];
+  }
+
+  @protected
+  FlowRunSummaryDto dco_decode_flow_run_summary_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
+    return FlowRunSummaryDto(
+      id: dco_decode_String(arr[0]),
+      workflowId: dco_decode_opt_String(arr[1]),
+      workflowName: dco_decode_String(arr[2]),
+      mode: dco_decode_String(arr[3]),
+      status: dco_decode_String(arr[4]),
+      startedMs: dco_decode_i_64(arr[5]),
+      finishedMs: dco_decode_opt_box_autoadd_i_64(arr[6]),
+      durationMs: dco_decode_i_64(arr[7]),
+      error: dco_decode_opt_String(arr[8]),
+      nodeCount: dco_decode_u_32(arr[9]),
+      remote: dco_decode_bool(arr[10]),
+    );
+  }
+
+  @protected
   HkError dco_decode_hk_error(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -1225,6 +1506,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<String> dco_decode_list_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_String).toList();
+  }
+
+  @protected
+  List<FlowRunSummaryDto> dco_decode_list_flow_run_summary_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_flow_run_summary_dto).toList();
   }
 
   @protected
@@ -1650,6 +1937,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RustStreamSink<FlowRunEventDto> sse_decode_StreamSink_flow_run_event_dto_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
   RustStreamSink<SessionEventDto> sse_decode_StreamSink_session_event_dto_Sse(
     SseDeserializer deserializer,
   ) {
@@ -1746,6 +2041,97 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  FlowRunDetailDto sse_decode_flow_run_detail_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_summary = sse_decode_flow_run_summary_dto(deserializer);
+    var var_runDataJson = sse_decode_String(deserializer);
+    var var_workflowJson = sse_decode_opt_String(deserializer);
+    return FlowRunDetailDto(
+      summary: var_summary,
+      runDataJson: var_runDataJson,
+      workflowJson: var_workflowJson,
+    );
+  }
+
+  @protected
+  FlowRunEventDto sse_decode_flow_run_event_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_runId = sse_decode_String(deserializer);
+    var var_kind = sse_decode_flow_run_event_kind(deserializer);
+    var var_node = sse_decode_opt_String(deserializer);
+    var var_runIndex = sse_decode_u_32(deserializer);
+    var var_status = sse_decode_opt_String(deserializer);
+    var var_itemCount = sse_decode_u_32(deserializer);
+    var var_startedMs = sse_decode_i_64(deserializer);
+    var var_durationMs = sse_decode_i_64(deserializer);
+    var var_outputJson = sse_decode_opt_String(deserializer);
+    var var_truncated = sse_decode_bool(deserializer);
+    var var_error = sse_decode_opt_String(deserializer);
+    return FlowRunEventDto(
+      runId: var_runId,
+      kind: var_kind,
+      node: var_node,
+      runIndex: var_runIndex,
+      status: var_status,
+      itemCount: var_itemCount,
+      startedMs: var_startedMs,
+      durationMs: var_durationMs,
+      outputJson: var_outputJson,
+      truncated: var_truncated,
+      error: var_error,
+    );
+  }
+
+  @protected
+  FlowRunEventKind sse_decode_flow_run_event_kind(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return FlowRunEventKind.values[inner];
+  }
+
+  @protected
+  FlowRunModeDto sse_decode_flow_run_mode_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return FlowRunModeDto.values[inner];
+  }
+
+  @protected
+  FlowRunSummaryDto sse_decode_flow_run_summary_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_workflowId = sse_decode_opt_String(deserializer);
+    var var_workflowName = sse_decode_String(deserializer);
+    var var_mode = sse_decode_String(deserializer);
+    var var_status = sse_decode_String(deserializer);
+    var var_startedMs = sse_decode_i_64(deserializer);
+    var var_finishedMs = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_durationMs = sse_decode_i_64(deserializer);
+    var var_error = sse_decode_opt_String(deserializer);
+    var var_nodeCount = sse_decode_u_32(deserializer);
+    var var_remote = sse_decode_bool(deserializer);
+    return FlowRunSummaryDto(
+      id: var_id,
+      workflowId: var_workflowId,
+      workflowName: var_workflowName,
+      mode: var_mode,
+      status: var_status,
+      startedMs: var_startedMs,
+      finishedMs: var_finishedMs,
+      durationMs: var_durationMs,
+      error: var_error,
+      nodeCount: var_nodeCount,
+      remote: var_remote,
+    );
+  }
+
+  @protected
   HkError sse_decode_hk_error(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_kind = sse_decode_hk_error_kind(deserializer);
@@ -1834,6 +2220,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <String>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_String(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<FlowRunSummaryDto> sse_decode_list_flow_run_summary_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <FlowRunSummaryDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_flow_run_summary_dto(deserializer));
     }
     return ans_;
   }
@@ -2416,6 +2816,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_StreamSink_flow_run_event_dto_Sse(
+    RustStreamSink<FlowRunEventDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_flow_run_event_dto,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
+  }
+
+  @protected
   void sse_encode_StreamSink_session_event_dto_Sse(
     RustStreamSink<SessionEventDto> self,
     SseSerializer serializer,
@@ -2537,6 +2954,73 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_flow_run_detail_dto(
+    FlowRunDetailDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_flow_run_summary_dto(self.summary, serializer);
+    sse_encode_String(self.runDataJson, serializer);
+    sse_encode_opt_String(self.workflowJson, serializer);
+  }
+
+  @protected
+  void sse_encode_flow_run_event_dto(
+    FlowRunEventDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.runId, serializer);
+    sse_encode_flow_run_event_kind(self.kind, serializer);
+    sse_encode_opt_String(self.node, serializer);
+    sse_encode_u_32(self.runIndex, serializer);
+    sse_encode_opt_String(self.status, serializer);
+    sse_encode_u_32(self.itemCount, serializer);
+    sse_encode_i_64(self.startedMs, serializer);
+    sse_encode_i_64(self.durationMs, serializer);
+    sse_encode_opt_String(self.outputJson, serializer);
+    sse_encode_bool(self.truncated, serializer);
+    sse_encode_opt_String(self.error, serializer);
+  }
+
+  @protected
+  void sse_encode_flow_run_event_kind(
+    FlowRunEventKind self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_flow_run_mode_dto(
+    FlowRunModeDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_flow_run_summary_dto(
+    FlowRunSummaryDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_opt_String(self.workflowId, serializer);
+    sse_encode_String(self.workflowName, serializer);
+    sse_encode_String(self.mode, serializer);
+    sse_encode_String(self.status, serializer);
+    sse_encode_i_64(self.startedMs, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.finishedMs, serializer);
+    sse_encode_i_64(self.durationMs, serializer);
+    sse_encode_opt_String(self.error, serializer);
+    sse_encode_u_32(self.nodeCount, serializer);
+    sse_encode_bool(self.remote, serializer);
+  }
+
+  @protected
   void sse_encode_hk_error(HkError self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_hk_error_kind(self.kind, serializer);
@@ -2610,6 +3094,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_String(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_flow_run_summary_dto(
+    List<FlowRunSummaryDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_flow_run_summary_dto(item, serializer);
     }
   }
 
