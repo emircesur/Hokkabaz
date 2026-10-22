@@ -258,7 +258,7 @@ impl Inner {
     }
 }
 
-fn session_dto(s: SessionInfo) -> SessionInfoDto {
+pub(crate) fn session_dto(s: SessionInfo) -> SessionInfoDto {
     SessionInfoDto {
         id: s.id,
         title: s.title,
@@ -272,7 +272,7 @@ fn session_dto(s: SessionInfo) -> SessionInfoDto {
     }
 }
 
-fn message_dto(m: hk_llm::Message) -> MessageDto {
+pub(crate) fn message_dto(m: hk_llm::Message) -> MessageDto {
     MessageDto {
         role: match m.role {
             hk_llm::Role::System => RoleDto::System,
@@ -289,6 +289,24 @@ fn message_dto(m: hk_llm::Message) -> MessageDto {
             .collect(),
         tool_call_id: m.tool_call_id,
     }
+}
+
+/// Parked approvals of a session, with the request details from the log.
+pub(crate) fn pending_approvals(events: &[hk_session::SessionEvent], pending: &[String]) -> Vec<PendingApprovalDto> {
+    events
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::ApprovalRequest { approval_id, call_id, tool, detail } if pending.contains(approval_id) => {
+                Some(PendingApprovalDto {
+                    approval_id: approval_id.clone(),
+                    call_id: call_id.clone(),
+                    tool: tool.clone(),
+                    detail: detail.clone(),
+                })
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 #[async_trait]
@@ -407,23 +425,7 @@ impl CoreHandle for LocalCore {
 
     async fn get_session(&self, session_id: &str) -> Result<SessionDetailDto, HkError> {
         let d = self.i.runtime.session(session_id, None).await?;
-        let pending_approvals = d
-            .events
-            .iter()
-            .filter_map(|e| match &e.kind {
-                EventKind::ApprovalRequest { approval_id, call_id, tool, detail }
-                    if d.pending_approvals.contains(approval_id) =>
-                {
-                    Some(PendingApprovalDto {
-                        approval_id: approval_id.clone(),
-                        call_id: call_id.clone(),
-                        tool: tool.clone(),
-                        detail: detail.clone(),
-                    })
-                }
-                _ => None,
-            })
-            .collect();
+        let pending_approvals = pending_approvals(&d.events, &d.pending_approvals);
         Ok(SessionDetailDto {
             session: session_dto(d.session),
             messages: d.messages.into_iter().map(message_dto).collect(),

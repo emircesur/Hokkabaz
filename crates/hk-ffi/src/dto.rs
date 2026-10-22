@@ -320,3 +320,50 @@ pub struct NodeTypeDto {
     /// JSON array of n8n `NodeProperty` objects.
     pub properties_json: String,
 }
+
+// ---------------------------------------------------------------- instances (P4.8)
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstanceKindDto {
+    /// This device: the in-process core.
+    Local,
+    /// A `hokkabazd` reached over REST + WS.
+    Remote,
+}
+
+/// One entry of the instance book. The token is stored in the secret backend and never
+/// crosses FFI: only `has_token`.
+#[derive(Debug, Clone)]
+pub struct InstanceDto {
+    /// `local` for this device, `inst_<hex>` for remotes.
+    pub id: String,
+    pub name: String,
+    /// `None` for the local entry.
+    pub base_url: Option<String>,
+    pub kind: InstanceKindDto,
+    /// The core `chat::*` / `settings::*` talk to right now.
+    pub connected: bool,
+    /// Connected at the next app start.
+    pub is_default: bool,
+    pub has_token: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstanceStateDto {
+    Online,
+    /// Reachable, but the token is missing, revoked or lacks the `read` scope.
+    Unauthorized,
+    Unreachable,
+}
+
+#[derive(Debug, Clone)]
+pub struct InstanceStatusDto {
+    pub id: String,
+    pub state: InstanceStateDto,
+    /// Daemon version from `/health`.
+    pub version: Option<String>,
+    /// Round trip of the health request.
+    pub latency_ms: Option<i64>,
+    /// Why it is not online.
+    pub message: Option<String>,
+}

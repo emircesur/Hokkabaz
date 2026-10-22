@@ -1659,12 +1659,17 @@ dependencies = [
  "hk-server",
  "hk-session",
  "hk-store",
+ "reqwest 0.12.28",
+ "rustls",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "tokio-rustls",
+ "tokio-tungstenite",
  "tracing",
+ "webpki-roots",
 ]
 
 [[package]]

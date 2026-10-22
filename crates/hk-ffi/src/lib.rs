@@ -3,14 +3,16 @@
 //! Every exported fn returns `Result<T, HkError>`; nothing may panic across FFI.
 //!
 //! Layers: `api::*` (scanned by codegen, thin) -> [`handle::CoreHandle`] (DTO-level trait) ->
-//! [`local::LocalCore`] (in-process agent) or a future `RemoteCore`. Dart only sees [`dto`].
+//! [`local::LocalCore`] (in-process agent) or [`remote::RemoteCore`] (a `hokkabazd` over REST + WS). Dart only sees [`dto`].
 
 pub mod api;
 pub mod dto;
 pub mod error;
 mod events;
 pub mod handle;
+pub mod instances;
 pub mod local;
+pub mod remote;
 mod secrets;
 mod settings;
 

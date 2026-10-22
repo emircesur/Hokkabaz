@@ -10,4 +10,25 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+# Pure-HTTP integrations are android-safe, so they are on by default. An integration that
+# needs a native dep must gate it with cfg(not(target_os = "android")) and stay out of here.
+default = ["all-integrations"]
+all-integrations = ["int-ntfy"]
+# ntfy.sh: send notification
+int-ntfy = []
+
 [dependencies]
+# expr: node parameters (`={{ ... }}`) evaluate through the QuickJS engine; http: shared reqwest stack
+hk-flow = { version = "0.0.0", path = "../hk-flow", default-features = false, features = ["expr", "http"] }
+async-trait = "0.1"
+indexmap = { version = "2", features = ["serde"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "2"
+tokio = { version = "1", features = ["time", "rt", "sync"] }
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "time", "test-util", "net", "io-util"] }

@@ -20,6 +20,12 @@ pub enum HkErrorKind {
     Conflict,
     /// Provider or model misconfiguration (missing key, bad endpoint).
     Provider,
+    /// The active core cannot do this (e.g. provider settings of a remote instance).
+    Unsupported,
+    /// Remote instance rejected the token (missing, revoked or lacking scope).
+    Unauthorized,
+    /// Remote instance unreachable (network down, wrong URL, daemon stopped).
+    Unavailable,
 }
 
 #[derive(Debug, Clone, thiserror::Error)]

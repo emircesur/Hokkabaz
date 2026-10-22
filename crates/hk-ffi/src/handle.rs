@@ -1,7 +1,7 @@
 //! [`CoreHandle`]: everything Dart can ask of a core, in DTO terms.
 //!
-//! [`crate::local::LocalCore`] runs the agent in-process. A `RemoteCore` (WS/REST to
-//! hk-server, P4.8) implements the same trait, so the `api::*` functions and the Dart side
+//! [`crate::local::LocalCore`] runs the agent in-process. [`crate::remote::RemoteCore`] (REST +
+//! WS to a `hokkabazd`) implements the same trait, so the `api::*` functions and the Dart side
 //! never learn which one they talk to.
 
 use std::sync::{Arc, PoisonError, RwLock};
@@ -53,20 +53,64 @@ pub trait CoreHandle: Send + Sync + 'static {
 }
 
 static CORE: RwLock<Option<Arc<dyn CoreHandle>>> = RwLock::new(None);
+/// The in-process core, kept alive while a remote one is active so switching back is instant.
+static LOCAL: RwLock<Option<Arc<dyn CoreHandle>>> = RwLock::new(None);
+
+fn read(l: &RwLock<Option<Arc<dyn CoreHandle>>>) -> Option<Arc<dyn CoreHandle>> {
+    l.read().unwrap_or_else(PoisonError::into_inner).clone()
+}
+
+fn write(l: &RwLock<Option<Arc<dyn CoreHandle>>>) -> std::sync::RwLockWriteGuard<'_, Option<Arc<dyn CoreHandle>>> {
+    l.write().unwrap_or_else(PoisonError::into_inner)
+}
 
 /// The active core, or `NotInitialized`.
 pub fn core() -> Result<Arc<dyn CoreHandle>, HkError> {
-    CORE.read()
-        .unwrap_or_else(PoisonError::into_inner)
-        .clone()
-        .ok_or_else(|| HkError::new(HkErrorKind::NotInitialized, "core_init has not been called"))
+    read(&CORE).ok_or_else(|| HkError::new(HkErrorKind::NotInitialized, "core_init has not been called"))
 }
 
-/// Install `core`, returning the one it replaced (a hot restart re-inits without a shutdown).
-pub fn install(core: Arc<dyn CoreHandle>) -> Option<Arc<dyn CoreHandle>> {
-    CORE.write().unwrap_or_else(PoisonError::into_inner).replace(core)
+/// The in-process core, or `NotInitialized`.
+pub fn local() -> Result<Arc<dyn CoreHandle>, HkError> {
+    read(&LOCAL).ok_or_else(|| HkError::new(HkErrorKind::NotInitialized, "core_init has not been called"))
 }
 
-pub fn take() -> Option<Arc<dyn CoreHandle>> {
-    CORE.write().unwrap_or_else(PoisonError::into_inner).take()
+/// Install `core` as the in-process core and make it active. Returns the handles it displaced
+/// (a hot restart re-inits without a shutdown); the caller shuts them down.
+pub fn install_local(core: Arc<dyn CoreHandle>) -> Vec<Arc<dyn CoreHandle>> {
+    let mut out: Vec<Arc<dyn CoreHandle>> = Vec::new();
+    out.extend(write(&LOCAL).replace(core.clone()));
+    out.extend(write(&CORE).replace(core));
+    out
+}
+
+/// Make `core` the active one. Returns the previous active core when it is a remote one (the
+/// caller shuts it down); the in-process core is never returned, it stays parked in `LOCAL`.
+pub fn activate(core: Arc<dyn CoreHandle>) -> Option<Arc<dyn CoreHandle>> {
+    let prev = write(&CORE).replace(core);
+    let local = read(&LOCAL);
+    prev.filter(|p| local.as_ref().is_none_or(|l| !Arc::ptr_eq(p, l)))
+}
+
+/// Active core is the in-process one.
+pub fn local_active() -> bool {
+    match (read(&CORE), read(&LOCAL)) {
+        (Some(a), Some(l)) => Arc::ptr_eq(&a, &l),
+        _ => false,
+    }
+}
+
+/// Drop every core; the caller shuts the returned handles down.
+pub fn take_all() -> Vec<Arc<dyn CoreHandle>> {
+    let mut out: Vec<Arc<dyn CoreHandle>> = Vec::new();
+    let active = write(&CORE).take();
+    let local = write(&LOCAL).take();
+    if let (Some(a), Some(l)) = (&active, &local) {
+        if Arc::ptr_eq(a, l) {
+            out.push(l.clone());
+            return out;
+        }
+    }
+    out.extend(active);
+    out.extend(local);
+    out
 }
