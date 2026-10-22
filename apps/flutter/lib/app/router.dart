@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../screens/chat_screen.dart';
 import '../screens/flows/flows_screen.dart';
+import '../screens/instances/instances_screen.dart';
 import '../screens/models/models_screen.dart';
 import '../screens/placeholder_screen.dart';
 import 'destinations.dart';
@@ -26,6 +27,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                     ? ChatScreen(title: d.label, icon: d.icon)
                     : d.path == '/flows'
                     ? const FlowsScreen()
+                    : d.path == '/instances'
+                    ? const InstancesScreen()
                     : d.path == '/models'
                     ? const ModelsScreen()
                     : PlaceholderScreen(title: d.label, icon: d.icon),

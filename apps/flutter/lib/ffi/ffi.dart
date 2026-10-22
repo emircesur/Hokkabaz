@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../src/rust/api/core.dart' as core;
-import '../src/rust/dto.dart' show CoreProfile;
+import '../src/rust/api/instances.dart' as instances;
+import '../src/rust/dto.dart' show CoreProfile, InstanceKindDto;
 import '../src/rust/frb_generated.dart';
 
 /// Loads the Rust lib once at startup. Failure is non-fatal: the UI shows the
@@ -31,9 +32,27 @@ Future<String?> initCore(String? rustError) async {
           ? CoreProfile.mobile
           : CoreProfile.desktop,
     );
+    await _restoreInstance();
     return null;
   } catch (e) {
     return e.toString();
+  }
+}
+
+/// Reconnects the instance chosen as startup default. Best effort: an
+/// unreachable remote leaves the local core active (the Instances screen shows
+/// why), never a dead app.
+Future<void> _restoreInstance() async {
+  try {
+    final book = await instances.listInstances();
+    for (final i in book) {
+      if (i.isDefault && i.kind == InstanceKindDto.remote) {
+        await instances.connectInstance(id: i.id);
+        return;
+      }
+    }
+  } catch (_) {
+    // Stay on the local core.
   }
 }
 
