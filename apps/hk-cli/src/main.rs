@@ -4,6 +4,7 @@ mod acp_chat;
 mod auth;
 mod chat;
 mod paths;
+mod plugin;
 mod sessions;
 mod term;
 mod tui;
@@ -35,6 +36,11 @@ enum Cmd {
     Sessions {
         #[command(subcommand)]
         cmd: SessionsCmd,
+    },
+    /// Build, install and manage WASM plugins.
+    Plugin {
+        #[command(subcommand)]
+        cmd: plugin::PluginCmd,
     },
     /// Manage provider credentials.
     Auth {
@@ -94,6 +100,7 @@ fn main() -> Result<()> {
                     }
                 }
                 Cmd::Auth { cmd: AuthCmd::Set } => auth::set(&paths).await,
+                Cmd::Plugin { cmd } => plugin::run(&paths, cmd).await,
             }
         })
 }

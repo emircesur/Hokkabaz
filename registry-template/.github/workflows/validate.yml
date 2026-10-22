@@ -1,0 +1,21 @@
+name: validate
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: emircesur/Hokkabaz
+          path: hokkabaz
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: hokkabaz
+      - run: cargo build --release -p hk-cli --manifest-path hokkabaz/Cargo.toml
+      - run: hokkabaz/target/release/hk plugin verify-index index.json --download

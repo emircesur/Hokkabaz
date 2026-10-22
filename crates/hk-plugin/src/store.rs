@@ -160,6 +160,45 @@ impl PluginStore {
     }
 }
 
+/// Read just the manifest out of a plugin archive (for building registry entries).
+pub fn archive_manifest(bytes: &[u8]) -> Result<Manifest> {
+    let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(bytes));
+    for entry in tar.entries().map_err(|e| PluginError::Registry(format!("bad archive: {e}")))? {
+        let entry = entry.map_err(|e| PluginError::Registry(format!("bad archive: {e}")))?;
+        let is_manifest = entry.path().ok().and_then(|p| p.file_name().map(|n| n == "plugin.toml")).unwrap_or(false);
+        if is_manifest {
+            let mut text = String::new();
+            entry.take(MAX_MANIFEST_BYTES).read_to_string(&mut text)?;
+            return Manifest::parse(&text);
+        }
+    }
+    Err(PluginError::Registry("archive has no plugin.toml".into()))
+}
+
+/// Pack a plugin directory (`plugin.toml` + the wasm it names) into the `.tar.gz` that
+/// [`PluginStore::install_archive`] and the registry use. Validates the manifest first.
+pub fn pack_dir(dir: &Path) -> Result<Vec<u8>> {
+    let manifest_path = dir.join("plugin.toml");
+    let manifest_bytes = std::fs::read(&manifest_path).map_err(|e| PluginError::Manifest(format!("{}: {e}", manifest_path.display())))?;
+    let manifest = Manifest::parse(std::str::from_utf8(&manifest_bytes).map_err(|e| PluginError::Manifest(e.to_string()))?)?;
+    let wasm = std::fs::read(dir.join(&manifest.wasm)).map_err(|e| PluginError::Manifest(format!("{}: {e}", manifest.wasm)))?;
+    let mut tar_bytes = Vec::new();
+    {
+        let mut b = tar::Builder::new(&mut tar_bytes);
+        for (name, data) in [("plugin.toml", manifest_bytes.as_slice()), (manifest.wasm.as_str(), wasm.as_slice())] {
+            let mut h = tar::Header::new_gnu();
+            h.set_size(data.len() as u64);
+            h.set_mode(0o644);
+            h.set_cksum();
+            b.append_data(&mut h, name, data)?;
+        }
+        b.finish()?;
+    }
+    let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    std::io::Write::write_all(&mut gz, &tar_bytes)?;
+    Ok(gz.finish()?)
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
