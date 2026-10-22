@@ -47,23 +47,27 @@ class _NodeIoTabState extends State<NodeIoTab> {
   @override
   Widget build(BuildContext context) {
     final wf = widget.editor.workflow;
-    return widget.side == IoSide.input ? _input(context, wf) : _output(context, wf);
+    return widget.side == IoSide.input
+        ? _input(context, wf)
+        : _output(context, wf);
   }
 
   Widget _hint(BuildContext context, String msg) => Padding(
     padding: const EdgeInsets.all(HkTokens.s4),
     child: Text(
       msg,
-      style: Theme.of(
-        context,
-      ).textTheme.bodySmall?.copyWith(color: context.hk.textMuted),
+      style: Theme.of(context).textTheme.bodySmall
+          ?.copyWith(color: context.hk.textMuted),
     ),
   );
 
   Widget _input(BuildContext context, FlowWorkflow wf) {
     final o = widget.overlay;
     if (o == null) {
-      return _hint(context, 'Run the workflow (Test workflow) to see the input of this node.');
+      return _hint(
+        context,
+        'Run the workflow (Test workflow) to see the input of this node.',
+      );
     }
     final from = o.inputSources(wf, widget.nodeName);
     final items = o.inputItems(wf, widget.nodeName);
@@ -86,13 +90,22 @@ class _NodeIoTabState extends State<NodeIoTab> {
     return ListView(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(HkTokens.s3, HkTokens.s3, HkTokens.s3, 0),
+          padding: const EdgeInsets.fromLTRB(
+            HkTokens.s3,
+            HkTokens.s3,
+            HkTokens.s3,
+            0,
+          ),
           child: Text(
             'From ${from.join(', ')}',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
-        ItemsView(items: items, total: total, empty: 'No items reached this node'),
+        ItemsView(
+          items: items,
+          total: total,
+          empty: 'No items reached this node',
+        ),
       ],
     );
   }
@@ -103,7 +116,12 @@ class _NodeIoTabState extends State<NodeIoTab> {
     final name = widget.nodeName;
     final node = widget.overlay?.of(name);
     final pinned = widget.editor.isPinned(name);
-    final run = node == null ? null : node.runs[(_run ?? node.runs.length - 1).clamp(0, node.runs.length - 1)];
+    final run = node == null
+        ? null
+        : node.runs[(_run ?? node.runs.length - 1).clamp(
+            0,
+            node.runs.length - 1,
+          )];
     final main = run?.main ?? const <List<FlowItem>?>[];
     final out = _out.clamp(0, main.isEmpty ? 0 : main.length - 1);
     final canPin = pinned || (run != null && run.output(0).isNotEmpty);
@@ -133,7 +151,10 @@ class _NodeIoTabState extends State<NodeIoTab> {
             : null,
       ),
       if (pinned && run != null && run.truncated)
-        _note(context, 'The run output was cut; only the shown items are pinned.'),
+        _note(
+          context,
+          'The run output was cut; only the shown items are pinned.',
+        ),
     ];
 
     if (pinned) {
@@ -171,7 +192,12 @@ class _NodeIoTabState extends State<NodeIoTab> {
   }
 
   Widget _label(BuildContext context, String t) => Padding(
-    padding: const EdgeInsets.fromLTRB(HkTokens.s3, HkTokens.s2, HkTokens.s3, 0),
+    padding: const EdgeInsets.fromLTRB(
+      HkTokens.s3,
+      HkTokens.s2,
+      HkTokens.s3,
+      0,
+    ),
     child: Text(t, style: Theme.of(context).textTheme.labelMedium),
   );
 
@@ -179,7 +205,8 @@ class _NodeIoTabState extends State<NodeIoTab> {
     padding: const EdgeInsets.symmetric(horizontal: HkTokens.s3),
     child: Text(
       t,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: context.hk.warn),
+      style: Theme.of(context).textTheme.bodySmall
+          ?.copyWith(color: context.hk.warn),
     ),
   );
 
@@ -205,7 +232,8 @@ class _NodeIoTabState extends State<NodeIoTab> {
                   style: TextStyle(color: color, fontWeight: FontWeight.w600),
                 ),
                 TextSpan(
-                  text: ' · ${itemsLabel(run.itemCount)} · ${formatDuration(run.durationMs)}',
+                  text:
+                      ' · ${itemsLabel(run.itemCount)} · ${formatDuration(run.durationMs)}',
                 ),
               ],
             ),
@@ -249,19 +277,22 @@ class _NodeIoTabState extends State<NodeIoTab> {
     ),
   );
 
-  Widget _outputPicker(BuildContext context, NodeRunInfo run, int cur) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: HkTokens.s3),
-    child: Wrap(
-      spacing: HkTokens.s2,
-      children: [
-        for (var i = 0; i < run.main.length; i++)
-          ChoiceChip(
-            materialTapTargetSize: MaterialTapTargetSize.padded,
-            label: Text('Output $i (${i < run.counts.length ? run.counts[i] : 0})'),
-            selected: i == cur,
-            onSelected: (_) => setState(() => _out = i),
-          ),
-      ],
-    ),
-  );
+  Widget _outputPicker(BuildContext context, NodeRunInfo run, int cur) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: HkTokens.s3),
+        child: Wrap(
+          spacing: HkTokens.s2,
+          children: [
+            for (var i = 0; i < run.main.length; i++)
+              ChoiceChip(
+                materialTapTargetSize: MaterialTapTargetSize.padded,
+                label: Text(
+                  'Output $i (${i < run.counts.length ? run.counts[i] : 0})',
+                ),
+                selected: i == cur,
+                onSelected: (_) => setState(() => _out = i),
+              ),
+          ],
+        ),
+      );
 }

@@ -6,12 +6,11 @@ import 'model/run_overlay.dart';
 import 'model/workflow_model.dart';
 
 /// Starts a run in the active core and returns its id.
-typedef RunStarter =
-    Future<String> Function({
-      required String workflowJson,
-      required bool test,
-      String? triggerNode,
-    });
+typedef RunStarter = Future<String> Function({
+  required String workflowJson,
+  required bool test,
+  String? triggerNode,
+});
 
 /// Event feed of one run (replays from the start, ends at the terminal event).
 typedef RunEventSource = Stream<RunEvent> Function(String runId);

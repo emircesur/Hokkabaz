@@ -8,7 +8,13 @@ import 'workflow_model.dart';
 /// detail both fold into the same immutable [RunOverlay], so the canvas, the node
 /// panel and the Runs screen read one shape.
 
-enum RunEventKind { runStarted, nodeStarted, nodeFinished, runFinished, runError }
+enum RunEventKind {
+  runStarted,
+  nodeStarted,
+  nodeFinished,
+  runFinished,
+  runError,
+}
 
 /// One step of a run, as the core reports it (mirrors `FlowRunEventDto`).
 class RunEvent {
@@ -94,7 +100,8 @@ class NodeRunInfo {
   final bool truncated;
 
   /// Items on output [i] (empty when not produced).
-  List<FlowItem> output(int i) => i < main.length ? main[i] ?? const [] : const [];
+  List<FlowItem> output(int i) =>
+      i < main.length ? main[i] ?? const [] : const [];
 }
 
 /// All runs of one node in a run.
@@ -258,7 +265,11 @@ class RunOverlay {
         ];
         if (infos.isEmpty) return;
         final first = runs.whereType<Map>().first;
-        ordered.add(((first['executionIndex'] as num?)?.toInt() ?? 0, name, infos));
+        ordered.add((
+          (first['executionIndex'] as num?)?.toInt() ?? 0,
+          name,
+          infos,
+        ));
       });
       ordered.sort((a, b) => a.$1.compareTo(b.$1));
       for (final o in ordered) {

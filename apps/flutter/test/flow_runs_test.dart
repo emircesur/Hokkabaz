@@ -75,13 +75,22 @@ void main() {
         const RunEvent(kind: RunEventKind.nodeStarted, node: 'Trigger'),
       );
       expect(o.of('Trigger')!.status, NodeStatus.running);
-      o = o.apply(finished('Trigger', [
-        [item({'a': 1})],
-      ]));
-      o = o.apply(finished('If', [
-        [item({'a': 1}), item({'a': 2})],
-        null,
-      ], ms: 12));
+      o = o.apply(
+        finished('Trigger', [
+          [
+            item({'a': 1}),
+          ],
+        ]),
+      );
+      o = o.apply(
+        finished('If', [
+          [
+            item({'a': 1}),
+            item({'a': 2}),
+          ],
+          null,
+        ], ms: 12),
+      );
       final t = o.of('Trigger')!;
       expect(t.status, NodeStatus.success);
       expect(t.itemCount, 1);
@@ -103,12 +112,27 @@ void main() {
 
     test('loops keep every run; an error anywhere marks the node failed', () {
       var o = const RunOverlay(runId: 'r');
-      o = o.apply(finished('Loop', [
-        [item({'i': 0})],
-      ], ms: 3));
-      o = o.apply(finished('Loop', [
-        [item({'i': 1})],
-      ], run: 1, status: 'error', ms: 4, error: 'boom'));
+      o = o.apply(
+        finished('Loop', [
+          [
+            item({'i': 0}),
+          ],
+        ], ms: 3),
+      );
+      o = o.apply(
+        finished(
+          'Loop',
+          [
+            [
+              item({'i': 1}),
+            ],
+          ],
+          run: 1,
+          status: 'error',
+          ms: 4,
+          error: 'boom',
+        ),
+      );
       final n = o.of('Loop')!;
       expect(n.runs, hasLength(2));
       expect(n.status, NodeStatus.error);
@@ -133,10 +157,17 @@ void main() {
 
     test('input of a node is what connected upstream outputs emitted', () {
       var o = const RunOverlay(runId: 'r');
-      o = o.apply(finished('If', [
-        [item({'v': 'yes'})],
-        [item({'v': 'no1'}), item({'v': 'no2'})],
-      ]));
+      o = o.apply(
+        finished('If', [
+          [
+            item({'v': 'yes'}),
+          ],
+          [
+            item({'v': 'no1'}),
+            item({'v': 'no2'}),
+          ],
+        ]),
+      );
       final wf = flow();
       expect(o.inputItems(wf, 'Yes').map((i) => (i['json'] as Map)['v']), [
         'yes',
@@ -159,7 +190,9 @@ void main() {
             'data': {
               'main': [
                 [
-                  {'json': {'a': 1}},
+                  {
+                    'json': {'a': 1},
+                  },
                 ],
                 null,
               ],
@@ -192,7 +225,11 @@ void main() {
       });
       final o = RunOverlay.fromRunData('r', data, status: 'error');
       expect(o.nodes.keys, ['Trigger', 'If', 'Yes']);
-      expect(o.of('If')!.itemCount, 120, reason: 'true count, not the cut list');
+      expect(
+        o.of('If')!.itemCount,
+        120,
+        reason: 'true count, not the cut list',
+      );
       expect(o.of('If')!.last.output(0), hasLength(1));
       expect(o.of('If')!.last.truncated, isTrue);
       expect(o.of('Yes')!.error, 'nope');
@@ -206,30 +243,36 @@ void main() {
   });
 
   group('pin data', () {
-    test('pin stores {json} items under workflow.pinData and unpin removes', () {
-      final ed = FlowEditor(flow());
-      ed.pinItems('If', toPinItems([
-        {
-          'json': {'a': 1},
-          'binary': {'f': {}},
-          'pairedItem': {'item': 0},
-        },
-      ]));
-      expect(ed.isPinned('If'), isTrue);
-      expect(ed.workflow.pinData['If'], [
-        {
-          'json': {'a': 1},
-        },
-      ]);
-      expect(ed.dirty, isTrue);
-      ed.undo();
-      expect(ed.isPinned('If'), isFalse);
-      ed.redo();
-      ed.unpin('If');
-      expect(ed.workflow.field('pinData'), isNull);
-      ed.pinItems('Ghost', const []);
-      expect(ed.workflow.pinData, isEmpty, reason: 'unknown node ignored');
-    });
+    test(
+      'pin stores {json} items under workflow.pinData and unpin removes',
+      () {
+        final ed = FlowEditor(flow());
+        ed.pinItems(
+          'If',
+          toPinItems([
+            {
+              'json': {'a': 1},
+              'binary': {'f': {}},
+              'pairedItem': {'item': 0},
+            },
+          ]),
+        );
+        expect(ed.isPinned('If'), isTrue);
+        expect(ed.workflow.pinData['If'], [
+          {
+            'json': {'a': 1},
+          },
+        ]);
+        expect(ed.dirty, isTrue);
+        ed.undo();
+        expect(ed.isPinned('If'), isFalse);
+        ed.redo();
+        ed.unpin('If');
+        expect(ed.workflow.field('pinData'), isNull);
+        ed.pinItems('Ghost', const []);
+        expect(ed.workflow.pinData, isEmpty, reason: 'unknown node ignored');
+      },
+    );
 
     test('pinned items survive a JSON round trip and renames', () {
       final ed = FlowEditor(flow())
@@ -265,42 +308,47 @@ void main() {
   });
 
   group('FlowRunController', () {
-    test('starts a run and folds streamed events; id and trigger go through', () async {
-      final feed = StreamController<RunEvent>();
-      String? sentJson;
-      String? sentTrigger;
-      bool? sentTest;
-      final c = FlowRunController(
-        start: ({required workflowJson, required test, triggerNode}) async {
-          sentJson = workflowJson;
-          sentTest = test;
-          sentTrigger = triggerNode;
-          return 'run-1';
-        },
-        events: (id) => feed.stream,
-      );
-      final seen = <RunState?>[];
-      c.addListener(() => seen.add(c.overlay?.state));
+    test(
+      'starts a run and folds streamed events; id and trigger go through',
+      () async {
+        final feed = StreamController<RunEvent>();
+        String? sentJson;
+        String? sentTrigger;
+        bool? sentTest;
+        final c = FlowRunController(
+          start: ({required workflowJson, required test, triggerNode}) async {
+            sentJson = workflowJson;
+            sentTest = test;
+            sentTrigger = triggerNode;
+            return 'run-1';
+          },
+          events: (id) => feed.stream,
+        );
+        final seen = <RunState?>[];
+        c.addListener(() => seen.add(c.overlay?.state));
 
-      await c.run(flow(), flowId: 'flow_x', triggerNode: 'Trigger');
-      expect(jsonDecode(sentJson!)['id'], 'flow_x');
-      expect(sentTest, isTrue);
-      expect(sentTrigger, 'Trigger');
-      expect(c.running, isTrue);
-      expect(c.overlay!.runId, 'run-1');
+        await c.run(flow(), flowId: 'flow_x', triggerNode: 'Trigger');
+        expect(jsonDecode(sentJson!)['id'], 'flow_x');
+        expect(sentTest, isTrue);
+        expect(sentTrigger, 'Trigger');
+        expect(c.running, isTrue);
+        expect(c.overlay!.runId, 'run-1');
 
-      feed.add(finished('Trigger', [
-        [item({})],
-      ]));
-      feed.add(
-        const RunEvent(kind: RunEventKind.runFinished, status: 'success'),
-      );
-      await Future<void>.delayed(Duration.zero);
-      expect(c.overlay!.of('Trigger')!.itemCount, 1);
-      expect(c.running, isFalse);
-      await feed.close();
-      c.dispose();
-    });
+        feed.add(
+          finished('Trigger', [
+            [item({})],
+          ]),
+        );
+        feed.add(
+          const RunEvent(kind: RunEventKind.runFinished, status: 'success'),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(c.overlay!.of('Trigger')!.itemCount, 1);
+        expect(c.running, isFalse);
+        await feed.close();
+        c.dispose();
+      },
+    );
 
     test('a failed start is an error, not an overlay', () async {
       final c = FlowRunController(
@@ -315,23 +363,26 @@ void main() {
       c.dispose();
     });
 
-    test('a second run is refused while one is running; show/clear replace it', () async {
-      var starts = 0;
-      final c = FlowRunController(
-        start: ({required workflowJson, required test, triggerNode}) async =>
-            'run-${++starts}',
-        events: (_) => const Stream.empty(),
-      );
-      await c.run(flow(), flowId: 'f');
-      await c.run(flow(), flowId: 'f');
-      expect(starts, 1);
-      c.show(RunOverlay.fromRunData('old', '{}'));
-      expect(c.overlay!.runId, 'old');
-      expect(c.running, isFalse);
-      c.clear();
-      expect(c.overlay, isNull);
-      c.dispose();
-    });
+    test(
+      'a second run is refused while one is running; show/clear replace it',
+      () async {
+        var starts = 0;
+        final c = FlowRunController(
+          start: ({required workflowJson, required test, triggerNode}) async =>
+              'run-${++starts}',
+          events: (_) => const Stream.empty(),
+        );
+        await c.run(flow(), flowId: 'f');
+        await c.run(flow(), flowId: 'f');
+        expect(starts, 1);
+        c.show(RunOverlay.fromRunData('old', '{}'));
+        expect(c.overlay!.runId, 'old');
+        expect(c.running, isFalse);
+        c.clear();
+        expect(c.overlay, isNull);
+        c.dispose();
+      },
+    );
   });
 
   group('formatting', () {
@@ -352,7 +403,9 @@ void main() {
       expect(relativeTime(now - 2 * 86400000, nowMs: now), '2 d ago');
       expect(localFlowIdOf('{"id":"flow_a"}'), 'flow_a');
       expect(
-        localFlowIdOf('{"id":"remote7","meta":{"hokkabaz":{"localId":"flow_a"}}}'),
+        localFlowIdOf(
+          '{"id":"remote7","meta":{"hokkabaz":{"localId":"flow_a"}}}',
+        ),
         'flow_a',
       );
       expect(localFlowIdOf('nope'), isNull);

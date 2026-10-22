@@ -214,7 +214,9 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
         active: value,
       );
       _editor.setActive(now);
-      _toast(now ? 'Workflow activated on the instance' : 'Workflow deactivated');
+      _toast(
+        now ? 'Workflow activated on the instance' : 'Workflow deactivated',
+      );
     } catch (e) {
       _toast('Activation failed: ${describeError(e)}');
     }

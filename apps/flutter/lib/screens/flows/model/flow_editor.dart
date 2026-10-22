@@ -295,7 +295,9 @@ class FlowEditor extends ChangeNotifier {
         if (e.key != node) e.key: e.value,
     };
     _commit(
-      rest.isEmpty ? _wf.withoutField('pinData') : _wf.withField('pinData', rest),
+      rest.isEmpty
+          ? _wf.withoutField('pinData')
+          : _wf.withField('pinData', rest),
     );
   }
 

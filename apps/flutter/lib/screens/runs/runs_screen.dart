@@ -165,9 +165,7 @@ class _RunTile extends StatelessWidget {
       ),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => RunDetailScreen(runId: run.id),
-        ),
+        MaterialPageRoute<void>(builder: (_) => RunDetailScreen(runId: run.id)),
       ),
     );
   }
