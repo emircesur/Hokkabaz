@@ -146,7 +146,7 @@ impl FlowNode for KafkaNode {
         );
         if matches!(cred.get("ssl"), Some(Value::Bool(true))) {
             let insecure = matches!(cred.get("allowUnauthorizedCerts"), Some(Value::Bool(true)));
-            b = b.tls_config(crate::tls::client_config(insecure).map_err(&e)?);
+            b = b.tls_config(crate::tls::client_config(insecure).map_err(e)?);
         }
         let user = kit::cred_str(&cred, "username");
         if !user.is_empty() {
