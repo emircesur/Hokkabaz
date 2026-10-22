@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Example Blog</title>
+    <link>https://example.com/</link>
+    <description>Posts</description>
+    <item>
+      <title>Third post</title>
+      <link>https://example.com/3</link>
+      <guid isPermaLink="false">post-3</guid>
+      <pubDate>Wed, 02 Jul 2025 09:00:00 +0000</pubDate>
+      <description>New</description>
+    </item>
+    <item>
+      <title>Second post</title>
+      <link>https://example.com/2</link>
+      <guid isPermaLink="false">post-2</guid>
+      <pubDate>Tue, 01 Jul 2025 10:52:37 +0000</pubDate>
+      <description>Fish</description>
+    </item>
+  </channel>
+</rss>

@@ -5,7 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/breakpoints.dart';
+import '../../src/rust/api/flow_runs.dart' as run_api;
 import '../../theme/tokens.dart';
+import '../chat/chat_providers.dart' show describeError;
+import '../runs/runs_providers.dart';
 import 'canvas_geometry.dart';
 import 'flow_canvas.dart';
 import 'flow_providers.dart';
@@ -15,6 +18,8 @@ import 'model/node_types.dart';
 import 'model/workflow_model.dart';
 import 'node_panel.dart';
 import 'node_picker.dart';
+import 'run_bridge.dart';
+import 'run_controller.dart';
 
 /// DESIGN §4.4: flows list | canvas | node panel. Workflows are n8n JSON files in
 /// the app data dir for now; hk-store / REST persistence replaces [FlowStore] later.
@@ -28,6 +33,7 @@ class FlowsScreen extends ConsumerStatefulWidget {
 class _FlowsScreenState extends ConsumerState<FlowsScreen> {
   final _editor = FlowEditor();
   final _canvasKey = GlobalKey<FlowCanvasState>();
+  final FlowRunController _runs = ffiRunController();
   FlowStore? _store;
   List<FlowFile> _files = const [];
   String? _currentId;
@@ -42,13 +48,20 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
   void initState() {
     super.initState();
     _editor.addListener(_onEdit);
+    _runs.addListener(_onRunChange);
     _init();
+  }
+
+  void _onRunChange() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     _autosave?.cancel();
     _editor.removeListener(_onEdit);
+    _runs.removeListener(_onRunChange);
+    _runs.dispose();
     // Fire-and-forget: the store outlives the widget and a dirty doc must not be lost.
     if (_editor.dirty && _currentId != null) unawaited(_save());
     _editor.dispose();
@@ -59,7 +72,13 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
     try {
       _store = await FlowStore.open();
       await _refresh();
-      if (_files.isNotEmpty) await _open(_files.first.id);
+      final pending = ref.read(pendingFlowOpenProvider);
+      if (pending != null) {
+        ref.read(pendingFlowOpenProvider.notifier).set(null);
+        await _openRun(pending);
+      } else if (_files.isNotEmpty) {
+        await _open(_files.first.id);
+      }
     } catch (e) {
       _error = e.toString();
     }
@@ -110,6 +129,7 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
     if (_editor.dirty) await _save();
     try {
       final wf = await s.load(id);
+      _runs.clear();
       _editor.load(wf);
       _savedName = wf.name;
       if (!mounted) return;
@@ -124,6 +144,79 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
       _toast('Cannot open flow: ${e.message}');
     } catch (e) {
       _toast('Cannot open flow: $e');
+    }
+  }
+
+  /// Show a stored run (from the Runs screen): on the flow it ran when that is
+  /// on this device, else on a copy of the workflow snapshot.
+  Future<void> _openRun(PendingFlowOpen p) async {
+    final s = _store;
+    if (s == null) return;
+    var id = p.flowId;
+    if (id != null && !_files.any((f) => f.id == id)) id = null;
+    try {
+      if (id == null) {
+        final json = p.workflowJson;
+        if (json == null) return _toast('This run has no workflow snapshot');
+        final wf = FlowWorkflow.parse(json)
+            .withoutField('id')
+            .withoutField('active');
+        final f = await s.create(
+          '${wf.name.isEmpty ? 'Workflow' : wf.name} (run copy)',
+          from: wf,
+        );
+        await _refresh();
+        id = f.id;
+      }
+      await _open(id);
+      _runs.show(p.overlay);
+    } catch (e) {
+      _toast('Cannot open run: ${describeError(e)}');
+    }
+  }
+
+  /// Test (pinned data honoured) or live-once run from the selected trigger, else
+  /// the Manual Trigger.
+  Future<void> _runFlow({required bool test}) async {
+    final id = _currentId;
+    if (id == null || _runs.running) return;
+    if (_editor.dirty) await _save();
+    final wf = _editor.workflow;
+    final errors = <String>[
+      ...wf.validate(),
+      ...validateWithEngine(_editor.exportWorkflow())
+          .where((i) => i.startsWith('error'))
+          .map((i) => i.replaceFirst('error: ', '')),
+    ];
+    if (errors.isNotEmpty) return _toast('Cannot run: ${errors.first}');
+    final types = ref.read(nodeTypesProvider).byType;
+    final sel = _editor.selectedNode;
+    String? trigger;
+    if (sel != null &&
+        categoryOf(sel.type, group: types[sel.type]?.group ?? const []) ==
+            NodeCategory.trigger) {
+      trigger = sel.name;
+    }
+    await _runs.run(wf, flowId: id, test: test, triggerNode: trigger);
+    if (_runs.error != null) _toast(_runs.error!);
+  }
+
+  Future<void> _toggleActive(bool value) async {
+    final id = _currentId;
+    if (id == null) return;
+    try {
+      if (_editor.dirty) await _save();
+      final json = _editor.workflow
+          .withField('id', id)
+          .toJsonString(pretty: false);
+      final now = await run_api.setWorkflowActive(
+        workflowJson: json,
+        active: value,
+      );
+      _editor.setActive(now);
+      _toast(now ? 'Workflow activated on the instance' : 'Workflow deactivated');
+    } catch (e) {
+      _toast('Activation failed: ${describeError(e)}');
     }
   }
 
@@ -390,6 +483,7 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
               nodeName: name,
               types: types,
               onClose: () => Navigator.pop(ctx),
+              overlay: _runs.overlay,
             ),
           ),
         );
@@ -432,6 +526,7 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
                   nodeName: sel.name,
                   types: types.byType,
                   onClose: () => setState(() => _panelOpen = false),
+                  overlay: _runs.overlay,
                 ),
               ),
             ],
@@ -490,7 +585,9 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
           },
           onMessage: _toast,
           onSave: _save,
+          overlay: _runs.overlay,
         ),
+        if (_runs.overlay?.error != null) _runErrorBanner(),
         if (types.error != null)
           Positioned(
             top: HkTokens.s2,
@@ -521,6 +618,45 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _runErrorBanner() {
+    final hk = context.hk;
+    final o = _runs.overlay!;
+    return Positioned(
+      left: HkTokens.s2,
+      right: HkTokens.s2,
+      bottom: HkTokens.s2,
+      child: Material(
+        color: hk.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(HkTokens.radiusCard),
+          side: BorderSide(color: hk.err),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(HkTokens.s2),
+          child: Row(
+            children: [
+              Icon(Icons.error, size: 18, color: hk.err),
+              const SizedBox(width: HkTokens.s2),
+              Expanded(
+                child: Text(
+                  o.errorNode == null ? o.error! : '${o.errorNode}: ${o.error}',
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Dismiss run result',
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: _runs.clear,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -668,6 +804,8 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
               () => setState(() => _panelOpen = true),
             ),
           _btn(Icons.rule, 'Validate', hasFlow ? _validate : null),
+          const SizedBox(width: HkTokens.s1),
+          _runButtons(wide, hasFlow),
           PopupMenuButton<String>(
             tooltip: 'Import / export',
             icon: const Icon(Icons.import_export),
@@ -720,6 +858,65 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _runButtons(bool wide, bool hasFlow) {
+    final running = _runs.running;
+    final remote = ref.watch(remoteConnectedProvider);
+    final spinner = const SizedBox(
+      width: 18,
+      height: 18,
+      child: CircularProgressIndicator(strokeWidth: 2),
+    );
+    final canRun = hasFlow && !running;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Center(
+          child: Tooltip(
+            message: 'Run from the selected trigger, using pinned data',
+            child: FilledButton.tonalIcon(
+              style: FilledButton.styleFrom(minimumSize: const Size(48, 40)),
+              onPressed: canRun ? () => _runFlow(test: true) : null,
+              icon: running ? spinner : const Icon(Icons.play_arrow, size: 20),
+              label: wide ? const Text('Test workflow') : const Text('Test'),
+            ),
+          ),
+        ),
+        PopupMenuButton<String>(
+          tooltip: 'More ways to run',
+          enabled: canRun,
+          icon: const Icon(Icons.arrow_drop_down),
+          onSelected: (v) {
+            if (v == 'live') _runFlow(test: false);
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: 'live',
+              child: Text('Run once, ignore pinned data'),
+            ),
+          ],
+        ),
+        if (_runs.overlay != null && !running)
+          _btn(Icons.layers_clear_outlined, 'Clear run overlay', _runs.clear),
+        Tooltip(
+          message: remote
+              ? 'Arm the triggers of this workflow on the connected instance'
+              : 'Activation needs a connected instance. Add one in Instances; locally you can only test.',
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(width: HkTokens.s2),
+              Text('Active', style: Theme.of(context).textTheme.bodySmall),
+              Switch(
+                value: _editor.workflow.active,
+                onChanged: remote && hasFlow ? _toggleActive : null,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

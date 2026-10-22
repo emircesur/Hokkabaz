@@ -5,8 +5,10 @@ import '../../theme/tokens.dart';
 import 'model/flow_editor.dart';
 import 'model/n8n_clipboard.dart';
 import 'model/node_types.dart';
+import 'model/run_overlay.dart';
 import 'model/workflow_model.dart';
 import 'node_card.dart';
+import 'node_io_tab.dart';
 import 'params_form.dart';
 
 /// Right-hand inspector for one node: rename, generated params form, node
@@ -18,12 +20,16 @@ class NodePanel extends StatelessWidget {
     required this.nodeName,
     required this.types,
     required this.onClose,
+    this.overlay,
   });
 
   final FlowEditor editor;
   final String nodeName;
   final Map<String, NodeTypeInfo> types;
   final VoidCallback onClose;
+
+  /// Run shown on the canvas; feeds the Input / Output tabs.
+  final RunOverlay? overlay;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +45,7 @@ class NodePanel extends StatelessWidget {
         final unsupported =
             info == null || !info.supportsVersion(node.typeVersion);
         return DefaultTabController(
-          length: 3,
+          length: 5,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -105,8 +111,12 @@ class NodePanel extends StatelessWidget {
                   ),
                 ),
               const TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
                 tabs: [
                   Tab(text: 'Parameters'),
+                  Tab(text: 'Input'),
+                  Tab(text: 'Output'),
                   Tab(text: 'Settings'),
                   Tab(text: 'JSON'),
                 ],
@@ -115,6 +125,18 @@ class NodePanel extends StatelessWidget {
                 child: TabBarView(
                   children: [
                     _ParamsTab(editor: editor, node: node, info: info),
+                    NodeIoTab(
+                      editor: editor,
+                      nodeName: node.name,
+                      overlay: overlay,
+                      side: IoSide.input,
+                    ),
+                    NodeIoTab(
+                      editor: editor,
+                      nodeName: node.name,
+                      overlay: overlay,
+                      side: IoSide.output,
+                    ),
                     _SettingsTab(editor: editor, node: node, info: info),
                     _JsonTab(editor: editor, node: node),
                   ],
