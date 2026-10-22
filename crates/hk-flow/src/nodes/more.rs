@@ -1013,3 +1013,79 @@ impl FlowNode for LegacyFunctionNode {
         Ok(vec![items])
     }
 }
+
+/// Legacy Item Lists (`itemLists`): one node with an `operation`, since split into Split Out,
+/// Aggregate, Remove Duplicates, Sort and Limit. Old exports keep the parameter names the new
+/// nodes inherited, so each operation runs on the matching node with the same parameters.
+#[derive(Debug)]
+pub struct ItemListsNode(NodeTypeDescription);
+
+impl Default for ItemListsNode {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ItemListsNode {
+    pub fn new() -> Self {
+        Self(describe(json!({
+            "displayName": "Item Lists",
+            "name": "n8n-nodes-base.itemLists",
+            "version": [1, 2, 2.1, 3, 3.1, 3.2],
+            "defaultVersion": 3.2,
+            "description": "Helper for working with lists of items (legacy; use Split Out, Aggregate, Sort, Limit, Remove Duplicates)",
+            "group": ["transform"],
+            "defaults": {"name": "Item Lists", "color": "#00bb88"},
+            "inputs": ["main"],
+            "outputs": ["main"],
+            "properties": [
+                {"displayName": "Operation", "name": "operation", "type": "options", "default": "splitOutItems",
+                 "options": [
+                    {"name": "Split Out Items", "value": "splitOutItems"},
+                    {"name": "Aggregate Items", "value": "aggregateItems"},
+                    {"name": "Remove Duplicates", "value": "removeDuplicates"},
+                    {"name": "Sort", "value": "sort"},
+                    {"name": "Limit", "value": "limit"}]},
+                {"displayName": "Field To Split Out", "name": "fieldToSplitOut", "type": "string", "default": "",
+                 "displayOptions": {"show": {"operation": ["splitOutItems"]}}},
+                {"displayName": "Max Items", "name": "maxItems", "type": "number", "default": 1,
+                 "displayOptions": {"show": {"operation": ["limit"]}}}
+            ]
+        })))
+    }
+
+    fn target(op: &str) -> Option<Box<dyn FlowNode>> {
+        Some(match op {
+            "splitOutItems" => Box::new(super::SplitOutNode::new()),
+            "aggregateItems" => Box::new(super::AggregateNode::new()),
+            "removeDuplicates" => Box::new(super::RemoveDuplicatesNode::new()),
+            "sort" => Box::new(super::SortNode::new()),
+            "limit" => Box::new(super::LimitNode::new()),
+            _ => return None,
+        })
+    }
+}
+
+#[async_trait]
+impl FlowNode for ItemListsNode {
+    fn description(&self) -> &NodeTypeDescription {
+        &self.0
+    }
+
+    async fn execute(&self, ctx: &NodeContext) -> Result<NodeOutput, FlowError> {
+        let op = match raw_param(ctx, "operation") {
+            Some(Value::String(s)) => s.clone(),
+            _ => "splitOutItems".to_owned(),
+        };
+        let inner = Self::target(&op).ok_or_else(|| {
+            node_err(
+                ctx,
+                format!("Item Lists operation `{op}` is not supported; use the Summarize node"),
+            )
+        })?;
+        let mut c = ctx.clone();
+        c.node.parameters.remove("operation");
+        c.node.parameters.remove("resource");
+        inner.execute(&c).await
+    }
+}

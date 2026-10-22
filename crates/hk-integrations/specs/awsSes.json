@@ -1,0 +1,103 @@
+{
+ "name": "awsSes",
+ "type": "n8n-nodes-base.awsSes",
+ "display": "AWS SES",
+ "description": "Send email with Amazon SES",
+ "color": "#DD344C",
+ "versions": [
+  1
+ ],
+ "base": "https://email.{{$credentials.region}}.amazonaws.com",
+ "cred": {
+  "name": "awsSesApi",
+  "display": "AWS (SES)",
+  "aws": {
+   "service": "ses"
+  },
+  "docs": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
+ },
+ "resources": [
+  {
+   "name": "email",
+   "display": "Email",
+   "ops": [
+    {
+     "name": "send",
+     "display": "Send",
+     "method": "POST",
+     "path": "/v2/email/outbound-emails",
+     "action": "Send an email",
+     "params": [
+      {
+       "name": "toAddresses",
+       "display": "To (comma separated)",
+       "required": true
+      },
+      {
+       "name": "fromEmail",
+       "display": "From Email",
+       "required": true,
+       "send": "body",
+       "prop": "FromEmailAddress"
+      },
+      {
+       "name": "subject",
+       "display": "Subject",
+       "required": true
+      },
+      {
+       "name": "body",
+       "display": "Body",
+       "required": true
+      },
+      {
+       "name": "isBodyHtml",
+       "display": "Body is HTML",
+       "type": "boolean"
+      }
+     ],
+     "body": {
+      "Destination": "={{ {\"ToAddresses\": String($parameter[\"toAddresses\"]).split(\",\").map(s => s.trim())} }}",
+      "Content": "={{ {\"Simple\": {\"Subject\": {\"Data\": $parameter[\"subject\"], \"Charset\": \"UTF-8\"}, \"Body\": ($parameter[\"isBodyHtml\"] ? {\"Html\": {\"Data\": $parameter[\"body\"], \"Charset\": \"UTF-8\"}} : {\"Text\": {\"Data\": $parameter[\"body\"], \"Charset\": \"UTF-8\"}})}} }}"
+     }
+    },
+    {
+     "name": "sendTemplate",
+     "display": "Send Template",
+     "method": "POST",
+     "path": "/v2/email/outbound-emails",
+     "action": "Send a templated email",
+     "params": [
+      {
+       "name": "toAddresses",
+       "display": "To (comma separated)",
+       "required": true
+      },
+      {
+       "name": "fromEmail",
+       "display": "From Email",
+       "required": true,
+       "send": "body",
+       "prop": "FromEmailAddress"
+      },
+      {
+       "name": "templateName",
+       "display": "Template Name",
+       "required": true
+      },
+      {
+       "name": "templateData",
+       "display": "Template Data (JSON)",
+       "type": "json",
+       "default": "{}"
+      }
+     ],
+     "body": {
+      "Destination": "={{ {\"ToAddresses\": String($parameter[\"toAddresses\"]).split(\",\").map(s => s.trim())} }}",
+      "Content": "={{ {\"Template\": {\"TemplateName\": $parameter[\"templateName\"], \"TemplateData\": (typeof $parameter[\"templateData\"] === \"string\" ? $parameter[\"templateData\"] : JSON.stringify($parameter[\"templateData\"]))}} }}"
+     }
+    }
+   ]
+  }
+ ]
+}

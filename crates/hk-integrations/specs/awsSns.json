@@ -1,0 +1,151 @@
+{
+ "name": "awsSns",
+ "type": "n8n-nodes-base.awsSns",
+ "display": "AWS SNS",
+ "description": "Publish to Amazon SNS topics",
+ "color": "#DD344C",
+ "versions": [
+  1
+ ],
+ "base": "https://sns.{{$credentials.region}}.amazonaws.com",
+ "cred": {
+  "name": "awsSnsApi",
+  "display": "AWS (SNS)",
+  "aws": {
+   "service": "sns"
+  },
+  "docs": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
+ },
+ "resources": [
+  {
+   "name": "topic",
+   "display": "Topic",
+   "ops": [
+    {
+     "name": "publish",
+     "display": "Publish",
+     "method": "POST",
+     "path": "/",
+     "action": "Publish a message",
+     "params": [
+      {
+       "name": "topicArn",
+       "display": "Topic ARN",
+       "required": true,
+       "send": "body",
+       "prop": "TopicArn"
+      },
+      {
+       "name": "subject",
+       "display": "Subject",
+       "send": "body",
+       "prop": "Subject"
+      },
+      {
+       "name": "message",
+       "display": "Message",
+       "required": true,
+       "send": "body",
+       "prop": "Message"
+      }
+     ],
+     "body": {
+      "Action": "Publish",
+      "Version": "2010-03-31"
+     },
+     "out": "PublishResponse"
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/",
+     "action": "Create a topic",
+     "params": [
+      {
+       "name": "name",
+       "display": "Name",
+       "required": true,
+       "send": "body",
+       "prop": "Name"
+      }
+     ],
+     "body": {
+      "Action": "CreateTopic",
+      "Version": "2010-03-31"
+     },
+     "out": "CreateTopicResponse"
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "POST",
+     "path": "/",
+     "action": "List topics",
+     "body": {
+      "Action": "ListTopics",
+      "Version": "2010-03-31"
+     },
+     "out": "ListTopicsResponse.ListTopicsResult.Topics.member",
+     "list": true
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "POST",
+     "path": "/",
+     "action": "Delete a topic",
+     "params": [
+      {
+       "name": "topicArn",
+       "display": "Topic ARN",
+       "required": true,
+       "send": "body",
+       "prop": "TopicArn"
+      }
+     ],
+     "body": {
+      "Action": "DeleteTopic",
+      "Version": "2010-03-31"
+     }
+    },
+    {
+     "name": "subscribe",
+     "display": "Subscribe",
+     "method": "POST",
+     "path": "/",
+     "action": "Subscribe an endpoint",
+     "params": [
+      {
+       "name": "topicArn",
+       "display": "Topic ARN",
+       "required": true,
+       "send": "body",
+       "prop": "TopicArn"
+      },
+      {
+       "name": "protocol",
+       "display": "Protocol",
+       "required": true,
+       "send": "body",
+       "prop": "Protocol",
+       "default": "email"
+      },
+      {
+       "name": "endpoint",
+       "display": "Endpoint",
+       "required": true,
+       "send": "body",
+       "prop": "Endpoint"
+      }
+     ],
+     "body": {
+      "Action": "Subscribe",
+      "Version": "2010-03-31"
+     }
+    }
+   ]
+  }
+ ],
+ "body_format": "form"
+}

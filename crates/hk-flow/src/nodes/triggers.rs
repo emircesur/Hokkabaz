@@ -121,6 +121,42 @@ pub fn trigger_nodes() -> Vec<TriggerNode> {
             ]),
         ),
         trigger(
+            crate::triggers::CRON_TYPE,
+            "Cron",
+            json!([1]),
+            "Triggers the workflow at fixed times (legacy; use Schedule Trigger)",
+            json!([
+                {"displayName": "Trigger Times", "name": "triggerTimes", "type": "fixedCollection",
+                 "typeOptions": {"multipleValues": true}, "default": {"item": [{"mode": "everyDay"}]},
+                 "options": [{"name": "item", "displayName": "Item", "values": [
+                    {"displayName": "Mode", "name": "mode", "type": "options", "default": "everyDay",
+                     "options": [
+                        {"name": "Every Minute", "value": "everyMinute"}, {"name": "Every Hour", "value": "everyHour"},
+                        {"name": "Every Day", "value": "everyDay"}, {"name": "Every Week", "value": "everyWeek"},
+                        {"name": "Every Month", "value": "everyMonth"}, {"name": "Every X", "value": "everyX"},
+                        {"name": "Custom", "value": "custom"}]},
+                    {"displayName": "Hour", "name": "hour", "type": "number", "default": 14},
+                    {"displayName": "Minute", "name": "minute", "type": "number", "default": 0},
+                    {"displayName": "Day of Month", "name": "dayOfMonth", "type": "number", "default": 1},
+                    {"displayName": "Weekday", "name": "weekday", "type": "number", "default": 1},
+                    {"displayName": "Value", "name": "value", "type": "number", "default": 15},
+                    {"displayName": "Unit", "name": "unit", "type": "options", "default": "minutes",
+                     "options": [{"name": "Minutes", "value": "minutes"}, {"name": "Hours", "value": "hours"}]},
+                    {"displayName": "Cron Expression", "name": "cronExpression", "type": "string", "default": "0 * * * *"}]}]}
+            ]),
+        ),
+        trigger(
+            crate::triggers::INTERVAL_TYPE,
+            "Interval",
+            json!([1]),
+            "Triggers the workflow every given interval (legacy; use Schedule Trigger)",
+            json!([
+                {"displayName": "Interval", "name": "interval", "type": "number", "default": 1},
+                {"displayName": "Unit", "name": "unit", "type": "options", "default": "seconds",
+                 "options": [{"name": "Seconds", "value": "seconds"}, {"name": "Minutes", "value": "minutes"}, {"name": "Hours", "value": "hours"}]}
+            ]),
+        ),
+        trigger(
             WEBHOOK_TYPE,
             "Webhook",
             json!([1, 1.1, 2, 2.1]),

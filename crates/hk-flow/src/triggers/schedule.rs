@@ -64,6 +64,11 @@ impl ScheduleSpec {
     /// every day at midnight... which n8n shows as "Days"; here an empty list is an error
     /// (activating a trigger that never fires is a mistake worth surfacing).
     pub fn from_node(node: &Node) -> Result<Self, FlowError> {
+        match node.node_type.as_str() {
+            super::CRON_TYPE => return legacy_cron(node),
+            super::INTERVAL_TYPE => return legacy_interval(node),
+            _ => {}
+        }
         let intervals = node
             .parameters
             .get("rule")
@@ -103,6 +108,98 @@ impl ScheduleSpec {
             .filter_map(|r| r.next_fire(after_ms, tz, anchor_ms))
             .min()
     }
+}
+
+fn finish(rules: Vec<ScheduleRule>, node: &Node) -> Result<ScheduleSpec, FlowError> {
+    if rules.is_empty() {
+        return Err(FlowError::Invalid(format!(
+            "schedule `{}` has no trigger times",
+            node.name
+        )));
+    }
+    let spec = ScheduleSpec { rules };
+    spec.validate()?;
+    Ok(spec)
+}
+
+/// Legacy Cron node: `triggerTimes.item[]` with a `mode` per entry.
+fn legacy_cron(node: &Node) -> Result<ScheduleSpec, FlowError> {
+    let items = node
+        .parameters
+        .get("triggerTimes")
+        .and_then(|t| t.get("item"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| FlowError::Invalid(format!("cron `{}` has no triggerTimes", node.name)))?;
+    let mut rules = Vec::new();
+    for i in items {
+        let Some(v) = i.as_object() else { continue };
+        let name = &node.name;
+        let minute = ranged(name, v, "minute", 0, 0, 59)?;
+        let hour = ranged(name, v, "hour", 14, 0, 23)?;
+        let cron = match v.get("mode").and_then(Value::as_str).unwrap_or("everyDay") {
+            "everyMinute" => "0 * * * * *".to_owned(),
+            "everyHour" => format!("0 {minute} * * * *"),
+            "everyDay" => format!("0 {minute} {hour} * * *"),
+            "everyWeek" => format!(
+                "0 {minute} {hour} * * {}",
+                ranged(name, v, "weekday", 1, 0, 6)?
+            ),
+            "everyMonth" => format!(
+                "0 {minute} {hour} {} * *",
+                ranged(name, v, "dayOfMonth", 1, 1, 31)?
+            ),
+            "everyX" => {
+                let n = ranged(name, v, "value", 15, 1, 59)?;
+                match v.get("unit").and_then(Value::as_str).unwrap_or("minutes") {
+                    "hours" => format!("0 0 */{n} * * *"),
+                    _ => format!("0 */{n} * * * *"),
+                }
+            }
+            "custom" => v
+                .get("cronExpression")
+                .and_then(Value::as_str)
+                .unwrap_or("0 * * * *")
+                .to_owned(),
+            other => {
+                return Err(FlowError::Invalid(format!(
+                    "cron `{name}`: unknown mode `{other}`"
+                )));
+            }
+        };
+        rules.push(ScheduleRule {
+            cron,
+            every_weeks: None,
+        });
+    }
+    finish(rules, node)
+}
+
+/// Legacy Interval node: every `interval` seconds / minutes / hours.
+fn legacy_interval(node: &Node) -> Result<ScheduleSpec, FlowError> {
+    let n = int(&node.parameters, "interval", 1).max(1);
+    let (cron, label) = match node
+        .parameters
+        .get("unit")
+        .and_then(Value::as_str)
+        .unwrap_or("seconds")
+    {
+        "minutes" => (format!("0 */{n} * * * *"), "minutes"),
+        "hours" => (format!("0 0 */{n} * * *"), "hours"),
+        _ => (format!("*/{n} * * * * *"), "seconds"),
+    };
+    if label != "hours" && n > 59 {
+        return Err(FlowError::Invalid(format!(
+            "interval `{}`: {n} {label} is more than a cron step can express; use a larger unit",
+            node.name
+        )));
+    }
+    finish(
+        vec![ScheduleRule {
+            cron,
+            every_weeks: None,
+        }],
+        node,
+    )
 }
 
 fn lower(node: &str, v: &Map<String, Value>) -> Result<ScheduleRule, FlowError> {

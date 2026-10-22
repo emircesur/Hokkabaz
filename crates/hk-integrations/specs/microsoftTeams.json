@@ -15,9 +15,10 @@
   "oauth": {
    "token_url": "https://login.microsoftonline.com/{{$credentials.tenant}}/oauth2/v2.0/token",
    "scope": "offline_access ChannelMessage.Send Channel.ReadBasic.All Team.ReadBasic.All Chat.ReadWrite",
-   "tenant": true
+   "tenant": true,
+   "auth_url": "https://login.microsoftonline.com/{{$credentials.tenant}}/oauth2/v2.0/authorize"
   },
-  "docs": "https://learn.microsoft.com/entra/identity-platform/v2-oauth2-auth-code-flow (register an app, sign in once, keep the refresh token)"
+  "docs": "https://entra.microsoft.com (register an app, platform Mobile and desktop, redirect http://localhost), then press Sign in"
  },
  "resources": [
   {

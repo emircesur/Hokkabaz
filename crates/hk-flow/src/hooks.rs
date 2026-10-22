@@ -89,6 +89,18 @@ pub trait CredentialResolver: Send + Sync + fmt::Debug {
         credential_type: &str,
         reference: &CredentialRef,
     ) -> Result<Map<String, Value>, FlowError>;
+
+    /// Merge `patch` into the stored credential. OAuth refresh tokens rotate: a node that just
+    /// minted a new one hands it back here. Resolvers that cannot write keep the default no-op
+    /// (the next run then refreshes with the old token again, which most providers still accept).
+    async fn persist(
+        &self,
+        _credential_type: &str,
+        _reference: &CredentialRef,
+        _patch: Map<String, Value>,
+    ) -> Result<(), FlowError> {
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------- remote nodes

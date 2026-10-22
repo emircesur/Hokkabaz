@@ -244,6 +244,113 @@ fn pick(v: &Value, fields: &[String]) -> Value {
     Value::Object(out)
 }
 
+fn form_enc(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+            out.push(char::from(b));
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// `url` with `query` appended, query values percent-encoded (what the signer canonicalises).
+fn rb_url(url: &str, query: &[&(String, String)]) -> Result<reqwest::Url, String> {
+    let mut u = reqwest::Url::parse(url).map_err(|_| "Invalid URL".to_owned())?;
+    if !query.is_empty() {
+        let q = query
+            .iter()
+            .map(|(k, v)| format!("{}={}", form_enc(k), form_enc(v)))
+            .collect::<Vec<_>>()
+            .join("&");
+        u.set_query(Some(&q));
+    }
+    Ok(u)
+}
+
+/// Minimal XML -> JSON for services that answer in XML (AWS Query APIs): element name keys,
+/// repeated elements become arrays, leaf text becomes a string. Attributes are ignored.
+fn xml_to_json(xml: &str) -> Option<Value> {
+    fn parse(s: &str, pos: &mut usize) -> Option<(String, Value)> {
+        let b = s.as_bytes();
+        while *pos < b.len() && b[*pos] != b'<' {
+            *pos += 1;
+        }
+        // skip declarations / comments
+        while s[*pos..].starts_with("<?") || s[*pos..].starts_with("<!") {
+            *pos += s[*pos..].find('>')? + 1;
+            while *pos < b.len() && b[*pos] != b'<' {
+                *pos += 1;
+            }
+        }
+        if *pos >= b.len() || b[*pos] != b'<' {
+            return None;
+        }
+        let end = *pos + s[*pos..].find('>')?;
+        let head = &s[*pos + 1..end];
+        let name = head
+            .split(|c: char| c.is_whitespace() || c == '/')
+            .next()?
+            .rsplit(':')
+            .next()?
+            .to_owned();
+        let self_closing = head.ends_with('/');
+        *pos = end + 1;
+        if self_closing {
+            return Some((name, Value::String(String::new())));
+        }
+        let mut children: Vec<(String, Value)> = Vec::new();
+        let mut text = String::new();
+        loop {
+            let next = s[*pos..].find('<')? + *pos;
+            text.push_str(&s[*pos..next]);
+            *pos = next;
+            if s[*pos..].starts_with("</") {
+                *pos += s[*pos..].find('>')? + 1;
+                break;
+            }
+            if s[*pos..].starts_with("<![CDATA[") {
+                let e = s[*pos..].find("]]>")? + *pos;
+                text.push_str(&s[*pos + 9..e]);
+                *pos = e + 3;
+                continue;
+            }
+            children.push(parse(s, pos)?);
+        }
+        if children.is_empty() {
+            let t = text
+                .trim()
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&apos;", "'")
+                .replace("&amp;", "&");
+            return Some((name, Value::String(t)));
+        }
+        let mut obj = Map::new();
+        for (k, v) in children {
+            match obj.get_mut(&k) {
+                Some(Value::Array(a)) => a.push(v),
+                Some(old) => {
+                    let first = old.take();
+                    *old = Value::Array(vec![first, v]);
+                }
+                None => {
+                    obj.insert(k, v);
+                }
+            }
+        }
+        Some((name, Value::Object(obj)))
+    }
+    let mut pos = 0;
+    let (name, v) = parse(xml, &mut pos)?;
+    let mut root = Map::new();
+    root.insert(name, v);
+    Some(Value::Object(root))
+}
+
 /// First row = column names; later rows become objects (`row_number` is the sheet row, 2-based).
 fn table_rows(table: &[Value]) -> Vec<Value> {
     let Some(Value::Array(head)) = table.first() else {
@@ -392,7 +499,9 @@ impl RestNode {
                 self.send_one(ctx, i, &p.name, v, &send, &mut req, &mut body)?;
             }
         }
-        if let Some(raw) = body.remove(RAW_BODY) {
+        if let Some(pname) = &rq.binary_body {
+            req.body = self.file_body(ctx, i, pname, rq.multipart.then_some(&body))?;
+        } else if let Some(raw) = body.remove(RAW_BODY) {
             req.body = RestBody::Json(raw);
         } else if !body.is_empty() {
             req.body = RestBody::Json(Value::Object(body));
@@ -413,6 +522,71 @@ impl RestNode {
             simplify,
             return_all,
             limit,
+        })
+    }
+
+    /// The body of an upload: the item's file (optionally wrapped with JSON metadata as
+    /// `multipart/related`).
+    fn file_body(
+        &self,
+        ctx: &NodeContext,
+        i: usize,
+        name_param: &str,
+        meta: Option<&Map<String, Value>>,
+    ) -> Result<RestBody, FlowError> {
+        use base64::Engine as _;
+        let prop = param(ctx, &self.desc, name_param, i)?
+            .map(|v| display(&v))
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "data".to_owned());
+        let bin = ctx
+            .input
+            .first()
+            .and_then(|port| port.get(i))
+            .and_then(|it| it.binary.as_ref())
+            .and_then(|b| b.get(&prop))
+            .ok_or_else(|| {
+                node_err(
+                    ctx,
+                    format!("Input item {i} has no binary property `{prop}`"),
+                )
+            })?;
+        if bin.data.is_empty() {
+            return Err(node_err(
+                ctx,
+                format!(
+                    "Binary property `{prop}` is stored outside the item and cannot be read here"
+                ),
+            ));
+        }
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(bin.data.as_bytes())
+            .map_err(|e| node_err(ctx, format!("Binary data is not valid base64: {e}")))?;
+        let ctype = if bin.mime_type.is_empty() {
+            "application/octet-stream".to_owned()
+        } else {
+            bin.mime_type.clone()
+        };
+        let Some(meta) = meta else {
+            return Ok(RestBody::Raw {
+                content_type: ctype,
+                data: bytes,
+            });
+        };
+        let boundary = format!("hk{:x}", bytes.len() ^ 0x5bd1_e995);
+        let mut data = Vec::with_capacity(bytes.len() + 512);
+        data.extend_from_slice(
+            format!(
+                "--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{}\r\n--{boundary}\r\nContent-Type: {ctype}\r\n\r\n",
+                Value::Object(meta.clone())
+            )
+            .as_bytes(),
+        );
+        data.extend_from_slice(&bytes);
+        data.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+        Ok(RestBody::Raw {
+            content_type: format!("multipart/related; boundary={boundary}"),
+            data,
         })
     }
 
@@ -520,10 +694,19 @@ impl RestNode {
                 .timeout(self.spec.timeout)
                 .build()
                 .map_err(|e| node_err(ctx, e.without_url().to_string()))?;
-            let token = crate::oauth::access_token(&client, &data)
+            let minted = crate::oauth::access_token(&client, &data)
                 .await
                 .map_err(|m| node_err(ctx, m))?;
-            data.insert("accessToken".into(), Value::String(token));
+            if let Some(next) = minted.new_refresh {
+                // Rotated refresh token: store it, or the next run refreshes with a dead one.
+                let mut patch = Map::new();
+                patch.insert("refreshToken".into(), Value::String(next.clone()));
+                if let Err(e) = resolver.persist(&c.name, reference, patch).await {
+                    tracing::warn!(error = %e, "could not store the rotated refresh token");
+                }
+                data.insert("refreshToken".into(), Value::String(next));
+            }
+            data.insert("accessToken".into(), Value::String(minted.token));
         }
         let auth = self
             .creds
@@ -534,13 +717,14 @@ impl RestNode {
 
     // --------------------------------------------------------------- http
 
-    async fn send_request(
+    /// The request with query, headers, auth and body applied (AWS requests are signed here).
+    fn prepare(
         &self,
         ctx: &NodeContext,
         client: &reqwest::Client,
         req: &RestRequest,
         auth: &AppliedAuth,
-    ) -> Result<Value, FlowError> {
+    ) -> Result<reqwest::RequestBuilder, FlowError> {
         let url = reqwest::Url::parse(&req.url).map_err(|_| node_err(ctx, "Invalid URL"))?;
         if !matches!(url.scheme(), "http" | "https") {
             return Err(node_err(ctx, "Only http and https URLs are supported"));
@@ -558,21 +742,97 @@ impl RestNode {
         if let Some((u, p)) = &auth.basic {
             rb = rb.basic_auth(u, Some(p));
         }
-        rb = match &req.body {
-            RestBody::None => rb,
-            RestBody::Json(v) => {
-                let mut v = v.clone();
-                if let Value::Object(o) = &mut v {
-                    o.extend(auth.body.clone());
-                }
-                rb.header("content-type", "application/json")
-                    .body(v.to_string())
+        if let Some(aws) = &auth.aws {
+            // Signed requests need the exact bytes, so encode the body here.
+            let (ctype, bytes): (Option<String>, Vec<u8>) = match &req.body {
+                RestBody::None => (None, Vec::new()),
+                RestBody::Json(v) => (Some("application/json".into()), v.to_string().into_bytes()),
+                RestBody::Form(p) => (
+                    Some("application/x-www-form-urlencoded".into()),
+                    p.iter()
+                        .map(|(k, v)| format!("{}={}", form_enc(k), form_enc(v)))
+                        .collect::<Vec<_>>()
+                        .join("&")
+                        .into_bytes(),
+                ),
+                RestBody::Raw { content_type, data } => (Some(content_type.clone()), data.clone()),
+            };
+            let mut signed_url = rb_url(&req.url, &query).map_err(|m| node_err(ctx, m))?;
+            // amz: query params are sorted + encoded by the signer from the URL itself
+            signed_url.set_fragment(None);
+            let mut extra: Vec<(String, String)> = Vec::new();
+            if let Some(c) = &ctype {
+                extra.push(("content-type".into(), c.clone()));
             }
-            RestBody::Form(p) => rb.form(p),
-            RestBody::Raw { content_type, data } => rb
-                .header("content-type", content_type.as_str())
-                .body(data.clone()),
-        };
+            for (k, v) in req.headers.iter() {
+                if k.to_ascii_lowercase().starts_with("x-amz-") {
+                    extra.push((k.clone(), v.clone()));
+                }
+            }
+            let keys = crate::sigv4::Keys {
+                access_key: aws.access_key.clone(),
+                secret_key: aws.secret_key.clone(),
+                region: aws.region.clone(),
+                session_token: aws.session_token.clone(),
+            };
+            let date = crate::sigv4::amz_date(std::time::SystemTime::now());
+            let signed = crate::sigv4::sign(
+                &keys,
+                &aws.service,
+                &req.method,
+                &signed_url,
+                &extra,
+                &bytes,
+                &date,
+            );
+            let m = reqwest::Method::from_bytes(req.method.as_bytes())
+                .map_err(|_| node_err(ctx, "Invalid HTTP method"))?;
+            rb = client.request(m, signed_url);
+            for (k, v) in req.headers.iter().chain(signed.iter()) {
+                rb = rb.header(k.as_str(), v.as_str());
+            }
+            if let Some(c) = ctype {
+                rb = rb.header("content-type", c);
+            }
+            rb = rb.body(bytes);
+        } else {
+            rb = match &req.body {
+                RestBody::None => rb,
+                RestBody::Json(v) => {
+                    let mut v = v.clone();
+                    if let Value::Object(o) = &mut v {
+                        o.extend(auth.body.clone());
+                    }
+                    rb.header("content-type", "application/json")
+                        .body(v.to_string())
+                }
+                RestBody::Form(p) => rb.form(p),
+                RestBody::Raw { content_type, data } => {
+                    // an operation that names its own Content-Type (Dropbox wants octet-stream) wins
+                    let own = req
+                        .headers
+                        .iter()
+                        .any(|(k, _)| k.eq_ignore_ascii_case("content-type"));
+                    let rb = if own {
+                        rb
+                    } else {
+                        rb.header("content-type", content_type.as_str())
+                    };
+                    rb.body(data.clone())
+                }
+            };
+        }
+        Ok(rb)
+    }
+
+    async fn send_request(
+        &self,
+        ctx: &NodeContext,
+        client: &reqwest::Client,
+        req: &RestRequest,
+        auth: &AppliedAuth,
+    ) -> Result<Value, FlowError> {
+        let rb = self.prepare(ctx, client, req, auth)?;
         let res = rb
             .send()
             .await
@@ -588,12 +848,59 @@ impl RestNode {
         let parsed = if text.trim().is_empty() {
             None
         } else {
-            Some(serde_json::from_str::<Value>(&text).unwrap_or_else(|_| json!({ "data": text })))
+            Some(serde_json::from_str::<Value>(&text).unwrap_or_else(|_| {
+                if text.trim_start().starts_with('<') {
+                    xml_to_json(&text).unwrap_or_else(|| json!({ "data": text }))
+                } else {
+                    json!({ "data": text })
+                }
+            }))
         };
         if !status.is_success() {
             return Err(node_err(ctx, self.map_error(status, parsed.as_ref())));
         }
         Ok(parsed.unwrap_or_else(|| json!({ "success": true })))
+    }
+
+    /// A file response: bytes + content type + a name guessed from the headers / URL.
+    async fn send_bytes(
+        &self,
+        ctx: &NodeContext,
+        client: &reqwest::Client,
+        req: &RestRequest,
+        auth: &AppliedAuth,
+    ) -> Result<(Vec<u8>, String, Option<String>), FlowError> {
+        let rb = self.prepare(ctx, client, req, auth)?;
+        let res = rb
+            .send()
+            .await
+            .map_err(|e| node_err(ctx, format!("The request failed: {}", e.without_url())))?;
+        let status = res.status();
+        if !status.is_success() {
+            let text = res.text().await.unwrap_or_default();
+            let parsed = serde_json::from_str::<Value>(&text).ok();
+            return Err(node_err(ctx, self.map_error(status, parsed.as_ref())));
+        }
+        let ctype = res
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .map_or_else(
+                || "application/octet-stream".to_owned(),
+                |s| s.split(';').next().unwrap_or("").trim().to_owned(),
+            );
+        let name = res
+            .headers()
+            .get("content-disposition")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|d| d.split("filename=").nth(1))
+            .map(|n| n.trim().trim_matches(['"', '\'', ';']).to_owned())
+            .filter(|n| !n.is_empty());
+        let bytes = res
+            .bytes()
+            .await
+            .map_err(|e| node_err(ctx, format!("Could not read the file: {}", e.without_url())))?;
+        Ok((bytes.to_vec(), ctype, name))
     }
 
     fn map_error(&self, status: reqwest::StatusCode, body: Option<&Value>) -> String {
@@ -802,6 +1109,46 @@ impl RestNode {
         Ok(out)
     }
 
+    /// File download: one item, the file in its binary property.
+    async fn download(
+        &self,
+        ctx: &NodeContext,
+        client: &reqwest::Client,
+        mut plan: Plan,
+        creds: &Resolved,
+        i: usize,
+    ) -> Result<Vec<Item>, FlowError> {
+        use base64::Engine as _;
+        if let Some(hook) = &self.spec.pre_send {
+            hook(&mut plan.req, ctx, i)?;
+        }
+        let prop = param(ctx, &self.desc, "binaryPropertyName", i)?
+            .map(|v| display(&v))
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "data".to_owned());
+        let (bytes, ctype, name) = self.send_bytes(ctx, client, &plan.req, &creds.auth).await?;
+        let file_name = param(ctx, &self.desc, "fileName", i)?
+            .map(|v| display(&v))
+            .filter(|s| !s.is_empty())
+            .or(name);
+        let mut it = Item::from_json(json!({
+            "fileName": file_name,
+            "mimeType": ctype,
+            "fileSize": bytes.len(),
+        }));
+        let mut bin = hk_flow::BinaryData {
+            data: base64::engine::general_purpose::STANDARD.encode(&bytes),
+            mime_type: ctype,
+            file_name,
+            ..hk_flow::BinaryData::default()
+        };
+        bin.file_type = None;
+        let mut map = indexmap::IndexMap::new();
+        map.insert(prop, bin);
+        it.binary = Some(map);
+        Ok(vec![it])
+    }
+
     async fn run_item(
         &self,
         ctx: &NodeContext,
@@ -810,6 +1157,9 @@ impl RestNode {
         i: usize,
     ) -> Result<Vec<Item>, FlowError> {
         let plan = self.plan(ctx, i, creds)?;
+        if plan.route.output.as_ref().is_some_and(|o| o.binary) {
+            return self.download(ctx, client, plan, creds, i).await;
+        }
         let (simplify, fields) = (
             plan.simplify,
             plan.route

@@ -13,9 +13,11 @@
   "display": "Google Slides OAuth2 API",
   "oauth": {
    "token_url": "https://oauth2.googleapis.com/token",
-   "scope": "https://www.googleapis.com/auth/presentations"
+   "scope": "https://www.googleapis.com/auth/presentations",
+   "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
+   "auth_params": "access_type=offline&prompt=consent"
   },
-  "docs": "https://developers.google.com/oauthplayground (authorize the scope, copy the refresh token)"
+  "docs": "https://console.cloud.google.com/apis/credentials (OAuth client of type Desktop app; add http://127.0.0.1:53682/callback if asked), then press Sign in"
  },
  "resources": [
   {

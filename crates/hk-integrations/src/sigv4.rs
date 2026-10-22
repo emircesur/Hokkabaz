@@ -84,6 +84,7 @@ pub(crate) struct Keys {
 /// it with [`uri_encode`]), the host header is derived from it.
 pub(crate) fn sign(
     keys: &Keys,
+    service: &str,
     method: &str,
     url: &reqwest::Url,
     extra: &[(String, String)],
@@ -141,7 +142,7 @@ pub(crate) fn sign(
     );
 
     let day = &date[..8];
-    let scope = format!("{day}/{}/s3/aws4_request", keys.region);
+    let scope = format!("{day}/{}/{service}/aws4_request", keys.region);
     let to_sign = format!(
         "{ALGORITHM}\n{date}\n{scope}\n{}",
         sha256_hex(canonical.as_bytes())
@@ -151,7 +152,7 @@ pub(crate) fn sign(
         day.as_bytes(),
     );
     let k_region = hmac(&k_date, keys.region.as_bytes());
-    let k_service = hmac(&k_region, b"s3");
+    let k_service = hmac(&k_region, service.as_bytes());
     let k_signing = hmac(&k_service, b"aws4_request");
     let signature = hex(&hmac(&k_signing, to_sign.as_bytes()));
 
@@ -198,6 +199,7 @@ mod tests {
         let url = reqwest::Url::parse("https://examplebucket.s3.amazonaws.com/test.txt").unwrap();
         let h = sign(
             &keys(),
+            "s3",
             "GET",
             &url,
             &[("range".into(), "bytes=0-9".into())],
@@ -222,7 +224,7 @@ mod tests {
         let url =
             reqwest::Url::parse("https://examplebucket.s3.amazonaws.com/?max-keys=2&prefix=J")
                 .unwrap();
-        let h = sign(&keys(), "GET", &url, &[], b"", "20130524T000000Z");
+        let h = sign(&keys(), "s3", "GET", &url, &[], b"", "20130524T000000Z");
         assert!(header(&h, "authorization").ends_with(
             "Signature=34b48302e7b5fa45bde8084f4b7868a86f0a534bc59db6670ed5711ef69dc6f7"
         ));

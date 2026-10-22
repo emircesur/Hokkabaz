@@ -1,0 +1,152 @@
+{
+ "name": "awsSqs",
+ "type": "n8n-nodes-base.awsSqs",
+ "display": "AWS SQS",
+ "description": "Queue messages on Amazon SQS",
+ "color": "#FF4F8B",
+ "versions": [
+  1
+ ],
+ "base": "https://sqs.{{$credentials.region}}.amazonaws.com",
+ "cred": {
+  "name": "awsSqsApi",
+  "display": "AWS (SQS)",
+  "aws": {
+   "service": "sqs"
+  },
+  "docs": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
+ },
+ "resources": [
+  {
+   "name": "queue",
+   "display": "Queue",
+   "ops": [
+    {
+     "name": "sendMessage",
+     "display": "Send Message",
+     "method": "POST",
+     "path": "/",
+     "action": "Send a message",
+     "params": [
+      {
+       "name": "queueUrl",
+       "display": "Queue URL",
+       "required": true,
+       "send": "body",
+       "prop": "QueueUrl"
+      },
+      {
+       "name": "message",
+       "display": "Message",
+       "required": true,
+       "send": "body",
+       "prop": "MessageBody"
+      }
+     ],
+     "extra": [
+      {
+       "name": "delay",
+       "display": "Delay Seconds",
+       "type": "number",
+       "send": "body",
+       "prop": "DelaySeconds"
+      },
+      {
+       "name": "groupId",
+       "display": "Message Group ID (FIFO)",
+       "send": "body",
+       "prop": "MessageGroupId"
+      },
+      {
+       "name": "dedup",
+       "display": "Deduplication ID (FIFO)",
+       "send": "body",
+       "prop": "MessageDeduplicationId"
+      }
+     ],
+     "headers": {
+      "X-Amz-Target": "AmazonSQS.SendMessage",
+      "Content-Type": "application/x-amz-json-1.0"
+     }
+    },
+    {
+     "name": "receive",
+     "display": "Receive Messages",
+     "method": "POST",
+     "path": "/",
+     "action": "Receive messages",
+     "params": [
+      {
+       "name": "queueUrl",
+       "display": "Queue URL",
+       "required": true,
+       "send": "body",
+       "prop": "QueueUrl"
+      },
+      {
+       "name": "max",
+       "display": "Max Messages",
+       "type": "number",
+       "send": "body",
+       "prop": "MaxNumberOfMessages",
+       "default": 1
+      }
+     ],
+     "extra": [
+      {
+       "name": "wait",
+       "display": "Wait Seconds",
+       "type": "number",
+       "send": "body",
+       "prop": "WaitTimeSeconds"
+      }
+     ],
+     "headers": {
+      "X-Amz-Target": "AmazonSQS.ReceiveMessage",
+      "Content-Type": "application/x-amz-json-1.0"
+     },
+     "out": "Messages"
+    },
+    {
+     "name": "delete",
+     "display": "Delete Message",
+     "method": "POST",
+     "path": "/",
+     "action": "Delete a message",
+     "params": [
+      {
+       "name": "queueUrl",
+       "display": "Queue URL",
+       "required": true,
+       "send": "body",
+       "prop": "QueueUrl"
+      },
+      {
+       "name": "receipt",
+       "display": "Receipt Handle",
+       "required": true,
+       "send": "body",
+       "prop": "ReceiptHandle"
+      }
+     ],
+     "headers": {
+      "X-Amz-Target": "AmazonSQS.DeleteMessage",
+      "Content-Type": "application/x-amz-json-1.0"
+     }
+    },
+    {
+     "name": "list",
+     "display": "List Queues",
+     "method": "POST",
+     "path": "/",
+     "action": "List queues",
+     "headers": {
+      "X-Amz-Target": "AmazonSQS.ListQueues",
+      "Content-Type": "application/x-amz-json-1.0"
+     },
+     "out": "QueueUrls"
+    }
+   ]
+  }
+ ]
+}

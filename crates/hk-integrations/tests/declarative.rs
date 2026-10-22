@@ -58,6 +58,11 @@ fn cred_data(s: &Spec) -> Value {
     for f in &s.cred.fields {
         m.insert(f.name.clone(), json!(format!("cv_{}", f.name)));
     }
+    if s.cred.aws.is_some() {
+        for k in ["accessKeyId", "secretAccessKey", "region"] {
+            m.insert(k.into(), json!(format!("cv_{k}")));
+        }
+    }
     // oauth credentials: the minted token
     m.insert("accessToken".into(), json!("cv_accessToken"));
     Value::Object(m)
@@ -159,7 +164,23 @@ async fn run_op(s: &Spec, resource: &str, o: &OpSpec) {
         "credentials": {s.cred.name.clone(): {"id": "c1", "name": "c"}}
     }))
     .unwrap();
-    let mut ctx = NodeContext::new(node, vec![vec![Item::from_json(json!({}))]], 0);
+    let mut item = Item::from_json(json!({}));
+    if o.upload {
+        // a small file in the default binary property
+        item.binary = Some(
+            [(
+                "data".to_owned(),
+                hk_flow::BinaryData {
+                    data: "aGVsbG8=".into(),
+                    mime_type: "text/plain".into(),
+                    ..hk_flow::BinaryData::default()
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+    }
+    let mut ctx = NodeContext::new(node, vec![vec![item]], 0);
     ctx.hooks.credentials = Some(Arc::new(Creds(cred_data(s))));
     let label = format!("{}.{}.{}", s.name, resource, o.name);
     let out = nodes
@@ -169,6 +190,15 @@ async fn run_op(s: &Spec, resource: &str, o: &OpSpec) {
         .await
         .unwrap_or_else(|e| panic!("{label}: {e}"));
     assert!(!out[0].is_empty(), "{label}: no items");
+    if o.download {
+        assert!(
+            out[0][0]
+                .binary
+                .as_ref()
+                .is_some_and(|b| b.contains_key("data")),
+            "{label}: file not stored"
+        );
+    }
 
     let req = seen.lock().unwrap()[0].clone();
     let (head, body) = req.split_once("\r\n\r\n").unwrap();
@@ -197,6 +227,12 @@ async fn run_op(s: &Spec, resource: &str, o: &OpSpec) {
         assert!(
             lower.contains(&format!("{}:", k.to_lowercase())),
             "{label}: auth header {k} missing"
+        );
+    }
+    if s.cred.aws.is_some() {
+        assert!(
+            lower.contains("authorization: aws4-hmac-sha256"),
+            "{label}: sigv4"
         );
     }
     if s.cred.oauth.is_some() {

@@ -1,0 +1,88 @@
+{
+ "name": "linkedIn",
+ "type": "n8n-nodes-base.linkedIn",
+ "display": "LinkedIn",
+ "description": "Share posts and read your profile (tokens last about 60 days)",
+ "color": "#0A66C2",
+ "versions": [
+  1,
+  2
+ ],
+ "base": "https://api.linkedin.com",
+ "cred": {
+  "name": "linkedInOAuth2Api",
+  "display": "LinkedIn OAuth2 API",
+  "docs": "https://www.linkedin.com/developers/apps (product: Share on LinkedIn + Sign In with OpenID Connect, redirect http://127.0.0.1:53682/callback), then press Sign in",
+  "oauth": {
+   "token_url": "https://www.linkedin.com/oauth/v2/accessToken",
+   "auth_url": "https://www.linkedin.com/oauth/v2/authorization",
+   "scope": "openid profile email w_member_social",
+   "no_refresh": true
+  }
+ },
+ "resources": [
+  {
+   "name": "post",
+   "display": "Post",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/v2/ugcPosts",
+     "action": "Share a post",
+     "params": [
+      {
+       "name": "author",
+       "display": "Author URN (urn:li:person:ID)",
+       "required": true
+      },
+      {
+       "name": "text",
+       "display": "Text",
+       "required": true
+      },
+      {
+       "name": "visibility",
+       "display": "Visibility",
+       "type": "options",
+       "default": "PUBLIC",
+       "options": [
+        [
+         "Public",
+         "PUBLIC"
+        ],
+        [
+         "Connections",
+         "CONNECTIONS"
+        ]
+       ]
+      }
+     ],
+     "body": {
+      "author": "={{ $parameter[\"author\"] }}",
+      "lifecycleState": "PUBLISHED",
+      "specificContent": "={{ {\"com.linkedin.ugc.ShareContent\": {\"shareCommentary\": {\"text\": $parameter[\"text\"]}, \"shareMediaCategory\": \"NONE\"}} }}",
+      "visibility": "={{ {\"com.linkedin.ugc.MemberNetworkVisibility\": $parameter[\"visibility\"]} }}"
+     },
+     "headers": {
+      "X-Restli-Protocol-Version": "2.0.0"
+     }
+    }
+   ]
+  },
+  {
+   "name": "profile",
+   "display": "Profile",
+   "ops": [
+    {
+     "name": "me",
+     "display": "Get Me",
+     "method": "GET",
+     "path": "/v2/userinfo",
+     "action": "Get the signed-in member (OpenID)"
+    }
+   ]
+  }
+ ]
+}

@@ -47,3 +47,21 @@ Future<void> credentialDelete({required String id}) =>
 /// Names of the fields that have a value (for the edit form; values are never returned).
 Future<List<String>> credentialSetFields({required String id}) =>
     RustLib.instance.api.crateApiCredentialsCredentialSetFields(id: id);
+
+/// Start the browser sign-in of an OAuth credential type from the (partly filled) form. Returns
+/// `{state, auth_url, redirect_uri}`: open `auth_url` in the browser, make sure `redirect_uri` is
+/// registered in the provider's app settings, then call `oauth_finish(state)`.
+Future<String> oauthBegin({required String kind, required String dataJson}) =>
+    RustLib.instance.api.crateApiCredentialsOauthBegin(
+      kind: kind,
+      dataJson: dataJson,
+    );
+
+/// Wait until the sign-in started by `oauth_begin` completes (the user approved in the browser).
+/// Returns the credential fields it fills: `{refreshToken?, accessToken?, instanceUrl?}`.
+Future<String> oauthFinish({required String state}) =>
+    RustLib.instance.api.crateApiCredentialsOauthFinish(state: state);
+
+/// Abandon a sign-in (the user closed the dialog).
+void oauthCancel({required String state}) =>
+    RustLib.instance.api.crateApiCredentialsOauthCancel(state: state);

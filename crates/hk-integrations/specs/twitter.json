@@ -1,0 +1,235 @@
+{
+ "name": "twitter",
+ "type": "n8n-nodes-base.twitter",
+ "display": "X (Twitter)",
+ "description": "Post, search and read on X (needs an X developer app; posting may need a paid API tier)",
+ "color": "#000000",
+ "versions": [
+  1,
+  2
+ ],
+ "base": "https://api.x.com/2",
+ "cred": {
+  "name": "twitterOAuth2Api",
+  "display": "X OAuth2 API",
+  "docs": "https://developer.x.com/en/portal/dashboard (OAuth 2.0, redirect http://127.0.0.1:53682/callback, type Web App/Native), then press Sign in",
+  "oauth": {
+   "token_url": "https://api.x.com/2/oauth2/token",
+   "auth_url": "https://x.com/i/oauth2/authorize",
+   "scope": "tweet.read tweet.write users.read offline.access like.write like.read follows.read follows.write"
+  }
+ },
+ "resources": [
+  {
+   "name": "tweet",
+   "display": "Tweet",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/tweets",
+     "action": "Post a tweet",
+     "params": [
+      {
+       "name": "text",
+       "display": "Text",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "replyTo",
+       "display": "Reply To Tweet ID",
+       "send": "body",
+       "prop": "reply.in_reply_to_tweet_id"
+      },
+      {
+       "name": "quoteId",
+       "display": "Quote Tweet ID",
+       "send": "body",
+       "prop": "quote_tweet_id"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/tweets/{tweetId}",
+     "action": "Delete a tweet",
+     "params": [
+      {
+       "name": "tweetId",
+       "display": "Tweet ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "search",
+     "display": "Search",
+     "method": "GET",
+     "path": "/tweets/search/recent",
+     "action": "Search recent tweets",
+     "params": [
+      {
+       "name": "query",
+       "display": "Query",
+       "required": true,
+       "send": "query"
+      }
+     ],
+     "qs": {
+      "tweet.fields": "created_at,author_id,public_metrics"
+     },
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "next_token",
+      "nextPath": "meta.next_token",
+      "pageSize": 100,
+      "sizeParam": "max_results"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/tweets/{tweetId}",
+     "action": "Get a tweet",
+     "params": [
+      {
+       "name": "tweetId",
+       "display": "Tweet ID",
+       "required": true
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "like",
+     "display": "Like",
+     "method": "POST",
+     "path": "/users/{userId}/likes",
+     "action": "Like a tweet",
+     "params": [
+      {
+       "name": "userId",
+       "display": "Your User ID",
+       "required": true
+      },
+      {
+       "name": "tweetId",
+       "display": "Tweet ID",
+       "required": true,
+       "send": "body",
+       "prop": "tweet_id"
+      }
+     ]
+    },
+    {
+     "name": "retweet",
+     "display": "Retweet",
+     "method": "POST",
+     "path": "/users/{userId}/retweets",
+     "action": "Retweet",
+     "params": [
+      {
+       "name": "userId",
+       "display": "Your User ID",
+       "required": true
+      },
+      {
+       "name": "tweetId",
+       "display": "Tweet ID",
+       "required": true,
+       "send": "body",
+       "prop": "tweet_id"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "user",
+   "display": "User",
+   "ops": [
+    {
+     "name": "me",
+     "display": "Get Me",
+     "method": "GET",
+     "path": "/users/me",
+     "action": "Get the signed-in user",
+     "out": "data"
+    },
+    {
+     "name": "getByUsername",
+     "display": "Get by Username",
+     "method": "GET",
+     "path": "/users/by/username/{username}",
+     "action": "Get a user",
+     "params": [
+      {
+       "name": "username",
+       "display": "Username",
+       "required": true
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "followers",
+     "display": "Get Followers",
+     "method": "GET",
+     "path": "/users/{userId}/followers",
+     "action": "Get followers",
+     "params": [
+      {
+       "name": "userId",
+       "display": "User ID",
+       "required": true
+      }
+     ],
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "pagination_token",
+      "nextPath": "meta.next_token",
+      "pageSize": 1000,
+      "sizeParam": "max_results"
+     }
+    }
+   ]
+  },
+  {
+   "name": "directMessage",
+   "display": "Direct Message",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Send",
+     "method": "POST",
+     "path": "/dm_conversations/with/{participantId}/messages",
+     "action": "Send a direct message",
+     "params": [
+      {
+       "name": "participantId",
+       "display": "Recipient User ID",
+       "required": true
+      },
+      {
+       "name": "text",
+       "display": "Text",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

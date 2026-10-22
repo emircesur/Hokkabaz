@@ -80,6 +80,17 @@ pub struct CredSpec {
     /// authenticates with the minted bearer token.
     #[serde(default)]
     pub oauth: Option<OauthSpec>,
+    /// AWS credential: access key, secret, region (+ optional session token); requests are signed
+    /// with SigV4 for this service.
+    #[serde(default)]
+    pub aws: Option<AwsSpec>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AwsSpec {
+    /// SigV4 service name: `ses`, `sns`, `sqs`, `lambda`, `dynamodb`, ...
+    pub service: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -91,6 +102,18 @@ pub struct OauthSpec {
     /// Extra non-secret field, e.g. Microsoft `tenant`.
     #[serde(default)]
     pub tenant: bool,
+    /// Provider sign-in page: enables the in-app "Sign in" button.
+    #[serde(default)]
+    pub auth_url: Option<String>,
+    /// Extra authorize-URL parameters, `a=b&c=d` (`access_type=offline`, ...).
+    #[serde(default)]
+    pub auth_params: Option<String>,
+    /// The provider issues no refresh token (LinkedIn): the access token is kept as is.
+    #[serde(default)]
+    pub no_refresh: bool,
+    /// The sign-in also returns the org's API host (Salesforce).
+    #[serde(default)]
+    pub instance_url: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -157,6 +180,15 @@ pub struct OpSpec {
     /// `out` is a table (array of arrays); the first row names the columns.
     #[serde(default)]
     pub rows: bool,
+    /// Upload: the body is the file in the item's binary property (parameter `binaryPropertyName`).
+    #[serde(default)]
+    pub upload: bool,
+    /// With `upload`: `multipart/related` with the JSON `body` as metadata (Google Drive).
+    #[serde(default)]
+    pub multipart: bool,
+    /// Download: the response is a file, stored in the output item's binary property.
+    #[serde(default)]
+    pub download: bool,
     #[serde(default)]
     pub page: Option<Value>,
 }
@@ -266,14 +298,38 @@ impl Spec {
             }
             t = t
                 .property(Prop::string("clientId", "Client ID").required())
-                .property(Prop::string("clientSecret", "Client Secret").password())
-                .property(
+                .property(Prop::string("clientSecret", "Client Secret").password());
+            if o.no_refresh {
+                t = t.property(
+                    Prop::string("accessToken", "Access Token")
+                        .password()
+                        .required()
+                        .description("Filled by Sign in; it expires, then sign in again"),
+                );
+            } else {
+                t = t.property(
                     Prop::string("refreshToken", "Refresh Token")
                         .password()
                         .required()
-                        .description("Long-lived token from the provider's consent screen; access tokens are minted from it"),
-                )
-                .property(Prop::string("tokenUrl", "Token URL").default(o.token_url.clone()));
+                        .description(
+                            "Filled by Sign in; access tokens are minted from it automatically",
+                        ),
+                );
+            }
+            t = t.property(Prop::string("tokenUrl", "Token URL").default(o.token_url.clone()));
+            if let Some(u) = &o.auth_url {
+                t = t.property(Prop::string("authUrl", "Authorization URL").default(u.clone()));
+            }
+            if let Some(a) = &o.auth_params {
+                t = t.property(
+                    Prop::string("authParams", "Extra Authorization Parameters").default(a.clone()),
+                );
+            }
+            if o.instance_url {
+                t = t.property(
+                    Prop::string("instanceUrl", "Instance URL").description("Filled by Sign in"),
+                );
+            }
             if let Some(s) = &o.scope {
                 t = t.property(Prop::string("scope", "Scope").default(s.clone()));
             }
@@ -281,6 +337,41 @@ impl Spec {
                 "Authorization".into(),
                 "=Bearer {{$credentials.accessToken}}".into(),
             );
+        }
+        if let Some(a) = &c.aws {
+            t = t
+                .property(Prop::string("accessKeyId", "Access Key ID").required())
+                .property(
+                    Prop::string("secretAccessKey", "Secret Access Key")
+                        .password()
+                        .required(),
+                )
+                .property(Prop::string("region", "Region").default("us-east-1"))
+                .property(Prop::string("sessionToken", "Session Token").password());
+            let service = a.service.clone();
+            t = t.authenticate(Authenticate::function(move |d| {
+                let get = |k: &str| d.get(k).map(crate::template::display).unwrap_or_default();
+                let (access_key, secret_key) = (get("accessKeyId"), get("secretAccessKey"));
+                if access_key.is_empty() || secret_key.is_empty() {
+                    return Err(crate::credentials::CredentialError::MissingField(
+                        "accessKeyId / secretAccessKey".into(),
+                    ));
+                }
+                let token = get("sessionToken");
+                Ok(crate::credentials::AppliedAuth {
+                    aws: Some(crate::credentials::AwsSign {
+                        access_key,
+                        secret_key,
+                        region: Some(get("region"))
+                            .filter(|r| !r.is_empty())
+                            .unwrap_or_else(|| "us-east-1".into()),
+                        session_token: (!token.is_empty()).then_some(token),
+                        service: service.clone(),
+                    }),
+                    ..crate::credentials::AppliedAuth::default()
+                })
+            }));
+            return t;
         }
         if !auth.headers.is_empty() || !auth.qs.is_empty() || auth.basic.is_some() {
             t = t.authenticate(Authenticate::Generic(Box::new(auth)));
@@ -315,6 +406,11 @@ impl Spec {
             }));
             for o in &r.ops {
                 let show = json!({"resource": [r.name], "operation": [o.name]});
+                if o.upload || o.download {
+                    props.push(json!({"displayName": "Input Binary Field", "name": "binaryPropertyName",
+                        "type": "string", "default": "data", "displayOptions": {"show": show},
+                        "description": if o.upload { "Name of the binary property that holds the file to upload" } else { "Name of the binary property the downloaded file is stored in" }}));
+                }
                 for p in &o.params {
                     props.push(param_json(p, &show));
                 }
@@ -368,9 +464,16 @@ impl Spec {
         if !o.headers.is_empty() {
             request["headers"] = Value::Object(o.headers.clone());
         }
+        if o.upload {
+            request["binaryBody"] = json!("binaryPropertyName");
+            request["multipart"] = json!(o.multipart);
+        }
         let mut routing = json!({"request": request});
         if let Some(out) = &o.out {
             routing["output"] = json!({"property": out, "rows": o.rows});
+        }
+        if o.download {
+            routing["output"] = json!({"binary": true});
         }
         if let Some(p) = &o.page {
             routing["pagination"] = p.clone();

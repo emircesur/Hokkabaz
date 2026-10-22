@@ -44,6 +44,9 @@ pub use webhook::{
 };
 
 pub const MANUAL_TYPE: &str = "n8n-nodes-base.manualTrigger";
+/// Pre-scheduleTrigger nodes of old exports; both fire like a schedule rule.
+pub const CRON_TYPE: &str = "n8n-nodes-base.cron";
+pub const INTERVAL_TYPE: &str = "n8n-nodes-base.interval";
 /// Pre-manualTrigger entry node of old exports.
 pub const LEGACY_START_TYPE: &str = "n8n-nodes-base.start";
 pub const FORM_TYPE: &str = "n8n-nodes-base.formTrigger";
@@ -68,7 +71,7 @@ impl TriggerKind {
     pub fn of_type(node_type: &str) -> Option<Self> {
         Some(match node_type {
             MANUAL_TYPE | LEGACY_START_TYPE => Self::Manual,
-            SCHEDULE_TYPE => Self::Schedule,
+            SCHEDULE_TYPE | CRON_TYPE | INTERVAL_TYPE => Self::Schedule,
             WEBHOOK_TYPE => Self::Webhook,
             FORM_TYPE => Self::Form,
             CHAT_TYPE => Self::Chat,

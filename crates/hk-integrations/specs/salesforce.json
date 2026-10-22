@@ -1,0 +1,178 @@
+{
+ "name": "salesforce",
+ "type": "n8n-nodes-base.salesforce",
+ "display": "Salesforce",
+ "description": "Query and edit Salesforce records",
+ "color": "#00A1E0",
+ "versions": [
+  1
+ ],
+ "base": "={{$credentials.instanceUrl}}/services/data/v62.0",
+ "cred": {
+  "name": "salesforceOAuth2Api",
+  "display": "Salesforce OAuth2 API",
+  "docs": "https://help.salesforce.com (Connected App, OAuth enabled, callback http://127.0.0.1:53682/callback, scopes api + refresh_token), then press Sign in",
+  "oauth": {
+   "token_url": "https://login.salesforce.com/services/oauth2/token",
+   "auth_url": "https://login.salesforce.com/services/oauth2/authorize",
+   "scope": "api refresh_token offline_access",
+   "instance_url": true
+  }
+ },
+ "resources": [
+  {
+   "name": "record",
+   "display": "Record",
+   "ops": [
+    {
+     "name": "query",
+     "display": "Query (SOQL)",
+     "method": "GET",
+     "path": "/query",
+     "action": "Run a SOQL query",
+     "params": [
+      {
+       "name": "q",
+       "display": "SOQL",
+       "required": true,
+       "send": "query",
+       "default": "SELECT Id, Name FROM Account LIMIT 10"
+      }
+     ],
+     "out": "records",
+     "list": true,
+     "page": {
+      "type": "nextUrl",
+      "nextPath": "nextRecordsUrl"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/sobjects/{sobject}/{recordId}",
+     "action": "Get a record",
+     "params": [
+      {
+       "name": "sobject",
+       "display": "Object (Account, Lead, ...)",
+       "required": true
+      },
+      {
+       "name": "recordId",
+       "display": "Record ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/sobjects/{sobject}",
+     "action": "Create a record",
+     "params": [
+      {
+       "name": "sobject",
+       "display": "Object",
+       "required": true
+      },
+      {
+       "name": "fields",
+       "display": "Fields (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "prop": "$",
+       "default": "{\"Name\": \"Acme\"}"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PATCH",
+     "path": "/sobjects/{sobject}/{recordId}",
+     "action": "Update a record",
+     "params": [
+      {
+       "name": "sobject",
+       "display": "Object",
+       "required": true
+      },
+      {
+       "name": "recordId",
+       "display": "Record ID",
+       "required": true
+      },
+      {
+       "name": "fields",
+       "display": "Fields (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "prop": "$"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/sobjects/{sobject}/{recordId}",
+     "action": "Delete a record",
+     "params": [
+      {
+       "name": "sobject",
+       "display": "Object",
+       "required": true
+      },
+      {
+       "name": "recordId",
+       "display": "Record ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "describe",
+     "display": "Describe Object",
+     "method": "GET",
+     "path": "/sobjects/{sobject}/describe",
+     "action": "Describe an object",
+     "params": [
+      {
+       "name": "sobject",
+       "display": "Object",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "search",
+   "display": "Search",
+   "ops": [
+    {
+     "name": "sosl",
+     "display": "Search (SOSL)",
+     "method": "GET",
+     "path": "/search",
+     "action": "Run a SOSL search",
+     "params": [
+      {
+       "name": "q",
+       "display": "SOSL",
+       "required": true,
+       "send": "query",
+       "default": "FIND {acme} IN ALL FIELDS"
+      }
+     ],
+     "out": "searchRecords",
+     "list": true
+    }
+   ]
+  }
+ ]
+}

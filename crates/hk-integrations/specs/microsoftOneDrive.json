@@ -14,9 +14,10 @@
   "oauth": {
    "token_url": "https://login.microsoftonline.com/{{$credentials.tenant}}/oauth2/v2.0/token",
    "scope": "offline_access Files.ReadWrite.All",
-   "tenant": true
+   "tenant": true,
+   "auth_url": "https://login.microsoftonline.com/{{$credentials.tenant}}/oauth2/v2.0/authorize"
   },
-  "docs": "https://learn.microsoft.com/entra/identity-platform/v2-oauth2-auth-code-flow (register an app, sign in once, keep the refresh token)"
+  "docs": "https://entra.microsoft.com (register an app, platform Mobile and desktop, redirect http://localhost), then press Sign in"
  },
  "resources": [
   {
@@ -69,6 +70,36 @@
       "type": "nextUrl",
       "nextPath": "@odata.nextLink"
      }
+    },
+    {
+     "name": "download",
+     "display": "Download",
+     "method": "GET",
+     "path": "/items/{itemId}/content",
+     "action": "Download a file",
+     "params": [
+      {
+       "name": "itemId",
+       "display": "Item ID",
+       "required": true
+      }
+     ],
+     "download": true
+    },
+    {
+     "name": "upload",
+     "display": "Upload",
+     "method": "PUT",
+     "path": "/root:/{+path}:/content",
+     "action": "Upload a file",
+     "params": [
+      {
+       "name": "path",
+       "display": "Path (folder/name.ext)",
+       "required": true
+      }
+     ],
+     "upload": true
     },
     {
      "name": "delete",

@@ -695,6 +695,25 @@ impl CredentialResolver for StoredCredentials {
             _ => Err(FlowError::Invalid(format!("credential {id} is corrupt"))),
         }
     }
+
+    async fn persist(
+        &self,
+        credential_type: &str,
+        reference: &CredentialRef,
+        patch: Map<String, Value>,
+    ) -> Result<(), FlowError> {
+        let mut data = self.resolve(credential_type, reference).await?;
+        data.extend(patch);
+        let id = reference.id.as_deref().unwrap_or_default();
+        self.store
+            .put_secret(
+                self.secrets.as_ref(),
+                &format!("credential.{id}"),
+                hk_store::Secret::new(Value::Object(data).to_string()),
+            )
+            .await
+            .map_err(|_| FlowError::Store("credential could not be updated".into()))
+    }
 }
 
 // ------------------------------------------------------------------ agent tools

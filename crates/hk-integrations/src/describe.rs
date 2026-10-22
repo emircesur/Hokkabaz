@@ -92,6 +92,14 @@ pub struct RouteRequest {
     pub body: Map<String, Value>,
     #[serde(default, skip_serializing_if = "Map::is_empty")]
     pub headers: Map<String, Value>,
+    /// Upload: the request body is the file in the input item's binary property whose name is the
+    /// value of this *parameter* (default `data`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binary_body: Option<String>,
+    /// With `binary_body`: send `multipart/related` (the JSON `body` fields as metadata, then the
+    /// file), the way Google Drive uploads.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub multipart: bool,
 }
 
 /// `routing.output`: response -> items.
@@ -107,6 +115,10 @@ pub struct RouteOutput {
     /// The property is a table (array of arrays): the first row names the columns (Google Sheets).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub rows: bool,
+    /// Download: the response body is a file. It becomes the item's binary property named by the
+    /// parameter `binaryPropertyName` (default `data`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub binary: bool,
 }
 
 /// How a list operation pages. Results are read from `output.property`.
@@ -228,6 +240,7 @@ impl Routing {
             property: property.map(str::to_owned),
             simplify: simplify.iter().map(|s| (*s).to_owned()).collect(),
             rows: false,
+            binary: false,
         });
         self
     }

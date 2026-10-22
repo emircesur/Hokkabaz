@@ -37,11 +37,22 @@ pub fn applies(data: &Map<String, Value>) -> bool {
     !field(data, "refreshToken").is_empty() && !field(data, "tokenUrl").is_empty()
 }
 
+/// An access token, plus the refresh token the provider rotated to (when it did).
+pub struct Minted {
+    pub token: String,
+    pub new_refresh: Option<String>,
+}
+
+/// X (Twitter) wants confidential clients to authenticate with HTTP Basic, not form fields.
+pub(crate) fn basic_client_auth(token_url: &str) -> bool {
+    token_url.contains("api.x.com") || token_url.contains("api.twitter.com")
+}
+
 /// Access token for `data` (from cache or the token endpoint).
 pub async fn access_token(
     client: &reqwest::Client,
     data: &Map<String, Value>,
-) -> Result<String, String> {
+) -> Result<Minted, String> {
     // `{{$credentials.tenant}}` in the URL (Microsoft) renders from the same credential.
     let url = crate::template::render(&field(data, "tokenUrl"), data).map_err(|e| e.to_string())?;
     let id = field(data, "clientId");
@@ -54,24 +65,32 @@ pub async fn access_token(
         .and_then(|m| m.get(&k))
         && c.until > Instant::now()
     {
-        return Ok(c.token.clone());
+        return Ok(Minted {
+            token: c.token.clone(),
+            new_refresh: None,
+        });
     }
+    let secret = field(data, "clientSecret");
+    let basic = basic_client_auth(&url) && !secret.is_empty();
     let mut form = vec![
         ("grant_type", "refresh_token".to_owned()),
-        ("refresh_token", refresh),
-        ("client_id", id),
+        ("refresh_token", refresh.clone()),
     ];
-    let secret = field(data, "clientSecret");
-    if !secret.is_empty() {
-        form.push(("client_secret", secret));
+    if !basic {
+        form.push(("client_id", id.clone()));
+        if !secret.is_empty() {
+            form.push(("client_secret", secret.clone()));
+        }
     }
     let scope = field(data, "scope");
     if !scope.is_empty() {
         form.push(("scope", scope));
     }
-    let resp = client
-        .post(&url)
-        .header("Accept", "application/json")
+    let mut rb = client.post(&url).header("Accept", "application/json");
+    if basic {
+        rb = rb.basic_auth(&id, Some(&secret));
+    }
+    let resp = rb
         .form(&form)
         .send()
         .await
@@ -113,5 +132,14 @@ pub async fn access_token(
                 until,
             },
         );
-    Ok(token.to_owned())
+    // Providers that rotate refresh tokens (Microsoft, X) return the replacement here.
+    let new_refresh = body
+        .get("refresh_token")
+        .and_then(Value::as_str)
+        .filter(|r| !r.is_empty() && *r != refresh)
+        .map(str::to_owned);
+    Ok(Minted {
+        token: token.to_owned(),
+        new_refresh,
+    })
 }

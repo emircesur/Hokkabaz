@@ -43,6 +43,28 @@ pub struct AppliedAuth {
     /// Merged into a JSON/form body.
     pub body: Map<String, Value>,
     pub basic: Option<(String, String)>,
+    /// AWS Signature V4 keys: the request is signed once its final bytes are known.
+    pub aws: Option<AwsSign>,
+}
+
+/// What signing a request for an AWS service needs. Secrets: never printed.
+#[derive(Clone, PartialEq)]
+pub struct AwsSign {
+    pub access_key: String,
+    pub secret_key: String,
+    pub region: String,
+    pub session_token: Option<String>,
+    /// SigV4 service name (`ses`, `sns`, `lambda`, `dynamodb`, ...).
+    pub service: String,
+}
+
+impl fmt::Debug for AwsSign {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AwsSign")
+            .field("region", &self.region)
+            .field("service", &self.service)
+            .finish_non_exhaustive()
+    }
 }
 
 // values are secrets
@@ -53,6 +75,7 @@ impl fmt::Debug for AppliedAuth {
             .field("query", &self.query.len())
             .field("body", &self.body.len())
             .field("basic", &self.basic.is_some())
+            .field("aws", &self.aws.is_some())
             .finish()
     }
 }

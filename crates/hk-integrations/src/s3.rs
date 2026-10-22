@@ -311,7 +311,7 @@ impl S3 {
         body: Vec<u8>,
     ) -> Result<Reply, FlowError> {
         let date = sigv4::amz_date(SystemTime::now());
-        let signed = sigv4::sign(&self.keys, method, &url, &extra, &body, &date);
+        let signed = sigv4::sign(&self.keys, "s3", method, &url, &extra, &body, &date);
         let m = reqwest::Method::from_bytes(method.as_bytes())
             .map_err(|_| kit::err(&self.node, "bad method"))?;
         let mut rb = self.http.request(m, url);
@@ -663,6 +663,14 @@ pub fn register(nodes: &mut NodeRegistry, creds: &CredentialTypes) -> Result<(),
     creds.register_if_absent(credential_type());
     nodes.register(Arc::new(S3Node {
         desc: description(),
+        creds: creds.clone(),
+    }))?;
+    // n8n's own name for the same node
+    let mut aws = description();
+    aws.name = "n8n-nodes-base.awsS3".to_owned();
+    aws.display_name = "AWS S3".to_owned();
+    nodes.register(Arc::new(S3Node {
+        desc: aws,
         creds: creds.clone(),
     }))
 }

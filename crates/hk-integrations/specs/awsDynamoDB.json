@@ -1,0 +1,219 @@
+{
+ "name": "awsDynamoDB",
+ "type": "n8n-nodes-base.awsDynamoDB",
+ "display": "AWS DynamoDB",
+ "description": "Items in DynamoDB tables (DynamoDB JSON)",
+ "color": "#4053D6",
+ "versions": [
+  1,
+  2
+ ],
+ "base": "https://dynamodb.{{$credentials.region}}.amazonaws.com",
+ "cred": {
+  "name": "awsDynamoDBApi",
+  "display": "AWS (DynamoDB)",
+  "aws": {
+   "service": "dynamodb"
+  },
+  "docs": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
+ },
+ "resources": [
+  {
+   "name": "item",
+   "display": "Item",
+   "ops": [
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "POST",
+     "path": "/",
+     "action": "Get an item",
+     "params": [
+      {
+       "name": "table",
+       "display": "Table Name",
+       "required": true,
+       "send": "body",
+       "prop": "TableName"
+      },
+      {
+       "name": "key",
+       "display": "Key (DynamoDB JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "prop": "Key",
+       "default": "{\"id\": {\"S\": \"1\"}}"
+      }
+     ],
+     "headers": {
+      "X-Amz-Target": "DynamoDB_20120810.GetItem",
+      "Content-Type": "application/x-amz-json-1.0"
+     },
+     "out": "Item"
+    },
+    {
+     "name": "create",
+     "display": "Create or Replace",
+     "method": "POST",
+     "path": "/",
+     "action": "Put an item",
+     "params": [
+      {
+       "name": "table",
+       "display": "Table Name",
+       "required": true,
+       "send": "body",
+       "prop": "TableName"
+      },
+      {
+       "name": "item",
+       "display": "Item (DynamoDB JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "prop": "Item",
+       "default": "{\"id\": {\"S\": \"1\"}}"
+      }
+     ],
+     "headers": {
+      "X-Amz-Target": "DynamoDB_20120810.PutItem",
+      "Content-Type": "application/x-amz-json-1.0"
+     }
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "POST",
+     "path": "/",
+     "action": "Delete an item",
+     "params": [
+      {
+       "name": "table",
+       "display": "Table Name",
+       "required": true,
+       "send": "body",
+       "prop": "TableName"
+      },
+      {
+       "name": "key",
+       "display": "Key (DynamoDB JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "prop": "Key"
+      }
+     ],
+     "headers": {
+      "X-Amz-Target": "DynamoDB_20120810.DeleteItem",
+      "Content-Type": "application/x-amz-json-1.0"
+     }
+    },
+    {
+     "name": "getAll",
+     "display": "Scan",
+     "method": "POST",
+     "path": "/",
+     "action": "Scan a table",
+     "params": [
+      {
+       "name": "table",
+       "display": "Table Name",
+       "required": true,
+       "send": "body",
+       "prop": "TableName"
+      }
+     ],
+     "extra": [
+      {
+       "name": "filter",
+       "display": "Filter Expression",
+       "send": "body",
+       "prop": "FilterExpression"
+      },
+      {
+       "name": "names",
+       "display": "Expression Attribute Names (JSON)",
+       "type": "json",
+       "send": "body",
+       "prop": "ExpressionAttributeNames"
+      },
+      {
+       "name": "values",
+       "display": "Expression Attribute Values (JSON)",
+       "type": "json",
+       "send": "body",
+       "prop": "ExpressionAttributeValues"
+      }
+     ],
+     "headers": {
+      "X-Amz-Target": "DynamoDB_20120810.Scan",
+      "Content-Type": "application/x-amz-json-1.0"
+     },
+     "out": "Items",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "ExclusiveStartKey",
+      "nextPath": "LastEvaluatedKey",
+      "pageSize": 100,
+      "sizeParam": "Limit",
+      "inBody": true
+     }
+    },
+    {
+     "name": "query",
+     "display": "Query",
+     "method": "POST",
+     "path": "/",
+     "action": "Query a table",
+     "params": [
+      {
+       "name": "table",
+       "display": "Table Name",
+       "required": true,
+       "send": "body",
+       "prop": "TableName"
+      },
+      {
+       "name": "keyCondition",
+       "display": "Key Condition Expression",
+       "required": true,
+       "send": "body",
+       "prop": "KeyConditionExpression"
+      },
+      {
+       "name": "values",
+       "display": "Expression Attribute Values (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "prop": "ExpressionAttributeValues"
+      }
+     ],
+     "extra": [
+      {
+       "name": "names",
+       "display": "Expression Attribute Names (JSON)",
+       "type": "json",
+       "send": "body",
+       "prop": "ExpressionAttributeNames"
+      },
+      {
+       "name": "index",
+       "display": "Index Name",
+       "send": "body",
+       "prop": "IndexName"
+      }
+     ],
+     "headers": {
+      "X-Amz-Target": "DynamoDB_20120810.Query",
+      "Content-Type": "application/x-amz-json-1.0"
+     },
+     "out": "Items",
+     "list": true
+    }
+   ]
+  }
+ ]
+}

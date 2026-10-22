@@ -21,6 +21,8 @@
 pub mod credentials;
 pub mod describe;
 pub(crate) mod oauth;
+#[cfg(feature = "int-saas")]
+pub mod oauth_flow;
 pub mod poll;
 pub mod rest;
 pub mod template;
@@ -33,12 +35,16 @@ pub mod declarative;
 #[cfg(feature = "int-saas")]
 mod specs;
 
+#[cfg(feature = "int-ftp")]
+pub mod ftp;
 #[cfg(feature = "int-git")]
 pub mod git;
 #[cfg(feature = "int-gitea")]
 pub mod gitea;
 #[cfg(feature = "int-github")]
 pub mod github;
+#[cfg(feature = "int-kafka")]
+pub mod kafka;
 #[cfg(feature = "int-n8n")]
 pub mod n8n;
 #[cfg(feature = "int-n8n")]
@@ -68,15 +74,30 @@ pub mod gotify;
     feature = "int-redis",
     feature = "int-s3",
     feature = "int-searxng",
-    feature = "int-ollama"
+    feature = "int-ollama",
+    feature = "int-mysql",
+    feature = "int-mqtt",
+    feature = "int-rabbitmq",
+    feature = "int-ssh",
+    feature = "int-kafka",
+    feature = "int-mongodb",
+    feature = "int-ftp"
 ))]
 pub(crate) mod kit;
 #[cfg(feature = "int-matrix")]
 pub mod matrix;
+#[cfg(all(feature = "int-mongodb", not(target_os = "android")))]
+pub mod mongodb;
+#[cfg(feature = "int-mqtt")]
+pub mod mqtt;
+#[cfg(feature = "int-mysql")]
+pub mod mysql;
 #[cfg(feature = "int-ollama")]
 pub mod ollama;
 #[cfg(feature = "int-postgres")]
 pub mod postgres;
+#[cfg(feature = "int-rabbitmq")]
+pub mod rabbitmq;
 #[cfg(feature = "int-redis")]
 pub mod redis;
 #[cfg(feature = "int-rss")]
@@ -85,15 +106,21 @@ pub mod rss;
 pub mod s3;
 #[cfg(feature = "int-searxng")]
 pub mod searxng;
-#[cfg(feature = "int-s3")]
+#[cfg(any(feature = "int-s3", feature = "int-saas"))]
 pub(crate) mod sigv4;
-#[cfg(any(feature = "int-sqlite", feature = "int-postgres"))]
+#[cfg(any(
+    feature = "int-sqlite",
+    feature = "int-postgres",
+    feature = "int-mysql"
+))]
 pub(crate) mod sql;
 #[cfg(feature = "int-sqlite")]
 pub mod sqlite;
+#[cfg(feature = "int-ssh")]
+pub mod ssh;
 #[cfg(feature = "int-telegram")]
 pub mod telegram;
-#[cfg(any(feature = "int-postgres", feature = "int-redis"))]
+#[cfg(any(feature = "int-postgres", feature = "int-redis", feature = "int-kafka"))]
 pub(crate) mod tls;
 
 pub use credentials::{
@@ -161,6 +188,20 @@ pub fn register_integrations_with_polling(
     ollama::register(nodes, creds)?;
     #[cfg(feature = "int-slack")]
     slack::register(nodes, creds)?;
+    #[cfg(feature = "int-mysql")]
+    mysql::register(nodes, creds)?;
+    #[cfg(feature = "int-mqtt")]
+    mqtt::register(nodes, creds)?;
+    #[cfg(feature = "int-rabbitmq")]
+    rabbitmq::register(nodes, creds)?;
+    #[cfg(feature = "int-ssh")]
+    ssh::register(nodes, creds)?;
+    #[cfg(feature = "int-ftp")]
+    ftp::register(nodes, creds)?;
+    #[cfg(feature = "int-kafka")]
+    kafka::register(nodes, creds)?;
+    #[cfg(all(feature = "int-mongodb", not(target_os = "android")))]
+    mongodb::register(nodes, creds)?;
     #[cfg(feature = "int-saas")]
     declarative::register(nodes, creds)?;
     Ok(())

@@ -1,0 +1,71 @@
+{
+ "name": "awsLambda",
+ "type": "n8n-nodes-base.awsLambda",
+ "display": "AWS Lambda",
+ "description": "Invoke functions",
+ "color": "#FF9900",
+ "versions": [
+  1
+ ],
+ "base": "https://lambda.{{$credentials.region}}.amazonaws.com",
+ "cred": {
+  "name": "awsLambdaApi",
+  "display": "AWS (Lambda)",
+  "aws": {
+   "service": "lambda"
+  },
+  "docs": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
+ },
+ "resources": [
+  {
+   "name": "function",
+   "display": "Function",
+   "ops": [
+    {
+     "name": "invoke",
+     "display": "Invoke",
+     "method": "POST",
+     "path": "/2015-03-31/functions/{function}/invocations",
+     "action": "Invoke a function",
+     "params": [
+      {
+       "name": "function",
+       "display": "Function Name or ARN",
+       "required": true
+      },
+      {
+       "name": "payload",
+       "display": "Payload (JSON)",
+       "type": "json",
+       "send": "body",
+       "prop": "$",
+       "default": "{}"
+      }
+     ],
+     "qs": {
+      "Qualifier": "$LATEST"
+     },
+     "headers": {
+      "X-Amz-Invocation-Type": "RequestResponse"
+     }
+    },
+    {
+     "name": "list",
+     "display": "List",
+     "method": "GET",
+     "path": "/2015-03-31/functions",
+     "action": "List functions",
+     "out": "Functions",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "Marker",
+      "nextPath": "NextMarker",
+      "pageSize": 50,
+      "sizeParam": "MaxItems"
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -15,9 +15,11 @@
   "display": "Google Drive OAuth2 API",
   "oauth": {
    "token_url": "https://oauth2.googleapis.com/token",
-   "scope": "https://www.googleapis.com/auth/drive"
+   "scope": "https://www.googleapis.com/auth/drive",
+   "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
+   "auth_params": "access_type=offline&prompt=consent"
   },
-  "docs": "https://developers.google.com/oauthplayground (authorize the scope, copy the refresh token)"
+  "docs": "https://console.cloud.google.com/apis/credentials (OAuth client of type Desktop app; add http://127.0.0.1:53682/callback if asked), then press Sign in"
  },
  "resources": [
   {
@@ -147,6 +149,74 @@
        "required": true
       }
      ]
+    },
+    {
+     "name": "download",
+     "display": "Download",
+     "method": "GET",
+     "path": "/files/{fileId}",
+     "action": "Download a file",
+     "params": [
+      {
+       "name": "fileId",
+       "display": "File ID",
+       "required": true
+      }
+     ],
+     "qs": {
+      "alt": "media"
+     },
+     "download": true
+    },
+    {
+     "name": "export",
+     "display": "Export (Docs, Sheets, Slides)",
+     "method": "GET",
+     "path": "/files/{fileId}/export",
+     "action": "Export a Google file",
+     "params": [
+      {
+       "name": "fileId",
+       "display": "File ID",
+       "required": true
+      },
+      {
+       "name": "mimeType",
+       "display": "Export As",
+       "required": true,
+       "send": "query",
+       "default": "application/pdf"
+      }
+     ],
+     "download": true
+    },
+    {
+     "name": "upload",
+     "display": "Upload",
+     "method": "POST",
+     "path": "https://www.googleapis.com/upload/drive/v3/files",
+     "action": "Upload a file",
+     "params": [
+      {
+       "name": "name",
+       "display": "File Name",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "parents",
+       "display": "Parent Folder IDs (JSON array)",
+       "type": "json",
+       "send": "body"
+      }
+     ],
+     "qs": {
+      "uploadType": "multipart"
+     },
+     "upload": true,
+     "multipart": true
     },
     {
      "name": "share",

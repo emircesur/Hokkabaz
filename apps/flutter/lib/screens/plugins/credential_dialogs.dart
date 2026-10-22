@@ -1,6 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../src/rust/api/credentials.dart' as cred_api;
 import '../../theme/tokens.dart';
 import 'plugins_models.dart';
 import 'plugins_providers.dart';
@@ -32,6 +37,8 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
   bool _replace = false;
   bool _busy = false;
   String? _error;
+  String? _oauthState;
+  String? _signInNote;
 
   @override
   void initState() {
@@ -43,6 +50,7 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
 
   @override
   void dispose() {
+    if (_oauthState != null) cred_api.oauthCancel(state: _oauthState!);
     _name.dispose();
     for (final c in _values.values) {
       c.dispose();
@@ -69,6 +77,41 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
       };
     }
     return out;
+  }
+
+  /// Browser sign-in for OAuth credential types: opens the provider's page, waits for the redirect
+  /// to come back to this machine, and fills the token fields.
+  Future<void> _signIn(CredType t) async {
+    setState(() {
+      _error = null;
+      _signInNote = null;
+    });
+    try {
+      final data = <String, dynamic>{};
+      for (final f in t.fields) {
+        final v = _ctl(f).text;
+        if (v.isNotEmpty) data[f.name] = v;
+      }
+      final b = jsonDecode(await cred_api.oauthBegin(kind: t.name, dataJson: jsonEncode(data))) as Map<String, dynamic>;
+      _oauthState = b['state'] as String;
+      setState(() => _signInNote = 'Waiting for the browser. The provider app must allow the redirect ${b['redirect_uri']}');
+      await launchUrl(Uri.parse(b['auth_url'] as String), mode: LaunchMode.externalApplication);
+      final tokens = jsonDecode(await cred_api.oauthFinish(state: _oauthState!)) as Map<String, dynamic>;
+      _oauthState = null;
+      for (final f in t.fields) {
+        final v = tokens[f.name];
+        if (v is String && v.isNotEmpty) _ctl(f).text = v;
+      }
+      if (mounted) setState(() => _signInNote = 'Signed in. Press Save to keep it.');
+    } catch (e) {
+      _oauthState = null;
+      if (mounted) {
+        setState(() {
+          _signInNote = null;
+          _error = '$e';
+        });
+      }
+    }
   }
 
   Future<void> _save(CredType t) async {
@@ -157,6 +200,24 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
                         subtitle: const Text('Values are never shown; re-enter all fields to change them.'),
                         value: _replace,
                         onChanged: (v) => setState(() => _replace = v),
+                      ),
+                    if (_replace && t.fields.any((f) => f.name == 'authUrl') && t.fields.any((f) => f.name == 'clientId'))
+                      Padding(
+                        padding: const EdgeInsets.only(top: HkTokens.s2),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _busy || _oauthState != null ? null : () => _signIn(t),
+                              icon: _oauthState != null
+                                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : const Icon(Icons.login, size: 18),
+                              label: const Text('Sign in with your account'),
+                            ),
+                            if (_signInNote != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(_signInNote!, style: Theme.of(context).textTheme.bodySmall)),
+                            const Text('Fill Client ID (and secret) of your own app first.', style: TextStyle(fontSize: 12)),
+                          ],
+                        ),
                       ),
                     if (_replace)
                       for (final f in t.fields)

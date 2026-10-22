@@ -85,3 +85,36 @@ pub async fn credential_delete(id: String) -> Result<(), HkError> {
 pub async fn credential_set_fields(id: String) -> Result<Vec<String>, HkError> {
     global()?.set_fields(&id).await
 }
+
+/// Start the browser sign-in of an OAuth credential type from the (partly filled) form. Returns
+/// `{state, auth_url, redirect_uri}`: open `auth_url` in the browser, make sure `redirect_uri` is
+/// registered in the provider's app settings, then call `oauth_finish(state)`.
+pub async fn oauth_begin(kind: String, data_json: String) -> Result<String, HkError> {
+    let data = fields(&data_json)?;
+    let env = crate::nodes::env();
+    let ty = env
+        .cred_types
+        .resolved(&kind)
+        .ok_or_else(|| HkError::invalid(format!("unknown credential type `{kind}`")))?;
+    let merged = ty.with_defaults(&data);
+    let begin =
+        hk_integrations::oauth_flow::begin(hk_integrations::oauth_flow::Params { data: merged })
+            .await
+            .map_err(HkError::invalid)?;
+    to_json(&serde_json::to_value(begin).map_err(|e| HkError::internal(e.to_string()))?)
+}
+
+/// Wait until the sign-in started by `oauth_begin` completes (the user approved in the browser).
+/// Returns the credential fields it fills: `{refreshToken?, accessToken?, instanceUrl?}`.
+pub async fn oauth_finish(state: String) -> Result<String, HkError> {
+    let tokens = hk_integrations::oauth_flow::finish(&state)
+        .await
+        .map_err(|m| HkError::new(crate::error::HkErrorKind::Provider, m))?;
+    to_json(&serde_json::to_value(tokens).map_err(|e| HkError::internal(e.to_string()))?)
+}
+
+/// Abandon a sign-in (the user closed the dialog).
+#[flutter_rust_bridge::frb(sync)]
+pub fn oauth_cancel(state: String) {
+    hk_integrations::oauth_flow::cancel(&state);
+}

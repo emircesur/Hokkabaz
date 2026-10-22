@@ -13,9 +13,11 @@
   "name": "dropboxOAuth2Api",
   "display": "Dropbox OAuth2 API",
   "oauth": {
-   "token_url": "https://api.dropboxapi.com/oauth2/token"
+   "token_url": "https://api.dropboxapi.com/oauth2/token",
+   "auth_url": "https://www.dropbox.com/oauth2/authorize",
+   "auth_params": "token_access_type=offline"
   },
-  "docs": "https://www.dropbox.com/developers/apps (use the offline access token_access_type to get a refresh token)"
+  "docs": "https://www.dropbox.com/developers/apps (add redirect URI http://127.0.0.1:53682/callback), then press Sign in"
  },
  "resources": [
   {
@@ -98,6 +100,43 @@
        "send": "body"
       }
      ]
+    },
+    {
+     "name": "upload",
+     "display": "Upload",
+     "method": "POST",
+     "path": "https://content.dropboxapi.com/2/files/upload",
+     "action": "Upload a file",
+     "params": [
+      {
+       "name": "path",
+       "display": "Path (/folder/name.ext)",
+       "required": true
+      }
+     ],
+     "headers": {
+      "Dropbox-API-Arg": "={{ JSON.stringify({\"path\": $parameter[\"path\"], \"mode\": \"overwrite\", \"autorename\": false}).replace(/[\u007f-\uffff]/g, c => \"\\u\" + (\"0000\" + c.charCodeAt(0).toString(16)).slice(-4)) }}",
+      "Content-Type": "application/octet-stream"
+     },
+     "upload": true
+    },
+    {
+     "name": "download",
+     "display": "Download",
+     "method": "POST",
+     "path": "https://content.dropboxapi.com/2/files/download",
+     "action": "Download a file",
+     "params": [
+      {
+       "name": "path",
+       "display": "Path",
+       "required": true
+      }
+     ],
+     "headers": {
+      "Dropbox-API-Arg": "={{ JSON.stringify({\"path\": $parameter[\"path\"]}).replace(/[\u007f-\uffff]/g, c => \"\\u\" + (\"0000\" + c.charCodeAt(0).toString(16)).slice(-4)) }}"
+     },
+     "download": true
     },
     {
      "name": "move",

@@ -90,6 +90,7 @@ pub fn core_nodes() -> Vec<Arc<dyn FlowNode>> {
         Arc::new(more::ExtractFromFileNode::new()),
         Arc::new(more::LegacyFunctionNode::new(false)),
         Arc::new(more::LegacyFunctionNode::new(true)),
+        Arc::new(more::ItemListsNode::new()),
         Arc::new(convert::HtmlNode::new()),
         Arc::new(convert::MarkdownNode::new()),
         Arc::new(convert::XmlNode::new()),
