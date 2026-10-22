@@ -28,7 +28,7 @@ jobs:
         run: flutter pub get
       - name: Build Windows release
         working-directory: apps/flutter
-        run: flutter build windows --release
+        run: flutter build windows --release -v
       - name: Package
         shell: pwsh
         run: |
