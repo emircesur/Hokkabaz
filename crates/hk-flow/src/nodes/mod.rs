@@ -33,6 +33,7 @@ use crate::node::{FlowNode, NodeRegistry};
 pub mod ai;
 mod code;
 mod conditions;
+mod convert;
 pub(crate) mod date;
 mod datetime;
 mod flow_control;
@@ -50,7 +51,7 @@ mod util;
 pub use datetime::DateTimeNode;
 pub use flow_control::{ExecuteWorkflowNode, RespondToWebhookNode, WaitNode};
 #[cfg(feature = "http")]
-pub use http::HttpRequestNode;
+pub use http::{GraphQlNode, HttpRequestNode};
 pub use merge::MergeNode;
 pub use routing::{FilterNode, IfNode, NoOpNode, SwitchNode};
 pub use set::SetNode;
@@ -89,9 +90,18 @@ pub fn core_nodes() -> Vec<Arc<dyn FlowNode>> {
         Arc::new(more::ExtractFromFileNode::new()),
         Arc::new(more::LegacyFunctionNode::new(false)),
         Arc::new(more::LegacyFunctionNode::new(true)),
+        Arc::new(convert::HtmlNode::new()),
+        Arc::new(convert::MarkdownNode::new()),
+        Arc::new(convert::XmlNode::new()),
+        Arc::new(convert::ExecuteCommandNode::new()),
     ];
+    #[cfg(feature = "expr")]
+    v.push(Arc::new(convert::CryptoNode::new()));
     #[cfg(feature = "http")]
-    v.push(Arc::new(HttpRequestNode::new()));
+    {
+        v.push(Arc::new(HttpRequestNode::new()));
+        v.push(Arc::new(GraphQlNode::new()));
+    }
     v.extend(
         triggers::trigger_nodes()
             .into_iter()

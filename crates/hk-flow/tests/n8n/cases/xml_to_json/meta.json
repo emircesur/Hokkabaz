@@ -1,0 +1,8 @@
+{
+  "description": "XML to JSON with attributes and repeats.",
+  "status": "active",
+  "nodes": [
+    "xml"
+  ],
+  "docs": "https://docs.n8n.io/"
+}

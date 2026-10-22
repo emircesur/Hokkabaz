@@ -1,0 +1,8 @@
+{
+  "description": "Markdown to HTML.",
+  "status": "active",
+  "nodes": [
+    "markdown"
+  ],
+  "docs": "https://docs.n8n.io/"
+}

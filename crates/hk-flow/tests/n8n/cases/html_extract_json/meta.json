@@ -1,0 +1,8 @@
+{
+  "description": "HTML extract: text, attribute and array by CSS selector.",
+  "status": "active",
+  "nodes": [
+    "html"
+  ],
+  "docs": "https://docs.n8n.io/"
+}

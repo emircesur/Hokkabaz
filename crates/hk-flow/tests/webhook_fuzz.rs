@@ -82,6 +82,7 @@ fn multipart_ish(r: &mut Rng) -> Vec<u8> {
 }
 
 #[test]
+#[allow(clippy::print_stderr)]
 fn hostile_requests_never_panic() {
     let seed = std::env::var("HK_FUZZ_SEED")
         .ok()

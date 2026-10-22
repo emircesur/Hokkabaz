@@ -15,7 +15,7 @@ workspace = true
 testing = []
 default = ["expr", "http", "ai"]
 # n8n expression engine (QuickJS via rquickjs; bundled C, cross-compiles to Android)
-expr = ["dep:rquickjs", "dep:jmespath", "dep:sha1", "dep:sha2", "dep:md-5"]
+expr = ["dep:rquickjs", "dep:jmespath", "dep:sha1", "dep:sha2", "dep:md-5", "dep:hmac"]
 # HTTP Request node (reqwest + rustls; builds for Android)
 http = ["dep:reqwest"]
 # LangChain-style AI nodes (agent, chains, chat models, memory, tools, parsers) on hk-llm.
@@ -53,6 +53,10 @@ jmespath = { version = "0.5", optional = true }
 sha1 = { version = "0.10", optional = true }
 sha2 = { version = "0.10", optional = true }
 md-5 = { version = "0.10", optional = true }
+scraper = "0.29.0"
+pulldown-cmark = "0.13.5"
+quick-xml = "0.41.0"
+hmac = { version = "0.12", optional = true }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 notify = { version = "8", optional = true }

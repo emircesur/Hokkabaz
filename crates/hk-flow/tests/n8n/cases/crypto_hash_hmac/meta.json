@@ -1,0 +1,8 @@
+{
+  "description": "Crypto: SHA256 hash and HMAC in hex.",
+  "status": "active",
+  "nodes": [
+    "crypto"
+  ],
+  "docs": "https://docs.n8n.io/"
+}

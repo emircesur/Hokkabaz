@@ -827,3 +827,176 @@ impl FlowNode for HttpRequestNode {
         Ok(vec![out])
     }
 }
+
+// -------------------------------------------------------------------- GraphQL
+
+/// GraphQL (`n8n-nodes-base.graphql` v1, 1.1): one POST (or GET) of `{query, variables,
+/// operationName}`. Same auth options as HTTP Request (none + generic credential type).
+#[derive(Debug)]
+pub struct GraphQlNode(NodeTypeDescription);
+
+impl Default for GraphQlNode {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl GraphQlNode {
+    pub fn new() -> Self {
+        Self(describe(json!({
+            "displayName": "GraphQL",
+            "name": "n8n-nodes-base.graphql",
+            "version": [1, 1.1],
+            "defaultVersion": 1.1,
+            "description": "Makes a GraphQL request and returns the received data",
+            "group": ["input"],
+            "defaults": {"name": "GraphQL", "color": "#E10098"},
+            "inputs": ["main"],
+            "outputs": ["main"],
+            "credentials": [
+                {"name": "httpBasicAuth", "required": true, "displayOptions": {"show": {"authentication": ["genericCredentialType"], "genericAuthType": ["httpBasicAuth"]}}},
+                {"name": "httpBearerAuth", "required": true, "displayOptions": {"show": {"authentication": ["genericCredentialType"], "genericAuthType": ["httpBearerAuth"]}}},
+                {"name": "httpHeaderAuth", "required": true, "displayOptions": {"show": {"authentication": ["genericCredentialType"], "genericAuthType": ["httpHeaderAuth"]}}},
+                {"name": "httpQueryAuth", "required": true, "displayOptions": {"show": {"authentication": ["genericCredentialType"], "genericAuthType": ["httpQueryAuth"]}}}
+            ],
+            "properties": [
+                {"displayName": "Authentication", "name": "authentication", "type": "options", "default": "none",
+                 "options": [{"name": "None", "value": "none"}, {"name": "Generic Credential Type", "value": "genericCredentialType"}]},
+                {"displayName": "Generic Auth Type", "name": "genericAuthType", "type": "options", "default": "httpHeaderAuth",
+                 "displayOptions": {"show": {"authentication": ["genericCredentialType"]}},
+                 "options": [{"name": "Basic Auth", "value": "httpBasicAuth"}, {"name": "Bearer Auth", "value": "httpBearerAuth"},
+                             {"name": "Header Auth", "value": "httpHeaderAuth"}, {"name": "Query Auth", "value": "httpQueryAuth"}]},
+                {"displayName": "HTTP Request Method", "name": "requestMethod", "type": "options", "default": "POST",
+                 "options": [{"name": "GET", "value": "GET"}, {"name": "POST", "value": "POST"}]},
+                {"displayName": "Endpoint", "name": "endpoint", "type": "string", "default": "", "required": true,
+                 "placeholder": "https://example.com/graphql"},
+                {"displayName": "Ignore SSL Issues (Insecure)", "name": "allowUnauthorizedCerts", "type": "boolean", "default": false},
+                {"displayName": "Request Format", "name": "requestFormat", "type": "options", "default": "graphql",
+                 "options": [{"name": "GraphQL (Raw)", "value": "graphql"}, {"name": "JSON", "value": "json"}]},
+                {"displayName": "Query", "name": "query", "type": "string", "default": "", "required": true,
+                 "typeOptions": {"rows": 6}},
+                {"displayName": "Variables", "name": "variables", "type": "json", "default": "",
+                 "displayOptions": {"show": {"requestFormat": ["json"]}}},
+                {"displayName": "Operation Name", "name": "operationName", "type": "string", "default": "",
+                 "displayOptions": {"show": {"requestFormat": ["json"]}}},
+                {"displayName": "Response Format", "name": "responseFormat", "type": "options", "default": "json",
+                 "options": [{"name": "JSON", "value": "json"}, {"name": "String", "value": "string"}]},
+                {"displayName": "Response Data Property Name", "name": "dataPropertyName", "type": "string", "default": "data",
+                 "displayOptions": {"show": {"responseFormat": ["string"]}}},
+                {"displayName": "Headers", "name": "headerParametersUi", "type": "fixedCollection", "default": {},
+                 "typeOptions": {"multipleValues": true},
+                 "options": [{"displayName": "Header", "name": "parameter", "values": [
+                    {"displayName": "Name", "name": "name", "type": "string", "default": ""},
+                    {"displayName": "Value", "name": "value", "type": "string", "default": ""}]}]}
+            ]
+        })))
+    }
+}
+
+#[async_trait]
+impl FlowNode for GraphQlNode {
+    fn description(&self) -> &NodeTypeDescription {
+        &self.0
+    }
+
+    async fn execute(&self, ctx: &NodeContext) -> Result<NodeOutput, FlowError> {
+        let mut out = Vec::new();
+        for (i, item) in port(ctx, 0).iter().enumerate() {
+            let auth = resolve_auth(ctx, i).await?;
+            let endpoint = param_str(ctx, "endpoint", i, "")?;
+            if endpoint.trim().is_empty() {
+                return Err(node_err(ctx, "Parameter 'Endpoint' is empty"));
+            }
+            let get = param_str(ctx, "requestMethod", i, "POST")? == "GET";
+            let query = param_str(ctx, "query", i, "")?;
+            let json_format = param_str(ctx, "requestFormat", i, "graphql")? == "json";
+            let mut headers = Vec::new();
+            for (k, v) in pairs_of(ctx, "headerParametersUi.parameter", i)? {
+                headers.push((k, to_display(&v)));
+            }
+            headers.extend(auth.headers.iter().cloned());
+            let mut payload = Map::new();
+            payload.insert("query".into(), Value::String(query.clone()));
+            if json_format {
+                let vars = json_param(ctx, "variables", i)?;
+                if !vars.is_null() {
+                    payload.insert("variables".into(), vars);
+                }
+                let op = param_str(ctx, "operationName", i, "")?;
+                if !op.is_empty() {
+                    payload.insert("operationName".into(), Value::String(op));
+                }
+            }
+            let mut q = auth.query.clone();
+            let body = if get {
+                q.push(("query".into(), query));
+                if let Some(Value::Object(_)) = payload.get("variables") {
+                    q.push(("variables".into(), payload["variables"].to_string()));
+                }
+                Body::None
+            } else if json_format {
+                Body::Json(Value::Object(payload))
+            } else {
+                Body::Raw {
+                    content_type: "application/graphql".into(),
+                    data: query.into_bytes(),
+                }
+            };
+            let req = Req {
+                method: if get {
+                    reqwest::Method::GET
+                } else {
+                    reqwest::Method::POST
+                },
+                url: endpoint,
+                query: q,
+                headers,
+                body,
+            };
+            let client = {
+                let mut b = reqwest::Client::builder().timeout(Duration::from_secs(300));
+                if param_bool(ctx, "allowUnauthorizedCerts", i, false)? {
+                    b = b.danger_accept_invalid_certs(true);
+                }
+                b.build().map_err(|e| {
+                    node_err(
+                        ctx,
+                        format!("Could not build HTTP client: {}", e.without_url()),
+                    )
+                })?
+            };
+            let resp = send(ctx, &client, &auth, &req).await?;
+            let parsed = body_value(&resp);
+            if !(200..300).contains(&resp.status) {
+                let msg = parsed
+                    .get("errors")
+                    .map(Value::to_string)
+                    .or_else(|| parsed.get("message").map(to_display))
+                    .unwrap_or_else(|| format!("{} {}", resp.status, resp.reason));
+                return Err(node_err(ctx, format!("GraphQL request failed: {msg}")));
+            }
+            if let Some(errors) = parsed.get("errors").filter(|e| !e.is_null()) {
+                return Err(node_err(ctx, format!("GraphQL Error: {errors}")));
+            }
+            let mut it = Item::default();
+            if param_str(ctx, "responseFormat", i, "json")? == "string" {
+                let name = param_str(ctx, "dataPropertyName", i, "data")?;
+                it.json.insert(
+                    name,
+                    Value::String(String::from_utf8_lossy(&resp.bytes).into_owned()),
+                );
+            } else {
+                match parsed {
+                    Value::Object(m) => it.json = m,
+                    other => {
+                        it.json.insert("data".into(), other);
+                    }
+                }
+            }
+            it.paired_item = paired(i);
+            let _ = item;
+            out.push(it);
+        }
+        Ok(vec![out])
+    }
+}
