@@ -1,0 +1,41 @@
+name: windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+    paths:
+      - "apps/flutter/**"
+      - "crates/**"
+      - ".github/workflows/windows.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Flutter pub get
+        working-directory: apps/flutter
+        run: flutter pub get
+      - name: Build Windows release
+        working-directory: apps/flutter
+        run: flutter build windows --release
+      - name: Package
+        shell: pwsh
+        run: |
+          Compress-Archive -Path apps/flutter/build/windows/x64/runner/Release/* -DestinationPath hokkabaz-windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hokkabaz-windows-x64
+          path: hokkabaz-windows-x64.zip
+          if-no-files-found: error
