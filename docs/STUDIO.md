@@ -90,3 +90,21 @@ Known gaps: Studio runs only where ffmpeg runs (desktop, or a daemon) - on Andro
 Flows can drive the Studio with the **Video Studio** node (`hokkabaz.studio`, this device only): pick a step
 (transcribe, highlights, edit, reframe, b-roll, social, render, export, publish) and give its arguments as JSON
 (expressions work per item). It runs the same `studio_*` tool the agent uses, so flow runs and the live editor stay consistent.
+
+## On a phone: the Studio runs on your instance
+
+Android has no ffmpeg, so the app uses the Studio of the **connected instance** (Instances tab). Everything works the same:
+
+* **Import** uploads the video to the instance first (progress dialog), then imports it there.
+* **Preview** streams a small proxy of the source from the instance (HTTP range requests, short-lived media ticket, never your API token).
+* **Editing** is the same live editor: edits, undo/redo and the agent's changes arrive over a server-sent event stream.
+* **Render** happens on the instance; *Save clip* downloads the MP4 and lets you pick where to keep it. YouTube upload runs from the instance.
+* Studio settings (model, speech-to-text endpoint, API keys) are the **instance's**; saving them needs an admin token.
+
+Run the instance with ffmpeg: `docker build -f Dockerfile.studio -t hokkabazd-studio .`, or any host where `ffmpeg` is on the PATH
+(`hokkabazd` serves `/api/v1/studio/*` by default). The instance's Studio model must be one its provider serves
+(e.g. `deepseek/deepseek-chat`; the daemon currently has the DeepSeek provider only).
+
+API: `POST /api/v1/studio/rpc/{method}`, `GET /api/v1/studio/events/{project}` (SSE), `PUT /api/v1/studio/upload?name=`,
+`POST /api/v1/studio/ticket`, `GET /api/v1/studio/media?path=&ticket=`. Media requests are limited to the Studio's own folder
+and the configured B-roll folder.

@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+# hokkabazd with the Video Studio: same as `Dockerfile` but on a Debian base that carries ffmpeg
+# (the distroless image has no ffmpeg, so its Studio reports "ffmpeg missing").
+#   docker build -f Dockerfile.studio -t hokkabazd-studio .
+FROM rust:1.88-slim-bookworm AS build
+WORKDIR /src
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential pkg-config ca-certificates cmake clang libclang-dev \
+ && rm -rf /var/lib/apt/lists/*
+COPY . .
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/src/target \
+    cargo build --release --locked -p hk-daemon \
+ && install -D target/release/hokkabazd /out/hokkabazd
+
+FROM debian:bookworm-slim
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg ca-certificates python3 \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd --system --uid 65532 --create-home --home-dir /data hokkabaz
+COPY --from=build /out/hokkabazd /usr/local/bin/hokkabazd
+ENV HOKKABAZ_HOME=/data \
+    HOKKABAZ_LISTEN=0.0.0.0:7878
+VOLUME ["/data"]
+WORKDIR /data
+EXPOSE 7878
+USER hokkabaz
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD ["/usr/local/bin/hokkabazd", "healthcheck"]
+ENTRYPOINT ["/usr/local/bin/hokkabazd"]
+CMD ["serve"]
