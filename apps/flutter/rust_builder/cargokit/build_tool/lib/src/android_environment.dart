@@ -111,6 +111,11 @@ class AndroidEnvironment {
 
     final targetArg = '--target=${target.rust}$minSdkVersion';
 
+    // hk: build scripts that run bindgen (rquickjs-sys) must see the NDK's headers, not the host's.
+    final sysroot = path.join(ndkPath, 'toolchains', 'llvm', 'prebuilt', hostArch, 'sysroot');
+    final bindgenKey = 'BINDGEN_EXTRA_CLANG_ARGS_${target.rust.replaceAll('-', '_')}';
+    final bindgenValue = '--sysroot=$sysroot $targetArg';
+
     final ccKey = 'CC_${target.rust}';
     final ccValue = path.join(toolchainPath, 'clang$exe');
     final cfFlagsKey = 'CFLAGS_${target.rust}';
@@ -151,6 +156,7 @@ class AndroidEnvironment {
         Platform.environment['CARGOKIT_TOOL_TEMP_DIR'] ?? targetTempDir;
 
     return {
+      bindgenKey: bindgenValue,
       arKey: arValue,
       ccKey: ccValue,
       cfFlagsKey: cFlagsValue,
