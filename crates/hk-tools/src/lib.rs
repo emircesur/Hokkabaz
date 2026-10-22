@@ -12,4 +12,4 @@ pub use events::{ToolExecute, ToolPostExecute, ToolPreExecute};
 pub use output::{OutputLimits, Spilled};
 pub use pipeline::ToolPipeline;
 pub use registry::ToolRegistry;
-pub use tool::{Risk, Tool, ToolCtx, ToolError, ToolOutput, ToolSpec};
+pub use tool::{Risk, Tool, ToolCtx, ToolError, ToolOutput, ToolSpec, tag_untrusted};

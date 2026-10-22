@@ -312,7 +312,7 @@ impl Tool for WebSearch {
         };
         match search(http, &self.base, self.token.as_deref(), &q).await {
             Ok(rs) if rs.is_empty() => Ok(ToolOutput::ok("No results.")),
-            Ok(rs) => Ok(ToolOutput::ok(format_results(&rs, max))),
+            Ok(rs) => Ok(ToolOutput::untrusted("web_search", &format_results(&rs, max))),
             Err(m) => Ok(ToolOutput::error(format!("web_search failed: {m}"))),
         }
     }

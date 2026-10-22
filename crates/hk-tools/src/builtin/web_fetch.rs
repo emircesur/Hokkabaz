@@ -104,9 +104,9 @@ impl Tool for WebFetchTool {
             text = html_to_text(&text);
         }
         if !status.is_success() {
-            return Ok(ToolOutput::error(format!("HTTP {status}\n{text}")));
+            return Ok(ToolOutput::untrusted_error(&format!("web_fetch:{}", a.url), &format!("HTTP {status}\n{text}")));
         }
-        Ok(ToolOutput::ok(text))
+        Ok(ToolOutput::untrusted(&format!("web_fetch:{}", a.url), &text))
     }
 }
 

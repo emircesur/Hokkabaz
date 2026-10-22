@@ -82,10 +82,8 @@ impl Tool for McpTool {
                 tool: self.qualified.clone(),
                 reason: e.to_string(),
             })?;
-        Ok(if is_error {
-            ToolOutput::error(text)
-        } else {
-            ToolOutput::ok(text)
-        })
+        // A server we do not control: its text is data, not instructions.
+        let source = format!("mcp:{}", self.qualified);
+        Ok(if is_error { ToolOutput::untrusted_error(&source, &text) } else { ToolOutput::untrusted(&source, &text) })
     }
 }

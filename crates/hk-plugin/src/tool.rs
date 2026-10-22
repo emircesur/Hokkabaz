@@ -33,9 +33,9 @@ impl Tool for PluginTool {
         let (plugin, name, text) = (self.plugin.clone(), self.name.clone(), args.to_string());
         let res = tokio::task::spawn_blocking(move || plugin.call_tool(&name, &text)).await.map_err(|e| ToolError::Failed { tool: self.name.clone(), reason: e.to_string() })?;
         match res {
-            Ok(text) => Ok(ToolOutput::ok(text)),
+            Ok(text) => Ok(ToolOutput::untrusted(&format!("plugin:{}", self.name), &text)),
             // A plugin's own error is a normal tool error the model can react to.
-            Err(crate::PluginError::Plugin(msg)) => Ok(ToolOutput::error(msg)),
+            Err(crate::PluginError::Plugin(msg)) => Ok(ToolOutput::untrusted_error(&format!("plugin:{}", self.name), &msg)),
             Err(e) => Err(ToolError::Failed { tool: self.name.clone(), reason: e.to_string() }),
         }
     }
