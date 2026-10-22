@@ -1,0 +1,25 @@
+[package]
+name = "hk-whisper"
+description = "Hokkabaz: whisper.cpp helper process (own ggml copy, separate from llama.cpp)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "hk-whisper"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+hk-stt = { version = "0.0.0", path = "../../crates/hk-stt", features = ["whisper"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "macros"] }
+
+[features]
+# Multi-threaded kernels through OpenMP is the whisper.cpp default on Linux/Windows; nothing to toggle.
+default = []

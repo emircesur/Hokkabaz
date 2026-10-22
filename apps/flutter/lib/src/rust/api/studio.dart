@@ -31,6 +31,22 @@ Future<void> studioSaveSettings({required String settingsJson}) => RustLib
 Future<void> studioSetKey({required String which, String? key}) =>
     RustLib.instance.api.crateApiStudioStudioSetKey(which: which, key: key);
 
+/// Local transcription: `{helper: bool, models: [{id, name, size_bytes, note, installed,
+/// downloading, progress: {done, total}|null, error}]}`. `helper` is false when this install has
+/// no `hk-whisper` next to it (then use an OpenAI-compatible endpoint or an instance).
+Future<String> studioWhisperStatus() =>
+    RustLib.instance.api.crateApiStudioStudioWhisperStatus();
+
+/// Download a speech model in the background (poll `studio_whisper_status`).
+Future<void> studioWhisperPull({required String id}) =>
+    RustLib.instance.api.crateApiStudioStudioWhisperPull(id: id);
+
+Future<void> studioWhisperCancel({required String id}) =>
+    RustLib.instance.api.crateApiStudioStudioWhisperCancel(id: id);
+
+Future<void> studioWhisperRemove({required String id}) =>
+    RustLib.instance.api.crateApiStudioStudioWhisperRemove(id: id);
+
 /// Built-in templates and caption presets: `{templates: [...], caption_presets: [...]}`.
 Future<String> studioTemplates() =>
     RustLib.instance.api.crateApiStudioStudioTemplates();

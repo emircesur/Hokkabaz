@@ -2,11 +2,13 @@
 //!
 //! Word-level [`Transcript`] model (with text-editing helpers), the
 //! [`Transcriber`] trait, an OpenAI-compatible HTTP engine, a chunking wrapper
-//! for long audio, and an optional local whisper.cpp engine (feature `whisper`).
+//! for long audio, and local whisper.cpp: in-process (feature `whisper`) or, for binaries that
+//! also link llama.cpp, through the `hk-whisper` helper process ([`external`]).
 
 mod chunked;
 mod config;
 mod error;
+pub mod external;
 mod filler;
 mod openai_compat;
 mod transcriber;

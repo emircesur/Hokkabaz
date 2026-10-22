@@ -163,12 +163,13 @@ impl LocalCore {
             }),
         ));
         runtime.add_tools(hk_studio::studio_tools(studio_svc.clone()));
-        crate::studio::install(Arc::new(crate::studio::StudioHost {
-            svc: studio_svc,
-            settings: studio_settings,
-            store: store.clone(),
-            secrets: secrets.clone(),
-        }));
+        crate::studio::install(Arc::new(crate::studio::StudioHost::new(
+            studio_svc,
+            studio_settings,
+            store.clone(),
+            secrets.clone(),
+            &data_dir,
+        )));
         crate::n8n_sync::install(creds.clone()).await?;
         crate::credentials::install(creds);
 

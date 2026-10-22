@@ -7,15 +7,15 @@ use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 use futures::stream::BoxStream;
-use hk_llm::{Provider, Router};
+use hk_llm::Provider;
 use hk_server::{ApiError, StudioApi};
 use hk_store::{SecretStore, Store};
 use hk_studio::host::{AppBackends, SETTINGS_KEY, StudioHost, StudioSettings};
 use hk_studio::{StudioError, StudioService};
 use serde_json::Value;
 
-/// Build the Studio under `<data>/studio`. `provider` is the daemon's model provider; it is put
-/// behind a router so Studio settings can name it as `provider/model`.
+/// Build the Studio under `<data>/studio`. `provider` is the daemon's model router, so Studio
+/// settings name models as `provider/model` like everywhere else.
 pub async fn build(
     data: &Path,
     store: Store,
@@ -25,23 +25,19 @@ pub async fn build(
     let settings = Arc::new(RwLock::new(StudioSettings::load(
         store.get_setting(SETTINGS_KEY).await?.as_deref(),
     )));
-    let router: Arc<dyn Provider> = Arc::new(Router::new().provider(provider));
     let svc = Arc::new(StudioService::new(
         data.join("studio"),
         hk_media::Tools::from_env(),
         Arc::new(AppBackends {
-            provider: router,
+            provider,
             secrets: secrets.clone(),
             settings: settings.clone(),
             data_dir: data.to_path_buf(),
         }),
     ));
-    Ok(Arc::new(StudioHost {
-        svc,
-        settings,
-        store,
-        secrets,
-    }))
+    Ok(Arc::new(StudioHost::new(
+        svc, settings, store, secrets, data,
+    )))
 }
 
 pub struct Api(pub Arc<StudioHost>);

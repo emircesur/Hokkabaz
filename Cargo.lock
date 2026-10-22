@@ -3221,6 +3221,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
@@ -3234,6 +3235,7 @@ dependencies = [
  "async-trait",
  "futures",
  "hk-llm",
+ "hk-local",
  "hk-media",
  "hk-store",
  "hk-stt",
@@ -3242,8 +3244,10 @@ dependencies = [
  "rustface",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "tokio-util",
  "tracing",
 ]
 
@@ -3265,6 +3269,16 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "hk-whisper"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "hk-stt",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

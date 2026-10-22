@@ -74,6 +74,13 @@ jobs:
         run: |
           flutter pub get
           flutter build windows --release
+      - name: Build hk-whisper helper
+        shell: pwsh
+        env:
+          CARGO_TARGET_DIR: 'C:\hkw'
+        run: |
+          cargo build --release -p hk-whisper
+          Copy-Item C:\hkw\release\hk-whisper.exe apps/flutter/build/windows/x64/runner/Release/
       - shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
@@ -106,6 +113,10 @@ jobs:
         run: |
           flutter pub get
           flutter build linux --release
+      - name: Build hk-whisper helper
+        run: |
+          cargo build --release -p hk-whisper
+          install -m755 target/release/hk-whisper apps/flutter/build/linux/x64/release/bundle/
       - name: linuxdeploy
         run: |
           curl -sSLo /usr/local/bin/linuxdeploy https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
@@ -137,6 +148,10 @@ jobs:
         run: |
           flutter pub get
           flutter build macos --release
+      - name: Build hk-whisper helper
+        run: |
+          cargo build --release -p hk-whisper
+          install -m755 target/release/hk-whisper apps/flutter/build/macos/Build/Products/Release/hokkabaz.app/Contents/MacOS/
       - name: Package (unsigned)
         run: |
           v="${GITHUB_REF_NAME#v}"; case "$v" in [0-9]*) ;; *) v=0.0.0;; esac

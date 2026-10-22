@@ -22,7 +22,8 @@ pub enum SttProvider {
     /// `/audio/transcriptions` over HTTP (OpenAI, Groq, local servers).
     #[default]
     OpenaiCompat,
-    /// whisper.cpp in-process (feature `whisper`).
+    /// whisper.cpp on this machine: in-process with feature `whisper`, else the `hk-whisper`
+    /// helper process (see [`crate::external`]).
     WhisperLocal,
 }
 
@@ -85,6 +86,17 @@ impl Default for SttConfig {
 impl SttConfig {
     /// Chunking parameters derived from this config.
     pub fn chunk_opts(&self) -> ChunkOpts {
+        if self.provider == SttProvider::WhisperLocal {
+            // Nothing is uploaded: cut by CPU-friendly length into WAV (what whisper reads), one at a time.
+            return ChunkOpts {
+                chunk_secs: self.chunk_secs.max(300.0),
+                overlap_secs: self.chunk_overlap_secs,
+                concurrency: 1,
+                chunk_ext: "wav".into(),
+                max_upload_bytes: None,
+                ..ChunkOpts::default()
+            };
+        }
         ChunkOpts {
             chunk_secs: self.chunk_secs,
             overlap_secs: self.chunk_overlap_secs,
@@ -155,10 +167,26 @@ fn build_whisper(cfg: &SttConfig) -> Result<Arc<dyn Transcriber>> {
 }
 
 #[cfg(not(feature = "whisper"))]
-fn build_whisper(_cfg: &SttConfig) -> Result<Arc<dyn Transcriber>> {
-    Err(SttError::Unsupported(
-        "whisper_local needs the `whisper` cargo feature".into(),
-    ))
+fn build_whisper(cfg: &SttConfig) -> Result<Arc<dyn Transcriber>> {
+    let model_path = cfg
+        .model_path
+        .clone()
+        .ok_or_else(|| SttError::Config("whisper_local needs a downloaded model".into()))?;
+    let helper = crate::external::find_helper().ok_or_else(|| {
+        SttError::Unsupported(format!(
+            "local transcription needs the {} helper next to the app (or HK_WHISPER_BIN); \
+             not found in this install",
+            crate::external::HELPER
+        ))
+    })?;
+    Ok(Arc::new(crate::external::ExternalWhisper::new(
+        crate::external::ExternalOptions {
+            helper,
+            model_path,
+            threads: cfg.threads,
+            default_language: cfg.language.clone(),
+        },
+    )?))
 }
 
 #[cfg(test)]
@@ -189,10 +217,15 @@ mod tests {
         let some = |_: &KeyRef| Some("sk".to_string());
         assert!(build_transcriber(&cfg, &some).is_ok());
         cfg.provider = SttProvider::WhisperLocal;
+        // No model chosen yet.
         #[cfg(not(feature = "whisper"))]
         assert!(matches!(
             build_transcriber(&cfg, &some),
-            Err(SttError::Unsupported(_))
+            Err(SttError::Config(_))
         ));
+        let o = cfg.chunk_opts();
+        assert_eq!(o.chunk_ext, "wav");
+        assert_eq!(o.concurrency, 1);
+        assert_eq!(o.max_upload_bytes, None);
     }
 }

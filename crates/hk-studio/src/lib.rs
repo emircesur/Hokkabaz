@@ -25,6 +25,7 @@ pub mod social;
 pub mod templates;
 pub mod tools;
 pub mod vision;
+pub mod whisper_models;
 
 pub use error::{Result, StudioError};
 pub use host::{AppBackends, SharedSettings, StudioHost, StudioSettings};

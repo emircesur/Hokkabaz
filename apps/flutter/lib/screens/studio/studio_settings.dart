@@ -9,6 +9,7 @@ import '../../src/rust/api/studio.dart' as api;
 import '../../theme/tokens.dart';
 import '../chat/chat_providers.dart' show describeError;
 import 'studio_providers.dart';
+import 'whisper_models.dart';
 
 Future<void> showStudioSettings(BuildContext context) => showDialog<void>(context: context, builder: (_) => const _StudioSettingsDialog());
 
@@ -34,6 +35,7 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
   bool _hasYtSecret = false;
   bool _hasYtRefresh = false;
   String? _llm;
+  String? _whisperModel;
   String _sttProvider = 'openai_compat';
   bool _hasStt = false;
   bool _hasPexels = false;
@@ -67,6 +69,7 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
         _sttUrl.text = (s['stt_base_url'] as String?) ?? '';
         _sttModel.text = (s['stt_model'] as String?) ?? '';
         _sttLang.text = (s['stt_language'] as String?) ?? '';
+        _whisperModel = s['whisper_model'] as String?;
         _whisperPath.text = (s['whisper_model_path'] as String?) ?? '';
         _brollDir.text = (s['broll_dir'] as String?) ?? '';
         _ytId.text = (s['youtube_client_id'] as String?) ?? '';
@@ -100,6 +103,7 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
           'stt_base_url': _n(_sttUrl),
           'stt_model': _n(_sttModel),
           'stt_language': _n(_sttLang),
+          'whisper_model': _whisperModel,
           'whisper_model_path': _n(_whisperPath),
           'broll_dir': _n(_brollDir),
           'youtube_client_id': _n(_ytId),
@@ -168,8 +172,10 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
                       _Field(_sttUrl, 'Base URL', 'https://api.openai.com/v1  (Groq, local servers work too)'),
                       _Field(_sttModel, 'Model', 'whisper-1'),
                       _KeyField(controller: _sttKey, label: 'API key', isSet: _hasStt, onClear: () => _clearKey('stt')),
-                    ] else
-                      _Field(_whisperPath, 'ggml model file', '/path/to/ggml-base.bin (needs a build with local whisper)'),
+                    ] else ...[
+                      WhisperModelsPicker(selected: _whisperModel, onSelected: (v) => setState(() => _whisperModel = v)),
+                      _Field(_whisperPath, 'Or your own ggml file (optional)', '/path/to/ggml-base.bin'),
+                    ],
                     _Field(_sttLang, 'Language (optional)', 'en, tr, … empty = detect'),
                     const _H('B-roll sources'),
                     _KeyField(controller: _pexels, label: 'Pexels API key', isSet: _hasPexels, onClear: () => _clearKey('pexels')),

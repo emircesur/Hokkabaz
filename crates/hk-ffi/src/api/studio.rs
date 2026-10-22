@@ -63,6 +63,29 @@ pub async fn studio_set_key(which: String, key: Option<String>) -> Result<(), Hk
     Ok(())
 }
 
+/// Local transcription: `{helper: bool, models: [{id, name, size_bytes, note, installed,
+/// downloading, progress: {done, total}|null, error}]}`. `helper` is false when this install has
+/// no `hk-whisper` next to it (then use an OpenAI-compatible endpoint or an instance).
+pub async fn studio_whisper_status() -> Result<String, HkError> {
+    rpc_json("whisper_status", json!({})).await
+}
+
+/// Download a speech model in the background (poll `studio_whisper_status`).
+pub async fn studio_whisper_pull(id: String) -> Result<(), HkError> {
+    rpc("whisper_pull", json!({"id": id})).await?;
+    Ok(())
+}
+
+pub async fn studio_whisper_cancel(id: String) -> Result<(), HkError> {
+    rpc("whisper_cancel", json!({"id": id})).await?;
+    Ok(())
+}
+
+pub async fn studio_whisper_remove(id: String) -> Result<(), HkError> {
+    rpc("whisper_remove", json!({"id": id})).await?;
+    Ok(())
+}
+
 /// Built-in templates and caption presets: `{templates: [...], caption_presets: [...]}`.
 pub async fn studio_templates() -> Result<String, HkError> {
     rpc_json("templates", json!({})).await

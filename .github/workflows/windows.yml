@@ -38,6 +38,14 @@ jobs:
       - name: Build Windows release
         working-directory: apps/flutter
         run: flutter build windows --release
+      # whisper.cpp ships as its own executable (llama.cpp in the app has another ggml copy).
+      - name: Build hk-whisper helper
+        shell: pwsh
+        env:
+          CARGO_TARGET_DIR: 'C:\hkw'
+        run: |
+          cargo build --release -p hk-whisper
+          Copy-Item C:\hkw\release\hk-whisper.exe apps/flutter/build/windows/x64/runner/Release/
       - name: Package
         shell: pwsh
         run: |

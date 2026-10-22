@@ -42,7 +42,10 @@ pub struct StudioSettings {
     pub stt_base_url: Option<String>,
     pub stt_model: Option<String>,
     pub stt_language: Option<String>,
+    /// Own ggml file; wins over `whisper_model`.
     pub whisper_model_path: Option<String>,
+    /// Downloaded speech model for `whisper_local` (`tiny` | `base` | `small` | `medium` | `large-v3-turbo`).
+    pub whisper_model: Option<String>,
     /// A folder of your own footage / images used as a B-roll source.
     pub broll_dir: Option<String>,
     /// Google OAuth client id for YouTube uploads (secret + refresh token are in the secret store).
@@ -140,10 +143,24 @@ impl Backends for AppBackends {
             cfg.model = m;
         }
         cfg.language = s.stt_language.clone().filter(|l| !l.is_empty());
-        cfg.model_path = s
-            .whisper_model_path
-            .filter(|p| !p.is_empty())
-            .map(PathBuf::from);
+        if cfg.provider == SttProvider::WhisperLocal {
+            let own = s
+                .whisper_model_path
+                .filter(|p| !p.is_empty())
+                .map(PathBuf::from);
+            let id = s
+                .whisper_model
+                .as_deref()
+                .unwrap_or(crate::whisper_models::DEFAULT_MODEL);
+            let path = own.or_else(|| crate::whisper_models::model_path(&self.data_dir, id));
+            if let Some(p) = path.as_ref().filter(|p| !p.is_file()) {
+                return Err(StudioError::Invalid(format!(
+                    "speech model `{id}` is not downloaded ({}). Download it in Studio settings.",
+                    p.display()
+                )));
+            }
+            cfg.model_path = path;
+        }
         if self.secret(KEY_STT).is_some() {
             cfg.key_ref = Some(KeyRef::new(KEY_STT));
         }
@@ -213,6 +230,7 @@ pub struct StudioHost {
     pub settings: SharedSettings,
     pub store: Store,
     pub secrets: Arc<dyn SecretStore>,
+    pub whisper: Arc<crate::whisper_models::WhisperModels>,
 }
 
 fn arg<T: serde::de::DeserializeOwned>(p: &Value, key: &str) -> Result<T> {
@@ -234,6 +252,22 @@ fn to_value<T: Serialize>(v: &T) -> Result<Value> {
 }
 
 impl StudioHost {
+    pub fn new(
+        svc: Arc<StudioService>,
+        settings: SharedSettings,
+        store: Store,
+        secrets: Arc<dyn SecretStore>,
+        data_dir: &Path,
+    ) -> Self {
+        Self {
+            svc,
+            settings,
+            store,
+            secrets,
+            whisper: Arc::new(crate::whisper_models::WhisperModels::new(data_dir)),
+        }
+    }
+
     async fn project_value(&self, id: &str) -> Result<Value> {
         let p = self.svc.open(id).await?.snapshot().await;
         let mut v = serde_json::to_value(&p)?;
@@ -285,6 +319,19 @@ impl StudioHost {
                 };
                 let key: Option<String> = opt(&p, "key")?;
                 put_secret(self.secrets.as_ref(), name, key.as_deref())?;
+                Ok(Value::Null)
+            }
+            "whisper_status" => Ok(self.whisper.status()),
+            "whisper_pull" => {
+                self.whisper.pull(&arg::<String>(&p, "id")?)?;
+                Ok(Value::Null)
+            }
+            "whisper_cancel" => {
+                self.whisper.cancel(&arg::<String>(&p, "id")?);
+                Ok(Value::Null)
+            }
+            "whisper_remove" => {
+                self.whisper.remove(&arg::<String>(&p, "id")?)?;
                 Ok(Value::Null)
             }
             "templates" => Ok(json!({

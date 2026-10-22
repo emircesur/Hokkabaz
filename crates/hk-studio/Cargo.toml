@@ -19,6 +19,7 @@ vision = ["dep:rustface"]
 async-trait = "0.1"
 futures = "0.3"
 hk-llm = { version = "0.0.0", path = "../hk-llm" }
+hk-local = { version = "0.0.0", path = "../hk-local" }
 hk-tools = { version = "0.0.0", path = "../hk-tools" }
 hk-media = { version = "0.0.0", path = "../hk-media" }
 hk-stt = { version = "0.0.0", path = "../hk-stt" }
@@ -29,7 +30,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 tokio = { version = "1", features = ["fs", "macros", "rt", "time", "sync", "process"] }
+tokio-util = "0.7"
 tracing = "0.1"
 
 [dev-dependencies]
+tempfile = "3"
 tokio = { version = "1", features = ["rt", "macros", "time", "net", "io-util", "fs"] }

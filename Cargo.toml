@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "apps/hk-cli", "apps/hk-daemon"]
+members = ["crates/*", "apps/hk-cli", "apps/hk-daemon", "apps/hk-whisper"]
 exclude = ["third_party/concat"]
 
 [workspace.package]
