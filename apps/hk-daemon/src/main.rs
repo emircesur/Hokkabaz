@@ -209,8 +209,9 @@ async fn main() -> Result<()> {
     }
 
     let Opened { store, secrets, auth } = opened;
+    let studio_provider = provider(secrets.as_ref(), cli.base_url.as_deref());
     let runtime = LocalRuntime::new(LocalConfig {
-        provider: provider(secrets.as_ref(), cli.base_url.as_deref()),
+        provider: studio_provider.clone(),
         sessions_dir: data.join("sessions"),
         spill_dir: data.join("spill"),
         default_model: cli.model,
@@ -218,6 +219,9 @@ async fn main() -> Result<()> {
         max_steps: cli.max_steps,
     })
     .map_err(|e| anyhow::anyhow!("runtime: {e}"))?;
+
+    let studio = hk_studio::Studio::new(&data, studio_provider, secrets.clone())?;
+    runtime.attach_studio(studio.clone());
 
     let flow_cfg = FlowConfig {
         env_allowlist: cli.env_allow,
@@ -236,6 +240,7 @@ async fn main() -> Result<()> {
         tracing::info!("shutting down");
     };
     let served = hk_server::serve_listener(listener, a.state, shutdown).await.context("serve");
+    studio.shutdown();
     // Stop schedulers first so nothing starts mid-close; then flush the WAL.
     a.flow.shutdown();
     pool.pool().close().await;

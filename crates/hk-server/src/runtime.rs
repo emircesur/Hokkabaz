@@ -114,4 +114,7 @@ pub trait AgentRuntime: Send + Sync + 'static {
     /// Extra tools offered to sessions started after this call (flow tools etc.). Backings
     /// without a tool registry ignore it.
     fn add_tools(&self, _tools: Vec<std::sync::Arc<dyn hk_tools::Tool>>) {}
+
+    /// Headless Studio shared with desktop and remote controllers.
+    fn studio(&self) -> Option<std::sync::Arc<hk_studio::Studio>> { None }
 }

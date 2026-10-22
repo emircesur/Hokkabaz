@@ -8,6 +8,7 @@ import '../screens/instances/instances_screen.dart';
 import '../screens/models/models_screen.dart';
 import '../screens/placeholder_screen.dart';
 import '../screens/runs/runs_screen.dart';
+import '../screens/studio/studio_screen.dart';
 import 'destinations.dart';
 import 'shell.dart';
 
@@ -26,6 +27,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                 key: state.pageKey,
                 child: d.path == '/chat'
                     ? ChatScreen(title: d.label, icon: d.icon)
+                    : d.path == '/studio'
+                    ? const StudioScreen()
                     : d.path == '/flows'
                     ? const FlowsScreen()
                     : d.path == '/runs'

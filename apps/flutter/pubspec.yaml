@@ -40,6 +40,10 @@ dependencies:
   rust_lib_hokkabaz:
     path: rust_builder
   path_provider: ^2.1.6
+  media_kit: ^1.2.6
+  media_kit_video: ^2.0.1
+  media_kit_libs_video: ^1.0.7
+  file_selector: ^1.1.0
 
 dev_dependencies:
   flutter_test:

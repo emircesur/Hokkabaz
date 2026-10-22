@@ -21,6 +21,7 @@ workspace = true
 [features]
 # built-in integration nodes (hk-integrations `int-*` features decide which)
 integrations = ["dep:hk-integrations"]
+whisper = ["hk-studio/whisper"]
 
 [dependencies]
 anyhow = "1"
@@ -31,6 +32,7 @@ hk-integrations = { version = "0.0.0", path = "../../crates/hk-integrations", op
 hk-llm = { version = "0.0.0", path = "../../crates/hk-llm" }
 hk-server = { version = "0.0.0", path = "../../crates/hk-server" }
 hk-store = { version = "0.0.0", path = "../../crates/hk-store" }
+hk-studio = { version = "0.0.0", path = "../../crates/hk-studio" }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net", "sync", "time"] }
 tracing = "0.1"

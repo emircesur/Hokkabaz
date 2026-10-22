@@ -8,3 +8,4 @@ pub mod flow_runs;
 pub mod flows;
 pub mod instances;
 pub mod settings;
+pub mod studio;

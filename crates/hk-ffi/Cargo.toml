@@ -14,6 +14,9 @@ crate-type = ["cdylib", "staticlib", "lib"]
 [lints]
 workspace = true
 
+[features]
+whisper = ["hk-studio/whisper"]
+
 # Must stay android-safe: no landlock/acp/stdio-spawn deps here. hk-server is pulled with
 # default-features off (`runtime` only), so axum never compiles into the app.
 [dependencies]
@@ -25,6 +28,8 @@ hk-llm = { version = "0.0.0", path = "../hk-llm" }
 hk-server = { version = "0.0.0", path = "../hk-server", default-features = false, features = ["runtime"] }
 hk-session = { version = "0.0.0", path = "../hk-session" }
 hk-store = { version = "0.0.0", path = "../hk-store" }
+hk-studio = { version = "0.0.0", path = "../hk-studio" }
+
 # RemoteCore transport: rustls + ring only (same stack hk-llm already ships on android), no openssl.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }

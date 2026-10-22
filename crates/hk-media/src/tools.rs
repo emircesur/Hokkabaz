@@ -22,7 +22,14 @@ impl Tools {
 
     /// `HK_FFMPEG` / `HK_FFPROBE` if set and non-empty, else `ffmpeg` / `ffprobe` from `PATH`.
     pub fn from_env() -> Self {
-        Self::resolve(|k| std::env::var(k).ok())
+        Self::resolve(|k| {
+            std::env::var(k).ok().filter(|v| !v.is_empty()).or_else(|| {
+                let name = if k == ENV_FFMPEG { "ffmpeg" } else { "ffprobe" };
+                let executable = if cfg!(windows) { format!("{name}.exe") } else { name.into() };
+                let path = std::env::current_exe().ok()?.parent()?.join("tools").join(executable);
+                path.is_file().then(|| path.to_string_lossy().into_owned())
+            })
+        })
     }
 
     pub(crate) fn resolve(get: impl Fn(&str) -> Option<String>) -> Self {

@@ -37,6 +37,7 @@ use crate::wait_store::SqliteWaitStore;
 
 #[derive(Debug, Clone)]
 pub struct FlowConfig {
+    pub studio: Option<Arc<hk_studio::Studio>>,
     /// Host env var names readable through `$env`. Empty = none (host env can hold secrets).
     pub env_allowlist: Vec<String>,
     /// Public base of the listener (`https://host`): `webhookUrl`, `$execution.resumeUrl`.
@@ -49,7 +50,7 @@ pub struct FlowConfig {
 
 impl Default for FlowConfig {
     fn default() -> Self {
-        Self { env_allowlist: Vec::new(), webhook_base_url: None, tick: Duration::from_secs(1), agent_runner: None }
+        Self { studio: None, env_allowlist: Vec::new(), webhook_base_url: None, tick: Duration::from_secs(1), agent_runner: None }
     }
 }
 
@@ -84,6 +85,7 @@ impl FlowRuntime {
     pub fn start(api: FlowApi, cfg: FlowConfig) -> Result<Arc<Self>, FlowError> {
         let mut nodes = NodeRegistry::new();
         register_core_nodes(&mut nodes)?;
+        hk_studio::register_studio_nodes(&mut nodes, cfg.studio.clone())?;
         #[cfg(feature = "integrations")]
         hk_integrations::register_integrations(&mut nodes, &hk_integrations::CredentialTypes::with_builtins())?;
         let exec_cfg = ExecutorConfig {

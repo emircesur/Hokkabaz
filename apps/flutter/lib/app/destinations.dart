@@ -14,6 +14,12 @@ class HkDestination {
 const destinations = <HkDestination>[
   HkDestination('Chat', '/chat', Icons.chat_bubble_outline, Icons.chat_bubble),
   HkDestination(
+    'Studio',
+    '/studio',
+    Icons.movie_creation_outlined,
+    Icons.movie_creation,
+  ),
+  HkDestination(
     'Flows',
     '/flows',
     Icons.account_tree_outlined,

@@ -86,6 +86,8 @@ docs/               UPSTREAM.md, ADRs, guides
 
 ## Orchestration
 
+- Current owner preference: work in a single agent. Do not spawn subagents or delegate implementation. Lane files below are references; keep verification lean.
+
 - Orchestrator owns `PLAN.md` status. Workers update only their task row (`status`, `notes`).
 - Worker agents: `.claude/agents/*.md`. Pick by lane (A–F in `PLAN.md`).
 - Worker gets: task id, DoD, files allowed. Worker returns caveman report.

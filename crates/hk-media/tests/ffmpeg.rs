@@ -323,6 +323,7 @@ async fn render_segmented_crop_overlays_and_music() {
         Overlay {
             path: logo,
             kind: OverlayKind::Image,
+            source_start: 0.0,
             start: 0.5,
             end: 3.0,
             x: Some("10".into()),
@@ -333,6 +334,7 @@ async fn render_segmented_crop_overlays_and_music() {
         Overlay {
             path: broll,
             kind: OverlayKind::Video,
+            source_start: 0.0,
             start: 1.0,
             end: 3.0,
             x: None,

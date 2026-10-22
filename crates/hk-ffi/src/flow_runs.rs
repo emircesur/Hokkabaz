@@ -483,9 +483,10 @@ fn plan(
 }
 
 impl LocalFlows {
-    pub(crate) fn new(data_dir: &Path) -> Result<Self, HkError> {
+    pub(crate) fn new(data_dir: &Path, studio: Option<Arc<hk_studio::Studio>>) -> Result<Self, HkError> {
         let mut reg = NodeRegistry::new();
         register_core_nodes(&mut reg).map_err(|e| HkError::internal(format!("flow registry: {e}")))?;
+        hk_studio::register_studio_nodes(&mut reg, studio).map_err(|e| HkError::internal(e.to_string()))?;
         Ok(Self {
             s: Arc::new(Shared {
                 dir: data_dir.join("flow_runs"),

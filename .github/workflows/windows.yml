@@ -3,15 +3,21 @@ name: windows
 on:
   workflow_dispatch:
   push:
+    branches: ["hk/embedded-concat-studio"]
     tags: ["v*"]
     paths:
       - "apps/flutter/**"
       - "crates/**"
       - ".github/workflows/windows.yml"
+      - "scripts/*windows*"
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,20 +28,25 @@ jobs:
           workspaces: ". -> target"
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.47.7'
           channel: stable
           cache: true
       - name: Flutter pub get
         working-directory: apps/flutter
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
       - name: Build Windows release
         working-directory: apps/flutter
         run: flutter build windows --release
       - name: Package
         shell: pwsh
         run: |
-          Compress-Archive -Path apps/flutter/build/windows/x64/runner/Release/* -DestinationPath hokkabaz-windows-x64.zip
+          scripts/package-windows.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: hokkabaz-windows-x64
           path: hokkabaz-windows-x64.zip
           if-no-files-found: error
+      - name: Deliver build through Git
+        if: always() && github.ref == 'refs/heads/hk/embedded-concat-studio'
+        shell: pwsh
+        run: scripts/deliver-windows-build.ps1 -Status '${{ job.status }}' -SourceSha '${{ github.sha }}' -RunUrl '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'

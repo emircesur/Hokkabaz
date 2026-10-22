@@ -300,6 +300,14 @@ pub async fn exchange_pairing(base_url: &str, pairing_token: &str) -> Result<Sec
 
 #[async_trait]
 impl CoreHandle for RemoteCore {
+    async fn studio_request(&self, operation: String, args_json: String) -> Result<String, HkError> {
+        let args: Value = serde_json::from_str(&args_json)?;
+        let response = self.i.send(self.i.request(Method::POST, &["studio", &operation])
+            .timeout(Duration::from_secs(1800)).json(&args)).await?;
+        Ok(response.json::<Value>().await.map_err(bad_reply)?.to_string())
+    }
+
+
     fn profile(&self) -> CoreProfile {
         self.i.profile
     }

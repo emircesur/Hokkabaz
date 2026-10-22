@@ -73,6 +73,7 @@ struct Inner {
     live: Mutex<HashMap<String, Arc<Live>>>,
     /// Registered next to the builtins in every session created after they are added.
     extra_tools: Mutex<Vec<Arc<dyn Tool>>>,
+    studio: Mutex<Option<Arc<hk_studio::Studio>>>,
 }
 
 /// Agent runtime for the daemon and the desktop app's embedded server.
@@ -93,7 +94,13 @@ impl LocalRuntime {
     pub fn new(cfg: LocalConfig) -> Result<Self, ApiError> {
         let store = SessionStore::open(&cfg.sessions_dir)?;
         let (tx, _) = broadcast::channel(FEED_CAPACITY);
-        Ok(Self(Arc::new(Inner { cfg, store, tx, live: Mutex::default(), extra_tools: Mutex::default() })))
+        Ok(Self(Arc::new(Inner { cfg, store, tx, live: Mutex::default(), extra_tools: Mutex::default(), studio: Mutex::default() })))
+    }
+
+    /// Attach once before accepting sessions, so Studio tools enter their guarded pipelines.
+    pub fn attach_studio(&self, studio: Arc<hk_studio::Studio>) {
+        lock(&self.0.extra_tools).extend(hk_studio::studio_tools(studio.clone()));
+        *lock(&self.0.studio) = Some(studio);
     }
 
     fn info(&self, s: &SessionSummary) -> SessionInfo {
@@ -354,4 +361,6 @@ impl AgentRuntime for LocalRuntime {
     fn add_tools(&self, tools: Vec<Arc<dyn Tool>>) {
         lock(&self.0.extra_tools).extend(tools);
     }
+
+    fn studio(&self) -> Option<Arc<hk_studio::Studio>> { lock(&self.0.studio).clone() }
 }

@@ -57,6 +57,12 @@ fn explicit(p: &Path, what: &str) -> Result<PathBuf, ConcatError> {
 pub fn candidates(env: &dyn Env) -> Vec<PathBuf> {
     let exe = if cfg!(windows) { "concat.exe" } else { "concat" };
     let mut out = Vec::new();
+    // Portable Hokkabaz distributions carry the complete upstream editor here.
+    if let Ok(app) = std::env::current_exe() {
+        if let Some(dir) = app.parent() {
+            out.push(dir.join("concat").join(exe));
+        }
+    }
     if let Some(path) = env.var("PATH") {
         out.extend(std::env::split_paths(&path).map(|d| d.join(exe)));
     }

@@ -99,6 +99,7 @@ pub async fn assemble(
     mut flow_cfg: FlowConfig,
     public_url: &str,
 ) -> Result<Assembled> {
+    if flow_cfg.studio.is_none() { flow_cfg.studio = runtime.studio(); }
     // `hokkabaz.agent` runs full sessions on this instance's own agent runtime.
     if flow_cfg.agent_runner.is_none() {
         flow_cfg.agent_runner = Some(Arc::new(crate::agent_runner::RuntimeAgentRunner::new(runtime.clone())));

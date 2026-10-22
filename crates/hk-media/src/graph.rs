@@ -72,6 +72,8 @@ pub enum OverlayKind {
 pub struct Overlay {
     pub path: PathBuf,
     pub kind: OverlayKind,
+    #[serde(default)]
+    pub source_start: f64,
     pub start: f64,
     pub end: f64,
     /// ffmpeg overlay expressions; default centered.
@@ -332,7 +334,8 @@ impl RenderSpec {
             }
         }
         for o in &self.overlays {
-            if !(o.start >= 0.0 && o.end > o.start) {
+            if !(o.start.is_finite() && o.end.is_finite() && o.start >= 0.0 && o.end > o.start
+                && o.source_start.is_finite() && o.source_start >= 0.0) {
                 return Err(bad("overlay range invalid"));
             }
         }
@@ -516,7 +519,11 @@ impl RenderSpec {
             let idx = n + j;
             let mut f: Vec<String> = Vec::new();
             if o.kind == OverlayKind::Video {
-                f.push(format!("trim=duration={}", num(o.end - o.start)));
+                if o.source_start > 0.0 {
+                    f.push(format!("trim=start={}:duration={}",num(o.source_start),num(o.end-o.start)));
+                } else {
+                    f.push(format!("trim=duration={}", num(o.end - o.start)));
+                }
             }
             f.push(format!("setpts=PTS-STARTPTS+{}/TB", num(o.start)));
             if let Some(w) = o.width {
@@ -586,6 +593,36 @@ impl RenderSpec {
     /// The `-filter_complex` string alone.
     pub fn filter_complex(&self) -> Result<String> {
         Ok(self.build_graph()?.steps.join(";"))
+    }
+
+    /// Live libmpv graph. The input is an EDL with cuts already applied; keep its
+    /// timestamps intact so seeking, captions and subject tracking stay in sync.
+    pub fn playback_filter(&self) -> Result<String> {
+        if self.sources.len() != 1 || self.segments.len() != 1 || self.segments[0].start != 0.0 {
+            return Err(bad("playback expects one already edited source"));
+        }
+        let mut graph = self.build_graph()?;
+        let audio = self.sources[0].has_audio;
+        graph.steps.drain(..if audio { 3 } else { 2 });
+        let mut inputs = vec![s("[vid1]null[vc]")];
+        if audio {
+            inputs.push(s("[aid1]anull[ac]"));
+        }
+        for (i, overlay) in self.overlays.iter().enumerate() {
+            let looping = if overlay.kind == OverlayKind::Image {
+                ":loop=0,setpts=N/(30*TB)"
+            } else { "" };
+            inputs.push(format!("movie=filename={}{}[{}:v]", escape_value(&overlay.path.display().to_string()), looping, i + 1));
+        }
+        if let Some(music) = &self.music {
+            inputs.push(format!("amovie=filename={}:loop=0,asetpts=N/SR/TB[{}:a]", escape_value(&music.path.display().to_string()), self.music_input()));
+        }
+        inputs.extend(graph.steps);
+        inputs.push(format!("[{}]null[vo]", graph.video));
+        if let Some(label) = graph.audio {
+            inputs.push(format!("[{label}]anull[ao]"));
+        }
+        Ok(inputs.join(";"))
     }
 
     /// Full ffmpeg argv (no binary) incl. `-progress pipe:1`.
@@ -746,6 +783,7 @@ mod tests {
         sp.overlays = vec![Overlay {
             path: PathBuf::from("broll.mp4"),
             kind: OverlayKind::Video,
+            source_start: 0.0,
             start: 1.0,
             end: 2.5,
             x: None,
@@ -830,6 +868,7 @@ mod tests {
         sp.overlays = vec![Overlay {
             path: PathBuf::from("logo.png"),
             kind: OverlayKind::Image,
+            source_start: 0.0,
             start: 0.0,
             end: 1.0,
             x: None,

@@ -148,7 +148,10 @@ impl LocalCore {
             max_steps: 50,
         })?;
 
-        let flows = LocalFlows::new(&data_dir)?;
+        let studio = hk_studio::Studio::new(&data_dir, reload.clone(), secrets.clone())
+            .map_err(|e| HkError::internal(e.to_string()))?;
+        let flows = LocalFlows::new(&data_dir, Some(studio.clone()))?;
+        runtime.attach_studio(studio);
         let core = Arc::new(Self {
             i: Arc::new(Inner {
                 profile,
@@ -315,6 +318,13 @@ pub(crate) fn pending_approvals(events: &[hk_session::SessionEvent], pending: &[
 
 #[async_trait]
 impl CoreHandle for LocalCore {
+    async fn studio_request(&self, operation: String, args_json: String) -> Result<String, HkError> {
+        let studio = self.i.runtime.studio().ok_or_else(|| HkError::internal("Studio is unavailable"))?;
+        let args = serde_json::from_str(&args_json)?;
+        studio.request(&operation, args).await.map(|v| v.to_string()).map_err(|e| HkError::invalid(e.to_string()))
+    }
+
+
     fn profile(&self) -> CoreProfile {
         self.i.profile
     }
@@ -527,6 +537,7 @@ impl CoreHandle for LocalCore {
     }
 
     async fn shutdown(&self) {
+        if let Some(studio) = self.i.runtime.studio() { studio.shutdown(); }
         self.i.shutdown.cancel();
         // Stop running turns so nothing keeps calling providers after the app tore the core down.
         if let Ok(rows) = self.i.runtime.list_sessions(u32::MAX, 0).await {

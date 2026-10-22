@@ -9,6 +9,7 @@ import 'api/flow_runs.dart';
 import 'api/flows.dart';
 import 'api/instances.dart';
 import 'api/settings.dart';
+import 'api/studio.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -74,7 +75,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -101633661;
+  int get rustContentHash => 961291226;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -198,6 +199,11 @@ abstract class RustLibApi extends BaseApi {
   Future<bool> crateApiFlowRunsSetWorkflowActive({
     required String workflowJson,
     required bool active,
+  });
+
+  Future<String> crateApiStudioStudioRequest({
+    required String operation,
+    required String argsJson,
   });
 
   Future<TurnAcceptedDto> crateApiChatSubmitTurn({
@@ -1201,6 +1207,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String> crateApiStudioStudioRequest({
+    required String operation,
+    required String argsJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(operation, serializer);
+          sse_encode_String(argsJson, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 32,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioRequestConstMeta,
+        argValues: [operation, argsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioRequestConstMeta =>
+      const TaskConstMeta(
+        debugName: "studio_request",
+        argNames: ["operation", "argsJson"],
+      );
+
+  @override
   Future<TurnAcceptedDto> crateApiChatSubmitTurn({
     required String sessionId,
     required String prompt,
@@ -1218,7 +1259,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1245,7 +1286,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(json, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,

@@ -16,6 +16,7 @@ fn registry() -> Result<&'static NodeRegistry, HkError> {
     REG.get_or_init(|| {
         let mut r = NodeRegistry::new();
         register_core_nodes(&mut r).map_err(|e| e.to_string())?;
+        hk_studio::register_studio_nodes(&mut r, None).map_err(|e| e.to_string())?;
         Ok(r)
     })
     .as_ref()

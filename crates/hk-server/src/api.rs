@@ -83,6 +83,7 @@ pub fn router(state: AppState) -> Router {
         .route("/sessions/{id}/cancel", post(cancel))
         .route("/approvals/{id}", post(approve))
         .route("/models", get(models))
+        .route("/studio/{operation}", post(studio_request))
         .route("/ws", get(ws::upgrade))
         .route("/openapi.json", get(openapi::openapi_json));
     let mut app = Router::new();
@@ -129,6 +130,17 @@ pub async fn serve_listener(
 
 async fn health() -> Json<Value> {
     Json(json!({ "status": "ok", "version": env!("CARGO_PKG_VERSION") }))
+}
+
+async fn studio_request(p: Principal, State(s): State<AppState>, Path(operation): Path<String>, Json(args): Json<Value>) -> Result<Json<Value>, ApiError> {
+    let scope = match operation.as_str() {
+        "connections" | "projects" | "templates" | "get" | "jobs" => Scope::Read,
+        "set_secret" | "save_connections" | "publish" => Scope::Admin,
+        _ => Scope::Run,
+    };
+    p.require(scope)?;
+    let studio = s.runtime.studio().ok_or_else(|| ApiError::BadRequest("Studio is unavailable on this instance".into()))?;
+    studio.request(&operation, args).await.map(Json).map_err(|e| ApiError::BadRequest(e.to_string()))
 }
 
 #[derive(Deserialize)]

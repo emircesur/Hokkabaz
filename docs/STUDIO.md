@@ -56,3 +56,61 @@ Project files: `<data>/studio/<project-id>/{project.json, transcript.json, proxi
 | Long videos (2h+) cost | chunked transcription, cached results, proxy files, cheap-model first pass then rerank |
 | Platform publishing APIs need app review | Export package + manual copy always works; connectors are optional |
 | Virality score is a heuristic | Label as estimate; show reasons; allow custom rubric prompt |
+
+## Development and connections
+
+The `/studio` screen is implemented in `apps/flutter/lib/screens/studio`. Its Rust backend is
+`hk-studio`, shared through FFI and authenticated `POST /api/v1/studio/{operation}` requests.
+The existing Instances screen selects the local or remote backend. File paths on a remote
+instance refer to that instance's filesystem; remote scrubbing uses authenticated frame requests.
+
+Implemented: persistent projects and render history, optimistic edit revisions, undo/redo,
+word deletion/restoration, filler and silence cuts, word-level ASS karaoke, SRT/VTT export,
+12 caption presets, smoothed crop paths, B-roll overlays, voice-ducked music, render progress
+and cancellation, Concat project handoff, and guarded Studio agent tools. `hokkabaz.studio*`
+flow nodes expose the same pipeline, including manual opt-in YouTube uploads.
+
+In **Studio → Connections**:
+
+- Set an analysis `provider/model` already configured in Models (including Ollama and custom
+  OpenAI-compatible/local network providers). Direct UI analysis also uses the local default
+  model when no Studio override is set. Analysis and scoring use cached, logged transcript
+  requests; reach scores are estimates with reasons.
+- Speech defaults to a keyless local OpenAI-compatible Whisper server at
+  `http://127.0.0.1:8080/v1`. Change its URL/model for your own speech API. API keys go into
+  the shared secret backend, never project JSON. Audio is uploaded only when Transcribe runs.
+- In-process whisper.cpp is available with `hk-studio/whisper` (and the forwarding `whisper`
+  features on `hk-ffi`/`hk-daemon`). Model weights are user-supplied; none are downloaded by setup.
+- Pexels and Pixabay use their own keys. Local B-roll needs no stock account. Keep attribution
+  returned with an asset; the export package includes it.
+- A subject detector is optional. Studio sends a sampled frame as multipart field `image` to
+  the configured URL. Return `{"subjects":[{"x":0.5,"y":0.4,"confidence":0.9}],"scene_cut":false}`
+  with normalized coordinates. The highest-confidence subject drives a smoothed crop path.
+  Without a detector, Studio uses center crop. A bundled ONNX detector remains future work.
+- YouTube uploads need an OAuth access token with `youtube.upload` scope. Metadata is editable
+  per clip. The UI uploads privately only after confirmation; expired tokens must be replaced.
+  TikTok, Instagram and LinkedIn currently support metadata and export packages, not direct posting.
+
+Linux prerequisites: Rust stable, Flutter/Dart matching `pubspec.yaml`, FFmpeg/ffprobe 7+ on PATH,
+GTK 3 and libmpv development packages, Clang, CMake and Ninja. Set `HK_FFMPEG`, `HK_FFPROBE`
+or `HK_CONCAT` to use explicit binaries. Concat 0.2.8's process bridge works independently of
+the optional in-process engine; a source build of the full Concat engine is not required.
+
+```sh
+git submodule update --init --depth 1 third_party/concat
+cargo check -p hk-studio -p hk-ffi -p hk-daemon
+cd apps/flutter
+flutter pub get --enforce-lockfile
+flutter analyze --no-pub
+flutter run -d linux
+```
+
+Regenerate FFI from the repository root with the pinned tool:
+`RUST_LOG=warn flutter_rust_bridge_codegen generate` (version 2.11.1; requires cargo-expand).
+
+Validation stays narrow: affected crates' check/Clippy, Flutter analysis/build, and one pipeline
+smoke example. `cargo run -p hk-studio --example studio_smoke -- <4-second-video> <empty-scratch-dir>`
+uses fixture speech/LLM replies, real FFmpeg, and the installed Concat MCP process. It checks
+editing, undo, stale revisions, styled vertical output, export files and restart persistence.
+Live model quality, third-party stock accounts, social uploads and Android packaging require
+their own configured services/devices and were not exercised by that smoke check.

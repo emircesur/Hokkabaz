@@ -173,6 +173,8 @@ pub enum Overlay {
     },
     Media {
         file: String,
+        #[serde(default)]
+        source_start: f64,
         start: f64,
         duration: f64,
         #[serde(default = "one")]
@@ -259,6 +261,7 @@ pub enum Command {
     AddTitle { text: String, start: f64, duration: f64, style: Option<Value>, offset_y: Option<f64> },
     AddMediaOverlay {
         media: String,
+        source_start: f64,
         start: f64,
         duration: f64,
         scale: f64,
@@ -543,8 +546,9 @@ pub fn to_concat_commands(plan: &StudioClipPlan) -> Result<Vec<Command>, ConcatE
                     offset_y: *offset_y,
                 });
             }
-            Overlay::Media { start, duration, scale, offset_x, offset_y, opacity, .. } => cmds.push(Command::AddMediaOverlay {
+            Overlay::Media { start, duration, scale, offset_x, offset_y, opacity, source_start, .. } => cmds.push(Command::AddMediaOverlay {
                 media: overlay_key(i),
+                source_start: *source_start,
                 start: *start,
                 duration: *duration,
                 scale: *scale,
@@ -587,6 +591,8 @@ struct MediaState {
     size: Option<(f64, f64)>,
 }
 
+type MediaLookup = (String, Option<f64>, Option<(f64, f64)>);
+
 /// Creates `location/name` (video settings from the plan) and applies the plan. Returns the path.
 pub async fn apply_plan(client: &ConcatClient, location: &str, plan: &StudioClipPlan) -> Result<AppliedPlan, ConcatError> {
     let cmds = to_concat_commands(plan)?;
@@ -613,7 +619,7 @@ pub async fn apply_commands(
         None => client.add_track(project, true).await?,
     };
 
-    let find = |media: &HashMap<String, MediaState>, key: &str| -> Result<(String, Option<f64>, Option<(f64, f64)>), ConcatError> {
+    let find = |media: &HashMap<String, MediaState>, key: &str| -> Result<MediaLookup, ConcatError> {
         media
             .get(key)
             .map(|m| (m.id.clone(), m.duration, m.size))
@@ -694,14 +700,23 @@ pub async fn apply_commands(
             Command::AddTitle { text, start, duration, style, offset_y } => {
                 client.add_title(project, text, *start, *duration, style.clone(), *offset_y).await?;
             }
-            Command::AddMediaOverlay { media: key, start, duration, scale, offset_x, offset_y, opacity } => {
+            Command::AddMediaOverlay { media: key, start, duration, scale, offset_x, offset_y, opacity, source_start } => {
                 let (mid, dur, _) = find(&media, key)?;
                 let len = need_len(dur, key)?;
+                if !source_start.is_finite() || *source_start<0.0 || source_start+duration>len+0.05 {
+                    return Err(ConcatError::InvalidPlan("B-roll source range exceeds the asset".into()));
+                }
                 let track = client.add_track(project, false).await?;
                 let clip = client.add_clip(project, &mid, &track, *start, false).await?;
                 let mut ops = Vec::new();
-                if len - duration > EPS {
-                    ops.push(json!({ "op": "trimClip", "clipId": clip, "edge": "end", "delta": -(len - duration), "ripple": false }));
+                if *source_start>EPS {
+                    ops.push(json!({"op":"trimClip","clipId":clip,"edge":"start","delta":source_start,"ripple":false}));
+                }
+                if len - source_start - duration > EPS {
+                    ops.push(json!({ "op": "trimClip", "clipId": clip, "edge": "end", "delta": -(len - source_start - duration), "ripple": false }));
+                }
+                if *source_start>EPS {
+                    ops.push(json!({"op":"moveClips","moves":[{"clipId":clip,"start":start,"trackId":track}]}));
                 }
                 ops.push(json!({ "op": "updateClip", "clipId": clip, "patch": { "opacity": opacity } }));
                 ops.push(json!({
@@ -827,6 +842,7 @@ pub fn plan_from_view(view: &Value, source: Option<&str>) -> Result<StudioClipPl
                 if let Some(file) = path_of(c) {
                     overlays.push(Overlay::Media {
                         file: file.to_owned(),
+                        source_start: num(c,"sourceStart").unwrap_or(0.0),
                         start,
                         duration: dur,
                         scale: num(c, "scale").unwrap_or(1.0),

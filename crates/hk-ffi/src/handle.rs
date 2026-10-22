@@ -19,6 +19,11 @@ use crate::error::{HkError, HkErrorKind};
 pub trait CoreHandle: Send + Sync + 'static {
     fn profile(&self) -> CoreProfile;
 
+    async fn studio_request(&self, operation: String, args_json: String) -> Result<String, HkError> {
+        let _ = (operation, args_json);
+        Err(HkError::new(HkErrorKind::Unsupported, "Studio is unavailable on this core"))
+    }
+
     async fn get_settings(&self) -> Result<SettingsDto, HkError>;
     /// Insert or update a provider; rebuilds the provider registry.
     async fn save_provider(&self, input: ProviderInputDto) -> Result<SettingsDto, HkError>;
