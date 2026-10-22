@@ -144,6 +144,8 @@ pub async fn assemble(
     tracing::info!(active = n, resumed, "flow runtime up");
     // Agents can draft and test-run workflows on this instance.
     runtime.add_tools(hk_server::flow_tools(flow.clone(), o.store.clone()));
+    #[cfg(feature = "plugins")]
+    runtime.add_tools(flow.plugin_tools());
     let pairing = Pairing::new(&o.auth, public_url).context("pairing")?;
     let state = AppState::new(runtime, o.auth)
         .with_flow(api)

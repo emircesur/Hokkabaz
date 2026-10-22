@@ -61,6 +61,15 @@ emit = false
 fs = [{ path = "/data/shared", write = false }]
 ```
 
+## On a headless instance
+
+`hokkabazd` loads every enabled plugin from `<data dir>/plugins` at start (install with `hk plugin install` using the same
+`--data-dir`/`HOKKABAZ_HOME`, then restart). Tools join the agent, nodes join the flow registry, and each trigger the plugin
+declares becomes a polling trigger node `<plugin id>.<trigger>`: activating a workflow that contains it polls the plugin every
+`interval_secs` (or the node's Poll Times) and starts the workflow with the returned events. Events carrying an `id` are
+deduplicated across polls. Polling triggers of the built-in integrations (GitHub, Telegram, RSS, email) use the same machinery
+and now fire on the daemon too.
+
 ## Registry
 
 `index.json` (see `registry-template/`) lists entries `{id, name, version, description, capabilities, download_url (https), sha256, size}`.

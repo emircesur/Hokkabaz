@@ -45,6 +45,8 @@ pub struct FlowConfig {
     pub webhook_base_url: Option<String>,
     /// Scheduler / due-wait poll period.
     pub tick: Duration,
+    /// Data dir; plugins are loaded from `<data_dir>/plugins`.
+    pub data_dir: Option<std::path::PathBuf>,
     /// Backs `hokkabaz.agent`; `assemble` fills it with a session-backed runner when unset.
     pub agent_runner: Option<Arc<dyn hk_flow::nodes::ai::AgentRunner>>,
 }
@@ -54,6 +56,7 @@ impl Default for FlowConfig {
         Self {
             env_allowlist: Vec::new(),
             webhook_base_url: None,
+            data_dir: None,
             tick: Duration::from_secs(1),
             agent_runner: None,
         }
@@ -66,6 +69,10 @@ pub struct FlowRuntime {
     executor: Executor,
     nodes: Arc<NodeRegistry>,
     host: Arc<LocalTriggerHost>,
+    /// Arms schedules/webhooks through `host` and, with integrations, polling triggers too.
+    triggers: Arc<dyn TriggerHost>,
+    #[cfg(feature = "plugins")]
+    plugins: Option<crate::plugins::Loaded>,
     registry: Arc<ft::WebhookRegistry>,
     base_url: Option<String>,
     tasks: Mutex<Vec<JoinHandle<()>>>,
@@ -94,10 +101,18 @@ impl FlowRuntime {
         let mut nodes = NodeRegistry::new();
         register_core_nodes(&mut nodes)?;
         #[cfg(feature = "integrations")]
-        hk_integrations::register_integrations(
+        let mut polls = hk_integrations::PollRegistry::new();
+        #[cfg(feature = "integrations")]
+        hk_integrations::register_integrations_with_polling(
             &mut nodes,
             &hk_integrations::CredentialTypes::with_builtins(),
+            &mut polls,
         )?;
+        #[cfg(feature = "plugins")]
+        let plugins = cfg
+            .data_dir
+            .as_deref()
+            .map(|d| crate::plugins::load(d, api.secrets.clone(), &mut nodes, &mut polls));
         let exec_cfg = ExecutorConfig {
             mode: "trigger".into(),
             env_allowlist: cfg.env_allowlist,
@@ -118,14 +133,32 @@ impl FlowRuntime {
             .with_config(exec_cfg.clone());
 
         let (sink, mut events) = ChannelSink::channel();
+        let sink = Arc::new(sink);
         let registry = Arc::new(ft::WebhookRegistry::new());
-        let host = Arc::new(LocalTriggerHost::new(Arc::new(sink), registry.clone()));
+        let host = Arc::new(LocalTriggerHost::new(sink.clone(), registry.clone()));
+        #[cfg(feature = "integrations")]
+        let triggers: Arc<dyn TriggerHost> = Arc::new(hk_integrations::PollingHost::new(
+            host.clone(),
+            polls,
+            Arc::new(hk_integrations::poll::StaticDataPollState::new(
+                StoreStatic {
+                    store: api.store.clone(),
+                },
+            )),
+            sink,
+            exec_cfg.hooks.credentials.clone(),
+        ));
+        #[cfg(not(feature = "integrations"))]
+        let triggers: Arc<dyn TriggerHost> = host.clone();
         let rt = Arc::new(Self {
             api,
             exec_cfg,
             executor: executor.clone(),
             nodes,
             host: host.clone(),
+            triggers,
+            #[cfg(feature = "plugins")]
+            plugins,
             registry,
             base_url: cfg
                 .webhook_base_url
@@ -162,6 +195,15 @@ impl FlowRuntime {
         Arc::new(Activator { rt: self.clone() })
     }
 
+    /// Agent tools provided by loaded plugins.
+    #[cfg(feature = "plugins")]
+    pub fn plugin_tools(&self) -> Vec<Arc<dyn hk_tools::Tool>> {
+        self.plugins
+            .as_ref()
+            .map(|p| p.tools.clone())
+            .unwrap_or_default()
+    }
+
     pub fn host(&self) -> &Arc<LocalTriggerHost> {
         &self.host
     }
@@ -196,7 +238,7 @@ impl FlowRuntime {
             for row in rows {
                 let res = Workflow::from_json_value(hs::workflow_json(&row));
                 match res {
-                    Ok(wf) => match self.host.activate(&wf).await {
+                    Ok(wf) => match self.triggers.activate(&wf).await {
                         Ok(a) => {
                             ok += 1;
                             tracing::info!(workflow = %row.id, webhooks = a.webhooks.len(), schedules = a.schedules, "workflow activated");
@@ -540,7 +582,7 @@ impl hs::WorkflowActivator for Activator {
     async fn activate(&self, workflow: &Value) -> Result<(), String> {
         let wf = Workflow::from_json_value(workflow.clone()).map_err(|e| e.to_string())?;
         self.rt
-            .host
+            .triggers
             .activate(&wf)
             .await
             .map(|_| ())
@@ -549,10 +591,57 @@ impl hs::WorkflowActivator for Activator {
 
     async fn deactivate(&self, workflow_id: &str) -> Result<(), String> {
         self.rt
-            .host
+            .triggers
             .deactivate(workflow_id)
             .await
             .map_err(|e| e.to_string())
+    }
+}
+
+/// Poll cursors live in the workflow's `staticData`, like n8n's `getWorkflowStaticData`.
+#[cfg(feature = "integrations")]
+#[derive(Debug)]
+struct StoreStatic {
+    store: Store,
+}
+
+#[cfg(feature = "integrations")]
+#[async_trait]
+impl hk_integrations::poll::StaticDataStore for StoreStatic {
+    async fn load_static(&self, workflow_id: &str) -> Result<Option<Value>, FlowError> {
+        let row = self
+            .store
+            .get_workflow(workflow_id)
+            .await
+            .map_err(|e| FlowError::Store(e.to_string()))?;
+        Ok(row
+            .and_then(|r| serde_json::from_str::<Value>(&r.data).ok())
+            .and_then(|v| v.get("staticData").cloned()))
+    }
+
+    async fn save_static(&self, workflow_id: &str, data: Value) -> Result<(), FlowError> {
+        let Some(row) = self
+            .store
+            .get_workflow(workflow_id)
+            .await
+            .map_err(|e| FlowError::Store(e.to_string()))?
+        else {
+            return Ok(());
+        };
+        let Ok(Value::Object(mut obj)) = serde_json::from_str::<Value>(&row.data) else {
+            return Ok(());
+        };
+        obj.insert("staticData".into(), data);
+        self.store
+            .update_workflow(
+                &row.id,
+                &row.name,
+                &row.version_id,
+                &Value::Object(obj).to_string(),
+            )
+            .await
+            .map_err(|e| FlowError::Store(e.to_string()))?;
+        Ok(())
     }
 }
 

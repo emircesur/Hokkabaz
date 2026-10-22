@@ -279,6 +279,7 @@ async fn main() -> Result<()> {
     let flow_cfg = FlowConfig {
         env_allowlist: cli.env_allow,
         webhook_base_url: Some(public_url.clone()),
+        data_dir: Some(data.clone()),
         ..FlowConfig::default()
     };
     let pool = store.clone();

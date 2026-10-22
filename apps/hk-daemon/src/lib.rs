@@ -4,6 +4,8 @@
 pub mod agent_runner;
 pub mod daemon;
 pub mod flow_runtime;
+#[cfg(feature = "plugins")]
+pub mod plugins;
 pub mod scrub;
 pub mod secrets;
 pub mod wait_store;

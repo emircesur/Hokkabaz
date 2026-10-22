@@ -21,6 +21,9 @@ workspace = true
 [features]
 # built-in integration nodes (hk-integrations `int-*` features decide which)
 integrations = ["dep:hk-integrations"]
+# WASM plugins installed in <data>/plugins (`hk plugin install`): tools, nodes, polling triggers
+plugins = ["integrations", "dep:hk-plugin", "dep:hk-tools"]
+default = ["integrations", "plugins"]
 
 [dependencies]
 anyhow = "1"
@@ -28,6 +31,8 @@ async-trait = "0.1"
 clap = { version = "4", features = ["derive", "env"] }
 hk-flow = { version = "0.0.0", path = "../../crates/hk-flow" }
 hk-integrations = { version = "0.0.0", path = "../../crates/hk-integrations", optional = true }
+hk-plugin = { version = "0.0.0", path = "../../crates/hk-plugin", optional = true }
+hk-tools = { version = "0.0.0", path = "../../crates/hk-tools", optional = true }
 hk-llm = { version = "0.0.0", path = "../../crates/hk-llm" }
 hk-server = { version = "0.0.0", path = "../../crates/hk-server" }
 hk-store = { version = "0.0.0", path = "../../crates/hk-store" }
