@@ -1,0 +1,4 @@
+{"task":"transcribe","language":"turkish","duration":6.0,"text":"Merhaba dünya. Şey bugün hava güzel.",
+ "segments":[
+  {"id":0,"start":0.0,"end":2.0,"text":" Merhaba dünya.","avg_logprob":-0.2},
+  {"id":1,"start":3.0,"end":6.0,"text":" Şey bugün hava güzel.","avg_logprob":-0.5}]}

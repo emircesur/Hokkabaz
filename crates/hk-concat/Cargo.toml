@@ -1,0 +1,50 @@
+[package]
+name = "hk-concat"
+description = "Hokkabaz: bridge to the included Concat video editor (process MCP bridge, optional in-process engine)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# In-process Concat engine (D16). OFF by default: needs FFmpeg 7 dev libs, cmake, a C++
+# toolchain and Rust >= 1.93 (third_party/concat). Desktop release CI only (studio.yml).
+engine = [
+  "dep:concat-api",
+  "dep:concat-mcp",
+  "dep:concat-project",
+  "dep:concat-export",
+  "dep:concat-effects",
+  "dep:concat-text",
+  "dep:concat-speech",
+  "dep:concat-vision",
+]
+
+[dependencies]
+async-trait = "0.1"
+hk-tools = { version = "0.0.0", path = "../hk-tools" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["io-util", "process", "rt", "sync", "time"] }
+tracing = "0.1"
+
+# Concat lives in its own cargo workspace (git submodule, excluded from ours); its crates are
+# reachable only as path deps. Optional => nothing here compiles without `--features engine`.
+concat-api = { path = "../../third_party/concat/src/crates/concat-api", optional = true }
+concat-mcp = { path = "../../third_party/concat/src/crates/concat-mcp", optional = true }
+concat-project = { path = "../../third_party/concat/src/crates/concat-project", optional = true }
+concat-export = { path = "../../third_party/concat/src/crates/concat-export", optional = true }
+concat-effects = { path = "../../third_party/concat/src/crates/concat-effects", optional = true }
+concat-text = { path = "../../third_party/concat/src/crates/concat-text", optional = true }
+concat-speech = { path = "../../third_party/concat/src/crates/concat-speech", optional = true }
+concat-vision = { path = "../../third_party/concat/src/crates/concat-vision", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["io-util", "macros", "rt", "sync", "time"] }
