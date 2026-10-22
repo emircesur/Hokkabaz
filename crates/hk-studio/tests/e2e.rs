@@ -36,7 +36,6 @@ fn transcript() -> Transcript {
 #[tokio::test]
 async fn edit_preview_render() {
     if !have_ffmpeg() {
-        eprintln!("ffmpeg missing, skipping");
         return;
     }
     let dir = std::env::temp_dir().join(format!("hk_studio_e2e_{}", hk_studio::project::new_id("t")));
@@ -95,4 +94,41 @@ async fn edit_preview_render() {
     assert!(info.has_audio());
 
     std::fs::remove_dir_all(&dir).ok();
+}
+
+#[tokio::test]
+async fn motion_tracking_follows_a_moving_box() {
+    if !have_ffmpeg() {
+        return;
+    }
+    use hk_studio::reframe::FocusSource;
+    let dir = std::env::temp_dir().join(format!("hk_studio_motion_{}", hk_studio::project::new_id("t")));
+    std::fs::create_dir_all(&dir).unwrap();
+    let src = dir.join("box.mp4");
+    let st = Command::new("ffmpeg")
+        .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=640x360:r=10:d=6", "-f", "lavfi", "-i", "color=c=white:s=60x60:r=10:d=6", "-filter_complex", "[0][1]overlay=x='t*90':y=140", "-c:v", "libx264", "-pix_fmt", "yuv420p"])
+        .arg(&src)
+        .status()
+        .unwrap();
+    assert!(st.success());
+    let pts = hk_studio::vision::MotionFocus::new(Tools::from_env()).detect(&src, 0.0, 6.0, 0.5).await.unwrap();
+    assert!(pts.len() >= 10, "{}", pts.len());
+    let early = pts[2].x;
+    let late = pts[pts.len() - 2].x;
+    assert!(late > early + 0.3, "box moves right: {early} -> {late}");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+/// Needs the SeetaFace model and a test video with faces; set `HK_FACE_MODEL` / `HK_FACE_VIDEO` to run.
+#[cfg(feature = "vision")]
+#[tokio::test]
+async fn face_tracking_finds_faces() {
+    use hk_studio::reframe::FocusSource;
+    let (Ok(model), Ok(video)) = (std::env::var("HK_FACE_MODEL"), std::env::var("HK_FACE_VIDEO")) else {
+        return;
+    };
+    let pts = hk_studio::vision::FaceFocus::new(Tools::from_env(), model).detect(Path::new(&video), 0.0, 3.0, 1.0).await.unwrap();
+    assert!(!pts.is_empty());
+    // A group photo: the chosen face is off-centre on at least one axis.
+    assert!(pts.iter().any(|p| (p.x - 0.5).abs() > 0.02 || (p.y - 0.5).abs() > 0.02), "{pts:?}");
 }

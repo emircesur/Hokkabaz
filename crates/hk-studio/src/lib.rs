@@ -20,6 +20,7 @@ pub mod project;
 pub mod reframe;
 pub mod social;
 pub mod templates;
+pub mod vision;
 
 pub use error::{Result, StudioError};
 pub use live::{LiveStudio, StudioEvent};
