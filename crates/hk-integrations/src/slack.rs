@@ -146,12 +146,11 @@ fn s(
         .unwrap_or_default())
 }
 
-/// The Web API method and JSON/form payload for one item.
-fn plan(
-    ctx: &NodeContext,
-    d: &NodeTypeDescription,
-    i: usize,
-) -> Result<(&'static str, Map<String, Value>, Option<&'static str>), FlowError> {
+/// Web API method, its payload, and the response key holding the result.
+type Plan = (&'static str, Map<String, Value>, Option<&'static str>);
+
+/// The Web API method and JSON payload for one item.
+fn plan(ctx: &NodeContext, d: &NodeTypeDescription, i: usize) -> Result<Plan, FlowError> {
     let resource = s(ctx, d, "resource", i)?;
     let op = s(ctx, d, "operation", i)?;
     let mut body = Map::new();
