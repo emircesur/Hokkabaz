@@ -172,6 +172,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         editor["path"], reopened["path"],
         "Reopening must preserve manual edits"
     );
+    let full_editor = studio
+        .request("prepare_editor", json!({"project_id":id}))
+        .await?;
+    assert_ne!(editor["path"], full_editor["path"]);
+    let clip_again = studio
+        .request("prepare_editor", json!({"project_id":id,"clip_id":clip_id}))
+        .await?;
+    assert_eq!(
+        editor["path"], clip_again["path"],
+        "Switching clips must preserve editor projects"
+    );
     let job = studio
         .request("render", json!({"project_id":id,"clip_id":clip_id}))
         .await?;

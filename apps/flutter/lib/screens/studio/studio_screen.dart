@@ -440,12 +440,10 @@ class _StudioScreenState extends ConsumerState<StudioScreen> {
                   ),
                 ],
                 selected: {_fullEditor},
-                onSelectionChanged: _project == null
-                    ? null
-                    : (values) async {
-                        await _player.pause();
-                        if (mounted) setState(() => _fullEditor = values.first);
-                      },
+                onSelectionChanged: (values) async {
+                  await _player.pause();
+                  if (mounted) setState(() => _fullEditor = values.first);
+                },
               ),
               const SizedBox(width: 12),
               FilledButton.tonalIcon(
@@ -520,14 +518,14 @@ class _StudioScreenState extends ConsumerState<StudioScreen> {
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              if (_project == null) return _empty();
               if (_fullEditor) {
                 return ConcatEditor(
-                  key: ValueKey('${_project!['id']}:$_clipId'),
-                  projectId: _project!['id'] as String,
+                  key: ValueKey('${_project?['id']}:$_clipId'),
+                  projectId: _project?['id'] as String?,
                   clipId: _clipId,
                 );
               }
+              if (_project == null) return _empty();
               if (constraints.maxWidth >= 1150) {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,

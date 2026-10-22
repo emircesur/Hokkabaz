@@ -134,7 +134,7 @@ async fn health() -> Json<Value> {
 
 async fn studio_request(p: Principal, State(s): State<AppState>, Path(operation): Path<String>, Json(args): Json<Value>) -> Result<Json<Value>, ApiError> {
     let scope = match operation.as_str() {
-        "connections" | "projects" | "templates" | "get" | "jobs" => Scope::Read,
+        "connections" | "projects" | "templates" | "get" | "jobs" | "editor_environment" => Scope::Read,
         "set_secret" | "save_connections" | "publish" => Scope::Admin,
         _ => Scope::Run,
     };

@@ -5,7 +5,8 @@ Extract the entire ZIP into a writable folder, then open `hokkabaz.exe`. Windows
 The portable package includes Concat 0.2.8 and FFmpeg; no separate editor or
 FFmpeg installation is necessary. Builds are currently unsigned.
 
-Open **Studio**, import a video, then select **Shorts** or **Full editor**.
+Open **Studio**. Choose **Full editor** to create/open a native video project,
+or import a video in **Shorts** to use the short-form workflow.
 
 - **Shorts** previews the edited timeline live: word/silence cuts, animated
   captions, crop, B-roll and ducked music. Changes reload the preview without

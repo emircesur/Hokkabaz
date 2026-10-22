@@ -5,6 +5,9 @@ $ErrorActionPreference = "Stop"
 $temp = Join-Path $env:RUNNER_TEMP "hokkabaz-delivery"
 New-Item -ItemType Directory -Force $temp | Out-Null
 $parts = @()
+if (Test-Path 'apps/flutter/windows-release.log') { Copy-Item 'apps/flutter/windows-release.log' "$temp/windows-release.log" }
+if (Test-Path 'windows-package.log') { Copy-Item 'windows-package.log' "$temp/windows-package.log" }
+if ((Test-Path 'hokkabaz-windows-x64.zip') -and (Test-Path 'hokkabaz-windows-x64.zip.sha256')) { $Status = 'success' }
 if ($Status -eq 'success') {
   $file = [System.IO.File]::OpenRead((Resolve-Path 'hokkabaz-windows-x64.zip'))
   try {

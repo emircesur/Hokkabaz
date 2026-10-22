@@ -24,6 +24,6 @@ add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
 find_package(X11 REQUIRED)
-target_link_libraries(${BINARY_NAME} PRIVATE X11::X11)
+target_link_libraries(${BINARY_NAME} PRIVATE X11::X11 ${CMAKE_DL_LIBS})
 
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")

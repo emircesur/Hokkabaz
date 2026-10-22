@@ -5,6 +5,8 @@
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
 #include <sys/wait.h>
+#include <signal.h>
+#include <dlfcn.h>
 
 #include <string>
 #include <algorithm>
@@ -18,13 +20,20 @@ struct Host {
   GPid pid = 0;
   Window child = 0;
   guint timer = 0;
+  guint child_watch = 0;
   std::string project, error;
   bool visible = false, closing_parent = false;
   int attempts = 0;
 
   Display* display() { return GDK_DISPLAY_XDISPLAY(gtk_widget_get_display(socket)); }
+  void focus() {
+    if (child && visible) {
+      XSetInputFocus(display(), child, RevertToParent, CurrentTime);
+      XFlush(display());
+    }
+  }
   void close() {
-    if (!child) return;
+    if (!child) { if (pid) kill(pid, SIGTERM); return; }
     visible = true;
     gtk_widget_show(socket);
     XEvent event{};
@@ -39,16 +48,21 @@ struct Host {
   }
   void save() {
     if (!child) return;
-    XSetInputFocus(display(), child, RevertToParent, CurrentTime);
-    XKeyEvent key{};
-    key.display = display(); key.window = child; key.root = DefaultRootWindow(display());
-    key.same_screen = True; key.state = ControlMask;
-    key.keycode = XKeysymToKeycode(display(), XK_s);
-    key.type = KeyPress;
-    XSendEvent(display(), child, True, KeyPressMask, reinterpret_cast<XEvent*>(&key));
-    key.type = KeyRelease;
-    XSendEvent(display(), child, True, KeyReleaseMask, reinterpret_cast<XEvent*>(&key));
-    XFlush(display());
+    focus();
+    // Winit uses XInput2; core XSendEvent key messages do not update its
+    // modifier state. XTest sends the same chord as a physical keyboard.
+    void* library = dlopen("libXtst.so.6", RTLD_NOW | RTLD_LOCAL);
+    if (!library) return;
+    using FakeKey = Bool (*)(Display*, unsigned int, Bool, unsigned long);
+    auto key = reinterpret_cast<FakeKey>(dlsym(library, "XTestFakeKeyEvent"));
+    if (key) {
+      const auto control = XKeysymToKeycode(display(), XK_Control_L);
+      const auto letter = XKeysymToKeycode(display(), XK_s);
+      key(display(), control, True, 0); key(display(), letter, True, 0);
+      key(display(), letter, False, 0); key(display(), control, False, 0);
+      XFlush(display());
+    }
+    dlclose(library);
   }
   Window find(Window root) {
     Window returned, parent, *children = nullptr;
@@ -76,6 +90,7 @@ struct Host {
     if (found) {
       gtk_socket_add_id(GTK_SOCKET(socket), found);
       child = found;
+      focus();
       if (!visible) gtk_widget_hide(socket);
       error.clear();
     } else if (++attempts == 300) {
@@ -85,6 +100,7 @@ struct Host {
   }
   ~Host() {
     if (timer) g_source_remove(timer);
+    if (child_watch) g_source_remove(child_watch);
     if (channel) { fl_method_channel_set_method_call_handler(channel, nullptr, nullptr, nullptr); g_object_unref(channel); }
   }
 };
@@ -115,19 +131,21 @@ void call(FlMethodChannel*, FlMethodCall* method, gpointer data) {
     if (!host->pid) {
       const char* binary = string(args, "binary");
       gchar* argv[] = {const_cast<gchar*>(binary), const_cast<gchar*>("--project"), const_cast<gchar*>(path), nullptr};
+      gchar* blank_argv[] = {const_cast<gchar*>(binary), nullptr};
       g_auto(GStrv) env = g_get_environ();
       env = g_environ_setenv(env, "WINIT_UNIX_BACKEND", "x11", TRUE);
       env = g_environ_setenv(env, "SLINT_BACKEND", "winit", TRUE);
       env = g_environ_unsetenv(env, "WAYLAND_DISPLAY");
       g_autoptr(GError) error = nullptr;
-      if (!g_spawn_async(nullptr, argv, env, static_cast<GSpawnFlags>(G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_SEARCH_PATH), nullptr, nullptr, &host->pid, &error)) {
+      if (!g_spawn_async(nullptr, *path ? argv : blank_argv, env, static_cast<GSpawnFlags>(G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_SEARCH_PATH), nullptr, nullptr, &host->pid, &error)) {
         fl_method_call_respond_error(method, "launch_failed", error->message, nullptr, nullptr); return;
       }
       host->project = path; host->error.clear(); host->attempts = 0;
-      g_child_watch_add(host->pid, [](GPid pid, gint status, gpointer data) {
+      host->child_watch = g_child_watch_add(host->pid, [](GPid pid, gint status, gpointer data) {
         auto* h = static_cast<Host*>(data);
         if (!h->child) h->error = "Concat exited before its editor opened (" + std::to_string(status) + ").";
         h->pid = 0; h->child = 0;
+        h->child_watch = 0;
         gtk_widget_hide(h->socket);
         g_spawn_close_pid(pid);
         if (h->closing_parent) gtk_window_close(h->window);
@@ -135,6 +153,7 @@ void call(FlMethodChannel*, FlMethodCall* method, gpointer data) {
     }
     host->visible = true;
     gtk_widget_show(host->socket);
+    host->focus();
   } else if (g_str_equal(name, "bounds")) {
     gtk_fixed_move(GTK_FIXED(host->fixed), host->socket, static_cast<int>(number(args, "x")), static_cast<int>(number(args, "y")));
     gtk_widget_set_size_request(host->socket, std::max(1, static_cast<int>(number(args, "width"))), std::max(1, static_cast<int>(number(args, "height"))));
@@ -142,6 +161,7 @@ void call(FlMethodChannel*, FlMethodCall* method, gpointer data) {
     auto* value = fl_value_lookup_string(args, "visible");
     host->visible = value && fl_value_get_type(value) == FL_VALUE_TYPE_BOOL && fl_value_get_bool(value);
     if (host->visible) gtk_widget_show(host->socket); else gtk_widget_hide(host->socket);
+    if (host->visible) host->focus();
   } else if (g_str_equal(name, "status")) {
     host->poll();
     g_autoptr(FlValue) status = fl_value_new_map();
@@ -166,6 +186,14 @@ void concat_host_register(FlView* view, GtkWindow* window, GtkOverlay* overlay) 
   gtk_overlay_set_overlay_pass_through(overlay, host->fixed, TRUE);
   gtk_widget_show(host->fixed);
   host->socket = gtk_socket_new();
+  gtk_widget_set_can_focus(host->socket, TRUE);
+  gtk_widget_add_events(host->socket, GDK_ENTER_NOTIFY_MASK | GDK_FOCUS_CHANGE_MASK);
+  g_signal_connect(host->socket, "enter-notify-event", G_CALLBACK(+[](GtkWidget*, GdkEvent*, gpointer data) -> gboolean {
+    static_cast<Host*>(data)->focus(); return FALSE;
+  }), host);
+  g_signal_connect(host->socket, "focus-in-event", G_CALLBACK(+[](GtkWidget*, GdkEvent*, gpointer data) -> gboolean {
+    static_cast<Host*>(data)->focus(); return FALSE;
+  }), host);
   gtk_fixed_put(GTK_FIXED(host->fixed), host->socket, 0, 0);
   gtk_widget_realize(host->socket);
   g_signal_connect(host->socket, "plug-removed", G_CALLBACK(+[](GtkSocket*, gpointer data) -> gboolean {

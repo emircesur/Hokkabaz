@@ -172,6 +172,10 @@ impl Studio {
     /// Only the UI/REST admin boundary may call `save_connections` or `set_secret`.
     pub async fn request(self: &Arc<Self>, operation: &str, args: Value) -> Result<Value> {
         match operation {
+            "editor_environment" => {
+                let binary = hk_concat::locate_binary(self.connections()?.concat_binary.as_deref())?;
+                return Ok(json!({"binary":binary,"path":""}));
+            }
             "connections" => {
                 let config=self.connections()?;
                 let mut keys=BTreeMap::new();

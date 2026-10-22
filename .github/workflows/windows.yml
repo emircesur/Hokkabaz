@@ -18,6 +18,8 @@ jobs:
   build:
     runs-on: windows-latest
     timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: 2
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,7 +27,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: ". -> target"
+          workspaces: ". -> apps/flutter/build/windows/x64/plugins/rust_lib_hokkabaz/cargokit_build"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
@@ -36,11 +38,14 @@ jobs:
         run: flutter pub get --enforce-lockfile
       - name: Build Windows release
         working-directory: apps/flutter
-        run: flutter build windows --release
+        shell: pwsh
+        run: |
+          flutter build windows --release 2>&1 | Tee-Object windows-release.log
+          exit $LASTEXITCODE
       - name: Package
         shell: pwsh
         run: |
-          scripts/package-windows.ps1
+          scripts/package-windows.ps1 2>&1 | Tee-Object windows-package.log
       - uses: actions/upload-artifact@v4
         with:
           name: hokkabaz-windows-x64

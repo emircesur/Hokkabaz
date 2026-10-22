@@ -114,3 +114,30 @@ uses fixture speech/LLM replies, real FFmpeg, and the installed Concat MCP proce
 editing, undo, stale revisions, styled vertical output, export files and restart persistence.
 Live model quality, third-party stock accounts, social uploads and Android packaging require
 their own configured services/devices and were not exercised by that smoke check.
+
+
+## Embedded full editor and live preview
+
+The desktop Studio now has **Shorts** and **Full editor** modes. The full,
+unmodified Concat 0.2.8 Slint interface is hosted as a native child surface on
+Windows and Linux X11. This preserves the native multitrack editor, effects,
+keyframes, transitions, audio tools, speech/vision panels and live compositor.
+It runs in its own process with its own event loop; its window is inside the
+Hokkabaz workspace, rather than a separate editor window.
+
+Shorts playback uses an mpv EDL for frame-accurate cuts and the same media filter
+graph used for export, at preview resolution. libass captions, crop tracking,
+B-roll and music ducking are applied during playback. Edits coalesce, replace
+the preview and preserve the playhead/play state. Transcript seeking maps source
+time into edited time. Rendering remains a separate high-quality operation.
+
+Native editor projects persist per imported project and selected clip. Reopening
+preserves manual edits. Explicitly applying newer Shorts edits creates a new
+native project and retains previous projects. Native timeline edits do not
+round-trip into transcript operations; export them through Concat's Export panel.
+Concat's upstream API still does not edit the visible native project live.
+The Shorts agent changes the Shorts project and its live preview.
+
+Linux embedding requires X11 (or an XWayland session launched with
+`GDK_BACKEND=x11`). Windows packages include the complete upstream editor and
+checksum-verified FFmpeg tools. See [Windows builds](WINDOWS.md).

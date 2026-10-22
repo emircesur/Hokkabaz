@@ -17,7 +17,7 @@ Future<void> setConcatVisibility(bool visible) async {
 /// surrounding workspace; native pixels occupy only this widget's rectangle.
 class ConcatEditor extends StatefulWidget {
   const ConcatEditor({super.key, required this.projectId, this.clipId});
-  final String projectId;
+  final String? projectId;
   final String? clipId;
   @override
   State<ConcatEditor> createState() => _ConcatEditorState();
@@ -77,15 +77,18 @@ class _ConcatEditorState extends State<ConcatEditor>
         );
       }
       final editor = object(
-        await studioRequest('prepare_editor', {
-          'project_id': widget.projectId,
-          'clip_id': widget.clipId,
-          'rebuild': rebuild,
-        }),
+        widget.projectId == null
+            ? await studioRequest('editor_environment')
+            : await studioRequest('prepare_editor', {
+                'project_id': widget.projectId,
+                'clip_id': widget.clipId,
+                'rebuild': rebuild,
+              }),
       );
       if (!mounted) return;
       if (!await File(editor['binary'] as String).exists() ||
-          !await File('${editor['path']}/concat.json').exists()) {
+          ((editor['path'] as String).isNotEmpty &&
+              !await File('${editor['path']}/concat.json').exists())) {
         throw StateError(
           'Select the local instance to use the embedded editor. The project and Concat must be on this computer.',
         );
@@ -189,7 +192,7 @@ class _ConcatEditorState extends State<ConcatEditor>
               child: const Text('Reopen'),
             ),
             TextButton(
-              onPressed: !_starting && !_running
+              onPressed: !_starting && !_running && widget.projectId != null
                   ? () => _start(rebuild: true)
                   : null,
               child: const Text('Apply latest Shorts edits'),

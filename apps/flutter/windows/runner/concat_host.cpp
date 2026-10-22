@@ -74,10 +74,10 @@ ConcatHost::ConcatHost(HWND parent, flutter::BinaryMessenger* messenger) : paren
         return;
       }
       if (!process_.hProcess) {
-        if (binary.empty() || project.empty()) {
-          result->Error("invalid_path", "Editor executable and project are required."); return;
+        if (binary.empty()) {
+          result->Error("invalid_path", "Editor executable is required."); return;
         }
-        auto command = Quote(binary) + L" --project " + Quote(project);
+        auto command = Quote(binary) + (project.empty() ? L"" : L" --project " + Quote(project));
         STARTUPINFOW startup{};
         startup.cb = sizeof(startup);
         startup.dwFlags = STARTF_USESHOWWINDOW;
@@ -144,6 +144,7 @@ void ConcatHost::Poll() {
       ShowWindow(window, SW_HIDE);
       auto style = GetWindowLongPtrW(window, GWL_STYLE);
       SetWindowLongPtrW(window, GWL_STYLE, (style & ~(WS_POPUP | WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU)) | WS_CHILD | WS_CLIPSIBLINGS);
+      SetWindowLongPtrW(window, GWL_EXSTYLE, GetWindowLongPtrW(window, GWL_EXSTYLE) & ~WS_EX_APPWINDOW);
       SetLastError(0);
       if (!SetParent(window, parent_) && GetLastError() != 0) {
         SetWindowLongPtrW(window, GWL_STYLE, style);
@@ -190,6 +191,7 @@ void ConcatHost::Close() {
 bool ConcatHost::RequestClose() {
   Poll();
   if (!process_.hProcess) return false;
+  if (!editor_) TerminateProcess(process_.hProcess, 0); // No editor has been exposed yet.
   closing_parent_ = true;
   Close();
   return true;

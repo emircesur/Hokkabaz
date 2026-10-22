@@ -69,10 +69,17 @@ impl Studio {
         let clip = self.clip(project, args)?.map(|c| c.span);
         let config = self.connections()?;
         let binary = hk_concat::locate_binary(config.concat_binary.as_deref())?;
-        let link = dir.join("editor.json");
+        use sha2::{Digest, Sha256};
+        let slot = format!(
+            "{:x}",
+            Sha256::digest(args["clip_id"].to_string().as_bytes())
+        );
+        let link = dir.join(format!("editor-{slot}.json"));
+        let legacy = dir.join("editor.json");
+        let previous = if link.is_file() { &link } else { &legacy };
         let key = self.render_key(project, clip)?;
-        if args["rebuild"] != true && link.is_file() {
-            let mut saved: Value = serde_json::from_slice(&std::fs::read(&link)?)?;
+        if args["rebuild"] != true && previous.is_file() {
+            let mut saved: Value = serde_json::from_slice(&std::fs::read(previous)?)?;
             if saved["clip_id"] == args["clip_id"]
                 && saved["path"]
                     .as_str()
@@ -80,12 +87,28 @@ impl Studio {
             {
                 saved["binary"] = json!(binary);
                 saved["shorts_changed"] = json!(saved["key"] != key);
+                atomic_json(&link, &saved)?;
                 return Ok(saved);
             }
         }
         let location = dir.join("editor");
         std::fs::create_dir_all(&location)?;
-        let plan = self.concat_plan(project, clip)?;
+        let mut plan = self.concat_plan(project, clip)?;
+        let name: String = project
+            .name
+            .chars()
+            .filter(|c| c.is_alphanumeric() || "-_ ".contains(*c))
+            .take(48)
+            .collect();
+        plan.name = format!(
+            "{}-{}",
+            if name.trim().is_empty() {
+                "Studio"
+            } else {
+                name.trim()
+            },
+            &uuid::Uuid::new_v4().to_string()[..8]
+        );
         let session = ConcatSession::new(ConcatConfig {
             path: Some(binary.clone()),
             mode: ConcatMode::Headless,
@@ -101,6 +124,7 @@ impl Studio {
             client.project_save(&applied.project, None).await?;
             let data = json!({"path":applied.project,"binary":binary,"key":key,"clip_id":args["clip_id"],"revision":project.revision,"shorts_changed":false});
             atomic_json(&link, &data)?;
+            atomic_json(&legacy, &data)?;
             Ok::<_, StudioError>(data)
         }.await;
         session.shutdown().await;
