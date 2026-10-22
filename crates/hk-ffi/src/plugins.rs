@@ -96,6 +96,7 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+#[cfg(not(target_os = "android"))]
 struct SecretsBridge(Arc<dyn SecretStore>);
 
 #[cfg(not(target_os = "android"))]
@@ -369,6 +370,8 @@ impl Manager {
         if let Some(lp) = self.host.get(id) {
             return lp.set_settings(settings).map_err(perr);
         }
+        #[cfg(target_os = "android")]
+        let _ = settings;
         Err(HkError::new(
             HkErrorKind::Unsupported,
             "plugin is not loaded",

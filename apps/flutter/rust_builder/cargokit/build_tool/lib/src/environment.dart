@@ -16,7 +16,10 @@ class Environment {
   static bool get isRelease => configuration == 'release';
 
   /// Temporary directory where Rust build artifacts are placed.
-  static String get targetTempDir => _getEnv("CARGOKIT_TARGET_TEMP_DIR");
+  static String get targetTempDir =>
+      // Hokkabaz patch: llama.cpp's CMake tree is deep; on Windows the default location
+      // exceeds MAX_PATH. CI points this at a short directory.
+      Platform.environment["HK_CARGO_TARGET_DIR"] ?? _getEnv("CARGOKIT_TARGET_TEMP_DIR");
 
   /// Final output directory where the build artifacts are placed.
   static String get outputDir => _getEnvPath('CARGOKIT_OUTPUT_DIR');

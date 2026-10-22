@@ -17,6 +17,8 @@ jobs:
     env:
       # bindgen (llama.cpp, QuickJS) needs libclang; the runner image ships LLVM here.
       LIBCLANG_PATH: 'C:\Program Files\LLVM\bin'
+      # llama.cpp's CMake tree exceeds MAX_PATH under the default build dir.
+      HK_CARGO_TARGET_DIR: 'C:\hkt'
     steps:
       - uses: actions/checkout@v4
         with:

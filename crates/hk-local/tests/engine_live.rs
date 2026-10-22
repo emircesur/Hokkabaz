@@ -1,6 +1,7 @@
 //! Runs a real GGUF through the engine. Skipped unless `HK_LOCAL_GGUF` points at a model, e.g.
 //! `HK_LOCAL_GGUF=/path/qwen2.5-0.5b-instruct-q4_k_m.gguf cargo test -p hk-local --features llama --test engine_live -- --nocapture`
 #![cfg(feature = "llama")]
+#![allow(clippy::print_stderr)]
 
 use futures::StreamExt;
 use hk_llm::{ChatRequest, FinishReason, Message, Provider, Role, StreamEvent, ToolSpec};

@@ -9,7 +9,9 @@
 
 use std::time::Duration;
 
-use serde_json::{Value, json};
+use serde_json::Value;
+#[cfg(not(target_os = "android"))]
+use serde_json::json;
 
 const LIMIT: Duration = Duration::from_secs(60);
 const MAX_OUT: usize = 32 * 1024 * 1024;
