@@ -3657,6 +3657,7 @@ impl SseDecode for crate::dto::NodeTypeDto {
         let mut var_outputsExpr = <Option<String>>::sse_decode(deserializer);
         let mut var_outputNames = <Vec<String>>::sse_decode(deserializer);
         let mut var_propertiesJson = <String>::sse_decode(deserializer);
+        let mut var_credentialsJson = <String>::sse_decode(deserializer);
         return crate::dto::NodeTypeDto {
             type_name: var_typeName,
             versions: var_versions,
@@ -3670,6 +3671,7 @@ impl SseDecode for crate::dto::NodeTypeDto {
             outputs_expr: var_outputsExpr,
             output_names: var_outputNames,
             properties_json: var_propertiesJson,
+            credentials_json: var_credentialsJson,
         };
     }
 }
@@ -4559,6 +4561,7 @@ impl flutter_rust_bridge::IntoDart for crate::dto::NodeTypeDto {
             self.outputs_expr.into_into_dart().into_dart(),
             self.output_names.into_into_dart().into_dart(),
             self.properties_json.into_into_dart().into_dart(),
+            self.credentials_json.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -5364,6 +5367,7 @@ impl SseEncode for crate::dto::NodeTypeDto {
         <Option<String>>::sse_encode(self.outputs_expr, serializer);
         <Vec<String>>::sse_encode(self.output_names, serializer);
         <String>::sse_encode(self.properties_json, serializer);
+        <String>::sse_encode(self.credentials_json, serializer);
     }
 }
 

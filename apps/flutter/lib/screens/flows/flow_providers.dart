@@ -36,6 +36,7 @@ final nodeTypesProvider = Provider<NodeTypesResult>((ref) {
           outputsExpr: t.outputsExpr,
           outputNames: t.outputNames,
           propertiesJson: t.propertiesJson,
+          credentialsJson: t.credentialsJson,
         ),
     ], null);
   } catch (e) {

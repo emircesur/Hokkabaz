@@ -473,6 +473,9 @@ class NodeTypeDto {
   /// JSON array of n8n `NodeProperty` objects.
   final String propertiesJson;
 
+  /// JSON array of `{name, required?, displayOptions?}`: credential types the node can use.
+  final String credentialsJson;
+
   const NodeTypeDto({
     required this.typeName,
     required this.versions,
@@ -486,6 +489,7 @@ class NodeTypeDto {
     this.outputsExpr,
     required this.outputNames,
     required this.propertiesJson,
+    required this.credentialsJson,
   });
 
   @override
@@ -501,7 +505,8 @@ class NodeTypeDto {
       inputsExpr.hashCode ^
       outputsExpr.hashCode ^
       outputNames.hashCode ^
-      propertiesJson.hashCode;
+      propertiesJson.hashCode ^
+      credentialsJson.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -519,7 +524,8 @@ class NodeTypeDto {
           inputsExpr == other.inputsExpr &&
           outputsExpr == other.outputsExpr &&
           outputNames == other.outputNames &&
-          propertiesJson == other.propertiesJson;
+          propertiesJson == other.propertiesJson &&
+          credentialsJson == other.credentialsJson;
 }
 
 class PendingApprovalDto {

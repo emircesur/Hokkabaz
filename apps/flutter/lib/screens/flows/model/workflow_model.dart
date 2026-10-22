@@ -82,6 +82,26 @@ class FlowNode {
   /// n8n stores integer coordinates.
   FlowNode withPosition(Pos p) => set('position', [p.x.round(), p.y.round()]);
 
+  /// n8n `credentials`: credential type -> `{id, name}`.
+  Map<String, Map<String, dynamic>> get credentials {
+    final c = raw['credentials'];
+    if (c is! Map) return const {};
+    return {
+      for (final e in c.entries)
+        if (e.value is Map) '${e.key}': (e.value as Map).cast<String, dynamic>(),
+    };
+  }
+
+  FlowNode withCredential(String type, {String? id, String? name}) {
+    final next = Map<String, dynamic>.of(credentials);
+    if (id == null) {
+      next.remove(type);
+    } else {
+      next[type] = {'id': id, 'name': name};
+    }
+    return next.isEmpty ? remove('credentials') : set('credentials', next);
+  }
+
   FlowNode withParameters(Map<String, dynamic> params) =>
       set('parameters', deepCopy(params));
 

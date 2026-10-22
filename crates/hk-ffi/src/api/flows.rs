@@ -44,6 +44,7 @@ fn to_dto(d: &NodeTypeDescription) -> Result<NodeTypeDto, HkError> {
         outputs_expr,
         output_names: d.output_names.clone().unwrap_or_default(),
         properties_json: serde_json::to_string(&d.properties)?,
+        credentials_json: serde_json::to_string(&d.credentials)?,
     })
 }
 

@@ -319,6 +319,8 @@ pub struct NodeTypeDto {
     pub output_names: Vec<String>,
     /// JSON array of n8n `NodeProperty` objects.
     pub properties_json: String,
+    /// JSON array of `{name, required?, displayOptions?}`: credential types the node can use.
+    pub credentials_json: String,
 }
 
 // ---------------------------------------------------------------- instances (P4.8)

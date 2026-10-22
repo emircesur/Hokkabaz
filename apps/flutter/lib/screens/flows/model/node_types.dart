@@ -2,6 +2,28 @@ import 'dart:convert';
 
 import 'workflow_model.dart';
 
+/// A credential type a node can use; shown when its `displayOptions` match the parameters.
+class CredReq {
+  const CredReq({required this.name, required this.required, required this.visibility});
+
+  factory CredReq.fromJson(Map<String, dynamic> j) => CredReq(
+    name: j['name'] as String,
+    required: j['required'] == true,
+    visibility: ParamSpec.fromJson({
+      'name': j['name'],
+      'type': 'string',
+      if (j['displayOptions'] != null) 'displayOptions': j['displayOptions'],
+    }),
+  );
+
+  final String name;
+  final bool required;
+  final ParamSpec visibility;
+
+  bool isVisible(Map<String, dynamic> params, {num typeVersion = 1}) =>
+      visibility.isVisible(params, typeVersion: typeVersion);
+}
+
 /// Node type catalog entry (mirrors Rust `NodeTypeDto`, kept FFI-free so the
 /// model stays testable). [properties] come from the n8n description JSON.
 class NodeTypeInfo {
@@ -18,6 +40,7 @@ class NodeTypeInfo {
     this.outputsExpr,
     this.outputNames = const [],
     this.properties = const [],
+    this.credentials = const [],
   });
 
   factory NodeTypeInfo.fromFields({
@@ -33,6 +56,7 @@ class NodeTypeInfo {
     String? outputsExpr,
     List<String> outputNames = const [],
     required String propertiesJson,
+    String credentialsJson = '[]',
   }) {
     var props = <ParamSpec>[];
     try {
@@ -45,6 +69,18 @@ class NodeTypeInfo {
       }
     } on FormatException {
       // Bad description JSON: node stays usable with the raw parameter editor.
+    }
+    var creds = <CredReq>[];
+    try {
+      final j = jsonDecode(credentialsJson);
+      if (j is List) {
+        creds = [
+          for (final c in j)
+            if (c is Map<String, dynamic>) CredReq.fromJson(c),
+        ];
+      }
+    } on FormatException {
+      // Node stays usable; it just shows no credential picker.
     }
     return NodeTypeInfo(
       typeName: typeName,
@@ -59,6 +95,7 @@ class NodeTypeInfo {
       outputsExpr: outputsExpr,
       outputNames: outputNames,
       properties: props,
+      credentials: creds,
     );
   }
 
@@ -74,6 +111,7 @@ class NodeTypeInfo {
   final String? outputsExpr;
   final List<String> outputNames;
   final List<ParamSpec> properties;
+  final List<CredReq> credentials;
 
   bool get isTrigger => group.contains('trigger');
   NodeCategory get category => categoryOf(typeName, group: group);

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../theme/tokens.dart';
 import 'model/flow_editor.dart';
@@ -10,6 +11,8 @@ import 'model/workflow_model.dart';
 import 'node_card.dart';
 import 'node_io_tab.dart';
 import 'params_form.dart';
+import '../plugins/credential_dialogs.dart';
+import '../plugins/plugins_providers.dart';
 
 /// Right-hand inspector for one node: rename, generated params form, node
 /// settings and the raw n8n JSON (DESIGN §4.4 "node panel").
@@ -231,6 +234,10 @@ class _ParamsTab extends StatelessWidget {
       padding: const EdgeInsets.all(HkTokens.s3),
       children: [
         if (info != null)
+          for (final c in info!.credentials)
+            if (c.isVisible(node.parameters, typeVersion: node.typeVersion))
+              _CredentialPicker(editor: editor, node: node, req: c),
+        if (info != null)
           ParamsForm(
             specs: info!.properties,
             values: node.parameters,
@@ -251,6 +258,65 @@ class _ParamsTab extends StatelessWidget {
             },
           ),
       ],
+    );
+  }
+}
+
+/// Pick (or create) the credential a node uses for one credential type. Stored in the node's
+/// n8n `credentials` map as `{id, name}`; the secret values stay in the secret store.
+class _CredentialPicker extends ConsumerWidget {
+  const _CredentialPicker({required this.editor, required this.node, required this.req});
+  final FlowEditor editor;
+  final FlowNode node;
+  final CredReq req;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final all = ref.watch(credentialBookProvider).value ?? const [];
+    final types = ref.watch(credentialTypesProvider).value ?? const [];
+    final mine = all.where((c) => c.type == req.name).toList();
+    final typeLabel = types.where((t) => t.name == req.name).firstOrNull?.displayName ?? req.name;
+    final cur = node.credentials[req.name];
+    final curId = cur?['id'] as String?;
+    final known = mine.any((c) => c.id == curId);
+    void pick(String? id) {
+      final name = mine.where((c) => c.id == id).firstOrNull?.name;
+      editor.updateNode(node.name, (n) => n.withCredential(req.name, id: id, name: name));
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: HkTokens.s3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<String?>(
+              key: ValueKey('cred-${node.name}-${req.name}-$curId'),
+              initialValue: known ? curId : null,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: req.required ? 'Credential: $typeLabel *' : 'Credential: $typeLabel',
+                helperText: curId != null && !known ? 'Saved credential "${cur?['name'] ?? curId}" not found on this device' : null,
+              ),
+              items: [
+                const DropdownMenuItem<String?>(value: null, child: Text('None')),
+                for (final c in mine) DropdownMenuItem<String?>(value: c.id, child: Text(c.name)),
+              ],
+              onChanged: pick,
+            ),
+          ),
+          IconButton(
+            tooltip: 'New credential',
+            icon: const Icon(Icons.add),
+            onPressed: () async {
+              final made = await showCredentialDialog(context, fixedType: req.name);
+              if (made != null) {
+                editor.updateNode(node.name, (n) => n.withCredential(req.name, id: made.id, name: made.name));
+              }
+            },
+          ),
+        ],
+      ),
     );
   }
 }

@@ -3357,8 +3357,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   NodeTypeDto dco_decode_node_type_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 12)
-      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return NodeTypeDto(
       typeName: dco_decode_String(arr[0]),
       versions: dco_decode_list_prim_f_64_strict(arr[1]),
@@ -3372,6 +3372,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       outputsExpr: dco_decode_opt_String(arr[9]),
       outputNames: dco_decode_list_String(arr[10]),
       propertiesJson: dco_decode_String(arr[11]),
+      credentialsJson: dco_decode_String(arr[12]),
     );
   }
 
@@ -4186,6 +4187,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_outputsExpr = sse_decode_opt_String(deserializer);
     var var_outputNames = sse_decode_list_String(deserializer);
     var var_propertiesJson = sse_decode_String(deserializer);
+    var var_credentialsJson = sse_decode_String(deserializer);
     return NodeTypeDto(
       typeName: var_typeName,
       versions: var_versions,
@@ -4199,6 +4201,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       outputsExpr: var_outputsExpr,
       outputNames: var_outputNames,
       propertiesJson: var_propertiesJson,
+      credentialsJson: var_credentialsJson,
     );
   }
 
@@ -5066,6 +5069,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.outputsExpr, serializer);
     sse_encode_list_String(self.outputNames, serializer);
     sse_encode_String(self.propertiesJson, serializer);
+    sse_encode_String(self.credentialsJson, serializer);
   }
 
   @protected
