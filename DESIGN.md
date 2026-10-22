@@ -354,6 +354,8 @@ Cards: name, URL, version, status dot, active flows, queue depth. Actions: pair 
 | D7 | SQLite + JSONL logs | Local-first, zero ops | Postgres (daemon may add later) |
 | D8 | ACP bridge to real dsh/opencode on desktop | Day-one parity, comparison | — |
 | D9 | DeepSeek is default provider and first adapter | User priority, cost | — |
+| D15 | Studio (OpusClip-class agentic video screen) is a v1 feature set: own pipeline on ffmpeg process + hk-llm/hk-stt; see docs/STUDIO.md | Owner requirement | Defer to v2 |
+| D16 | Concat (AGPL-3.0) only as optional external process over MCP/JSON-RPC; never vendored or linked | License deferred (D10); avoids copyleft on core | Embed/fork if Hokkabaz goes AGPL |
 | D10 | License: deferred (owner: not important now). Placeholder MIT OR Apache-2.0 | Compatible with MIT upstreams | — |
 
 ## 7. Open questions

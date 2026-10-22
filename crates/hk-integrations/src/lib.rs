@@ -60,6 +60,8 @@ pub mod postgres;
 #[cfg(feature = "int-redis")]
 pub mod redis;
 #[cfg(feature = "int-s3")]
+pub(crate) mod sigv4;
+#[cfg(feature = "int-s3")]
 pub mod s3;
 #[cfg(feature = "int-searxng")]
 pub mod searxng;

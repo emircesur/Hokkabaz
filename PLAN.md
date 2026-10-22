@@ -160,6 +160,25 @@ Integration order after core + AI nodes: implementing agent decides (D14), using
 
 ---
 
+## Phase 8 — Studio: agentic video screen  (milestone **M8: long video → scored, captioned, reframed vertical clips, exportable from the app**)
+
+Design: `docs/STUDIO.md`. Concat (AGPL) is external-process only (DESIGN D16).
+
+| ID | Lane | Task | Deps | Size | Test | DoD | Status |
+|---|---|---|---|---|---|---|---|
+| P8.1 | A | `hk-media`: ffmpeg/ffprobe process wrapper (probe, audio extract 16k mono, cut/concat by kept ranges, filtergraph render with crop/scale/ASS burn-in, thumbs, silencedetect, progress events, cancel) | – | M | unit (arg building, parse) | render a cut+captioned clip from fixture video | todo |
+| P8.2 | B | `hk-stt`: `Transcriber` trait; OpenAI-compatible HTTP transcriber (word timestamps, chunking for long audio, retries); `whisper-rs` local behind feature `whisper`; transcript/word model, zero-duration fixups, filler/silence flags per language | P8.1 | M | fixture | long audio → word-level transcript JSON | todo |
+| P8.3 | A | `hk-studio` core: project model (EDL: sources, clips, cuts, caption style, reframe track, b-roll overlays, template), persistence, undo-able ops, transcript-edit → cut list (delete words/fillers/silences), render pipeline to hk-media | P8.1, P8.2 | L | unit (EDL ops) | delete words → rendered result skips them | todo |
+| P8.4 | B | Highlight detection + virality scoring: chunked LLM passes with JSON schema, audio-energy/scene hints, overlap merge, duration constraints, rubric score 0–100 with reasons, cache by clip hash, custom rubric | P8.3, P2.5 | L | fixture (scripted LLM) | long transcript → ranked candidate clips with scores | todo |
+| P8.5 | A | Captions: ASS generator + presets (karaoke word highlight, colors, outline, position, animation), per-project style editing, SRT/VTT export | P8.3 | M | unit | styled burned-in captions render | todo |
+| P8.6 | A | Smart reframing: crop-path planner (smoothing, scene-cut resets, speaker switching), center/`cropdetect` fallback; face detection behind feature `vision` (ONNX) | P8.3 | L | unit (path smoothing) | 16:9 → 9:16 following speaker | todo |
+| P8.7 | E | B-roll + templates: LLM keyword extraction, stock providers (Pexels/Pixabay/local folder), overlay planner, template JSON presets (captions+layout+intro/outro+music ducking) | P8.3 | M | fixture | B-roll inserted at relevant sentences | todo |
+| P8.8 | E | Social: LLM titles/descriptions/hashtags per platform; publish nodes (YouTube Data API first) as hk-integrations nodes; export package | P8.4, P5.4 | M | fixture | metadata generated; YouTube upload node | todo |
+| P8.9 | C | hk-ffi `api/studio.rs` (projects, import, transcribe, analyze, render queue with progress streams) + `StudioHandle` local/remote | P8.3, P3.1 | M | none | – | todo |
+| P8.10 | C | Flutter `/studio` screen: media bin, player (+proxies), transcript editor (click word → delete, filler/silence toggles), timeline strip, clip candidates list with scores, caption/reframe/template panels, export queue | P8.9 | L | unit (transcript editor model) | edit by text → export | todo |
+| P8.11 | A | Studio agent: tools (`media_probe`, `transcribe`, `find_highlights`, `score_clip`, `reframe`, `caption`, `add_broll`, `render`, `write_social`, `publish`) + agent panel in /studio reusing chat widgets; flow nodes `hokkabaz.studio*` for n8n automation | P8.4, P8.9 | M | fixture | "make 5 viral shorts from this video" end-to-end | todo |
+| P8.12 | B | Concat bridge: optional external editor (`concat --mcp`/JSON-RPC over hk-mcp), "Open in Concat", tool passthrough; docs on AGPL boundary | P8.3 | S | none | – | todo |
+
 ## Critical path
 
 `P0.1 → P1.1 → P1.3/P1.7 → P1.9 → P1.11 (M1) → P3.1 → P3.2 (M3) → P4.1 → P4.2 → P4.3 → P4.3c → P4.6 → P4.7 (M4) → P6.1 → P6.3/P6.7 (M6)`
