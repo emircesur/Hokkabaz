@@ -3,23 +3,15 @@
 //! Stateless on purpose: workflows are plain n8n JSON owned by Dart for now (hk-store / REST
 //! persistence lands later), so nothing here touches the core handle.
 
-use std::sync::OnceLock;
 
 use flutter_rust_bridge::frb;
-use hk_flow::{IoDecl, NodeRegistry, NodeTypeDescription, Workflow, register_core_nodes};
+use hk_flow::{IoDecl, NodeRegistry, NodeTypeDescription, Workflow};
 
 use crate::dto::NodeTypeDto;
 use crate::error::HkError;
 
-fn registry() -> Result<&'static NodeRegistry, HkError> {
-    static REG: OnceLock<Result<NodeRegistry, String>> = OnceLock::new();
-    REG.get_or_init(|| {
-        let mut r = NodeRegistry::new();
-        register_core_nodes(&mut r).map_err(|e| e.to_string())?;
-        Ok(r)
-    })
-    .as_ref()
-    .map_err(|e| HkError::internal(format!("flow registry: {e}")))
+fn registry() -> Result<std::sync::Arc<NodeRegistry>, HkError> {
+    Ok(crate::nodes::registry())
 }
 
 fn io_types(decl: &IoDecl) -> (Vec<String>, Option<String>) {

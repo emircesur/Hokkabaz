@@ -1,0 +1,53 @@
+/// Hokkabaz plugin interface (ABI v1).
+///
+/// Structured data crosses the boundary as JSON strings: the shapes (tool specs, node
+/// descriptions, items) are the same ones the host already uses, and the interface stays small
+/// and stable. Every `host` call is checked against the capability manifest (`plugin.toml`);
+/// a call outside the granted capabilities returns `err`, it never traps the plugin.
+package hokkabaz:plugin@0.1.0;
+
+/// What the host offers a plugin.
+interface host {
+    /// level: 0 trace, 1 debug, 2 info, 3 warn, 4 error. Always allowed (rate limited).
+    log: func(level: u8, message: string);
+
+    /// HTTP request. `request` = {"method","url","headers":{...},"body":string|null,
+    /// "timeout_ms":number|null}; ok = {"status","headers":{...},"body":string}.
+    /// Capability `http`: the URL host must match a granted pattern.
+    http: func(request: string) -> result<string, string>;
+
+    /// Per-plugin key/value store. Capability `kv`.
+    kv-get: func(key: string) -> result<option<string>, string>;
+    kv-set: func(key: string, value: string) -> result<_, string>;
+    kv-delete: func(key: string) -> result<_, string>;
+
+    /// A named secret from the user's secret store. Capability `secrets` lists the names.
+    secret: func(name: string) -> result<string, string>;
+
+    /// Hand an event from a trigger to the engine (JSON object -> one item). Capability `emit`.
+    emit: func(trigger: string, event: string) -> result<_, string>;
+}
+
+/// What a plugin implements.
+interface guest {
+    /// JSON: {"tools":[{"name","description","parameters":<JSON Schema>,"risk":"safe|ask|dangerous"}],
+    ///        "nodes":[<n8n node type description>], "triggers":[{"name","interval_secs"}],
+    ///        "settings":<JSON Schema>|null}
+    describe: func() -> string;
+
+    /// Run an agent tool. `args` = JSON arguments; ok = text shown to the model.
+    call-tool: func(name: string, args: string) -> result<string, string>;
+
+    /// Run a flow node. `input` = {"params":{...},"items":[{"json":{...}}],"settings":{...}};
+    /// ok = {"items":[[{"json":{...}}]]} (one array per output).
+    execute-node: func(node-type: string, input: string) -> result<string, string>;
+
+    /// Called on the trigger's interval. `state` = JSON saved from the previous call (or "null");
+    /// ok = {"events":[{...}],"state":<any>}.
+    poll-trigger: func(name: string, state: string) -> result<string, string>;
+}
+
+world plugin {
+    import host;
+    export guest;
+}

@@ -8,11 +8,14 @@
 pub mod api;
 pub mod dto;
 pub mod error;
+mod credentials;
 mod events;
 mod flow_runs;
 pub mod handle;
 pub mod instances;
 pub mod local;
+pub mod nodes;
+pub mod plugins;
 pub mod remote;
 mod secrets;
 mod settings;

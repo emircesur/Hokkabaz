@@ -305,6 +305,21 @@ impl Store {
         Ok(r.as_ref().map(credential_row))
     }
 
+    /// Credential metadata (never values), newest first; `kind` filters by credential type.
+    pub async fn list_credentials(&self, kind: Option<&str>) -> Result<Vec<CredentialRow>, StoreError> {
+        let rows = match kind {
+            Some(k) => sqlx::query("SELECT * FROM credentials WHERE type = ? ORDER BY updated_ms DESC").bind(k).fetch_all(&self.pool).await?,
+            None => sqlx::query("SELECT * FROM credentials ORDER BY updated_ms DESC").fetch_all(&self.pool).await?,
+        };
+        Ok(rows.iter().map(credential_row).collect())
+    }
+
+    /// Rename and touch.
+    pub async fn rename_credential(&self, id: &str, name: &str) -> Result<bool, StoreError> {
+        let r = sqlx::query("UPDATE credentials SET name = ?, updated_ms = ? WHERE id = ?").bind(name).bind(now_ms()).bind(id).execute(&self.pool).await?;
+        Ok(r.rows_affected() > 0)
+    }
+
     pub async fn delete_credential(&self, id: &str) -> Result<bool, StoreError> {
         let r = sqlx::query("DELETE FROM credentials WHERE id = ?").bind(id).execute(&self.pool).await?;
         Ok(r.rows_affected() > 0)

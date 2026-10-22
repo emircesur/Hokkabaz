@@ -148,7 +148,8 @@ impl LocalCore {
             max_steps: 50,
         })?;
 
-        let flows = LocalFlows::new(&data_dir)?;
+        let creds = Arc::new(crate::credentials::Credentials { store: store.clone(), secrets: secrets.clone() });
+        let flows = LocalFlows::new(&data_dir, creds.clone())?;
 
         // Video Studio: shared service + the agent's studio_* tools.
         let studio_settings: crate::studio::SharedSettings =
@@ -165,6 +166,14 @@ impl LocalCore {
         ));
         runtime.add_tools(hk_studio::studio_tools(studio_svc.clone()));
         crate::studio::install(crate::studio::Ctx { svc: studio_svc, settings: studio_settings, store: store.clone(), secrets: secrets.clone() });
+        crate::credentials::install(creds);
+
+        // Plugins + MCP servers: their tools join the agent's tool set, plugin nodes the registry.
+        let tool_rt = runtime.clone();
+        let plugin_mgr = crate::plugins::Manager::new(&data_dir, secrets.clone(), Arc::new(move |t| tool_rt.add_tools(t)))?;
+        plugin_mgr.load_all();
+        crate::plugins::install(plugin_mgr.clone());
+        tokio::spawn(async move { plugin_mgr.mcp_connect_all().await });
 
         let core = Arc::new(Self {
             i: Arc::new(Inner {
@@ -546,6 +555,8 @@ impl CoreHandle for LocalCore {
     async fn shutdown(&self) {
         self.i.shutdown.cancel();
         crate::studio::uninstall();
+        crate::plugins::uninstall();
+        crate::credentials::uninstall();
         // Stop running turns so nothing keeps calling providers after the app tore the core down.
         if let Ok(rows) = self.i.runtime.list_sessions(u32::MAX, 0).await {
             for s in rows.into_iter().filter(|s| s.running) {

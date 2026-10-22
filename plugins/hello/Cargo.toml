@@ -1,0 +1,15 @@
+[package]
+name = "hello-plugin"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+publish = false
+
+# Sample plugin; built for wasm32-wasip2, outside the main workspace.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+hk-plugin-sdk = { path = "../../sdk/rust/hk-plugin-sdk" }

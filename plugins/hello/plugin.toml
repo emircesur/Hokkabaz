@@ -1,0 +1,14 @@
+id = "dev.hokkabaz.hello"
+name = "Hello"
+version = "0.1.0"
+description = "Sample plugin: a greeting tool, a flow node, a counter trigger."
+wasm = "hello_plugin.wasm"
+author = "Hokkabaz"
+license = "AGPL-3.0-or-later"
+
+[capabilities]
+# Hosts the plugin may call over HTTP ("*.example.com" and "example.com" patterns).
+http = ["httpbin.org"]
+kv = true
+secrets = []
+emit = true

@@ -1,0 +1,15 @@
+[package]
+name = "hk-plugin-sdk"
+description = "SDK for writing Hokkabaz WASM plugins (tools, flow nodes, triggers)"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+publish = false
+
+# Built for wasm32-wasip2; lives outside the main workspace on purpose.
+[workspace]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wit-bindgen = { version = "0.63", default-features = false, features = ["macros", "realloc"] }

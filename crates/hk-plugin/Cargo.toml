@@ -1,6 +1,6 @@
 [package]
 name = "hk-plugin"
-description = "Hokkabaz: hk-plugin"
+description = "Hokkabaz: WASM plugin host (tools, flow nodes, triggers) with capability-scoped host services"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,4 +10,31 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+default = ["wasm-plugins"]
+# wasmtime component runtime. Off on Android (no JIT there): manifests, the store and the
+# registry client still work, loading a plugin returns `Unsupported`.
+wasm-plugins = ["dep:wasmtime", "dep:wasmtime-wasi"]
+
 [dependencies]
+async-trait = "0.1"
+hex = "0.4"
+hk-flow = { version = "0.0.0", path = "../hk-flow" }
+hk-tools = { version = "0.0.0", path = "../hk-tools" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["rt", "sync", "time", "fs", "macros"] }
+toml = "0.8"
+tracing = "0.1"
+url = "2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "blocking", "json"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+tar = { version = "0.4", default-features = false }
+wasmtime = { version = "50", optional = true, default-features = false, features = ["component-model", "cranelift", "runtime", "std", "parallel-compilation"] }
+wasmtime-wasi = { version = "50", optional = true, default-features = false }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util"] }

@@ -21,7 +21,7 @@ use futures::stream::{self, BoxStream};
 use hk_flow::triggers::{TriggerKind, find_trigger};
 use hk_flow::{
     ExecuteInput, ExecutionRecord, Executor, ExecutorConfig, FlowError, Item, NodeRegistry, RunStatus, RunStore,
-    Workflow, register_core_nodes,
+    Workflow,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -410,7 +410,7 @@ struct LiveRuns {
 
 struct Shared {
     dir: PathBuf,
-    registry: Arc<NodeRegistry>,
+    credentials: Arc<dyn hk_flow::CredentialResolver>,
     live: Mutex<LiveRuns>,
     seq: AtomicU64,
 }
@@ -483,13 +483,11 @@ fn plan(
 }
 
 impl LocalFlows {
-    pub(crate) fn new(data_dir: &Path) -> Result<Self, HkError> {
-        let mut reg = NodeRegistry::new();
-        register_core_nodes(&mut reg).map_err(|e| HkError::internal(format!("flow registry: {e}")))?;
+    pub(crate) fn new(data_dir: &Path, credentials: Arc<dyn hk_flow::CredentialResolver>) -> Result<Self, HkError> {
         Ok(Self {
             s: Arc::new(Shared {
                 dir: data_dir.join("flow_runs"),
-                registry: Arc::new(reg),
+                credentials,
                 live: Mutex::new(LiveRuns::default()),
                 seq: AtomicU64::new(0),
             }),
@@ -505,7 +503,7 @@ impl LocalFlows {
         input_items_json: Option<&str>,
         pin_data_json: Option<&str>,
     ) -> Result<String, HkError> {
-        let plan = plan(workflow_json, trigger_node, input_items_json, pin_data_json, &self.s.registry)?;
+        let plan = plan(workflow_json, trigger_node, input_items_json, pin_data_json, &crate::nodes::registry())?;
         let id = format!("run-{}-{}", now_ms(), self.s.seq.fetch_add(1, Ordering::Relaxed));
         let live = Live::new();
         {
@@ -586,7 +584,10 @@ async fn execute(shared: Arc<Shared>, id: String, live: Arc<Live>, plan: Plan, m
         use_pin_data: mode == FlowRunModeDto::Test,
         ..ExecutorConfig::default()
     };
-    let exec = Executor::new(shared.registry.clone()).with_store(store).with_config(cfg);
+    let mut cfg = cfg;
+    cfg.hooks.credentials = Some(shared.credentials.clone());
+    // Registry is read per run so plugin installs apply to the next run without a restart.
+    let exec = Executor::new(crate::nodes::registry()).with_store(store).with_config(cfg);
     let mut input = ExecuteInput::new(plan.start.clone(), plan.items.clone());
     input.execution_id = Some(id.clone());
 

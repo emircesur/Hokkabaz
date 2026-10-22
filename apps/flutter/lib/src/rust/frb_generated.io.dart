@@ -5,9 +5,11 @@
 
 import 'api/chat.dart';
 import 'api/core.dart';
+import 'api/credentials.dart';
 import 'api/flow_runs.dart';
 import 'api/flows.dart';
 import 'api/instances.dart';
+import 'api/plugins.dart';
 import 'api/settings.dart';
 import 'api/studio.dart';
 
