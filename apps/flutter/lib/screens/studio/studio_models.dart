@@ -96,6 +96,7 @@ class StudioClip {
     required this.score,
     required this.social,
     required this.template,
+    required this.music,
   });
 
   factory StudioClip.fromJson(Json j) => StudioClip(
@@ -114,6 +115,7 @@ class StudioClip {
     score: j['score'] is Map ? ViralScore.fromJson((j['score'] as Map).cast()) : null,
     social: ((j['social'] as Map?)?['posts'] as Map?)?.cast<String, dynamic>(),
     template: j['template'] as String?,
+    music: (j['music'] as Map?)?.cast<String, dynamic>(),
   );
 
   final String id;
@@ -133,6 +135,9 @@ class StudioClip {
   /// platform key -> {title, description, hashtags}
   final Json? social;
   final String? template;
+
+  /// {path, gain, duck} background music, if any.
+  final Json? music;
 
   double get duration => end - start;
 
@@ -284,6 +289,24 @@ class CropPath {
   }
 }
 
+class BrollItem {
+  const BrollItem({required this.start, required this.end, required this.query, required this.asset, required this.isImage});
+
+  factory BrollItem.fromJson(Json j) => BrollItem(
+    start: _d(j['start']),
+    end: _d(j['end']),
+    query: j['query'] as String? ?? '',
+    asset: j['asset'] as String? ?? '',
+    isImage: j['kind'] == 'image',
+  );
+
+  final double start;
+  final double end;
+  final String query;
+  final String asset;
+  final bool isImage;
+}
+
 class PreviewPlan {
   const PreviewPlan({
     required this.clipId,
@@ -297,6 +320,7 @@ class PreviewPlan {
     required this.crop,
     required this.outW,
     required this.outH,
+    this.broll = const [],
   });
 
   factory PreviewPlan.parse(String json) => PreviewPlan.fromJson((jsonDecode(json) as Map).cast());
@@ -313,6 +337,7 @@ class PreviewPlan {
     crop: j['crop'] is Map ? CropPath.fromJson((j['crop'] as Map).cast()) : null,
     outW: _i((j['out_size'] as List?)?[0], 1920),
     outH: _i((j['out_size'] as List?)?[1], 1080),
+    broll: _list(j['broll'], BrollItem.fromJson),
   );
 
   final String clipId;
@@ -326,6 +351,7 @@ class PreviewPlan {
   final CropPath? crop;
   final int outW;
   final int outH;
+  final List<BrollItem> broll;
 
   EdlClock get clock => EdlClock(ranges);
   double get aspect => outH == 0 ? 16 / 9 : outW / outH;

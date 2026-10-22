@@ -12,7 +12,7 @@ use serde_json::json;
 
 use crate::error::{HkError, HkErrorKind};
 use crate::frb_generated::StreamSink;
-use crate::studio::{self, KEY_PEXELS, KEY_PIXABAY, KEY_STT, StudioSettings, ctx, put_secret, service, studio_err};
+use crate::studio::{self, KEY_PEXELS, KEY_PIXABAY, KEY_STT, KEY_YT_REFRESH, KEY_YT_SECRET, StudioSettings, ctx, put_secret, service, studio_err};
 
 fn json_err(e: serde_json::Error) -> HkError {
     HkError::invalid(format!("bad JSON: {e}"))
@@ -61,6 +61,7 @@ pub async fn studio_get_settings() -> Result<String, HkError> {
     to_json(&json!({
         "settings": s,
         "has_stt_key": has(KEY_STT), "has_pexels_key": has(KEY_PEXELS), "has_pixabay_key": has(KEY_PIXABAY),
+        "has_youtube_secret": has(KEY_YT_SECRET), "has_youtube_refresh": has(KEY_YT_REFRESH),
     }))
 }
 
@@ -74,12 +75,14 @@ pub async fn studio_save_settings(settings_json: String) -> Result<(), HkError> 
     Ok(())
 }
 
-/// `which`: `stt` | `pexels` | `pixabay`. Empty / `None` deletes the key. Never returned.
+/// `which`: `stt` | `pexels` | `pixabay` | `youtube_secret` | `youtube_refresh`. Empty / `None` deletes the key. Never returned.
 pub async fn studio_set_key(which: String, key: Option<String>) -> Result<(), HkError> {
     let name = match which.as_str() {
         "stt" => KEY_STT,
         "pexels" => KEY_PEXELS,
         "pixabay" => KEY_PIXABAY,
+        "youtube_secret" => KEY_YT_SECRET,
+        "youtube_refresh" => KEY_YT_REFRESH,
         o => return Err(HkError::invalid(format!("unknown key `{o}`"))),
     };
     put_secret(ctx()?.secrets.as_ref(), name, key.as_deref())
@@ -216,6 +219,17 @@ pub async fn studio_cancel_render(job: String) -> Result<bool, HkError> {
 /// Path of the rendered MP4, if the clip was rendered.
 pub async fn studio_render_path(id: String, clip: String) -> Result<Option<String>, HkError> {
     Ok(service()?.render_path(&id, &clip).await.map(|p| p.to_string_lossy().into_owned()))
+}
+
+/// Upload the rendered clip to YouTube. `privacy`: `private` (default) | `unlisted` | `public`.
+/// Returns the video URL.
+pub async fn studio_publish_youtube(id: String, clip: String, privacy: String) -> Result<String, HkError> {
+    let privacy = match privacy.as_str() {
+        "public" => hk_studio::publish::Privacy::Public,
+        "unlisted" => hk_studio::publish::Privacy::Unlisted,
+        _ => hk_studio::publish::Privacy::Private,
+    };
+    Ok(service()?.publish_youtube(&id, &clip, privacy).await.map_err(studio_err)?.url)
 }
 
 /// Write clip.mp4 + captions + per-platform post text into `dir`. Returns the folder.

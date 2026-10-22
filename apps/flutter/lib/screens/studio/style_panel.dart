@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -155,6 +156,52 @@ class StylePanel extends ConsumerWidget {
                 ),
                 _Labeled('Camera smoothness', Slider(min: 0, max: 0.95, value: ((clip.reframe!['smoothing'] as num?) ?? 0.5).toDouble().clamp(0, 0.95), onChangeEnd: (v) => setReframe({...clip.reframe!, 'smoothing': v}), onChanged: (_) {})),
                 _Labeled('Zoom', Slider(min: 1, max: 2.5, value: ((clip.reframe!['zoom'] as num?) ?? 1).toDouble().clamp(1, 2.5), onChangeEnd: (v) => setReframe({...clip.reframe!, 'zoom': v}), onChanged: (_) {})),
+              ],
+            ],
+          ),
+        ),
+        _Section(
+          'Music',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final files = await FilePicker.pickFiles(type: FileType.audio, dialogTitle: 'Background music');
+                      final path = files.firstOrNull?.path;
+                      if (path == null) return;
+                      ctl.edit([
+                        {
+                          'op': 'set_music',
+                          'clip': clip.id,
+                          'music': {'path': path, 'gain': 0.25, 'duck': true},
+                        },
+                      ]);
+                    },
+                    icon: const Icon(Icons.music_note, size: 18),
+                    label: Text(clip.music == null ? 'Add music' : 'Change'),
+                  ),
+                  const Spacer(),
+                  if (clip.music != null)
+                    TextButton(
+                      onPressed: () => ctl.edit([
+                        {'op': 'set_music', 'clip': clip.id, 'music': null},
+                      ]),
+                      child: const Text('Remove'),
+                    ),
+                ],
+              ),
+              if (clip.music != null) ...[
+                Text((clip.music!['path'] as String? ?? '').split(RegExp(r'[\\/]')).last, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
+                _Labeled('Volume', Slider(min: 0.05, max: 1, value: ((clip.music!['gain'] as num?) ?? 0.25).toDouble().clamp(0.05, 1), onChangeEnd: (v) => ctl.edit([{'op': 'set_music', 'clip': clip.id, 'music': {...clip.music!, 'gain': v}}]), onChanged: (_) {})),
+                Row(
+                  children: [
+                    const Expanded(child: Text('Lower under speech')),
+                    Switch(value: clip.music!['duck'] != false, onChanged: (v) => ctl.edit([{'op': 'set_music', 'clip': clip.id, 'music': {...clip.music!, 'duck': v}}])),
+                  ],
+                ),
               ],
             ],
           ),

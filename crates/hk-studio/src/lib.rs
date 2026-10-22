@@ -17,6 +17,7 @@ pub mod live;
 pub mod llm;
 pub mod pipeline;
 pub mod project;
+pub mod publish;
 pub mod reframe;
 pub mod service;
 pub mod social;

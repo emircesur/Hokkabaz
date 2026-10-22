@@ -24,7 +24,7 @@ Future<void> studioSaveSettings({required String settingsJson}) => RustLib
     .api
     .crateApiStudioStudioSaveSettings(settingsJson: settingsJson);
 
-/// `which`: `stt` | `pexels` | `pixabay`. Empty / `None` deletes the key. Never returned.
+/// `which`: `stt` | `pexels` | `pixabay` | `youtube_secret` | `youtube_refresh`. Empty / `None` deletes the key. Never returned.
 Future<void> studioSetKey({required String which, String? key}) =>
     RustLib.instance.api.crateApiStudioStudioSetKey(which: which, key: key);
 
@@ -141,6 +141,18 @@ Future<bool> studioCancelRender({required String job}) =>
 /// Path of the rendered MP4, if the clip was rendered.
 Future<String?> studioRenderPath({required String id, required String clip}) =>
     RustLib.instance.api.crateApiStudioStudioRenderPath(id: id, clip: clip);
+
+/// Upload the rendered clip to YouTube. `privacy`: `private` (default) | `unlisted` | `public`.
+/// Returns the video URL.
+Future<String> studioPublishYoutube({
+  required String id,
+  required String clip,
+  required String privacy,
+}) => RustLib.instance.api.crateApiStudioStudioPublishYoutube(
+  id: id,
+  clip: clip,
+  privacy: privacy,
+);
 
 /// Write clip.mp4 + captions + per-platform post text into `dir`. Returns the folder.
 Future<String> studioExport({

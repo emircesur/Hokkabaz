@@ -28,6 +28,11 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
   final _pexels = TextEditingController();
   final _pixabay = TextEditingController();
   final _brollDir = TextEditingController();
+  final _ytId = TextEditingController();
+  final _ytSecret = TextEditingController();
+  final _ytRefresh = TextEditingController();
+  bool _hasYtSecret = false;
+  bool _hasYtRefresh = false;
   String? _llm;
   String _sttProvider = 'openai_compat';
   bool _hasStt = false;
@@ -46,7 +51,7 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
 
   @override
   void dispose() {
-    for (final c in [_sttUrl, _sttModel, _sttLang, _whisperPath, _sttKey, _pexels, _pixabay, _brollDir]) {
+    for (final c in [_sttUrl, _sttModel, _sttLang, _whisperPath, _sttKey, _pexels, _pixabay, _brollDir, _ytId, _ytSecret, _ytRefresh]) {
       c.dispose();
     }
     super.dispose();
@@ -64,6 +69,9 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
         _sttLang.text = (s['stt_language'] as String?) ?? '';
         _whisperPath.text = (s['whisper_model_path'] as String?) ?? '';
         _brollDir.text = (s['broll_dir'] as String?) ?? '';
+        _ytId.text = (s['youtube_client_id'] as String?) ?? '';
+        _hasYtSecret = j['has_youtube_secret'] == true;
+        _hasYtRefresh = j['has_youtube_refresh'] == true;
         _hasStt = j['has_stt_key'] == true;
         _hasPexels = j['has_pexels_key'] == true;
         _hasPixabay = j['has_pixabay_key'] == true;
@@ -94,9 +102,10 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
           'stt_language': _n(_sttLang),
           'whisper_model_path': _n(_whisperPath),
           'broll_dir': _n(_brollDir),
+          'youtube_client_id': _n(_ytId),
         }),
       );
-      for (final (which, c) in [('stt', _sttKey), ('pexels', _pexels), ('pixabay', _pixabay)]) {
+      for (final (which, c) in [('stt', _sttKey), ('pexels', _pexels), ('pixabay', _pixabay), ('youtube_secret', _ytSecret), ('youtube_refresh', _ytRefresh)]) {
         if (c.text.trim().isNotEmpty) await api.studioSetKey(which: which, key: c.text.trim());
       }
       if (mounted) Navigator.pop(context);
@@ -178,6 +187,10 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
                         ),
                       ],
                     ),
+                    const _H('YouTube upload'),
+                    _Field(_ytId, 'OAuth client id', 'from Google Cloud Console (YouTube Data API v3)'),
+                    _KeyField(controller: _ytSecret, label: 'OAuth client secret', isSet: _hasYtSecret, onClear: () => _clearKey('youtube_secret')),
+                    _KeyField(controller: _ytRefresh, label: 'Refresh token', isSet: _hasYtRefresh, onClear: () => _clearKey('youtube_refresh')),
                     const _H('Speaker tracking'),
                     Row(
                       children: [

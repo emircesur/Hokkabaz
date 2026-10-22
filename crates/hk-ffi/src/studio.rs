@@ -23,6 +23,8 @@ pub const SETTINGS_KEY: &str = "studio.settings";
 pub const KEY_STT: &str = "studio/stt_key";
 pub const KEY_PEXELS: &str = "studio/pexels_key";
 pub const KEY_PIXABAY: &str = "studio/pixabay_key";
+pub const KEY_YT_SECRET: &str = "studio/youtube_secret";
+pub const KEY_YT_REFRESH: &str = "studio/youtube_refresh";
 
 /// Studio preferences (keys are in the secret store, never here).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -38,6 +40,8 @@ pub struct StudioSettings {
     pub whisper_model_path: Option<String>,
     /// A folder of your own footage / images used as a B-roll source.
     pub broll_dir: Option<String>,
+    /// Google OAuth client id for YouTube uploads (secret + refresh token are in the secret store).
+    pub youtube_client_id: Option<String>,
 }
 
 impl StudioSettings {
@@ -135,6 +139,14 @@ impl Backends for FfiBackends {
             out.push(Arc::new(Pixabay::new(k)));
         }
         out
+    }
+
+    fn youtube(&self) -> Option<hk_studio::publish::YoutubeCreds> {
+        Some(hk_studio::publish::YoutubeCreds {
+            client_id: self.snapshot().youtube_client_id.filter(|c| !c.is_empty())?,
+            client_secret: self.secret(KEY_YT_SECRET)?,
+            refresh_token: self.secret(KEY_YT_REFRESH)?,
+        })
     }
 
     fn face_model_dir(&self) -> Option<PathBuf> {

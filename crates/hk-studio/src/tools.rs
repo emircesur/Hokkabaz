@@ -35,7 +35,8 @@ pub fn studio_tools(svc: Arc<StudioService>) -> Vec<Arc<dyn Tool>> {
         Arc::new(Broll(svc.clone())),
         Arc::new(Social(svc.clone())),
         Arc::new(Render(svc.clone())),
-        Arc::new(Export(svc)),
+        Arc::new(Export(svc.clone())),
+        Arc::new(Publish(svc)),
     ]
 }
 
@@ -431,4 +432,40 @@ impl Tool for Export {
         let p = self.0.export_package(s(T, a, "project")?, s(T, a, "clip")?, Path::new(s(T, a, "dir")?)).await.map_err(|e| failed(T, e))?;
         out(&json!({"folder": p.to_string_lossy()}))
     }
+}
+
+struct Publish(Arc<StudioService>);
+
+#[async_trait]
+impl Tool for Publish {
+    fn spec(&self) -> ToolSpec {
+        ToolSpec {
+            name: "studio_publish".into(),
+            description: "Upload a rendered clip to YouTube (as a Short) using its post copy. Defaults to private so the user can review it on YouTube first. Needs YouTube set up in Studio settings.".into(),
+            parameters: json!({"type":"object","properties":{
+                "project":{"type":"string"},"clip":{"type":"string"},
+                "privacy":{"type":"string","enum":["private","unlisted","public"]}},
+                "required":["project","clip"],"additionalProperties":false}),
+        }
+    }
+
+    fn risk(&self, _args: &Value) -> Risk {
+        Risk::Ask
+    }
+
+    async fn execute(&self, _ctx: ToolCtx, args: Value) -> Result<ToolOutput, ToolError> {
+        const T: &str = "studio_publish";
+        let a = obj(T, &args)?;
+        let privacy = match a.get("privacy").and_then(Value::as_str) {
+            Some("public") => crate::publish::Privacy::Public,
+            Some("unlisted") => crate::publish::Privacy::Unlisted,
+            _ => crate::publish::Privacy::Private,
+        };
+        let out = self.0.publish_youtube(s(T, a, "project")?, s(T, a, "clip")?, privacy).await.map_err(|e| failed(T, e))?;
+        out_json(&json!({"id": out.id, "url": out.url, "privacy": format!("{privacy:?}").to_lowercase()}))
+    }
+}
+
+fn out_json(v: &Value) -> Result<ToolOutput, ToolError> {
+    out(v)
 }

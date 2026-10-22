@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../theme/tokens.dart';
@@ -31,6 +33,7 @@ class VideoPreview extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 _CroppedVideo(controller: controller, crop: p?.crop, source: source),
+                _BrollOverlay(plan: p, time: controller.outTime),
                 CaptionOverlay(lines: lines, style: p?.captionStyle, time: controller.outTime),
               ],
             ),
@@ -114,6 +117,44 @@ class TransportBar extends StatelessWidget {
               Text(formatTime(d), style: Theme.of(context).textTheme.bodySmall),
             ],
           ),
+        );
+      },
+    );
+  }
+}
+
+/// Shows the B-roll that replaces the picture at this moment: still images as they will look,
+/// video clips as a marker (the live preview plays only the source video).
+class _BrollOverlay extends StatelessWidget {
+  const _BrollOverlay({required this.plan, required this.time});
+
+  final PreviewPlan? plan;
+  final ValueNotifier<double> time;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = plan?.broll ?? const [];
+    if (items.isEmpty) return const SizedBox.shrink();
+    return ValueListenableBuilder<double>(
+      valueListenable: time,
+      builder: (context, t, _) {
+        final hit = items.where((b) => t >= b.start && t < b.end).firstOrNull;
+        if (hit == null) return const SizedBox.shrink();
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            if (hit.isImage)
+              Image.file(File(hit.asset), fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black54))
+            else
+              const ColoredBox(color: Color(0xAA000000)),
+            Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Chip(visualDensity: VisualDensity.compact, avatar: const Icon(Icons.movie_filter_outlined, size: 14), label: Text('B-roll: ${hit.query}')),
+              ),
+            ),
+          ],
         );
       },
     );

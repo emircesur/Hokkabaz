@@ -52,6 +52,41 @@ class _PublishPanelState extends ConsumerState<PublishPanel> {
     await ctl.export(clip, dir);
   }
 
+  Future<void> _youtube(BuildContext context, StudioController ctl, String clip) async {
+    var privacy = 'private';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => AlertDialog(
+          title: const Text('Upload to YouTube'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Uses the title, description and tags from "Post copy". Private uploads can be reviewed on YouTube before going public.'),
+              const SizedBox(height: 12),
+              SegmentedButton<String>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: 'private', label: Text('Private')),
+                  ButtonSegment(value: 'unlisted', label: Text('Unlisted')),
+                  ButtonSegment(value: 'public', label: Text('Public')),
+                ],
+                selected: {privacy},
+                onSelectionChanged: (v) => set(() => privacy = v.first),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Upload')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) await ctl.publishYoutube(clip, privacy: privacy);
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(studioControllerProvider(widget.projectId));
@@ -122,6 +157,16 @@ class _PublishPanelState extends ConsumerState<PublishPanel> {
                     ),
                 ],
               ),
+              if (rendered != null) ...[
+                const SizedBox(height: HkTokens.s2),
+                OutlinedButton.icon(
+                  onPressed: s.busy.contains('publish') ? null : () => _youtube(context, ctl, clip.id),
+                  icon: s.busy.contains('publish')
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.upload, size: 18),
+                  label: const Text('Upload to YouTube'),
+                ),
+              ],
               if (rendering != null) ...[
                 const SizedBox(height: HkTokens.s2),
                 LinearProgressIndicator(value: rendering == 0 ? null : rendering),

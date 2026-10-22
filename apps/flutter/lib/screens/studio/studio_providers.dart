@@ -290,6 +290,15 @@ class StudioController extends Notifier<StudioState> {
     }
   }
 
+  /// Upload to YouTube; returns the video URL.
+  Future<String?> publishYoutube(String clip, {String privacy = 'private'}) => _job(
+    'publish',
+    () => api.studioPublishYoutube(id: projectId, clip: clip, privacy: privacy),
+  ).then((url) {
+    if (url != null) _notice('Uploaded ($privacy): $url');
+    return url;
+  });
+
   Future<String?> export(String clip, String dir) async {
     try {
       final out = await api.studioExport(id: projectId, clip: clip, dir: dir);

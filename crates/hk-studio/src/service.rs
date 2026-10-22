@@ -35,6 +35,10 @@ pub trait Backends: Send + Sync + std::fmt::Debug {
     fn stock(&self) -> Vec<Arc<dyn StockProvider>> {
         Vec::new()
     }
+    /// YouTube OAuth client + refresh token, if the user set them up.
+    fn youtube(&self) -> Option<crate::publish::YoutubeCreds> {
+        None
+    }
     /// Where the face model lives; `None` = motion tracking only.
     fn face_model_dir(&self) -> Option<PathBuf> {
         None
@@ -288,6 +292,22 @@ impl StudioService {
         }
         let on_disk = self.studio.store.work_dir(id).join("renders").join(format!("{clip}.mp4"));
         on_disk.is_file().then_some(on_disk)
+    }
+
+    /// Upload the rendered clip to YouTube (private unless told otherwise) using the clip's
+    /// post copy for `youtube_shorts` (or its title).
+    pub async fn publish_youtube(&self, id: &str, clip_id: &str, privacy: crate::publish::Privacy) -> Result<crate::publish::Published> {
+        use crate::publish::Publisher as _;
+        let creds = self.backends.youtube().ok_or_else(|| StudioError::Invalid("YouTube is not set up (Studio settings: client id, secret, refresh token)".into()))?;
+        let video = self.render_path(id, clip_id).await.ok_or_else(|| StudioError::NotFound("rendered video (render the clip first)".into()))?;
+        let snap = self.open(id).await?.snapshot().await;
+        let clip = snap.clip(clip_id)?;
+        let post = clip
+            .social
+            .as_ref()
+            .and_then(|s| s.posts.get("youtube_shorts").cloned())
+            .unwrap_or_else(|| crate::social::PlatformPost { title: clip.title.clone(), description: clip.hook.clone().unwrap_or_default(), hashtags: Vec::new() });
+        crate::publish::Youtube::new(creds).publish(&video, &post, privacy).await
     }
 
     /// Copy the render and write captions + post text next to it.
