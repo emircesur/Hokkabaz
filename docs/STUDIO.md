@@ -84,3 +84,9 @@ Setup (Studio settings in the app):
 5. Linux desktop playback uses libmpv (`libmpv-dev` / `mpv-libs`); Windows bundles it; Android uses the system player.
 
 Known gaps: Studio runs only where ffmpeg runs (desktop, or a daemon) - on Android the screen works but import / render fail until a remote Studio host is connected (not built yet); no speaker diarization (largest / nearest face is followed); TikTok / Instagram direct publishing; n8n nodes for Studio.
+
+## From flows
+
+Flows can drive the Studio with the **Video Studio** node (`hokkabaz.studio`, this device only): pick a step
+(transcribe, highlights, edit, reframe, b-roll, social, render, export, publish) and give its arguments as JSON
+(expressions work per item). It runs the same `studio_*` tool the agent uses, so flow runs and the live editor stay consistent.

@@ -35,6 +35,7 @@ fn build(extra: impl FnOnce(&mut NodeRegistry)) -> Result<NodeEnv, HkError> {
     let types = cred_types();
     hk_integrations::register_integrations(&mut reg, &types)
         .map_err(|e| HkError::internal(format!("integrations: {e}")))?;
+    crate::studio_node::register(&mut reg);
     extra(&mut reg);
     Ok(NodeEnv {
         registry: Arc::new(reg),
