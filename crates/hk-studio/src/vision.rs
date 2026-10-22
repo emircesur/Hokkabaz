@@ -6,11 +6,9 @@
 //! file is fetched once into the data dir.
 
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 
 use async_trait::async_trait;
 use hk_media::Tools;
-use tokio::io::AsyncReadExt;
 
 use crate::error::{Result, StudioError};
 use crate::reframe::{FocusPoint, FocusSource};
@@ -45,6 +43,8 @@ pub async fn grab_frames(tools: &Tools, video: &Path, start: f64, end: f64, fps:
     }
     #[cfg(not(target_os = "android"))]
     {
+        use std::process::Stdio;
+        use tokio::io::AsyncReadExt;
         let mut child = tokio::process::Command::new(&tools.ffmpeg)
             .args(["-hide_banner", "-nostdin", "-loglevel", "error", "-ss", &format!("{start:.3}"), "-t", &format!("{dur:.3}"), "-i"])
             .arg(video)

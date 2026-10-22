@@ -2890,6 +2890,7 @@ dependencies = [
  "hk-llm",
  "hk-media",
  "hk-stt",
+ "hk-tools",
  "reqwest 0.12.28",
  "rustface",
  "serde",

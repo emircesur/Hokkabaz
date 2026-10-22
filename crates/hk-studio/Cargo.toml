@@ -19,6 +19,7 @@ vision = ["dep:rustface"]
 async-trait = "0.1"
 futures = "0.3"
 hk-llm = { version = "0.0.0", path = "../hk-llm" }
+hk-tools = { version = "0.0.0", path = "../hk-tools" }
 hk-media = { version = "0.0.0", path = "../hk-media" }
 hk-stt = { version = "0.0.0", path = "../hk-stt" }
 rustface = { version = "0.1", optional = true }

@@ -21,10 +21,12 @@ pub mod reframe;
 pub mod service;
 pub mod social;
 pub mod templates;
+pub mod tools;
 pub mod vision;
 
 pub use error::{Result, StudioError};
 pub use live::{LiveStudio, StudioEvent};
 pub use pipeline::{PreviewPlan, PreviewWord, RenderOpts, Studio};
+pub use tools::studio_tools;
 pub use service::{Backends, ProjectSummary, StudioService};
 pub use project::{Clip, ProjectStore, StudioProject};
