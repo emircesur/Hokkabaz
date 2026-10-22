@@ -1,6 +1,7 @@
-param([string]$Release = "apps/flutter/build/windows/x64/runner/Release", [string]$Output = "hokkabaz-windows-x64.zip")
+param([switch]$DependenciesOnly, [string]$Release = "apps/flutter/build/windows/x64/runner/Release", [string]$Output = "hokkabaz-windows-x64.zip")
 $ErrorActionPreference = "Stop"
-$stage = (Resolve-Path $Release).Path
+$stage = if ($DependenciesOnly) { Join-Path ([System.IO.Path]::GetTempPath()) "hokkabaz-dependency-check" } else { (Resolve-Path $Release).Path }
+New-Item -ItemType Directory -Force $stage | Out-Null
 $cache = Join-Path ([System.IO.Path]::GetTempPath()) "hokkabaz-windows-deps"
 New-Item -ItemType Directory -Force $cache | Out-Null
 function Fetch-Verified([string]$Url, [string]$File, [string]$Sha256) {
@@ -47,6 +48,8 @@ Concat source (complete upstream UI): https://github.com/jub0t/Concat/tree/27562
 FFmpeg source and build recipe: $($fields[1])
 All Hokkabaz modifications and build instructions are in the Hokkabaz source above.
 "@ | Set-Content "$stage/SOURCE.txt"
+
+if ($DependenciesOnly) { Write-Host 'Pinned Concat and FFmpeg dependencies verified and staged'; return }
 
 # Check the actual packaged executables and required native bridge before zip.
 if (!(Get-ChildItem $stage -Filter '*hk_ffi*.dll' -Recurse)) { throw "Rust FFI DLL is missing" }

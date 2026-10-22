@@ -25,12 +25,19 @@ if ($Status -eq 'success') {
   Copy-Item 'hokkabaz-windows-x64.zip.sha256' $temp
 }
 @{status=$Status; source_sha=$SourceSha; run_url=$RunUrl; parts=$parts} | ConvertTo-Json -Depth 5 | Set-Content "$temp/status.json"
-git switch --orphan "windows-build-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
-if ($LASTEXITCODE -ne 0) { throw "Cannot create artifact branch" }
-New-Item -ItemType Directory -Force artifacts | Out-Null
-Copy-Item "$temp/*" artifacts
-git add -f artifacts
-git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Windows build $SourceSha ($Status)"
+# A separate artifact repository avoids checkout mutations and preserves the
+# workflow's source/scripts even when Flutter updated generated files.
+git -C $temp init -b "windows-build-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+git -C $temp add -- .
+git -C $temp -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Windows build $SourceSha ($Status)"
 if ($LASTEXITCODE -ne 0) { throw "Cannot commit build delivery" }
-git push origin "HEAD:refs/heads/builds/windows-x64-$SourceSha"
-if ($LASTEXITCODE -ne 0) { throw "Cannot deliver Windows build via Git" }
+$basic = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("x-access-token:$env:BUILD_DELIVERY_TOKEN"))
+$env:GIT_CONFIG_COUNT = '1'
+$env:GIT_CONFIG_KEY_0 = 'http.https://github.com/.extraheader'
+$env:GIT_CONFIG_VALUE_0 = "AUTHORIZATION: basic $basic"
+try {
+  git -C $temp push "https://github.com/$env:GITHUB_REPOSITORY.git" "HEAD:refs/heads/builds/windows-x64-$SourceSha"
+  if ($LASTEXITCODE -ne 0) { throw "Cannot deliver Windows build via Git" }
+} finally {
+  Remove-Item Env:GIT_CONFIG_COUNT, Env:GIT_CONFIG_KEY_0, Env:GIT_CONFIG_VALUE_0
+}
