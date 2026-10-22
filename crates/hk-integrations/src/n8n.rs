@@ -43,6 +43,7 @@ fn cursor() -> Pagination {
         next_path: "nextCursor".into(),
         size_param: Some("limit".into()),
         page_size: 100,
+        in_body: false,
     }
 }
 

@@ -1,0 +1,82 @@
+{
+ "name": "pushover",
+ "type": "n8n-nodes-base.pushover",
+ "display": "Pushover",
+ "description": "Push notifications",
+ "color": "#249DF1",
+ "versions": [
+  1
+ ],
+ "base": "https://api.pushover.net/1",
+ "cred": {
+  "name": "pushoverApi",
+  "display": "Pushover",
+  "fields": [
+   {
+    "name": "apiKey",
+    "display": "API Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "query": {
+    "token": "={{$credentials.apiKey}}"
+   }
+  }
+ },
+ "resources": [
+  {
+   "name": "message",
+   "display": "Message",
+   "ops": [
+    {
+     "name": "push",
+     "display": "Push",
+     "method": "POST",
+     "path": "/messages.json",
+     "action": "Send a push notification",
+     "params": [
+      {
+       "name": "userKey",
+       "display": "User Key",
+       "required": true,
+       "send": "body",
+       "prop": "user"
+      },
+      {
+       "name": "message",
+       "display": "Message",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "title",
+       "display": "Title",
+       "send": "body"
+      },
+      {
+       "name": "priority",
+       "display": "Priority",
+       "type": "number",
+       "send": "body"
+      },
+      {
+       "name": "url",
+       "display": "URL",
+       "send": "body"
+      },
+      {
+       "name": "sound",
+       "display": "Sound",
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "body_format": "form"
+}

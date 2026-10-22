@@ -1,0 +1,145 @@
+{
+ "name": "sendGrid",
+ "type": "n8n-nodes-base.sendGrid",
+ "display": "SendGrid",
+ "description": "Transactional email and marketing contacts",
+ "color": "#1A82E2",
+ "versions": [
+  1
+ ],
+ "base": "https://api.sendgrid.com/v3",
+ "cred": {
+  "name": "sendGridApi",
+  "display": "SendGrid",
+  "fields": [
+   {
+    "name": "apiKey",
+    "display": "API Key",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=Bearer {{$credentials.apiKey}}"
+   }
+  },
+  "test": "/scopes"
+ },
+ "resources": [
+  {
+   "name": "mail",
+   "display": "Mail",
+   "ops": [
+    {
+     "name": "send",
+     "display": "Send",
+     "method": "POST",
+     "path": "/mail/send",
+     "action": "Send an email",
+     "params": [
+      {
+       "name": "toEmail",
+       "display": "To Email",
+       "required": true
+      },
+      {
+       "name": "fromEmail",
+       "display": "From Email",
+       "required": true
+      },
+      {
+       "name": "subject",
+       "display": "Subject",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "contentType",
+       "display": "Content Type",
+       "type": "options",
+       "default": "text/plain",
+       "options": [
+        [
+         "Plain Text",
+         "text/plain"
+        ],
+        [
+         "HTML",
+         "text/html"
+        ]
+       ]
+      },
+      {
+       "name": "contentValue",
+       "display": "Content",
+       "required": true
+      }
+     ],
+     "body": {
+      "personalizations": "={{ [{\"to\": [{\"email\": $parameter[\"toEmail\"]}]}] }}",
+      "from": "={{ {\"email\": $parameter[\"fromEmail\"]} }}",
+      "content": "={{ [{\"type\": $parameter[\"contentType\"], \"value\": $parameter[\"contentValue\"]}] }}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "contact",
+   "display": "Contact",
+   "ops": [
+    {
+     "name": "upsert",
+     "display": "Create or Update",
+     "method": "PUT",
+     "path": "/marketing/contacts",
+     "action": "Add or update a contact",
+     "params": [
+      {
+       "name": "email",
+       "display": "Email",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "first_name",
+       "display": "First Name"
+      },
+      {
+       "name": "last_name",
+       "display": "Last Name"
+      }
+     ],
+     "body": {
+      "contacts": "={{ [Object.assign({\"email\": $parameter[\"email\"]}, $parameter[\"additionalFields\"] || {})] }}"
+     }
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/marketing/contacts",
+     "action": "Get many contacts",
+     "out": "result",
+     "list": true
+    }
+   ]
+  },
+  {
+   "name": "list",
+   "display": "List",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/marketing/lists",
+     "action": "Get many lists",
+     "out": "result",
+     "list": true
+    }
+   ]
+  }
+ ]
+}

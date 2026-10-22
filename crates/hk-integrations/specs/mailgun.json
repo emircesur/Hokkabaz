@@ -1,0 +1,100 @@
+{
+ "name": "mailgun",
+ "type": "n8n-nodes-base.mailgun",
+ "display": "Mailgun",
+ "description": "Send email through Mailgun",
+ "color": "#C02428",
+ "versions": [
+  1
+ ],
+ "base": "https://{{$credentials.apiDomain}}/v3/{{$credentials.emailDomain}}",
+ "cred": {
+  "name": "mailgunApi",
+  "display": "Mailgun",
+  "fields": [
+   {
+    "name": "apiDomain",
+    "display": "API Domain",
+    "default": "api.mailgun.net",
+    "desc": "api.eu.mailgun.net for the EU region"
+   },
+   {
+    "name": "emailDomain",
+    "display": "Email Domain",
+    "required": true
+   },
+   {
+    "name": "apiKey",
+    "display": "API Key",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "basic": [
+    "api",
+    "{{$credentials.apiKey}}"
+   ]
+  }
+ },
+ "resources": [
+  {
+   "name": "email",
+   "display": "Email",
+   "ops": [
+    {
+     "name": "send",
+     "display": "Send",
+     "method": "POST",
+     "path": "/messages",
+     "action": "Send an email",
+     "params": [
+      {
+       "name": "fromEmail",
+       "display": "From Email",
+       "required": true,
+       "send": "body",
+       "prop": "from"
+      },
+      {
+       "name": "toEmail",
+       "display": "To Email",
+       "required": true,
+       "send": "body",
+       "prop": "to"
+      },
+      {
+       "name": "subject",
+       "display": "Subject",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "text",
+       "display": "Text",
+       "send": "body"
+      },
+      {
+       "name": "html",
+       "display": "HTML",
+       "send": "body"
+      },
+      {
+       "name": "cc",
+       "display": "CC",
+       "send": "body"
+      },
+      {
+       "name": "bcc",
+       "display": "BCC",
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "body_format": "form"
+}

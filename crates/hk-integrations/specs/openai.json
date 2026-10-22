@@ -1,0 +1,247 @@
+{
+ "name": "openai",
+ "type": "@n8n/n8n-nodes-langchain.openAi",
+ "display": "OpenAI",
+ "description": "Chat, images, embeddings and moderation on OpenAI-compatible APIs",
+ "color": "#10A37F",
+ "versions": [
+  1,
+  1.1,
+  1.8
+ ],
+ "base": "={{$credentials.url}}",
+ "cred": {
+  "name": "openAiApi",
+  "display": "OpenAI",
+  "fields": [
+   {
+    "name": "apiKey",
+    "display": "API Key",
+    "secret": true,
+    "required": true
+   },
+   {
+    "name": "url",
+    "display": "Base URL",
+    "default": "https://api.openai.com/v1",
+    "desc": "Any OpenAI-compatible endpoint works"
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=Bearer {{$credentials.apiKey}}"
+   }
+  },
+  "test": "/models",
+  "docs": "https://platform.openai.com/docs/api-reference/authentication"
+ },
+ "resources": [
+  {
+   "name": "text",
+   "display": "Text",
+   "ops": [
+    {
+     "name": "message",
+     "display": "Message a Model",
+     "method": "POST",
+     "path": "/chat/completions",
+     "action": "Message a model",
+     "params": [
+      {
+       "name": "modelId",
+       "display": "Model",
+       "required": true,
+       "send": "body",
+       "prop": "model",
+       "default": "gpt-4o-mini"
+      },
+      {
+       "name": "text",
+       "display": "Prompt",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "system",
+       "display": "System Prompt",
+       "send": null
+      },
+      {
+       "name": "temperature",
+       "display": "Temperature",
+       "type": "number",
+       "send": "body"
+      },
+      {
+       "name": "maxTokens",
+       "display": "Max Tokens",
+       "type": "number",
+       "send": "body",
+       "prop": "max_tokens"
+      }
+     ],
+     "body": {
+      "messages": "={{ (($parameter[\"additionalFields\"] || {}).system ? [{\"role\": \"system\", \"content\": $parameter[\"additionalFields\"].system}] : []).concat([{\"role\": \"user\", \"content\": $parameter[\"text\"]}]) }}"
+     },
+     "out": "choices"
+    },
+    {
+     "name": "messageRaw",
+     "display": "Message with Message List",
+     "method": "POST",
+     "path": "/chat/completions",
+     "action": "Message a model with a full message list",
+     "params": [
+      {
+       "name": "modelId",
+       "display": "Model",
+       "required": true,
+       "send": "body",
+       "prop": "model",
+       "default": "gpt-4o-mini"
+      },
+      {
+       "name": "messages",
+       "display": "Messages (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "default": "[{\"role\":\"user\",\"content\":\"Hello\"}]"
+      }
+     ],
+     "extra": [
+      {
+       "name": "temperature",
+       "display": "Temperature",
+       "type": "number",
+       "send": "body"
+      },
+      {
+       "name": "maxTokens",
+       "display": "Max Tokens",
+       "type": "number",
+       "send": "body",
+       "prop": "max_tokens"
+      },
+      {
+       "name": "tools",
+       "display": "Tools (JSON array)",
+       "type": "json",
+       "send": "body"
+      },
+      {
+       "name": "responseFormat",
+       "display": "Response Format (JSON)",
+       "type": "json",
+       "send": "body",
+       "prop": "response_format"
+      }
+     ],
+     "out": "choices"
+    },
+    {
+     "name": "classify",
+     "display": "Classify Text for Violations",
+     "method": "POST",
+     "path": "/moderations",
+     "action": "Classify text",
+     "params": [
+      {
+       "name": "input",
+       "display": "Text Input",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "out": "results"
+    }
+   ]
+  },
+  {
+   "name": "image",
+   "display": "Image",
+   "ops": [
+    {
+     "name": "generate",
+     "display": "Generate an Image",
+     "method": "POST",
+     "path": "/images/generations",
+     "action": "Generate an image",
+     "params": [
+      {
+       "name": "prompt",
+       "display": "Prompt",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "model",
+       "display": "Model",
+       "send": "body",
+       "default": "gpt-image-1"
+      }
+     ],
+     "extra": [
+      {
+       "name": "size",
+       "display": "Size",
+       "send": "body"
+      },
+      {
+       "name": "n",
+       "display": "Number of Images",
+       "type": "number",
+       "send": "body"
+      }
+     ],
+     "out": "data"
+    }
+   ]
+  },
+  {
+   "name": "embedding",
+   "display": "Embedding",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create Embeddings",
+     "method": "POST",
+     "path": "/embeddings",
+     "action": "Create embeddings",
+     "params": [
+      {
+       "name": "model",
+       "display": "Model",
+       "required": true,
+       "send": "body",
+       "default": "text-embedding-3-small"
+      },
+      {
+       "name": "input",
+       "display": "Input",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "out": "data"
+    }
+   ]
+  },
+  {
+   "name": "model",
+   "display": "Model",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/models",
+     "action": "List models",
+     "out": "data",
+     "list": true
+    }
+   ]
+  }
+ ]
+}

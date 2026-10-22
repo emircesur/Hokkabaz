@@ -43,6 +43,10 @@ pub struct RouteSend {
     /// Drop `null` and `""` (default). `false` and `0` are always sent.
     #[serde(default = "yes", skip_serializing_if = "is_true")]
     pub skip_empty: bool,
+    /// The parameter is JSON text (n8n `json` type): parse a string value before sending, so the
+    /// request carries an object/array, not an escaped string.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub json: bool,
 }
 
 fn yes() -> bool {
@@ -68,6 +72,7 @@ impl RouteSend {
             property: Some(property.to_owned()),
             value: None,
             skip_empty: true,
+            json: false,
         }
     }
 }
@@ -99,6 +104,9 @@ pub struct RouteOutput {
     /// Fields kept when the node's `simplify` parameter is on (dotted paths).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub simplify: Vec<String>,
+    /// The property is a table (array of arrays): the first row names the columns (Google Sheets).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub rows: bool,
 }
 
 /// How a list operation pages. Results are read from `output.property`.
@@ -111,6 +119,9 @@ pub enum Pagination {
         limit_param: String,
         offset_param: String,
         page_size: usize,
+        /// Send the paging fields in the JSON body instead of the query string.
+        #[serde(default)]
+        in_body: bool,
     },
     /// `?per_page=N&page=K` (1-based unless `first_page` says otherwise)
     #[serde(rename_all = "camelCase")]
@@ -129,6 +140,22 @@ pub enum Pagination {
         next_path: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         size_param: Option<String>,
+        page_size: usize,
+        /// Send the paging fields in the JSON body (Notion, Elasticsearch scroll, ...).
+        #[serde(default)]
+        in_body: bool,
+    },
+    /// The next page starts after the last result's id, while `more_path` says there is more
+    /// (Stripe `starting_after` + `has_more`, Discord `after`).
+    #[serde(rename_all = "camelCase")]
+    LastId {
+        cursor_param: String,
+        /// Field of each result holding its id.
+        id_field: String,
+        /// Dotted path of the "more pages" flag in the response; empty = keep going while full pages arrive.
+        #[serde(default)]
+        more_path: String,
+        size_param: String,
         page_size: usize,
     },
     /// The response carries the next page's URL.
@@ -200,6 +227,7 @@ impl Routing {
         self.output = Some(RouteOutput {
             property: property.map(str::to_owned),
             simplify: simplify.iter().map(|s| (*s).to_owned()).collect(),
+            rows: false,
         });
         self
     }

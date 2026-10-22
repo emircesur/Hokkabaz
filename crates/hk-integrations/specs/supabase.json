@@ -1,0 +1,162 @@
+{
+ "name": "supabase",
+ "type": "n8n-nodes-base.supabase",
+ "display": "Supabase",
+ "description": "Rows of Postgres tables through Supabase's REST API",
+ "color": "#3ECF8E",
+ "versions": [
+  1
+ ],
+ "base": "={{$credentials.host}}/rest/v1",
+ "cred": {
+  "name": "supabaseApi",
+  "display": "Supabase",
+  "fields": [
+   {
+    "name": "host",
+    "display": "Host",
+    "required": true,
+    "desc": "https://<project>.supabase.co"
+   },
+   {
+    "name": "serviceRole",
+    "display": "Service Role Secret",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "apikey": "={{$credentials.serviceRole}}",
+    "Authorization": "=Bearer {{$credentials.serviceRole}}"
+   }
+  }
+ },
+ "resources": [
+  {
+   "name": "row",
+   "display": "Row",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/{tableId}",
+     "action": "Get many rows",
+     "params": [
+      {
+       "name": "tableId",
+       "display": "Table Name",
+       "required": true
+      },
+      {
+       "name": "filters",
+       "display": "Filters",
+       "send": "queryString",
+       "desc": "PostgREST filters, e.g. status=eq.open&age=gt.18"
+      }
+     ],
+     "extra": [
+      {
+       "name": "select",
+       "display": "Columns",
+       "send": "query"
+      },
+      {
+       "name": "order",
+       "display": "Order",
+       "send": "query",
+       "desc": "column.asc or column.desc"
+      }
+     ],
+     "list": true,
+     "page": {
+      "type": "offset",
+      "limitParam": "limit",
+      "offsetParam": "offset",
+      "pageSize": 1000
+     }
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/{tableId}",
+     "action": "Create a row",
+     "params": [
+      {
+       "name": "tableId",
+       "display": "Table Name",
+       "required": true
+      },
+      {
+       "name": "row",
+       "display": "Row (JSON object or array)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "prop": "$"
+      }
+     ],
+     "headers": {
+      "Prefer": "return=representation"
+     }
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PATCH",
+     "path": "/{tableId}",
+     "action": "Update rows",
+     "params": [
+      {
+       "name": "tableId",
+       "display": "Table Name",
+       "required": true
+      },
+      {
+       "name": "filters",
+       "display": "Filters",
+       "required": true,
+       "send": "queryString"
+      },
+      {
+       "name": "row",
+       "display": "Fields (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "prop": "$"
+      }
+     ],
+     "headers": {
+      "Prefer": "return=representation"
+     }
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/{tableId}",
+     "action": "Delete rows",
+     "params": [
+      {
+       "name": "tableId",
+       "display": "Table Name",
+       "required": true
+      },
+      {
+       "name": "filters",
+       "display": "Filters",
+       "required": true,
+       "send": "queryString"
+      }
+     ],
+     "headers": {
+      "Prefer": "return=representation"
+     }
+    }
+   ]
+  }
+ ]
+}

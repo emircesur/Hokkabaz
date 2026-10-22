@@ -1,0 +1,227 @@
+{
+ "name": "todoist",
+ "type": "n8n-nodes-base.todoist",
+ "display": "Todoist",
+ "description": "Tasks and projects",
+ "color": "#E44332",
+ "versions": [
+  1,
+  2.1
+ ],
+ "base": "https://api.todoist.com/rest/v2",
+ "cred": {
+  "name": "todoistApi",
+  "display": "Todoist",
+  "fields": [
+   {
+    "name": "apiKey",
+    "display": "API Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=Bearer {{$credentials.apiKey}}"
+   }
+  },
+  "test": "/projects"
+ },
+ "resources": [
+  {
+   "name": "task",
+   "display": "Task",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/tasks",
+     "action": "Get many tasks",
+     "extra": [
+      {
+       "name": "project_id",
+       "display": "Project ID",
+       "send": "query"
+      },
+      {
+       "name": "filter",
+       "display": "Filter",
+       "send": "query"
+      }
+     ],
+     "list": true
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/tasks/{taskId}",
+     "action": "Get a task",
+     "params": [
+      {
+       "name": "taskId",
+       "display": "Task ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/tasks",
+     "action": "Create a task",
+     "params": [
+      {
+       "name": "content",
+       "display": "Content",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      },
+      {
+       "name": "projectId",
+       "display": "Project ID",
+       "send": "body",
+       "prop": "project_id"
+      },
+      {
+       "name": "priority",
+       "display": "Priority",
+       "type": "number",
+       "send": "body"
+      },
+      {
+       "name": "dueString",
+       "display": "Due",
+       "send": "body",
+       "prop": "due_string"
+      },
+      {
+       "name": "labels",
+       "display": "Labels (JSON array)",
+       "type": "json",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "POST",
+     "path": "/tasks/{taskId}",
+     "action": "Update a task",
+     "params": [
+      {
+       "name": "taskId",
+       "display": "Task ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "content",
+       "display": "Content",
+       "send": "body"
+      },
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      },
+      {
+       "name": "priority",
+       "display": "Priority",
+       "type": "number",
+       "send": "body"
+      },
+      {
+       "name": "dueString",
+       "display": "Due",
+       "send": "body",
+       "prop": "due_string"
+      }
+     ]
+    },
+    {
+     "name": "close",
+     "display": "Close",
+     "method": "POST",
+     "path": "/tasks/{taskId}/close",
+     "action": "Complete a task",
+     "params": [
+      {
+       "name": "taskId",
+       "display": "Task ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "reopen",
+     "display": "Reopen",
+     "method": "POST",
+     "path": "/tasks/{taskId}/reopen",
+     "action": "Reopen a task",
+     "params": [
+      {
+       "name": "taskId",
+       "display": "Task ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/tasks/{taskId}",
+     "action": "Delete a task",
+     "params": [
+      {
+       "name": "taskId",
+       "display": "Task ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "project",
+   "display": "Project",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/projects",
+     "action": "Get many projects",
+     "list": true
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/projects",
+     "action": "Create a project",
+     "params": [
+      {
+       "name": "name",
+       "display": "Name",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,234 @@
+{
+ "name": "freshdesk",
+ "type": "n8n-nodes-base.freshdesk",
+ "display": "Freshdesk",
+ "description": "Tickets and contacts",
+ "color": "#25C16F",
+ "versions": [
+  1
+ ],
+ "base": "https://{{$credentials.domain}}.freshdesk.com/api/v2",
+ "cred": {
+  "name": "freshdeskApi",
+  "display": "Freshdesk",
+  "fields": [
+   {
+    "name": "apiKey",
+    "display": "API Key",
+    "secret": true,
+    "required": true
+   },
+   {
+    "name": "domain",
+    "display": "Domain",
+    "required": true,
+    "desc": "The subdomain of your helpdesk"
+   }
+  ],
+  "auth": {
+   "basic": [
+    "{{$credentials.apiKey}}",
+    "X"
+   ]
+  },
+  "test": "/tickets?per_page=1"
+ },
+ "resources": [
+  {
+   "name": "ticket",
+   "display": "Ticket",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/tickets",
+     "action": "Get many tickets",
+     "list": true,
+     "page": {
+      "type": "page",
+      "pageParam": "page",
+      "sizeParam": "per_page",
+      "pageSize": 100,
+      "firstPage": 1
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/tickets/{ticketId}",
+     "action": "Get a ticket",
+     "params": [
+      {
+       "name": "ticketId",
+       "display": "Ticket ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/tickets",
+     "action": "Create a ticket",
+     "params": [
+      {
+       "name": "email",
+       "display": "Requester Email",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "subject",
+       "display": "Subject",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "description",
+       "display": "Description",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "priority",
+       "display": "Priority",
+       "type": "number",
+       "send": "body",
+       "default": 1
+      },
+      {
+       "name": "status",
+       "display": "Status",
+       "type": "number",
+       "send": "body",
+       "default": 2
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PUT",
+     "path": "/tickets/{ticketId}",
+     "action": "Update a ticket",
+     "params": [
+      {
+       "name": "ticketId",
+       "display": "Ticket ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "subject",
+       "display": "Subject",
+       "send": "body"
+      },
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      },
+      {
+       "name": "priority",
+       "display": "Priority",
+       "type": "number",
+       "send": "body"
+      },
+      {
+       "name": "status",
+       "display": "Status",
+       "type": "number",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/tickets/{ticketId}",
+     "action": "Delete a ticket",
+     "params": [
+      {
+       "name": "ticketId",
+       "display": "Ticket ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "contact",
+   "display": "Contact",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/contacts",
+     "action": "Get many contacts",
+     "list": true,
+     "page": {
+      "type": "page",
+      "pageParam": "page",
+      "sizeParam": "per_page",
+      "pageSize": 100,
+      "firstPage": 1
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/contacts/{contactId}",
+     "action": "Get a contact",
+     "params": [
+      {
+       "name": "contactId",
+       "display": "Contact ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/contacts",
+     "action": "Create a contact",
+     "params": [
+      {
+       "name": "name",
+       "display": "Name",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "email",
+       "display": "Email",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "phone",
+       "display": "Phone",
+       "send": "body"
+      },
+      {
+       "name": "mobile",
+       "display": "Mobile",
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

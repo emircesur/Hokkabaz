@@ -1,0 +1,351 @@
+{
+ "name": "asana",
+ "type": "n8n-nodes-base.asana",
+ "display": "Asana",
+ "description": "Tasks, projects and comments",
+ "color": "#F06A6A",
+ "versions": [
+  1
+ ],
+ "base": "https://app.asana.com/api/1.0",
+ "cred": {
+  "name": "asanaApi",
+  "display": "Asana",
+  "fields": [
+   {
+    "name": "accessToken",
+    "display": "Personal Access Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=Bearer {{$credentials.accessToken}}"
+   }
+  },
+  "test": "/users/me"
+ },
+ "resources": [
+  {
+   "name": "task",
+   "display": "Task",
+   "ops": [
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/tasks/{id}",
+     "action": "Get a task",
+     "params": [
+      {
+       "name": "id",
+       "display": "Task ID",
+       "required": true
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/tasks",
+     "action": "Get many tasks",
+     "extra": [
+      {
+       "name": "project",
+       "display": "Project ID",
+       "send": "query"
+      },
+      {
+       "name": "assignee",
+       "display": "Assignee",
+       "send": "query"
+      },
+      {
+       "name": "workspace",
+       "display": "Workspace ID",
+       "send": "query"
+      },
+      {
+       "name": "completedSince",
+       "display": "Completed Since",
+       "send": "query",
+       "prop": "completed_since"
+      }
+     ],
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "offset",
+      "nextPath": "next_page.offset",
+      "pageSize": 100,
+      "sizeParam": "limit"
+     }
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/tasks",
+     "action": "Create a task",
+     "params": [
+      {
+       "name": "workspace",
+       "display": "Workspace ID",
+       "required": true,
+       "send": "body",
+       "prop": "data.workspace"
+      },
+      {
+       "name": "name",
+       "display": "Name",
+       "required": true,
+       "send": "body",
+       "prop": "data.name"
+      }
+     ],
+     "extra": [
+      {
+       "name": "projects",
+       "display": "Project IDs",
+       "send": "body",
+       "prop": "data.projects"
+      },
+      {
+       "name": "notes",
+       "display": "Notes",
+       "send": "body",
+       "prop": "data.notes"
+      },
+      {
+       "name": "assignee",
+       "display": "Assignee",
+       "send": "body",
+       "prop": "data.assignee"
+      },
+      {
+       "name": "dueOn",
+       "display": "Due On",
+       "send": "body",
+       "prop": "data.due_on"
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PUT",
+     "path": "/tasks/{id}",
+     "action": "Update a task",
+     "params": [
+      {
+       "name": "id",
+       "display": "Task ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "name",
+       "display": "Name",
+       "send": "body",
+       "prop": "data.name"
+      },
+      {
+       "name": "notes",
+       "display": "Notes",
+       "send": "body",
+       "prop": "data.notes"
+      },
+      {
+       "name": "assignee",
+       "display": "Assignee",
+       "send": "body",
+       "prop": "data.assignee"
+      },
+      {
+       "name": "dueOn",
+       "display": "Due On",
+       "send": "body",
+       "prop": "data.due_on"
+      },
+      {
+       "name": "completed",
+       "display": "Completed",
+       "type": "boolean",
+       "send": "body",
+       "prop": "data.completed"
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/tasks/{id}",
+     "action": "Delete a task",
+     "params": [
+      {
+       "name": "id",
+       "display": "Task ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "search",
+     "display": "Search",
+     "method": "GET",
+     "path": "/workspaces/{workspaceId}/tasks/search",
+     "action": "Search tasks",
+     "params": [
+      {
+       "name": "workspaceId",
+       "display": "Workspace ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "text",
+       "display": "Text",
+       "send": "query"
+      }
+     ],
+     "out": "data",
+     "list": true
+    }
+   ]
+  },
+  {
+   "name": "project",
+   "display": "Project",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/projects",
+     "action": "Get many projects",
+     "extra": [
+      {
+       "name": "workspace",
+       "display": "Workspace ID",
+       "send": "query"
+      }
+     ],
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "offset",
+      "nextPath": "next_page.offset",
+      "pageSize": 100,
+      "sizeParam": "limit"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/projects/{id}",
+     "action": "Get a project",
+     "params": [
+      {
+       "name": "id",
+       "display": "Project ID",
+       "required": true
+      }
+     ],
+     "out": "data"
+    }
+   ]
+  },
+  {
+   "name": "taskComment",
+   "display": "Task Comment",
+   "ops": [
+    {
+     "name": "add",
+     "display": "Add",
+     "method": "POST",
+     "path": "/tasks/{id}/stories",
+     "action": "Add a comment",
+     "params": [
+      {
+       "name": "id",
+       "display": "Task ID",
+       "required": true
+      },
+      {
+       "name": "text",
+       "display": "Comment",
+       "required": true,
+       "send": "body",
+       "prop": "data.text"
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/tasks/{id}/stories",
+     "action": "Get comments",
+     "params": [
+      {
+       "name": "id",
+       "display": "Task ID",
+       "required": true
+      }
+     ],
+     "out": "data",
+     "list": true
+    }
+   ]
+  },
+  {
+   "name": "user",
+   "display": "User",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/users",
+     "action": "Get many users",
+     "extra": [
+      {
+       "name": "workspace",
+       "display": "Workspace ID",
+       "send": "query"
+      }
+     ],
+     "out": "data",
+     "list": true
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/users/{id}",
+     "action": "Get a user",
+     "params": [
+      {
+       "name": "id",
+       "display": "User ID",
+       "required": true
+      }
+     ],
+     "out": "data"
+    }
+   ]
+  }
+ ]
+}

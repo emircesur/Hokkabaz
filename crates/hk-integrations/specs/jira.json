@@ -1,0 +1,282 @@
+{
+ "name": "jira",
+ "type": "n8n-nodes-base.jira",
+ "display": "Jira Software",
+ "description": "Issues, comments and transitions (Cloud)",
+ "color": "#0052CC",
+ "versions": [
+  1
+ ],
+ "base": "={{$credentials.domain}}/rest/api/2",
+ "cred": {
+  "name": "jiraSoftwareCloudApi",
+  "display": "Jira SW Cloud",
+  "fields": [
+   {
+    "name": "email",
+    "display": "Email",
+    "required": true
+   },
+   {
+    "name": "apiToken",
+    "display": "API Token",
+    "secret": true,
+    "required": true
+   },
+   {
+    "name": "domain",
+    "display": "Domain",
+    "required": true,
+    "desc": "https://your-org.atlassian.net"
+   }
+  ],
+  "auth": {
+   "basic": [
+    "{{$credentials.email}}",
+    "{{$credentials.apiToken}}"
+   ]
+  },
+  "test": "/myself"
+ },
+ "resources": [
+  {
+   "name": "issue",
+   "display": "Issue",
+   "ops": [
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/issue/{issueKey}",
+     "action": "Get an issue",
+     "params": [
+      {
+       "name": "issueKey",
+       "display": "Issue Key",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/search/jql",
+     "action": "Search issues with JQL",
+     "params": [
+      {
+       "name": "jql",
+       "display": "JQL",
+       "required": true,
+       "send": "query",
+       "default": "order by created DESC"
+      }
+     ],
+     "extra": [
+      {
+       "name": "fields",
+       "display": "Fields",
+       "send": "query",
+       "default": "*all"
+      }
+     ],
+     "out": "issues",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "nextPageToken",
+      "nextPath": "nextPageToken",
+      "pageSize": 100,
+      "sizeParam": "maxResults"
+     }
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/issue",
+     "action": "Create an issue",
+     "params": [
+      {
+       "name": "project",
+       "display": "Project ID",
+       "required": true,
+       "send": "body",
+       "prop": "fields.project.id"
+      },
+      {
+       "name": "issueType",
+       "display": "Issue Type ID",
+       "required": true,
+       "send": "body",
+       "prop": "fields.issuetype.id"
+      },
+      {
+       "name": "summary",
+       "display": "Summary",
+       "required": true,
+       "send": "body",
+       "prop": "fields.summary"
+      }
+     ],
+     "extra": [
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body",
+       "prop": "fields.description"
+      },
+      {
+       "name": "labels",
+       "display": "Labels (comma separated)",
+       "send": "body",
+       "prop": "fields.labels"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PUT",
+     "path": "/issue/{issueKey}",
+     "action": "Update an issue",
+     "params": [
+      {
+       "name": "issueKey",
+       "display": "Issue Key",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "summary",
+       "display": "Summary",
+       "send": "body",
+       "prop": "fields.summary"
+      },
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body",
+       "prop": "fields.description"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/issue/{issueKey}",
+     "action": "Delete an issue",
+     "params": [
+      {
+       "name": "issueKey",
+       "display": "Issue Key",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "transitions",
+     "display": "Get Transitions",
+     "method": "GET",
+     "path": "/issue/{issueKey}/transitions",
+     "action": "Get transitions",
+     "params": [
+      {
+       "name": "issueKey",
+       "display": "Issue Key",
+       "required": true
+      }
+     ],
+     "out": "transitions"
+    },
+    {
+     "name": "transition",
+     "display": "Transition",
+     "method": "POST",
+     "path": "/issue/{issueKey}/transitions",
+     "action": "Transition an issue",
+     "params": [
+      {
+       "name": "issueKey",
+       "display": "Issue Key",
+       "required": true
+      },
+      {
+       "name": "transitionId",
+       "display": "Transition ID",
+       "required": true,
+       "send": "body",
+       "prop": "transition.id"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "issueComment",
+   "display": "Issue Comment",
+   "ops": [
+    {
+     "name": "add",
+     "display": "Add",
+     "method": "POST",
+     "path": "/issue/{issueKey}/comment",
+     "action": "Add a comment",
+     "params": [
+      {
+       "name": "issueKey",
+       "display": "Issue Key",
+       "required": true
+      },
+      {
+       "name": "comment",
+       "display": "Comment",
+       "required": true,
+       "send": "body",
+       "prop": "body"
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/issue/{issueKey}/comment",
+     "action": "Get comments",
+     "params": [
+      {
+       "name": "issueKey",
+       "display": "Issue Key",
+       "required": true
+      }
+     ],
+     "out": "comments",
+     "list": true
+    }
+   ]
+  },
+  {
+   "name": "user",
+   "display": "User",
+   "ops": [
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/user",
+     "action": "Get a user",
+     "params": [
+      {
+       "name": "accountId",
+       "display": "Account ID",
+       "required": true,
+       "send": "query"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,244 @@
+{
+ "name": "elasticsearch",
+ "type": "n8n-nodes-base.elasticsearch",
+ "display": "Elasticsearch",
+ "description": "Documents and indices",
+ "color": "#005571",
+ "versions": [
+  1,
+  1.1
+ ],
+ "base": "={{$credentials.baseUrl}}",
+ "cred": {
+  "name": "elasticsearchApi",
+  "display": "Elasticsearch",
+  "fields": [
+   {
+    "name": "baseUrl",
+    "display": "Base URL",
+    "required": true,
+    "desc": "https://localhost:9200"
+   },
+   {
+    "name": "username",
+    "display": "Username"
+   },
+   {
+    "name": "password",
+    "display": "Password",
+    "secret": true
+   }
+  ],
+  "auth": {
+   "basic": [
+    "{{$credentials.username}}",
+    "{{$credentials.password}}"
+   ]
+  },
+  "test": "/"
+ },
+ "resources": [
+  {
+   "name": "document",
+   "display": "Document",
+   "ops": [
+    {
+     "name": "index",
+     "display": "Create",
+     "method": "POST",
+     "path": "/{indexId}/_doc",
+     "action": "Index a document",
+     "params": [
+      {
+       "name": "indexId",
+       "display": "Index",
+       "required": true
+      },
+      {
+       "name": "dataString",
+       "display": "Document (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "prop": "$"
+      }
+     ]
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/{indexId}/_doc/{documentId}",
+     "action": "Get a document",
+     "params": [
+      {
+       "name": "indexId",
+       "display": "Index",
+       "required": true
+      },
+      {
+       "name": "documentId",
+       "display": "Document ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "POST",
+     "path": "/{indexId}/_search",
+     "action": "Search documents",
+     "params": [
+      {
+       "name": "indexId",
+       "display": "Index",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "query",
+       "display": "Query (JSON)",
+       "type": "json",
+       "send": "body"
+      },
+      {
+       "name": "sort",
+       "display": "Sort (JSON)",
+       "type": "json",
+       "send": "body"
+      }
+     ],
+     "out": "hits.hits",
+     "list": true,
+     "page": {
+      "type": "offset",
+      "limitParam": "size",
+      "offsetParam": "from",
+      "pageSize": 1000,
+      "inBody": true
+     }
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "POST",
+     "path": "/{indexId}/_update/{documentId}",
+     "action": "Update a document",
+     "params": [
+      {
+       "name": "indexId",
+       "display": "Index",
+       "required": true
+      },
+      {
+       "name": "documentId",
+       "display": "Document ID",
+       "required": true
+      },
+      {
+       "name": "doc",
+       "display": "Fields (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/{indexId}/_doc/{documentId}",
+     "action": "Delete a document",
+     "params": [
+      {
+       "name": "indexId",
+       "display": "Index",
+       "required": true
+      },
+      {
+       "name": "documentId",
+       "display": "Document ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "index",
+   "display": "Index",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/_cat/indices",
+     "action": "Get indices",
+     "qs": {
+      "format": "json"
+     },
+     "list": true
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/{indexId}",
+     "action": "Get an index",
+     "params": [
+      {
+       "name": "indexId",
+       "display": "Index",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "PUT",
+     "path": "/{indexId}",
+     "action": "Create an index",
+     "params": [
+      {
+       "name": "indexId",
+       "display": "Index",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "settings",
+       "display": "Settings (JSON)",
+       "type": "json",
+       "send": "body"
+      },
+      {
+       "name": "mappings",
+       "display": "Mappings (JSON)",
+       "type": "json",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/{indexId}",
+     "action": "Delete an index",
+     "params": [
+      {
+       "name": "indexId",
+       "display": "Index",
+       "required": true
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

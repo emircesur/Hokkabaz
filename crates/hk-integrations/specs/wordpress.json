@@ -1,0 +1,314 @@
+{
+ "name": "wordpress",
+ "type": "n8n-nodes-base.wordpress",
+ "display": "WordPress",
+ "description": "Posts, pages and users via the REST API",
+ "color": "#21759B",
+ "versions": [
+  1
+ ],
+ "base": "={{$credentials.url}}/wp-json/wp/v2",
+ "cred": {
+  "name": "wordpressApi",
+  "display": "WordPress",
+  "fields": [
+   {
+    "name": "username",
+    "display": "Username",
+    "required": true
+   },
+   {
+    "name": "password",
+    "display": "Application Password",
+    "secret": true,
+    "required": true
+   },
+   {
+    "name": "url",
+    "display": "WordPress URL",
+    "required": true,
+    "desc": "https://example.com"
+   }
+  ],
+  "auth": {
+   "basic": [
+    "{{$credentials.username}}",
+    "{{$credentials.password}}"
+   ]
+  },
+  "test": "/users/me"
+ },
+ "resources": [
+  {
+   "name": "post",
+   "display": "Post",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/posts",
+     "action": "Get many posts",
+     "list": true,
+     "page": {
+      "type": "page",
+      "pageParam": "page",
+      "sizeParam": "per_page",
+      "pageSize": 100,
+      "firstPage": 1
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/posts/{postId}",
+     "action": "Get a post",
+     "params": [
+      {
+       "name": "postId",
+       "display": "Post ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/posts",
+     "action": "Create a post",
+     "params": [
+      {
+       "name": "title",
+       "display": "Title",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "content",
+       "display": "Content",
+       "send": "body"
+      },
+      {
+       "name": "status",
+       "display": "Status",
+       "send": "body",
+       "default": "draft"
+      },
+      {
+       "name": "slug",
+       "display": "Slug",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "POST",
+     "path": "/posts/{postId}",
+     "action": "Update a post",
+     "params": [
+      {
+       "name": "postId",
+       "display": "Post ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "title",
+       "display": "Title",
+       "send": "body"
+      },
+      {
+       "name": "content",
+       "display": "Content",
+       "send": "body"
+      },
+      {
+       "name": "status",
+       "display": "Status",
+       "send": "body"
+      },
+      {
+       "name": "slug",
+       "display": "Slug",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/posts/{postId}",
+     "action": "Delete a post",
+     "params": [
+      {
+       "name": "postId",
+       "display": "Post ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "page",
+   "display": "Page",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/pages",
+     "action": "Get many pages",
+     "list": true,
+     "page": {
+      "type": "page",
+      "pageParam": "page",
+      "sizeParam": "per_page",
+      "pageSize": 100,
+      "firstPage": 1
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/pages/{pageId}",
+     "action": "Get a page",
+     "params": [
+      {
+       "name": "pageId",
+       "display": "Page ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/pages",
+     "action": "Create a page",
+     "params": [
+      {
+       "name": "title",
+       "display": "Title",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "content",
+       "display": "Content",
+       "send": "body"
+      },
+      {
+       "name": "status",
+       "display": "Status",
+       "send": "body",
+       "default": "draft"
+      },
+      {
+       "name": "slug",
+       "display": "Slug",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "POST",
+     "path": "/pages/{pageId}",
+     "action": "Update a page",
+     "params": [
+      {
+       "name": "pageId",
+       "display": "Page ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "title",
+       "display": "Title",
+       "send": "body"
+      },
+      {
+       "name": "content",
+       "display": "Content",
+       "send": "body"
+      },
+      {
+       "name": "status",
+       "display": "Status",
+       "send": "body"
+      },
+      {
+       "name": "slug",
+       "display": "Slug",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/pages/{pageId}",
+     "action": "Delete a page",
+     "params": [
+      {
+       "name": "pageId",
+       "display": "Page ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "user",
+   "display": "User",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/users",
+     "action": "Get many users",
+     "list": true,
+     "page": {
+      "type": "page",
+      "pageParam": "page",
+      "sizeParam": "per_page",
+      "pageSize": 100,
+      "firstPage": 1
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/users/{userId}",
+     "action": "Get a user",
+     "params": [
+      {
+       "name": "userId",
+       "display": "User ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

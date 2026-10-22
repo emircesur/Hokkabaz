@@ -1,0 +1,370 @@
+{
+ "name": "gitlab",
+ "type": "n8n-nodes-base.gitlab",
+ "display": "GitLab",
+ "description": "Issues, merge requests, projects and files",
+ "color": "#FC6D26",
+ "versions": [
+  1
+ ],
+ "base": "={{$credentials.server}}/api/v4",
+ "cred": {
+  "name": "gitlabApi",
+  "display": "GitLab",
+  "fields": [
+   {
+    "name": "server",
+    "display": "GitLab Server",
+    "default": "https://gitlab.com"
+   },
+   {
+    "name": "accessToken",
+    "display": "Access Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "PRIVATE-TOKEN": "={{$credentials.accessToken}}"
+   }
+  },
+  "test": "/user"
+ },
+ "resources": [
+  {
+   "name": "issue",
+   "display": "Issue",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/projects/{projectId}/issues",
+     "action": "Get many issues",
+     "params": [
+      {
+       "name": "projectId",
+       "display": "Project ID or Path",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "state",
+       "display": "State",
+       "send": "query"
+      },
+      {
+       "name": "labels",
+       "display": "Labels",
+       "send": "query"
+      },
+      {
+       "name": "search",
+       "display": "Search",
+       "send": "query"
+      }
+     ],
+     "list": true,
+     "page": {
+      "type": "page",
+      "pageParam": "page",
+      "sizeParam": "per_page",
+      "pageSize": 100,
+      "firstPage": 1
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/projects/{projectId}/issues/{issueIid}",
+     "action": "Get an issue",
+     "params": [
+      {
+       "name": "projectId",
+       "display": "Project ID or Path",
+       "required": true
+      },
+      {
+       "name": "issueIid",
+       "display": "Issue Number",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/projects/{projectId}/issues",
+     "action": "Create an issue",
+     "params": [
+      {
+       "name": "projectId",
+       "display": "Project ID or Path",
+       "required": true
+      },
+      {
+       "name": "title",
+       "display": "Title",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      },
+      {
+       "name": "labels",
+       "display": "Labels",
+       "send": "body"
+      },
+      {
+       "name": "assigneeIds",
+       "display": "Assignee IDs",
+       "send": "body",
+       "prop": "assignee_ids"
+      }
+     ]
+    },
+    {
+     "name": "edit",
+     "display": "Edit",
+     "method": "PUT",
+     "path": "/projects/{projectId}/issues/{issueIid}",
+     "action": "Edit an issue",
+     "params": [
+      {
+       "name": "projectId",
+       "display": "Project ID or Path",
+       "required": true
+      },
+      {
+       "name": "issueIid",
+       "display": "Issue Number",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "title",
+       "display": "Title",
+       "send": "body"
+      },
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      },
+      {
+       "name": "stateEvent",
+       "display": "State Event",
+       "send": "body",
+       "prop": "state_event"
+      },
+      {
+       "name": "labels",
+       "display": "Labels",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "createComment",
+     "display": "Create Comment",
+     "method": "POST",
+     "path": "/projects/{projectId}/issues/{issueIid}/notes",
+     "action": "Comment on an issue",
+     "params": [
+      {
+       "name": "projectId",
+       "display": "Project ID or Path",
+       "required": true
+      },
+      {
+       "name": "issueIid",
+       "display": "Issue Number",
+       "required": true
+      },
+      {
+       "name": "body",
+       "display": "Comment",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "mergeRequest",
+   "display": "Merge Request",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/projects/{projectId}/merge_requests",
+     "action": "Get many merge requests",
+     "params": [
+      {
+       "name": "projectId",
+       "display": "Project ID or Path",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "state",
+       "display": "State",
+       "send": "query"
+      }
+     ],
+     "list": true,
+     "page": {
+      "type": "page",
+      "pageParam": "page",
+      "sizeParam": "per_page",
+      "pageSize": 100,
+      "firstPage": 1
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/projects/{projectId}/merge_requests/{mrIid}",
+     "action": "Get a merge request",
+     "params": [
+      {
+       "name": "projectId",
+       "display": "Project ID or Path",
+       "required": true
+      },
+      {
+       "name": "mrIid",
+       "display": "Merge Request Number",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/projects/{projectId}/merge_requests",
+     "action": "Create a merge request",
+     "params": [
+      {
+       "name": "projectId",
+       "display": "Project ID or Path",
+       "required": true
+      },
+      {
+       "name": "sourceBranch",
+       "display": "Source Branch",
+       "required": true,
+       "send": "body",
+       "prop": "source_branch"
+      },
+      {
+       "name": "targetBranch",
+       "display": "Target Branch",
+       "required": true,
+       "send": "body",
+       "prop": "target_branch"
+      },
+      {
+       "name": "title",
+       "display": "Title",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "project",
+   "display": "Project",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/projects",
+     "action": "Get many projects",
+     "qs": {
+      "membership": "true"
+     },
+     "list": true,
+     "page": {
+      "type": "page",
+      "pageParam": "page",
+      "sizeParam": "per_page",
+      "pageSize": 100,
+      "firstPage": 1
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/projects/{projectId}",
+     "action": "Get a project",
+     "params": [
+      {
+       "name": "projectId",
+       "display": "Project ID or Path",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "file",
+   "display": "File",
+   "ops": [
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/projects/{projectId}/repository/files/{+filePath}",
+     "action": "Get a file",
+     "params": [
+      {
+       "name": "projectId",
+       "display": "Project ID or Path",
+       "required": true
+      },
+      {
+       "name": "filePath",
+       "display": "File Path",
+       "required": true
+      },
+      {
+       "name": "ref",
+       "display": "Branch or Tag",
+       "required": true,
+       "send": "query",
+       "default": "main"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

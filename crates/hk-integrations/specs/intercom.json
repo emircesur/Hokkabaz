@@ -1,0 +1,215 @@
+{
+ "name": "intercom",
+ "type": "n8n-nodes-base.intercom",
+ "display": "Intercom",
+ "description": "Contacts and conversations",
+ "color": "#286EFA",
+ "versions": [
+  1
+ ],
+ "base": "https://api.intercom.io",
+ "headers": {
+  "Intercom-Version": "2.11"
+ },
+ "cred": {
+  "name": "intercomApi",
+  "display": "Intercom",
+  "fields": [
+   {
+    "name": "apiKey",
+    "display": "Access Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=Bearer {{$credentials.apiKey}}"
+   }
+  },
+  "test": "/me"
+ },
+ "resources": [
+  {
+   "name": "contact",
+   "display": "Contact",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/contacts",
+     "action": "Get many contacts",
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "starting_after",
+      "nextPath": "pages.next.starting_after",
+      "pageSize": 150,
+      "sizeParam": "per_page"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/contacts/{contactId}",
+     "action": "Get a contact",
+     "params": [
+      {
+       "name": "contactId",
+       "display": "Contact ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/contacts",
+     "action": "Create a contact",
+     "params": [
+      {
+       "name": "email",
+       "display": "Email",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "name",
+       "display": "Name",
+       "send": "body"
+      },
+      {
+       "name": "phone",
+       "display": "Phone",
+       "send": "body"
+      },
+      {
+       "name": "role",
+       "display": "Role",
+       "send": "body",
+       "default": "user"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PUT",
+     "path": "/contacts/{contactId}",
+     "action": "Update a contact",
+     "params": [
+      {
+       "name": "contactId",
+       "display": "Contact ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "email",
+       "display": "Email",
+       "send": "body"
+      },
+      {
+       "name": "name",
+       "display": "Name",
+       "send": "body"
+      },
+      {
+       "name": "phone",
+       "display": "Phone",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/contacts/{contactId}",
+     "action": "Delete a contact",
+     "params": [
+      {
+       "name": "contactId",
+       "display": "Contact ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "conversation",
+   "display": "Conversation",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/conversations",
+     "action": "Get many conversations",
+     "out": "conversations",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "starting_after",
+      "nextPath": "pages.next.starting_after",
+      "pageSize": 150,
+      "sizeParam": "per_page"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/conversations/{conversationId}",
+     "action": "Get a conversation",
+     "params": [
+      {
+       "name": "conversationId",
+       "display": "Conversation ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "reply",
+     "display": "Reply",
+     "method": "POST",
+     "path": "/conversations/{conversationId}/reply",
+     "action": "Reply to a conversation",
+     "params": [
+      {
+       "name": "conversationId",
+       "display": "Conversation ID",
+       "required": true
+      },
+      {
+       "name": "body",
+       "display": "Message",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "adminId",
+       "display": "Admin ID",
+       "required": true,
+       "send": "body",
+       "prop": "admin_id"
+      }
+     ],
+     "body": {
+      "message_type": "comment",
+      "type": "admin"
+     }
+    }
+   ]
+  }
+ ]
+}

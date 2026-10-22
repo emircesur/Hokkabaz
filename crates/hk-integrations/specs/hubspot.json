@@ -1,0 +1,573 @@
+{
+ "name": "hubspot",
+ "type": "n8n-nodes-base.hubspot",
+ "display": "HubSpot",
+ "description": "CRM contacts, companies, deals and tickets",
+ "color": "#FF7A59",
+ "versions": [
+  1,
+  2,
+  2.1
+ ],
+ "base": "https://api.hubapi.com",
+ "cred": {
+  "name": "hubspotAppToken",
+  "display": "HubSpot App Token",
+  "fields": [
+   {
+    "name": "appToken",
+    "display": "App Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=Bearer {{$credentials.appToken}}"
+   }
+  },
+  "test": "/account-info/v3/details"
+ },
+ "resources": [
+  {
+   "name": "contact",
+   "display": "Contact",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/crm/v3/objects/contacts",
+     "action": "Get many contacts",
+     "extra": [
+      {
+       "name": "properties",
+       "display": "Properties",
+       "send": "query",
+       "desc": "Comma-separated property names"
+      }
+     ],
+     "out": "results",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "after",
+      "nextPath": "paging.next.after",
+      "pageSize": 100,
+      "sizeParam": "limit"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/crm/v3/objects/contacts/{id}",
+     "action": "Get a contact",
+     "params": [
+      {
+       "name": "id",
+       "display": "Contact ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "properties",
+       "display": "Properties",
+       "send": "query"
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/crm/v3/objects/contacts",
+     "action": "Create a contact",
+     "params": [
+      {
+       "name": "properties",
+       "display": "Properties (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "default": "{\"name\": \"value\"}"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PATCH",
+     "path": "/crm/v3/objects/contacts/{id}",
+     "action": "Update a contact",
+     "params": [
+      {
+       "name": "id",
+       "display": "Contact ID",
+       "required": true
+      },
+      {
+       "name": "properties",
+       "display": "Properties (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/crm/v3/objects/contacts/{id}",
+     "action": "Delete a contact",
+     "params": [
+      {
+       "name": "id",
+       "display": "Contact ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "search",
+     "display": "Search",
+     "method": "POST",
+     "path": "/crm/v3/objects/contacts/search",
+     "action": "Search contacts",
+     "params": [
+      {
+       "name": "query",
+       "display": "Query",
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "filterGroups",
+       "display": "Filter Groups (JSON array)",
+       "type": "json",
+       "send": "body"
+      }
+     ],
+     "out": "results",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "after",
+      "nextPath": "paging.next.after",
+      "pageSize": 100,
+      "sizeParam": "limit",
+      "inBody": true
+     }
+    }
+   ]
+  },
+  {
+   "name": "company",
+   "display": "Company",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/crm/v3/objects/companies",
+     "action": "Get many companies",
+     "extra": [
+      {
+       "name": "properties",
+       "display": "Properties",
+       "send": "query",
+       "desc": "Comma-separated property names"
+      }
+     ],
+     "out": "results",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "after",
+      "nextPath": "paging.next.after",
+      "pageSize": 100,
+      "sizeParam": "limit"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/crm/v3/objects/companies/{id}",
+     "action": "Get a company",
+     "params": [
+      {
+       "name": "id",
+       "display": "Company ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "properties",
+       "display": "Properties",
+       "send": "query"
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/crm/v3/objects/companies",
+     "action": "Create a company",
+     "params": [
+      {
+       "name": "properties",
+       "display": "Properties (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "default": "{\"name\": \"value\"}"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PATCH",
+     "path": "/crm/v3/objects/companies/{id}",
+     "action": "Update a company",
+     "params": [
+      {
+       "name": "id",
+       "display": "Company ID",
+       "required": true
+      },
+      {
+       "name": "properties",
+       "display": "Properties (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/crm/v3/objects/companies/{id}",
+     "action": "Delete a company",
+     "params": [
+      {
+       "name": "id",
+       "display": "Company ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "search",
+     "display": "Search",
+     "method": "POST",
+     "path": "/crm/v3/objects/companies/search",
+     "action": "Search companies",
+     "params": [
+      {
+       "name": "query",
+       "display": "Query",
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "filterGroups",
+       "display": "Filter Groups (JSON array)",
+       "type": "json",
+       "send": "body"
+      }
+     ],
+     "out": "results",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "after",
+      "nextPath": "paging.next.after",
+      "pageSize": 100,
+      "sizeParam": "limit",
+      "inBody": true
+     }
+    }
+   ]
+  },
+  {
+   "name": "deal",
+   "display": "Deal",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/crm/v3/objects/deals",
+     "action": "Get many deals",
+     "extra": [
+      {
+       "name": "properties",
+       "display": "Properties",
+       "send": "query",
+       "desc": "Comma-separated property names"
+      }
+     ],
+     "out": "results",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "after",
+      "nextPath": "paging.next.after",
+      "pageSize": 100,
+      "sizeParam": "limit"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/crm/v3/objects/deals/{id}",
+     "action": "Get a deal",
+     "params": [
+      {
+       "name": "id",
+       "display": "Deal ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "properties",
+       "display": "Properties",
+       "send": "query"
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/crm/v3/objects/deals",
+     "action": "Create a deal",
+     "params": [
+      {
+       "name": "properties",
+       "display": "Properties (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "default": "{\"name\": \"value\"}"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PATCH",
+     "path": "/crm/v3/objects/deals/{id}",
+     "action": "Update a deal",
+     "params": [
+      {
+       "name": "id",
+       "display": "Deal ID",
+       "required": true
+      },
+      {
+       "name": "properties",
+       "display": "Properties (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/crm/v3/objects/deals/{id}",
+     "action": "Delete a deal",
+     "params": [
+      {
+       "name": "id",
+       "display": "Deal ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "search",
+     "display": "Search",
+     "method": "POST",
+     "path": "/crm/v3/objects/deals/search",
+     "action": "Search deals",
+     "params": [
+      {
+       "name": "query",
+       "display": "Query",
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "filterGroups",
+       "display": "Filter Groups (JSON array)",
+       "type": "json",
+       "send": "body"
+      }
+     ],
+     "out": "results",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "after",
+      "nextPath": "paging.next.after",
+      "pageSize": 100,
+      "sizeParam": "limit",
+      "inBody": true
+     }
+    }
+   ]
+  },
+  {
+   "name": "ticket",
+   "display": "Ticket",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/crm/v3/objects/tickets",
+     "action": "Get many tickets",
+     "extra": [
+      {
+       "name": "properties",
+       "display": "Properties",
+       "send": "query",
+       "desc": "Comma-separated property names"
+      }
+     ],
+     "out": "results",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "after",
+      "nextPath": "paging.next.after",
+      "pageSize": 100,
+      "sizeParam": "limit"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/crm/v3/objects/tickets/{id}",
+     "action": "Get a ticket",
+     "params": [
+      {
+       "name": "id",
+       "display": "Ticket ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "properties",
+       "display": "Properties",
+       "send": "query"
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/crm/v3/objects/tickets",
+     "action": "Create a ticket",
+     "params": [
+      {
+       "name": "properties",
+       "display": "Properties (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "default": "{\"name\": \"value\"}"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PATCH",
+     "path": "/crm/v3/objects/tickets/{id}",
+     "action": "Update a ticket",
+     "params": [
+      {
+       "name": "id",
+       "display": "Ticket ID",
+       "required": true
+      },
+      {
+       "name": "properties",
+       "display": "Properties (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/crm/v3/objects/tickets/{id}",
+     "action": "Delete a ticket",
+     "params": [
+      {
+       "name": "id",
+       "display": "Ticket ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "search",
+     "display": "Search",
+     "method": "POST",
+     "path": "/crm/v3/objects/tickets/search",
+     "action": "Search tickets",
+     "params": [
+      {
+       "name": "query",
+       "display": "Query",
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "filterGroups",
+       "display": "Filter Groups (JSON array)",
+       "type": "json",
+       "send": "body"
+      }
+     ],
+     "out": "results",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "after",
+      "nextPath": "paging.next.after",
+      "pageSize": 100,
+      "sizeParam": "limit",
+      "inBody": true
+     }
+    }
+   ]
+  }
+ ]
+}

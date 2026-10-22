@@ -1,0 +1,275 @@
+{
+ "name": "zendesk",
+ "type": "n8n-nodes-base.zendesk",
+ "display": "Zendesk",
+ "description": "Tickets, users and organizations",
+ "color": "#03363D",
+ "versions": [
+  1
+ ],
+ "base": "https://{{$credentials.subdomain}}.zendesk.com/api/v2",
+ "cred": {
+  "name": "zendeskApi",
+  "display": "Zendesk",
+  "fields": [
+   {
+    "name": "subdomain",
+    "display": "Subdomain",
+    "required": true
+   },
+   {
+    "name": "email",
+    "display": "Email",
+    "required": true
+   },
+   {
+    "name": "apiToken",
+    "display": "API Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "basic": [
+    "{{$credentials.email}}/token",
+    "{{$credentials.apiToken}}"
+   ]
+  },
+  "test": "/users/me.json"
+ },
+ "resources": [
+  {
+   "name": "ticket",
+   "display": "Ticket",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/tickets.json",
+     "action": "Get many tickets",
+     "out": "tickets",
+     "list": true,
+     "page": {
+      "type": "page",
+      "pageParam": "page",
+      "sizeParam": "per_page",
+      "pageSize": 100,
+      "firstPage": 1
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/tickets/{ticketId}.json",
+     "action": "Get a ticket",
+     "params": [
+      {
+       "name": "ticketId",
+       "display": "Ticket ID",
+       "required": true
+      }
+     ],
+     "out": "ticket"
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/tickets.json",
+     "action": "Create a ticket",
+     "params": [
+      {
+       "name": "subject",
+       "display": "Subject",
+       "required": true,
+       "send": "body",
+       "prop": "ticket.subject"
+      },
+      {
+       "name": "description",
+       "display": "Description",
+       "required": true,
+       "send": "body",
+       "prop": "ticket.comment.body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "priority",
+       "display": "Priority",
+       "send": "body",
+       "prop": "ticket.priority"
+      },
+      {
+       "name": "status",
+       "display": "Status",
+       "send": "body",
+       "prop": "ticket.status"
+      },
+      {
+       "name": "requesterEmail",
+       "display": "Requester Email",
+       "send": "body",
+       "prop": "ticket.requester.email"
+      },
+      {
+       "name": "tags",
+       "display": "Tags",
+       "send": "body",
+       "prop": "ticket.tags"
+      }
+     ],
+     "out": "ticket"
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PUT",
+     "path": "/tickets/{ticketId}.json",
+     "action": "Update a ticket",
+     "params": [
+      {
+       "name": "ticketId",
+       "display": "Ticket ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "subject",
+       "display": "Subject",
+       "send": "body",
+       "prop": "ticket.subject"
+      },
+      {
+       "name": "status",
+       "display": "Status",
+       "send": "body",
+       "prop": "ticket.status"
+      },
+      {
+       "name": "priority",
+       "display": "Priority",
+       "send": "body",
+       "prop": "ticket.priority"
+      },
+      {
+       "name": "comment",
+       "display": "Comment",
+       "send": "body",
+       "prop": "ticket.comment.body"
+      }
+     ],
+     "out": "ticket"
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/tickets/{ticketId}.json",
+     "action": "Delete a ticket",
+     "params": [
+      {
+       "name": "ticketId",
+       "display": "Ticket ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "user",
+   "display": "User",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/users.json",
+     "action": "Get many users",
+     "out": "users",
+     "list": true,
+     "page": {
+      "type": "page",
+      "pageParam": "page",
+      "sizeParam": "per_page",
+      "pageSize": 100,
+      "firstPage": 1
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/users/{userId}.json",
+     "action": "Get a user",
+     "params": [
+      {
+       "name": "userId",
+       "display": "User ID",
+       "required": true
+      }
+     ],
+     "out": "user"
+    },
+    {
+     "name": "search",
+     "display": "Search",
+     "method": "GET",
+     "path": "/users/search.json",
+     "action": "Search users",
+     "params": [
+      {
+       "name": "query",
+       "display": "Query",
+       "required": true,
+       "send": "query"
+      }
+     ],
+     "out": "users",
+     "list": true
+    }
+   ]
+  },
+  {
+   "name": "organization",
+   "display": "Organization",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/organizations.json",
+     "action": "Get many organizations",
+     "out": "organizations",
+     "list": true,
+     "page": {
+      "type": "page",
+      "pageParam": "page",
+      "sizeParam": "per_page",
+      "pageSize": 100,
+      "firstPage": 1
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/organizations/{organizationId}.json",
+     "action": "Get an organization",
+     "params": [
+      {
+       "name": "organizationId",
+       "display": "Organization ID",
+       "required": true
+      }
+     ],
+     "out": "organization"
+    }
+   ]
+  }
+ ]
+}

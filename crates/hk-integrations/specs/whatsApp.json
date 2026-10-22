@@ -1,0 +1,109 @@
+{
+ "name": "whatsApp",
+ "type": "n8n-nodes-base.whatsApp",
+ "display": "WhatsApp Business Cloud",
+ "description": "Send WhatsApp messages",
+ "color": "#25D366",
+ "versions": [
+  1
+ ],
+ "base": "https://graph.facebook.com/v22.0",
+ "cred": {
+  "name": "whatsAppApi",
+  "display": "WhatsApp API",
+  "fields": [
+   {
+    "name": "accessToken",
+    "display": "Access Token",
+    "secret": true,
+    "required": true
+   },
+   {
+    "name": "businessAccountId",
+    "display": "Business Account ID"
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=Bearer {{$credentials.accessToken}}"
+   }
+  }
+ },
+ "resources": [
+  {
+   "name": "message",
+   "display": "Message",
+   "ops": [
+    {
+     "name": "send",
+     "display": "Send",
+     "method": "POST",
+     "path": "/{phoneNumberId}/messages",
+     "action": "Send a text message",
+     "params": [
+      {
+       "name": "phoneNumberId",
+       "display": "Sender Phone Number ID",
+       "required": true
+      },
+      {
+       "name": "to",
+       "display": "Recipient Phone Number",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "textBody",
+       "display": "Message",
+       "required": true,
+       "send": "body",
+       "prop": "text.body"
+      }
+     ],
+     "body": {
+      "messaging_product": "whatsapp",
+      "type": "text"
+     }
+    },
+    {
+     "name": "sendTemplate",
+     "display": "Send Template",
+     "method": "POST",
+     "path": "/{phoneNumberId}/messages",
+     "action": "Send a template message",
+     "params": [
+      {
+       "name": "phoneNumberId",
+       "display": "Sender Phone Number ID",
+       "required": true
+      },
+      {
+       "name": "to",
+       "display": "Recipient Phone Number",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "template",
+       "display": "Template Name",
+       "required": true,
+       "send": "body",
+       "prop": "template.name"
+      },
+      {
+       "name": "language",
+       "display": "Language Code",
+       "send": "body",
+       "prop": "template.language.code",
+       "default": "en_US"
+      }
+     ],
+     "body": {
+      "messaging_product": "whatsapp",
+      "type": "template"
+     }
+    }
+   ]
+  }
+ ]
+}

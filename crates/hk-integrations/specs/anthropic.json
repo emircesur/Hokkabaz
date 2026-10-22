@@ -1,0 +1,174 @@
+{
+ "name": "anthropic",
+ "type": "@n8n/n8n-nodes-langchain.anthropic",
+ "display": "Anthropic",
+ "description": "Claude models: messages, tools, model list",
+ "color": "#D97757",
+ "versions": [
+  1,
+  1.1
+ ],
+ "base": "={{$credentials.url}}",
+ "cred": {
+  "name": "anthropicApi",
+  "display": "Anthropic",
+  "fields": [
+   {
+    "name": "apiKey",
+    "display": "API Key",
+    "secret": true,
+    "required": true
+   },
+   {
+    "name": "url",
+    "display": "Base URL",
+    "default": "https://api.anthropic.com"
+   }
+  ],
+  "auth": {
+   "header": {
+    "x-api-key": "={{$credentials.apiKey}}"
+   }
+  },
+  "test": "/v1/models",
+  "docs": "https://docs.anthropic.com/en/api/getting-started"
+ },
+ "resources": [
+  {
+   "name": "text",
+   "display": "Text",
+   "ops": [
+    {
+     "name": "message",
+     "display": "Message a Model",
+     "method": "POST",
+     "path": "/v1/messages",
+     "action": "Message a model",
+     "params": [
+      {
+       "name": "modelId",
+       "display": "Model",
+       "required": true,
+       "send": "body",
+       "prop": "model",
+       "default": "claude-sonnet-5-5",
+       "desc": "Claude model id, e.g. claude-sonnet-5-5, claude-opus-5-5, claude-haiku-5-5"
+      },
+      {
+       "name": "text",
+       "display": "Prompt",
+       "required": true
+      },
+      {
+       "name": "maxTokens",
+       "display": "Max Tokens",
+       "type": "number",
+       "send": "body",
+       "prop": "max_tokens",
+       "default": 1024
+      }
+     ],
+     "extra": [
+      {
+       "name": "system",
+       "display": "System Prompt",
+       "send": "body"
+      },
+      {
+       "name": "temperature",
+       "display": "Temperature",
+       "type": "number",
+       "send": "body"
+      },
+      {
+       "name": "topP",
+       "display": "Top P",
+       "type": "number",
+       "send": "body",
+       "prop": "top_p"
+      }
+     ],
+     "body": {
+      "messages": "={{ [{\"role\": \"user\", \"content\": $parameter[\"text\"]}] }}"
+     },
+     "out": "content"
+    },
+    {
+     "name": "messageRaw",
+     "display": "Message with Message List",
+     "method": "POST",
+     "path": "/v1/messages",
+     "action": "Message a model with a full message list",
+     "params": [
+      {
+       "name": "modelId",
+       "display": "Model",
+       "required": true,
+       "send": "body",
+       "prop": "model",
+       "default": "claude-sonnet-5-5"
+      },
+      {
+       "name": "messages",
+       "display": "Messages (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "default": "[{\"role\":\"user\",\"content\":\"Hello\"}]"
+      },
+      {
+       "name": "maxTokens",
+       "display": "Max Tokens",
+       "type": "number",
+       "send": "body",
+       "prop": "max_tokens",
+       "default": 1024
+      }
+     ],
+     "extra": [
+      {
+       "name": "system",
+       "display": "System Prompt",
+       "send": "body"
+      },
+      {
+       "name": "temperature",
+       "display": "Temperature",
+       "type": "number",
+       "send": "body"
+      },
+      {
+       "name": "tools",
+       "display": "Tools (JSON array)",
+       "type": "json",
+       "send": "body"
+      }
+     ],
+     "out": "content"
+    }
+   ]
+  },
+  {
+   "name": "model",
+   "display": "Model",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/v1/models",
+     "action": "List models",
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "after_id",
+      "nextPath": "last_id",
+      "pageSize": 100,
+      "sizeParam": "limit"
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,96 @@
+{
+ "name": "postmark",
+ "type": "n8n-nodes-base.postmark",
+ "display": "Postmark",
+ "description": "Transactional email",
+ "color": "#FFDE00",
+ "versions": [
+  1
+ ],
+ "base": "https://api.postmarkapp.com",
+ "headers": {
+  "Accept": "application/json"
+ },
+ "cred": {
+  "name": "postmarkApi",
+  "display": "Postmark",
+  "fields": [
+   {
+    "name": "serverToken",
+    "display": "Server API Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "X-Postmark-Server-Token": "={{$credentials.serverToken}}"
+   }
+  },
+  "test": "/server"
+ },
+ "resources": [
+  {
+   "name": "email",
+   "display": "Email",
+   "ops": [
+    {
+     "name": "send",
+     "display": "Send",
+     "method": "POST",
+     "path": "/email",
+     "action": "Send an email",
+     "params": [
+      {
+       "name": "fromEmail",
+       "display": "From Email",
+       "required": true,
+       "send": "body",
+       "prop": "From"
+      },
+      {
+       "name": "toEmail",
+       "display": "To Email",
+       "required": true,
+       "send": "body",
+       "prop": "To"
+      },
+      {
+       "name": "subject",
+       "display": "Subject",
+       "required": true,
+       "send": "body",
+       "prop": "Subject"
+      }
+     ],
+     "extra": [
+      {
+       "name": "textBody",
+       "display": "Text",
+       "send": "body",
+       "prop": "TextBody"
+      },
+      {
+       "name": "htmlBody",
+       "display": "HTML",
+       "send": "body",
+       "prop": "HtmlBody"
+      },
+      {
+       "name": "cc",
+       "display": "CC",
+       "send": "body",
+       "prop": "Cc"
+      },
+      {
+       "name": "bcc",
+       "display": "BCC",
+       "send": "body",
+       "prop": "Bcc"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -25,6 +25,8 @@ use crate::credentials::{AppliedAuth, CredentialTypes};
 use crate::describe::{Pagination, RouteOutput, RouteSend, Routing, SendKind, is_visible};
 use crate::template::{self, display};
 
+/// Marker key: the planned body is this value, not an object of fields.
+const RAW_BODY: &str = "$raw";
 const RESOURCE: &str = "resource";
 const OPERATION: &str = "operation";
 
@@ -195,6 +197,10 @@ fn param(
 }
 
 fn get_path<'a>(v: &'a Value, path: &str) -> Option<&'a Value> {
+    // keys that contain dots themselves (`@odata.nextLink`) match whole first
+    if let Some(x) = v.as_object().and_then(|m| m.get(path)) {
+        return Some(x);
+    }
     let mut cur = v;
     for seg in path.split('.').filter(|s| !s.is_empty()) {
         cur = match cur {
@@ -236,6 +242,43 @@ fn pick(v: &Value, fields: &[String]) -> Value {
         }
     }
     Value::Object(out)
+}
+
+/// First row = column names; later rows become objects (`row_number` is the sheet row, 2-based).
+fn table_rows(table: &[Value]) -> Vec<Value> {
+    let Some(Value::Array(head)) = table.first() else {
+        return Vec::new();
+    };
+    let names: Vec<String> = head.iter().map(display).collect();
+    table
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(n, row)| {
+            let cells = row.as_array().map(Vec::as_slice).unwrap_or(&[]);
+            let mut m = Map::new();
+            m.insert("row_number".into(), json!(n + 1));
+            for (k, name) in names.iter().enumerate() {
+                m.insert(name.clone(), cells.get(k).cloned().unwrap_or(json!("")));
+            }
+            Value::Object(m)
+        })
+        .collect()
+}
+
+/// Set a paging field where the API wants it: query string, or the JSON body.
+fn set_page(req: &mut RestRequest, in_body: bool, k: &str, v: Value) {
+    if in_body {
+        let mut obj = match std::mem::replace(&mut req.body, RestBody::None) {
+            RestBody::Json(Value::Object(o)) => o,
+            _ => Map::new(),
+        };
+        obj.insert(k.to_owned(), v);
+        req.body = RestBody::Json(Value::Object(obj));
+    } else {
+        req.query.retain(|(n, _)| n != k);
+        req.query.push((k.to_owned(), display(&v)));
+    }
 }
 
 fn empty(v: &Value) -> bool {
@@ -349,7 +392,9 @@ impl RestNode {
                 self.send_one(ctx, i, &p.name, v, &send, &mut req, &mut body)?;
             }
         }
-        if !body.is_empty() {
+        if let Some(raw) = body.remove(RAW_BODY) {
+            req.body = RestBody::Json(raw);
+        } else if !body.is_empty() {
             req.body = RestBody::Json(Value::Object(body));
         }
 
@@ -414,12 +459,28 @@ impl RestNode {
             Some(v) => Some(ev(ctx, v, i)?),
             None => value,
         };
-        let Some(value) = value else { return Ok(()) };
+        let Some(mut value) = value else {
+            return Ok(());
+        };
         if send.skip_empty && empty(&value) {
             return Ok(());
         }
+        if send.json
+            && let Value::String(text) = &value
+        {
+            value = serde_json::from_str(text)
+                .map_err(|e| node_err(ctx, format!("Parameter `{name}` is not valid JSON: {e}")))?;
+        }
         let prop = send.property.clone().unwrap_or_else(|| name.to_owned());
         match send.kind {
+            // `$` = the value is an object whose fields are the request body
+            SendKind::Body if prop == "$" => match value {
+                Value::Object(m) => body.extend(m),
+                // a non-object (array) body replaces the whole body
+                other => {
+                    body.insert(RAW_BODY.to_owned(), other);
+                }
+            },
             SendKind::Body => set_path(body, &prop, value),
             SendKind::Query => req.query.push((prop, display(&value))),
             SendKind::Header => req.headers.push((prop, display(&value))),
@@ -453,7 +514,17 @@ impl RestNode {
             .as_ref()
             .ok_or_else(|| node_err(ctx, "Credentials are not available in this runtime"))?;
         let raw = resolver.resolve(&c.name, reference).await?;
-        let data = self.creds.with_defaults(&c.name, &raw);
+        let mut data = self.creds.with_defaults(&c.name, &raw);
+        if crate::oauth::applies(&data) {
+            let client = reqwest::Client::builder()
+                .timeout(self.spec.timeout)
+                .build()
+                .map_err(|e| node_err(ctx, e.without_url().to_string()))?;
+            let token = crate::oauth::access_token(&client, &data)
+                .await
+                .map_err(|m| node_err(ctx, m))?;
+            data.insert("accessToken".into(), Value::String(token));
+        }
         let auth = self
             .creds
             .apply(&c.name, &data)
@@ -553,6 +624,11 @@ impl RestNode {
 
     fn results(&self, body: &Value, out: Option<&RouteOutput>) -> Vec<Value> {
         let prop = out.and_then(|o| o.property.as_deref());
+        if out.is_some_and(|o| o.rows)
+            && let Some(Value::Array(table)) = prop.and_then(|p| get_path(body, p))
+        {
+            return table_rows(table);
+        }
         match prop {
             Some(p) => match get_path(body, p) {
                 Some(Value::Array(a)) => a.clone(),
@@ -595,10 +671,6 @@ impl RestNode {
             return Ok(out);
         };
 
-        let upsert = |q: &mut Vec<(String, String)>, k: &str, v: String| {
-            q.retain(|(n, _)| n != k);
-            q.push((k.to_owned(), v));
-        };
         let mut offset = 0usize;
         let mut page_no = match &p {
             Pagination::Page { first_page, .. } => *first_page,
@@ -610,36 +682,49 @@ impl RestNode {
             let size = match &p {
                 Pagination::Offset { page_size, .. }
                 | Pagination::Page { page_size, .. }
-                | Pagination::Cursor { page_size, .. } => (*page_size).min(remaining).max(1),
+                | Pagination::Cursor { page_size, .. }
+                | Pagination::LastId { page_size, .. } => (*page_size).min(remaining).max(1),
                 Pagination::NextUrl { .. } => usize::MAX,
             };
             match &p {
                 Pagination::Offset {
                     limit_param,
                     offset_param,
+                    in_body,
                     ..
                 } => {
-                    upsert(&mut req.query, limit_param, size.to_string());
-                    upsert(&mut req.query, offset_param, offset.to_string());
+                    set_page(&mut req, *in_body, limit_param, json!(size));
+                    set_page(&mut req, *in_body, offset_param, json!(offset));
                 }
                 Pagination::Page {
                     page_param,
                     size_param,
                     ..
                 } => {
-                    upsert(&mut req.query, size_param, size.to_string());
-                    upsert(&mut req.query, page_param, page_no.to_string());
+                    set_page(&mut req, false, size_param, json!(size));
+                    set_page(&mut req, false, page_param, json!(page_no));
                 }
                 Pagination::Cursor {
                     cursor_param,
                     size_param,
+                    in_body,
                     ..
                 } => {
                     if let Some(sp) = size_param {
-                        upsert(&mut req.query, sp, size.to_string());
+                        set_page(&mut req, *in_body, sp, json!(size));
                     }
                     if let Some(c) = &cursor {
-                        upsert(&mut req.query, cursor_param, c.clone());
+                        set_page(&mut req, *in_body, cursor_param, json!(c));
+                    }
+                }
+                Pagination::LastId {
+                    cursor_param,
+                    size_param,
+                    ..
+                } => {
+                    set_page(&mut req, false, size_param, json!(size));
+                    if let Some(c) = &cursor {
+                        set_page(&mut req, false, cursor_param, json!(c));
                     }
                 }
                 Pagination::NextUrl { .. } => {}
@@ -671,6 +756,27 @@ impl RestNode {
                     {
                         Some(c) => cursor = Some(c),
                         None => break,
+                    }
+                }
+                Pagination::LastId {
+                    id_field,
+                    more_path,
+                    page_size,
+                    ..
+                } => {
+                    let more = if more_path.is_empty() {
+                        n >= (*page_size).min(size)
+                    } else {
+                        matches!(get_path(&body, more_path), Some(Value::Bool(true)))
+                    };
+                    let last = out
+                        .last()
+                        .and_then(|v| get_path(v, id_field))
+                        .map(display)
+                        .filter(|s| !s.is_empty());
+                    match (more, last) {
+                        (true, Some(id)) => cursor = Some(id),
+                        _ => break,
                     }
                 }
                 Pagination::NextUrl { next_path } => {

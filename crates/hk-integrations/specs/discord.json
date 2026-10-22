@@ -1,0 +1,326 @@
+{
+ "name": "discord",
+ "type": "n8n-nodes-base.discord",
+ "display": "Discord",
+ "description": "Messages, channels and members through a bot",
+ "color": "#5865F2",
+ "versions": [
+  1,
+  2
+ ],
+ "base": "https://discord.com/api/v10",
+ "cred": {
+  "name": "discordBotApi",
+  "display": "Discord Bot",
+  "fields": [
+   {
+    "name": "botToken",
+    "display": "Bot Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=Bot {{$credentials.botToken}}"
+   }
+  },
+  "test": "/users/@me"
+ },
+ "resources": [
+  {
+   "name": "message",
+   "display": "Message",
+   "ops": [
+    {
+     "name": "send",
+     "display": "Send",
+     "method": "POST",
+     "path": "/channels/{channelId}/messages",
+     "action": "Send a message",
+     "params": [
+      {
+       "name": "channelId",
+       "display": "Channel ID",
+       "required": true
+      },
+      {
+       "name": "content",
+       "display": "Message",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "tts",
+       "display": "TTS",
+       "type": "boolean",
+       "send": "body"
+      },
+      {
+       "name": "embeds",
+       "display": "Embeds (JSON array)",
+       "type": "json",
+       "send": "body"
+      },
+      {
+       "name": "components",
+       "display": "Components (JSON array)",
+       "type": "json",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/channels/{channelId}/messages",
+     "action": "Get many messages",
+     "params": [
+      {
+       "name": "channelId",
+       "display": "Channel ID",
+       "required": true
+      }
+     ],
+     "list": true,
+     "page": {
+      "type": "lastId",
+      "cursorParam": "before",
+      "idField": "id",
+      "sizeParam": "limit",
+      "pageSize": 100
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/channels/{channelId}/messages/{messageId}",
+     "action": "Get a message",
+     "params": [
+      {
+       "name": "channelId",
+       "display": "Channel ID",
+       "required": true
+      },
+      {
+       "name": "messageId",
+       "display": "Message ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/channels/{channelId}/messages/{messageId}",
+     "action": "Delete a message",
+     "params": [
+      {
+       "name": "channelId",
+       "display": "Channel ID",
+       "required": true
+      },
+      {
+       "name": "messageId",
+       "display": "Message ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "react",
+     "display": "React with Emoji",
+     "method": "PUT",
+     "path": "/channels/{channelId}/messages/{messageId}/reactions/{emoji}/@me",
+     "action": "React to a message",
+     "params": [
+      {
+       "name": "channelId",
+       "display": "Channel ID",
+       "required": true
+      },
+      {
+       "name": "messageId",
+       "display": "Message ID",
+       "required": true
+      },
+      {
+       "name": "emoji",
+       "display": "Emoji",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "channel",
+   "display": "Channel",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/guilds/{guildId}/channels",
+     "action": "Get many channels",
+     "params": [
+      {
+       "name": "guildId",
+       "display": "Server ID",
+       "required": true
+      }
+     ],
+     "list": true
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/channels/{channelId}",
+     "action": "Get a channel",
+     "params": [
+      {
+       "name": "channelId",
+       "display": "Channel ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/guilds/{guildId}/channels",
+     "action": "Create a channel",
+     "params": [
+      {
+       "name": "guildId",
+       "display": "Server ID",
+       "required": true
+      },
+      {
+       "name": "name",
+       "display": "Name",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "type",
+       "display": "Type",
+       "type": "number",
+       "send": "body"
+      },
+      {
+       "name": "topic",
+       "display": "Topic",
+       "send": "body"
+      },
+      {
+       "name": "parentId",
+       "display": "Category ID",
+       "send": "body",
+       "prop": "parent_id"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/channels/{channelId}",
+     "action": "Delete a channel",
+     "params": [
+      {
+       "name": "channelId",
+       "display": "Channel ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "member",
+   "display": "Member",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/guilds/{guildId}/members",
+     "action": "Get many members",
+     "params": [
+      {
+       "name": "guildId",
+       "display": "Server ID",
+       "required": true
+      }
+     ],
+     "list": true,
+     "page": {
+      "type": "lastId",
+      "cursorParam": "after",
+      "idField": "user.id",
+      "sizeParam": "limit",
+      "pageSize": 1000
+     }
+    },
+    {
+     "name": "roleAdd",
+     "display": "Add Role",
+     "method": "PUT",
+     "path": "/guilds/{guildId}/members/{userId}/roles/{roleId}",
+     "action": "Add a role",
+     "params": [
+      {
+       "name": "guildId",
+       "display": "Server ID",
+       "required": true
+      },
+      {
+       "name": "userId",
+       "display": "User ID",
+       "required": true
+      },
+      {
+       "name": "roleId",
+       "display": "Role ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "roleRemove",
+     "display": "Remove Role",
+     "method": "DELETE",
+     "path": "/guilds/{guildId}/members/{userId}/roles/{roleId}",
+     "action": "Remove a role",
+     "params": [
+      {
+       "name": "guildId",
+       "display": "Server ID",
+       "required": true
+      },
+      {
+       "name": "userId",
+       "display": "User ID",
+       "required": true
+      },
+      {
+       "name": "roleId",
+       "display": "Role ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

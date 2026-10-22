@@ -1,0 +1,172 @@
+{
+ "name": "mailchimp",
+ "type": "n8n-nodes-base.mailchimp",
+ "display": "Mailchimp",
+ "description": "Audiences, members and campaigns",
+ "color": "#FFE01B",
+ "versions": [
+  1
+ ],
+ "base": "https://{{$credentials.dc}}.api.mailchimp.com/3.0",
+ "cred": {
+  "name": "mailchimpApi",
+  "display": "Mailchimp",
+  "fields": [
+   {
+    "name": "apiKey",
+    "display": "API Key",
+    "secret": true,
+    "required": true
+   },
+   {
+    "name": "dc",
+    "display": "Data Center",
+    "required": true,
+    "desc": "The suffix of your API key, e.g. us21"
+   }
+  ],
+  "auth": {
+   "basic": [
+    "anystring",
+    "{{$credentials.apiKey}}"
+   ]
+  },
+  "test": "/ping"
+ },
+ "resources": [
+  {
+   "name": "member",
+   "display": "List Member",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/lists/{listId}/members",
+     "action": "Get many members",
+     "params": [
+      {
+       "name": "listId",
+       "display": "List ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "status",
+       "display": "Status",
+       "send": "query"
+      }
+     ],
+     "out": "members",
+     "list": true,
+     "page": {
+      "type": "offset",
+      "limitParam": "count",
+      "offsetParam": "offset",
+      "pageSize": 1000
+     }
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/lists/{listId}/members",
+     "action": "Add a member",
+     "params": [
+      {
+       "name": "listId",
+       "display": "List ID",
+       "required": true
+      },
+      {
+       "name": "emailAddress",
+       "display": "Email",
+       "required": true,
+       "send": "body",
+       "prop": "email_address"
+      },
+      {
+       "name": "status",
+       "display": "Status",
+       "required": true,
+       "send": "body",
+       "default": "subscribed"
+      }
+     ],
+     "extra": [
+      {
+       "name": "mergeFields",
+       "display": "Merge Fields (JSON)",
+       "type": "json",
+       "send": "body",
+       "prop": "merge_fields"
+      },
+      {
+       "name": "tags",
+       "display": "Tags (JSON array)",
+       "type": "json",
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "list",
+   "display": "List",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/lists",
+     "action": "Get many lists",
+     "out": "lists",
+     "list": true,
+     "page": {
+      "type": "offset",
+      "limitParam": "count",
+      "offsetParam": "offset",
+      "pageSize": 1000
+     }
+    }
+   ]
+  },
+  {
+   "name": "campaign",
+   "display": "Campaign",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/campaigns",
+     "action": "Get many campaigns",
+     "out": "campaigns",
+     "list": true,
+     "page": {
+      "type": "offset",
+      "limitParam": "count",
+      "offsetParam": "offset",
+      "pageSize": 1000
+     }
+    },
+    {
+     "name": "send",
+     "display": "Send",
+     "method": "POST",
+     "path": "/campaigns/{campaignId}/actions/send",
+     "action": "Send a campaign",
+     "params": [
+      {
+       "name": "campaignId",
+       "display": "Campaign ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,248 @@
+{
+ "name": "linear",
+ "type": "n8n-nodes-base.linear",
+ "display": "Linear",
+ "description": "Issues and comments through the GraphQL API",
+ "color": "#5E6AD2",
+ "versions": [
+  1
+ ],
+ "base": "https://api.linear.app",
+ "cred": {
+  "name": "linearApi",
+  "display": "Linear",
+  "fields": [
+   {
+    "name": "apiKey",
+    "display": "API Key",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "={{$credentials.apiKey}}"
+   }
+  }
+ },
+ "resources": [
+  {
+   "name": "issue",
+   "display": "Issue",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/graphql",
+     "action": "Create an issue",
+     "params": [
+      {
+       "name": "teamId",
+       "display": "Team ID",
+       "required": true,
+       "send": "body",
+       "prop": "variables.input.teamId"
+      },
+      {
+       "name": "title",
+       "display": "Title",
+       "required": true,
+       "send": "body",
+       "prop": "variables.input.title"
+      }
+     ],
+     "extra": [
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body",
+       "prop": "variables.input.description"
+      },
+      {
+       "name": "priority",
+       "display": "Priority",
+       "type": "number",
+       "send": "body",
+       "prop": "variables.input.priority"
+      },
+      {
+       "name": "assigneeId",
+       "display": "Assignee ID",
+       "send": "body",
+       "prop": "variables.input.assigneeId"
+      },
+      {
+       "name": "stateId",
+       "display": "State ID",
+       "send": "body",
+       "prop": "variables.input.stateId"
+      }
+     ],
+     "body": {
+      "query": "mutation($input: IssueCreateInput!) { issueCreate(input: $input) { success issue { id identifier title description priority url state { name } assignee { name email } } } }"
+     },
+     "out": "data.issueCreate.issue"
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "POST",
+     "path": "/graphql",
+     "action": "Get an issue",
+     "params": [
+      {
+       "name": "issueId",
+       "display": "Issue ID",
+       "required": true,
+       "send": "body",
+       "prop": "variables.id"
+      }
+     ],
+     "body": {
+      "query": "query($id: String!) { issue(id: $id) { id identifier title description priority url state { name } assignee { name email } } }"
+     },
+     "out": "data.issue"
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "POST",
+     "path": "/graphql",
+     "action": "Get many issues",
+     "params": [
+      {
+       "name": "first",
+       "display": "Limit",
+       "type": "number",
+       "send": "body",
+       "prop": "variables.first",
+       "default": 50
+      }
+     ],
+     "body": {
+      "query": "query($first: Int) { issues(first: $first) { nodes { id identifier title description priority url state { name } assignee { name email } } } }"
+     },
+     "out": "data.issues.nodes"
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "POST",
+     "path": "/graphql",
+     "action": "Update an issue",
+     "params": [
+      {
+       "name": "issueId",
+       "display": "Issue ID",
+       "required": true,
+       "send": "body",
+       "prop": "variables.id"
+      }
+     ],
+     "extra": [
+      {
+       "name": "title",
+       "display": "Title",
+       "send": "body",
+       "prop": "variables.input.title"
+      },
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body",
+       "prop": "variables.input.description"
+      },
+      {
+       "name": "priority",
+       "display": "Priority",
+       "type": "number",
+       "send": "body",
+       "prop": "variables.input.priority"
+      },
+      {
+       "name": "stateId",
+       "display": "State ID",
+       "send": "body",
+       "prop": "variables.input.stateId"
+      }
+     ],
+     "body": {
+      "query": "mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success issue { id identifier title description priority url state { name } assignee { name email } } } }"
+     },
+     "out": "data.issueUpdate.issue"
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "POST",
+     "path": "/graphql",
+     "action": "Delete an issue",
+     "params": [
+      {
+       "name": "issueId",
+       "display": "Issue ID",
+       "required": true,
+       "send": "body",
+       "prop": "variables.id"
+      }
+     ],
+     "body": {
+      "query": "mutation($id: String!) { issueDelete(id: $id) { success } }"
+     },
+     "out": "data.issueDelete"
+    }
+   ]
+  },
+  {
+   "name": "comment",
+   "display": "Comment",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/graphql",
+     "action": "Comment on an issue",
+     "params": [
+      {
+       "name": "issueId",
+       "display": "Issue ID",
+       "required": true,
+       "send": "body",
+       "prop": "variables.input.issueId"
+      },
+      {
+       "name": "body",
+       "display": "Comment",
+       "required": true,
+       "send": "body",
+       "prop": "variables.input.body"
+      }
+     ],
+     "body": {
+      "query": "mutation($input: CommentCreateInput!) { commentCreate(input: $input) { success comment { id body } } }"
+     },
+     "out": "data.commentCreate.comment"
+    }
+   ]
+  },
+  {
+   "name": "team",
+   "display": "Team",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "POST",
+     "path": "/graphql",
+     "action": "Get teams",
+     "body": {
+      "query": "query { teams { nodes { id name key } } }"
+     },
+     "out": "data.teams.nodes"
+    }
+   ]
+  }
+ ]
+}

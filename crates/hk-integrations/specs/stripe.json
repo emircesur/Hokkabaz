@@ -1,0 +1,525 @@
+{
+ "name": "stripe",
+ "type": "n8n-nodes-base.stripe",
+ "display": "Stripe",
+ "description": "Customers, charges, payment intents, subscriptions",
+ "color": "#635BFF",
+ "versions": [
+  1
+ ],
+ "base": "https://api.stripe.com/v1",
+ "cred": {
+  "name": "stripeApi",
+  "display": "Stripe",
+  "fields": [
+   {
+    "name": "secretKey",
+    "display": "Secret Key",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=Bearer {{$credentials.secretKey}}"
+   }
+  },
+  "test": "/balance"
+ },
+ "resources": [
+  {
+   "name": "balance",
+   "display": "Balance",
+   "ops": [
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/balance",
+     "action": "Get the balance"
+    }
+   ]
+  },
+  {
+   "name": "customer",
+   "display": "Customer",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/customers",
+     "action": "Create a customer",
+     "params": [
+      {
+       "name": "name",
+       "display": "Name",
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "email",
+       "display": "Email",
+       "send": "body"
+      },
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      },
+      {
+       "name": "phone",
+       "display": "Phone",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/customers/{customerId}",
+     "action": "Get a customer",
+     "params": [
+      {
+       "name": "customerId",
+       "display": "Customer ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/customers",
+     "action": "Get many customers",
+     "extra": [
+      {
+       "name": "email",
+       "display": "Email",
+       "send": "query"
+      }
+     ],
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "lastId",
+      "cursorParam": "starting_after",
+      "idField": "id",
+      "morePath": "has_more",
+      "sizeParam": "limit",
+      "pageSize": 100
+     }
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "POST",
+     "path": "/customers/{customerId}",
+     "action": "Update a customer",
+     "params": [
+      {
+       "name": "customerId",
+       "display": "Customer ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "name",
+       "display": "Name",
+       "send": "body"
+      },
+      {
+       "name": "email",
+       "display": "Email",
+       "send": "body"
+      },
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      },
+      {
+       "name": "phone",
+       "display": "Phone",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/customers/{customerId}",
+     "action": "Delete a customer",
+     "params": [
+      {
+       "name": "customerId",
+       "display": "Customer ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "charge",
+   "display": "Charge",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/charges",
+     "action": "Create a charge",
+     "params": [
+      {
+       "name": "customerId",
+       "display": "Customer ID",
+       "required": true,
+       "send": "body",
+       "prop": "customer"
+      },
+      {
+       "name": "amount",
+       "display": "Amount (smallest unit)",
+       "type": "number",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "currency",
+       "display": "Currency",
+       "required": true,
+       "send": "body",
+       "default": "usd"
+      },
+      {
+       "name": "source",
+       "display": "Source ID",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      },
+      {
+       "name": "receiptEmail",
+       "display": "Receipt Email",
+       "send": "body",
+       "prop": "receipt_email"
+      }
+     ]
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/charges/{chargeId}",
+     "action": "Get a charge",
+     "params": [
+      {
+       "name": "chargeId",
+       "display": "Charge ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/charges",
+     "action": "Get many charges",
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "lastId",
+      "cursorParam": "starting_after",
+      "idField": "id",
+      "morePath": "has_more",
+      "sizeParam": "limit",
+      "pageSize": 100
+     }
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "POST",
+     "path": "/charges/{chargeId}",
+     "action": "Update a charge",
+     "params": [
+      {
+       "name": "chargeId",
+       "display": "Charge ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      },
+      {
+       "name": "receiptEmail",
+       "display": "Receipt Email",
+       "send": "body",
+       "prop": "receipt_email"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "paymentIntent",
+   "display": "Payment Intent",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/payment_intents",
+     "action": "Create a payment intent",
+     "params": [
+      {
+       "name": "amount",
+       "display": "Amount (smallest unit)",
+       "type": "number",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "currency",
+       "display": "Currency",
+       "required": true,
+       "send": "body",
+       "default": "usd"
+      }
+     ],
+     "extra": [
+      {
+       "name": "customer",
+       "display": "Customer ID",
+       "send": "body"
+      },
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      },
+      {
+       "name": "paymentMethod",
+       "display": "Payment Method ID",
+       "send": "body",
+       "prop": "payment_method"
+      }
+     ]
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/payment_intents/{intentId}",
+     "action": "Get a payment intent",
+     "params": [
+      {
+       "name": "intentId",
+       "display": "Payment Intent ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/payment_intents",
+     "action": "Get many payment intents",
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "lastId",
+      "cursorParam": "starting_after",
+      "idField": "id",
+      "morePath": "has_more",
+      "sizeParam": "limit",
+      "pageSize": 100
+     }
+    },
+    {
+     "name": "confirm",
+     "display": "Confirm",
+     "method": "POST",
+     "path": "/payment_intents/{intentId}/confirm",
+     "action": "Confirm a payment intent",
+     "params": [
+      {
+       "name": "intentId",
+       "display": "Payment Intent ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "paymentMethod",
+       "display": "Payment Method ID",
+       "send": "body",
+       "prop": "payment_method"
+      }
+     ]
+    },
+    {
+     "name": "cancel",
+     "display": "Cancel",
+     "method": "POST",
+     "path": "/payment_intents/{intentId}/cancel",
+     "action": "Cancel a payment intent",
+     "params": [
+      {
+       "name": "intentId",
+       "display": "Payment Intent ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "subscription",
+   "display": "Subscription",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/subscriptions",
+     "action": "Get many subscriptions",
+     "extra": [
+      {
+       "name": "customer",
+       "display": "Customer ID",
+       "send": "query"
+      },
+      {
+       "name": "status",
+       "display": "Status",
+       "send": "query"
+      }
+     ],
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "lastId",
+      "cursorParam": "starting_after",
+      "idField": "id",
+      "morePath": "has_more",
+      "sizeParam": "limit",
+      "pageSize": 100
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/subscriptions/{subscriptionId}",
+     "action": "Get a subscription",
+     "params": [
+      {
+       "name": "subscriptionId",
+       "display": "Subscription ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "cancel",
+     "display": "Cancel",
+     "method": "DELETE",
+     "path": "/subscriptions/{subscriptionId}",
+     "action": "Cancel a subscription",
+     "params": [
+      {
+       "name": "subscriptionId",
+       "display": "Subscription ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "coupon",
+   "display": "Coupon",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/coupons",
+     "action": "Create a coupon",
+     "params": [
+      {
+       "name": "duration",
+       "display": "Duration",
+       "required": true,
+       "send": "body",
+       "default": "once"
+      }
+     ],
+     "extra": [
+      {
+       "name": "percentOff",
+       "display": "Percent Off",
+       "type": "number",
+       "send": "body",
+       "prop": "percent_off"
+      },
+      {
+       "name": "amountOff",
+       "display": "Amount Off",
+       "type": "number",
+       "send": "body",
+       "prop": "amount_off"
+      },
+      {
+       "name": "currency",
+       "display": "Currency",
+       "send": "body"
+      },
+      {
+       "name": "name",
+       "display": "Name",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/coupons",
+     "action": "Get many coupons",
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "lastId",
+      "cursorParam": "starting_after",
+      "idField": "id",
+      "morePath": "has_more",
+      "sizeParam": "limit",
+      "pageSize": 100
+     }
+    }
+   ]
+  }
+ ],
+ "body_format": "form"
+}

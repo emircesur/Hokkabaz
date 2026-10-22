@@ -1,0 +1,328 @@
+{
+ "name": "clickUp",
+ "type": "n8n-nodes-base.clickUp",
+ "display": "ClickUp",
+ "description": "Tasks, lists, folders and comments",
+ "color": "#7B68EE",
+ "versions": [
+  1
+ ],
+ "base": "https://api.clickup.com/api/v2",
+ "cred": {
+  "name": "clickUpApi",
+  "display": "ClickUp",
+  "fields": [
+   {
+    "name": "accessToken",
+    "display": "Access Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "={{$credentials.accessToken}}"
+   }
+  },
+  "test": "/user"
+ },
+ "resources": [
+  {
+   "name": "task",
+   "display": "Task",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/list/{listId}/task",
+     "action": "Get many tasks",
+     "params": [
+      {
+       "name": "listId",
+       "display": "List ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "archived",
+       "display": "Archived",
+       "type": "boolean",
+       "send": "query"
+      },
+      {
+       "name": "subtasks",
+       "display": "Include Subtasks",
+       "type": "boolean",
+       "send": "query"
+      }
+     ],
+     "out": "tasks",
+     "list": true,
+     "page": {
+      "type": "page",
+      "pageParam": "page",
+      "sizeParam": "limit",
+      "pageSize": 100,
+      "firstPage": 0
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/task/{id}",
+     "action": "Get a task",
+     "params": [
+      {
+       "name": "id",
+       "display": "Task ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/list/{listId}/task",
+     "action": "Create a task",
+     "params": [
+      {
+       "name": "listId",
+       "display": "List ID",
+       "required": true
+      },
+      {
+       "name": "name",
+       "display": "Name",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      },
+      {
+       "name": "status",
+       "display": "Status",
+       "send": "body"
+      },
+      {
+       "name": "priority",
+       "display": "Priority",
+       "type": "number",
+       "send": "body"
+      },
+      {
+       "name": "dueDate",
+       "display": "Due Date (ms)",
+       "type": "number",
+       "send": "body",
+       "prop": "due_date"
+      },
+      {
+       "name": "assignees",
+       "display": "Assignee IDs (JSON array)",
+       "type": "json",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PUT",
+     "path": "/task/{id}",
+     "action": "Update a task",
+     "params": [
+      {
+       "name": "id",
+       "display": "Task ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "name",
+       "display": "Name",
+       "send": "body"
+      },
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      },
+      {
+       "name": "status",
+       "display": "Status",
+       "send": "body"
+      },
+      {
+       "name": "priority",
+       "display": "Priority",
+       "type": "number",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/task/{id}",
+     "action": "Delete a task",
+     "params": [
+      {
+       "name": "id",
+       "display": "Task ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "comment",
+   "display": "Comment",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/task/{id}/comment",
+     "action": "Comment on a task",
+     "params": [
+      {
+       "name": "id",
+       "display": "Task ID",
+       "required": true
+      },
+      {
+       "name": "commentText",
+       "display": "Comment",
+       "required": true,
+       "send": "body",
+       "prop": "comment_text"
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/task/{id}/comment",
+     "action": "Get comments",
+     "params": [
+      {
+       "name": "id",
+       "display": "Task ID",
+       "required": true
+      }
+     ],
+     "out": "comments",
+     "list": true
+    }
+   ]
+  },
+  {
+   "name": "list",
+   "display": "List",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/folder/{folderId}/list",
+     "action": "Get lists of a folder",
+     "params": [
+      {
+       "name": "folderId",
+       "display": "Folder ID",
+       "required": true
+      }
+     ],
+     "out": "lists",
+     "list": true
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/list/{listId}",
+     "action": "Get a list",
+     "params": [
+      {
+       "name": "listId",
+       "display": "List ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "folder",
+   "display": "Folder",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/space/{spaceId}/folder",
+     "action": "Get folders",
+     "params": [
+      {
+       "name": "spaceId",
+       "display": "Space ID",
+       "required": true
+      }
+     ],
+     "out": "folders",
+     "list": true
+    }
+   ]
+  },
+  {
+   "name": "space",
+   "display": "Space",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/team/{teamId}/space",
+     "action": "Get spaces",
+     "params": [
+      {
+       "name": "teamId",
+       "display": "Workspace ID",
+       "required": true
+      }
+     ],
+     "out": "spaces",
+     "list": true
+    }
+   ]
+  },
+  {
+   "name": "team",
+   "display": "Workspace",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/team",
+     "action": "Get workspaces",
+     "out": "teams",
+     "list": true
+    }
+   ]
+  }
+ ]
+}

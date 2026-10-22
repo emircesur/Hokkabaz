@@ -1,0 +1,124 @@
+{
+ "name": "twilio",
+ "type": "n8n-nodes-base.twilio",
+ "display": "Twilio",
+ "description": "SMS and calls",
+ "color": "#F22F46",
+ "versions": [
+  1
+ ],
+ "base": "https://api.twilio.com/2010-04-01/Accounts/{{$credentials.accountSid}}",
+ "cred": {
+  "name": "twilioApi",
+  "display": "Twilio",
+  "fields": [
+   {
+    "name": "accountSid",
+    "display": "Account SID",
+    "required": true
+   },
+   {
+    "name": "authToken",
+    "display": "Auth Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "basic": [
+    "{{$credentials.accountSid}}",
+    "{{$credentials.authToken}}"
+   ]
+  },
+  "test": ".json"
+ },
+ "resources": [
+  {
+   "name": "sms",
+   "display": "SMS",
+   "ops": [
+    {
+     "name": "send",
+     "display": "Send",
+     "method": "POST",
+     "path": "/Messages.json",
+     "action": "Send an SMS or WhatsApp message",
+     "params": [
+      {
+       "name": "from",
+       "display": "From",
+       "required": true,
+       "send": "body",
+       "prop": "From"
+      },
+      {
+       "name": "to",
+       "display": "To",
+       "required": true,
+       "send": "body",
+       "prop": "To"
+      },
+      {
+       "name": "message",
+       "display": "Message",
+       "required": true,
+       "send": "body",
+       "prop": "Body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "toWhatsapp",
+       "display": "To WhatsApp",
+       "type": "boolean",
+       "send": null
+      },
+      {
+       "name": "statusCallback",
+       "display": "Status Callback",
+       "send": "body",
+       "prop": "StatusCallback"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "call",
+   "display": "Call",
+   "ops": [
+    {
+     "name": "make",
+     "display": "Make",
+     "method": "POST",
+     "path": "/Calls.json",
+     "action": "Make a call",
+     "params": [
+      {
+       "name": "from",
+       "display": "From",
+       "required": true,
+       "send": "body",
+       "prop": "From"
+      },
+      {
+       "name": "to",
+       "display": "To",
+       "required": true,
+       "send": "body",
+       "prop": "To"
+      },
+      {
+       "name": "url",
+       "display": "TwiML URL",
+       "required": true,
+       "send": "body",
+       "prop": "Url"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "body_format": "form"
+}

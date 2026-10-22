@@ -1,0 +1,239 @@
+{
+ "name": "qdrant",
+ "type": "hokkabaz.qdrant",
+ "display": "Qdrant",
+ "description": "Vector collections and points",
+ "color": "#DC244C",
+ "versions": [
+  1
+ ],
+ "base": "={{$credentials.url}}",
+ "cred": {
+  "name": "qdrantApi",
+  "display": "Qdrant",
+  "fields": [
+   {
+    "name": "url",
+    "display": "URL",
+    "required": true,
+    "default": "http://localhost:6333"
+   },
+   {
+    "name": "apiKey",
+    "display": "API Key",
+    "secret": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "api-key": "={{$credentials.apiKey}}"
+   }
+  },
+  "test": "/collections"
+ },
+ "resources": [
+  {
+   "name": "collection",
+   "display": "Collection",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/collections",
+     "action": "List collections",
+     "out": "result.collections",
+     "list": true
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/collections/{collection}",
+     "action": "Get a collection",
+     "params": [
+      {
+       "name": "collection",
+       "display": "Collection",
+       "required": true
+      }
+     ],
+     "out": "result"
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "PUT",
+     "path": "/collections/{collection}",
+     "action": "Create a collection",
+     "params": [
+      {
+       "name": "collection",
+       "display": "Collection",
+       "required": true
+      },
+      {
+       "name": "size",
+       "display": "Vector Size",
+       "type": "number",
+       "required": true,
+       "send": "body",
+       "prop": "vectors.size"
+      },
+      {
+       "name": "distance",
+       "display": "Distance",
+       "send": "body",
+       "prop": "vectors.distance",
+       "default": "Cosine"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/collections/{collection}",
+     "action": "Delete a collection",
+     "params": [
+      {
+       "name": "collection",
+       "display": "Collection",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "point",
+   "display": "Point",
+   "ops": [
+    {
+     "name": "upsert",
+     "display": "Upsert",
+     "method": "PUT",
+     "path": "/collections/{collection}/points",
+     "action": "Upsert points",
+     "params": [
+      {
+       "name": "collection",
+       "display": "Collection",
+       "required": true
+      },
+      {
+       "name": "points",
+       "display": "Points (JSON array)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "default": "[{\"id\": 1, \"vector\": [0.1, 0.2], \"payload\": {}}]"
+      }
+     ],
+     "qs": {
+      "wait": "true"
+     }
+    },
+    {
+     "name": "search",
+     "display": "Search",
+     "method": "POST",
+     "path": "/collections/{collection}/points/search",
+     "action": "Search by vector",
+     "params": [
+      {
+       "name": "collection",
+       "display": "Collection",
+       "required": true
+      },
+      {
+       "name": "vector",
+       "display": "Vector (JSON array)",
+       "type": "json",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "limit",
+       "display": "Limit",
+       "type": "number",
+       "send": "body",
+       "default": 10
+      }
+     ],
+     "extra": [
+      {
+       "name": "filter",
+       "display": "Filter (JSON)",
+       "type": "json",
+       "send": "body"
+      },
+      {
+       "name": "withPayload",
+       "display": "With Payload",
+       "type": "boolean",
+       "send": "body",
+       "prop": "with_payload",
+       "default": true
+      }
+     ],
+     "out": "result"
+    },
+    {
+     "name": "scroll",
+     "display": "Scroll",
+     "method": "POST",
+     "path": "/collections/{collection}/points/scroll",
+     "action": "List points",
+     "params": [
+      {
+       "name": "collection",
+       "display": "Collection",
+       "required": true
+      },
+      {
+       "name": "limit",
+       "display": "Limit",
+       "type": "number",
+       "send": "body",
+       "default": 50
+      }
+     ],
+     "extra": [
+      {
+       "name": "filter",
+       "display": "Filter (JSON)",
+       "type": "json",
+       "send": "body"
+      }
+     ],
+     "out": "result.points"
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "POST",
+     "path": "/collections/{collection}/points/delete",
+     "action": "Delete points",
+     "params": [
+      {
+       "name": "collection",
+       "display": "Collection",
+       "required": true
+      },
+      {
+       "name": "points",
+       "display": "Point IDs (JSON array)",
+       "type": "json",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "qs": {
+      "wait": "true"
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,325 @@
+{
+ "name": "shopify",
+ "type": "n8n-nodes-base.shopify",
+ "display": "Shopify",
+ "description": "Orders, products and customers (first 250 per list call)",
+ "color": "#96BF48",
+ "versions": [
+  1
+ ],
+ "base": "https://{{$credentials.shopSubdomain}}.myshopify.com/admin/api/2024-10",
+ "cred": {
+  "name": "shopifyAccessTokenApi",
+  "display": "Shopify Access Token",
+  "fields": [
+   {
+    "name": "shopSubdomain",
+    "display": "Shop Subdomain",
+    "required": true,
+    "desc": "The part before .myshopify.com"
+   },
+   {
+    "name": "accessToken",
+    "display": "Access Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "X-Shopify-Access-Token": "={{$credentials.accessToken}}"
+   }
+  },
+  "test": "/shop.json"
+ },
+ "resources": [
+  {
+   "name": "order",
+   "display": "Order",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/orders.json",
+     "action": "Get many orders",
+     "extra": [
+      {
+       "name": "status",
+       "display": "Status",
+       "send": "query"
+      }
+     ],
+     "qs": {
+      "status": "any",
+      "limit": "250"
+     },
+     "out": "orders",
+     "list": true
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/orders/{orderId}.json",
+     "action": "Get an order",
+     "params": [
+      {
+       "name": "orderId",
+       "display": "Order ID",
+       "required": true
+      }
+     ],
+     "out": "order"
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/orders.json",
+     "action": "Create an order",
+     "params": [
+      {
+       "name": "order",
+       "display": "Order (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "default": "{\"line_items\": []}"
+      }
+     ],
+     "out": "order"
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/orders/{orderId}.json",
+     "action": "Delete an order",
+     "params": [
+      {
+       "name": "orderId",
+       "display": "Order ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "product",
+   "display": "Product",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/products.json",
+     "action": "Get many products",
+     "qs": {
+      "limit": "250"
+     },
+     "out": "products",
+     "list": true
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/products/{productId}.json",
+     "action": "Get a product",
+     "params": [
+      {
+       "name": "productId",
+       "display": "Product ID",
+       "required": true
+      }
+     ],
+     "out": "product"
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/products.json",
+     "action": "Create a product",
+     "params": [
+      {
+       "name": "title",
+       "display": "Title",
+       "required": true,
+       "send": "body",
+       "prop": "product.title"
+      }
+     ],
+     "extra": [
+      {
+       "name": "bodyHtml",
+       "display": "Description (HTML)",
+       "send": "body",
+       "prop": "product.body_html"
+      },
+      {
+       "name": "vendor",
+       "display": "Vendor",
+       "send": "body",
+       "prop": "product.vendor"
+      },
+      {
+       "name": "productType",
+       "display": "Product Type",
+       "send": "body",
+       "prop": "product.product_type"
+      },
+      {
+       "name": "tags",
+       "display": "Tags",
+       "send": "body",
+       "prop": "product.tags"
+      }
+     ],
+     "out": "product"
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PUT",
+     "path": "/products/{productId}.json",
+     "action": "Update a product",
+     "params": [
+      {
+       "name": "productId",
+       "display": "Product ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "title",
+       "display": "Title",
+       "send": "body",
+       "prop": "product.title"
+      },
+      {
+       "name": "bodyHtml",
+       "display": "Description (HTML)",
+       "send": "body",
+       "prop": "product.body_html"
+      },
+      {
+       "name": "vendor",
+       "display": "Vendor",
+       "send": "body",
+       "prop": "product.vendor"
+      },
+      {
+       "name": "tags",
+       "display": "Tags",
+       "send": "body",
+       "prop": "product.tags"
+      }
+     ],
+     "out": "product"
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/products/{productId}.json",
+     "action": "Delete a product",
+     "params": [
+      {
+       "name": "productId",
+       "display": "Product ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "customer",
+   "display": "Customer",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/customers.json",
+     "action": "Get many customers",
+     "qs": {
+      "limit": "250"
+     },
+     "out": "customers",
+     "list": true
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/customers/{customerId}.json",
+     "action": "Get a customer",
+     "params": [
+      {
+       "name": "customerId",
+       "display": "Customer ID",
+       "required": true
+      }
+     ],
+     "out": "customer"
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/customers.json",
+     "action": "Create a customer",
+     "params": [
+      {
+       "name": "email",
+       "display": "Email",
+       "required": true,
+       "send": "body",
+       "prop": "customer.email"
+      }
+     ],
+     "extra": [
+      {
+       "name": "firstName",
+       "display": "First Name",
+       "send": "body",
+       "prop": "customer.first_name"
+      },
+      {
+       "name": "lastName",
+       "display": "Last Name",
+       "send": "body",
+       "prop": "customer.last_name"
+      },
+      {
+       "name": "phone",
+       "display": "Phone",
+       "send": "body",
+       "prop": "customer.phone"
+      }
+     ],
+     "out": "customer"
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/customers/{customerId}.json",
+     "action": "Delete a customer",
+     "params": [
+      {
+       "name": "customerId",
+       "display": "Customer ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

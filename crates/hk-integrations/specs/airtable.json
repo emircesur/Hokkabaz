@@ -1,0 +1,235 @@
+{
+ "name": "airtable",
+ "type": "n8n-nodes-base.airtable",
+ "display": "Airtable",
+ "description": "Read and write Airtable bases",
+ "color": "#18BFFF",
+ "versions": [
+  1,
+  2,
+  2.1
+ ],
+ "base": "https://api.airtable.com/v0",
+ "cred": {
+  "name": "airtableTokenApi",
+  "display": "Airtable Personal Access Token",
+  "fields": [
+   {
+    "name": "accessToken",
+    "display": "Access Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=Bearer {{$credentials.accessToken}}"
+   }
+  },
+  "test": "/meta/whoami",
+  "docs": "https://airtable.com/developers/web/guides/personal-access-tokens"
+ },
+ "resources": [
+  {
+   "name": "record",
+   "display": "Record",
+   "ops": [
+    {
+     "name": "search",
+     "display": "Search",
+     "method": "GET",
+     "path": "/{baseId}/{table}",
+     "action": "Search records",
+     "params": [
+      {
+       "name": "baseId",
+       "display": "Base ID",
+       "required": true
+      },
+      {
+       "name": "table",
+       "display": "Table",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "filterByFormula",
+       "display": "Filter By Formula",
+       "send": "query"
+      },
+      {
+       "name": "view",
+       "display": "View",
+       "send": "query"
+      },
+      {
+       "name": "sortField",
+       "display": "Sort Field",
+       "send": "query",
+       "prop": "sort[0][field]"
+      },
+      {
+       "name": "sortDirection",
+       "display": "Sort Direction",
+       "send": "query",
+       "prop": "sort[0][direction]"
+      }
+     ],
+     "out": "records",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "offset",
+      "nextPath": "offset",
+      "pageSize": 100,
+      "sizeParam": "pageSize"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/{baseId}/{table}/{recordId}",
+     "action": "Get a record",
+     "params": [
+      {
+       "name": "baseId",
+       "display": "Base ID",
+       "required": true
+      },
+      {
+       "name": "table",
+       "display": "Table",
+       "required": true
+      },
+      {
+       "name": "recordId",
+       "display": "Record ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/{baseId}/{table}",
+     "action": "Create a record",
+     "params": [
+      {
+       "name": "baseId",
+       "display": "Base ID",
+       "required": true
+      },
+      {
+       "name": "table",
+       "display": "Table",
+       "required": true
+      },
+      {
+       "name": "fields",
+       "display": "Fields (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "default": "{\"Name\": \"value\"}"
+      }
+     ],
+     "extra": [
+      {
+       "name": "typecast",
+       "display": "Typecast",
+       "type": "boolean",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PATCH",
+     "path": "/{baseId}/{table}/{recordId}",
+     "action": "Update a record",
+     "params": [
+      {
+       "name": "baseId",
+       "display": "Base ID",
+       "required": true
+      },
+      {
+       "name": "table",
+       "display": "Table",
+       "required": true
+      },
+      {
+       "name": "recordId",
+       "display": "Record ID",
+       "required": true
+      },
+      {
+       "name": "fields",
+       "display": "Fields (JSON)",
+       "type": "json",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "typecast",
+       "display": "Typecast",
+       "type": "boolean",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/{baseId}/{table}/{recordId}",
+     "action": "Delete a record",
+     "params": [
+      {
+       "name": "baseId",
+       "display": "Base ID",
+       "required": true
+      },
+      {
+       "name": "table",
+       "display": "Table",
+       "required": true
+      },
+      {
+       "name": "recordId",
+       "display": "Record ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "base",
+   "display": "Base",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/meta/bases",
+     "action": "List bases",
+     "out": "bases",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "offset",
+      "nextPath": "offset",
+      "pageSize": 1000
+     }
+    }
+   ]
+  }
+ ]
+}

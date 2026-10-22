@@ -20,12 +20,18 @@
 
 pub mod credentials;
 pub mod describe;
+pub(crate) mod oauth;
 pub mod poll;
 pub mod rest;
 pub mod template;
 
 #[cfg(feature = "int-ntfy")]
 pub mod ntfy;
+
+#[cfg(feature = "int-saas")]
+pub mod declarative;
+#[cfg(feature = "int-saas")]
+mod specs;
 
 #[cfg(feature = "int-git")]
 pub mod git;
@@ -37,7 +43,12 @@ pub mod github;
 pub mod n8n;
 #[cfg(feature = "int-n8n")]
 pub mod n8n_remote;
-#[cfg(any(feature = "int-github", feature = "int-gitea", feature = "int-n8n"))]
+#[cfg(any(
+    feature = "int-github",
+    feature = "int-gitea",
+    feature = "int-n8n",
+    feature = "int-saas"
+))]
 pub mod pathparam;
 #[cfg(feature = "int-slack")]
 pub mod slack;
@@ -150,5 +161,7 @@ pub fn register_integrations_with_polling(
     ollama::register(nodes, creds)?;
     #[cfg(feature = "int-slack")]
     slack::register(nodes, creds)?;
+    #[cfg(feature = "int-saas")]
+    declarative::register(nodes, creds)?;
     Ok(())
 }

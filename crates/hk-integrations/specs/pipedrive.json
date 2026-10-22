@@ -1,0 +1,607 @@
+{
+ "name": "pipedrive",
+ "type": "n8n-nodes-base.pipedrive",
+ "display": "Pipedrive",
+ "description": "Deals, people, organizations, activities and notes",
+ "color": "#017737",
+ "versions": [
+  1
+ ],
+ "base": "https://api.pipedrive.com/v1",
+ "cred": {
+  "name": "pipedriveApi",
+  "display": "Pipedrive",
+  "fields": [
+   {
+    "name": "apiToken",
+    "display": "API Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "query": {
+    "api_token": "={{$credentials.apiToken}}"
+   }
+  },
+  "test": "/users/me"
+ },
+ "resources": [
+  {
+   "name": "deal",
+   "display": "Deal",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/deals",
+     "action": "Get many deals",
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "offset",
+      "limitParam": "limit",
+      "offsetParam": "start",
+      "pageSize": 100
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/deals/{id}",
+     "action": "Get a deal",
+     "params": [
+      {
+       "name": "id",
+       "display": "Deal ID",
+       "required": true
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/deals",
+     "action": "Create a deal",
+     "params": [
+      {
+       "name": "title",
+       "display": "Title",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "value",
+       "display": "Value",
+       "send": "body"
+      },
+      {
+       "name": "currency",
+       "display": "Currency",
+       "send": "body"
+      },
+      {
+       "name": "personId",
+       "display": "Person ID",
+       "type": "number",
+       "send": "body",
+       "prop": "person_id"
+      },
+      {
+       "name": "orgId",
+       "display": "Organization ID",
+       "type": "number",
+       "send": "body",
+       "prop": "org_id"
+      },
+      {
+       "name": "stageId",
+       "display": "Stage ID",
+       "type": "number",
+       "send": "body",
+       "prop": "stage_id"
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PUT",
+     "path": "/deals/{id}",
+     "action": "Update a deal",
+     "params": [
+      {
+       "name": "id",
+       "display": "Deal ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "value",
+       "display": "Value",
+       "send": "body"
+      },
+      {
+       "name": "currency",
+       "display": "Currency",
+       "send": "body"
+      },
+      {
+       "name": "personId",
+       "display": "Person ID",
+       "type": "number",
+       "send": "body",
+       "prop": "person_id"
+      },
+      {
+       "name": "orgId",
+       "display": "Organization ID",
+       "type": "number",
+       "send": "body",
+       "prop": "org_id"
+      },
+      {
+       "name": "stageId",
+       "display": "Stage ID",
+       "type": "number",
+       "send": "body",
+       "prop": "stage_id"
+      },
+      {
+       "name": "name",
+       "display": "Name",
+       "send": "body"
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/deals/{id}",
+     "action": "Delete a deal",
+     "params": [
+      {
+       "name": "id",
+       "display": "Deal ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "person",
+   "display": "Person",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/persons",
+     "action": "Get many persons",
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "offset",
+      "limitParam": "limit",
+      "offsetParam": "start",
+      "pageSize": 100
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/persons/{id}",
+     "action": "Get a person",
+     "params": [
+      {
+       "name": "id",
+       "display": "Person ID",
+       "required": true
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/persons",
+     "action": "Create a person",
+     "params": [
+      {
+       "name": "name",
+       "display": "Name",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "email",
+       "display": "Email",
+       "send": "body"
+      },
+      {
+       "name": "phone",
+       "display": "Phone",
+       "send": "body"
+      },
+      {
+       "name": "orgId",
+       "display": "Organization ID",
+       "type": "number",
+       "send": "body",
+       "prop": "org_id"
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PUT",
+     "path": "/persons/{id}",
+     "action": "Update a person",
+     "params": [
+      {
+       "name": "id",
+       "display": "Person ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "email",
+       "display": "Email",
+       "send": "body"
+      },
+      {
+       "name": "phone",
+       "display": "Phone",
+       "send": "body"
+      },
+      {
+       "name": "orgId",
+       "display": "Organization ID",
+       "type": "number",
+       "send": "body",
+       "prop": "org_id"
+      },
+      {
+       "name": "name",
+       "display": "Name",
+       "send": "body"
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/persons/{id}",
+     "action": "Delete a person",
+     "params": [
+      {
+       "name": "id",
+       "display": "Person ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "organization",
+   "display": "Organization",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/organizations",
+     "action": "Get many organizations",
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "offset",
+      "limitParam": "limit",
+      "offsetParam": "start",
+      "pageSize": 100
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/organizations/{id}",
+     "action": "Get a organization",
+     "params": [
+      {
+       "name": "id",
+       "display": "Organization ID",
+       "required": true
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/organizations",
+     "action": "Create a organization",
+     "params": [
+      {
+       "name": "name",
+       "display": "Name",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "address",
+       "display": "Address",
+       "send": "body"
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PUT",
+     "path": "/organizations/{id}",
+     "action": "Update a organization",
+     "params": [
+      {
+       "name": "id",
+       "display": "Organization ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "address",
+       "display": "Address",
+       "send": "body"
+      },
+      {
+       "name": "name",
+       "display": "Name",
+       "send": "body"
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/organizations/{id}",
+     "action": "Delete a organization",
+     "params": [
+      {
+       "name": "id",
+       "display": "Organization ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "activity",
+   "display": "Activity",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/activities",
+     "action": "Get many activitys",
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "offset",
+      "limitParam": "limit",
+      "offsetParam": "start",
+      "pageSize": 100
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/activities/{id}",
+     "action": "Get a activity",
+     "params": [
+      {
+       "name": "id",
+       "display": "Activity ID",
+       "required": true
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/activities",
+     "action": "Create a activity",
+     "params": [
+      {
+       "name": "subject",
+       "display": "Subject",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "type",
+       "display": "Type",
+       "required": true,
+       "send": "body",
+       "default": "task"
+      }
+     ],
+     "extra": [
+      {
+       "name": "dealId",
+       "display": "Deal ID",
+       "type": "number",
+       "send": "body",
+       "prop": "deal_id"
+      },
+      {
+       "name": "personId",
+       "display": "Person ID",
+       "type": "number",
+       "send": "body",
+       "prop": "person_id"
+      },
+      {
+       "name": "dueDate",
+       "display": "Due Date",
+       "send": "body",
+       "prop": "due_date"
+      },
+      {
+       "name": "note",
+       "display": "Note",
+       "send": "body"
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PUT",
+     "path": "/activities/{id}",
+     "action": "Update a activity",
+     "params": [
+      {
+       "name": "id",
+       "display": "Activity ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "dealId",
+       "display": "Deal ID",
+       "type": "number",
+       "send": "body",
+       "prop": "deal_id"
+      },
+      {
+       "name": "personId",
+       "display": "Person ID",
+       "type": "number",
+       "send": "body",
+       "prop": "person_id"
+      },
+      {
+       "name": "dueDate",
+       "display": "Due Date",
+       "send": "body",
+       "prop": "due_date"
+      },
+      {
+       "name": "note",
+       "display": "Note",
+       "send": "body"
+      },
+      {
+       "name": "name",
+       "display": "Name",
+       "send": "body"
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/activities/{id}",
+     "action": "Delete a activity",
+     "params": [
+      {
+       "name": "id",
+       "display": "Activity ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "note",
+   "display": "Note",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/notes",
+     "action": "Create a note",
+     "params": [
+      {
+       "name": "content",
+       "display": "Content",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "dealId",
+       "display": "Deal ID",
+       "type": "number",
+       "send": "body",
+       "prop": "deal_id"
+      },
+      {
+       "name": "personId",
+       "display": "Person ID",
+       "type": "number",
+       "send": "body",
+       "prop": "person_id"
+      }
+     ],
+     "out": "data"
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/notes",
+     "action": "Get many notes",
+     "out": "data",
+     "list": true,
+     "page": {
+      "type": "offset",
+      "limitParam": "limit",
+      "offsetParam": "start",
+      "pageSize": 100
+     }
+    }
+   ]
+  }
+ ]
+}

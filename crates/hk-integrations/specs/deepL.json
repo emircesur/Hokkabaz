@@ -1,0 +1,84 @@
+{
+ "name": "deepL",
+ "type": "n8n-nodes-base.deepL",
+ "display": "DeepL",
+ "description": "Translate text",
+ "color": "#0F2B46",
+ "versions": [
+  1,
+  1.1
+ ],
+ "base": "={{$credentials.url}}",
+ "cred": {
+  "name": "deepLApi",
+  "display": "DeepL",
+  "fields": [
+   {
+    "name": "apiKey",
+    "display": "API Key",
+    "secret": true,
+    "required": true
+   },
+   {
+    "name": "url",
+    "display": "API URL",
+    "default": "https://api-free.deepl.com",
+    "desc": "https://api.deepl.com for Pro"
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=DeepL-Auth-Key {{$credentials.apiKey}}"
+   }
+  },
+  "test": "/v2/usage"
+ },
+ "resources": [
+  {
+   "name": "language",
+   "display": "Language",
+   "ops": [
+    {
+     "name": "translate",
+     "display": "Translate",
+     "method": "POST",
+     "path": "/v2/translate",
+     "action": "Translate text",
+     "params": [
+      {
+       "name": "text",
+       "display": "Text",
+       "required": true
+      },
+      {
+       "name": "translateTo",
+       "display": "Translate To",
+       "required": true,
+       "send": "body",
+       "prop": "target_lang",
+       "default": "EN-US",
+       "desc": "Target language code, e.g. TR, DE, EN-GB"
+      }
+     ],
+     "extra": [
+      {
+       "name": "sourceLang",
+       "display": "Source Language",
+       "send": "body",
+       "prop": "source_lang"
+      },
+      {
+       "name": "formality",
+       "display": "Formality",
+       "send": "body"
+      }
+     ],
+     "body": {
+      "text": "={{ [$parameter[\"text\"]] }}"
+     },
+     "out": "translations"
+    }
+   ]
+  }
+ ]
+}

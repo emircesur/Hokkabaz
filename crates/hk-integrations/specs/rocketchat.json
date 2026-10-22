@@ -1,0 +1,82 @@
+{
+ "name": "rocketchat",
+ "type": "n8n-nodes-base.rocketchat",
+ "display": "Rocket.Chat",
+ "description": "Post messages",
+ "color": "#F5455C",
+ "versions": [
+  1
+ ],
+ "base": "={{$credentials.domain}}/api/v1",
+ "cred": {
+  "name": "rocketchatApi",
+  "display": "Rocket.Chat",
+  "fields": [
+   {
+    "name": "domain",
+    "display": "Domain",
+    "required": true,
+    "desc": "https://chat.example.com"
+   },
+   {
+    "name": "userId",
+    "display": "User ID",
+    "required": true
+   },
+   {
+    "name": "authToken",
+    "display": "Auth Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "X-User-Id": "={{$credentials.userId}}",
+    "X-Auth-Token": "={{$credentials.authToken}}"
+   }
+  },
+  "test": "/me"
+ },
+ "resources": [
+  {
+   "name": "chat",
+   "display": "Chat",
+   "ops": [
+    {
+     "name": "postMessage",
+     "display": "Post Message",
+     "method": "POST",
+     "path": "/chat.postMessage",
+     "action": "Post a message",
+     "params": [
+      {
+       "name": "channel",
+       "display": "Channel",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "text",
+       "display": "Text",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "alias",
+       "display": "Alias",
+       "send": "body"
+      },
+      {
+       "name": "emoji",
+       "display": "Emoji",
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

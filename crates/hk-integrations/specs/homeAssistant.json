@@ -1,0 +1,202 @@
+{
+ "name": "homeAssistant",
+ "type": "n8n-nodes-base.homeAssistant",
+ "display": "Home Assistant",
+ "description": "Control Home Assistant: services, states, events",
+ "color": "#41BDF5",
+ "versions": [
+  1
+ ],
+ "base": "={{$credentials.host}}/api",
+ "cred": {
+  "name": "homeAssistantApi",
+  "display": "Home Assistant",
+  "fields": [
+   {
+    "name": "host",
+    "display": "Host",
+    "required": true,
+    "desc": "https://homeassistant.local:8123"
+   },
+   {
+    "name": "accessToken",
+    "display": "Long-Lived Access Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=Bearer {{$credentials.accessToken}}"
+   }
+  },
+  "test": "/"
+ },
+ "resources": [
+  {
+   "name": "service",
+   "display": "Service",
+   "ops": [
+    {
+     "name": "call",
+     "display": "Call",
+     "method": "POST",
+     "path": "/services/{domain}/{service}",
+     "action": "Call a service",
+     "params": [
+      {
+       "name": "domain",
+       "display": "Domain",
+       "required": true
+      },
+      {
+       "name": "service",
+       "display": "Service",
+       "required": true
+      },
+      {
+       "name": "serviceAttributes",
+       "display": "Service Data (JSON)",
+       "type": "json",
+       "send": "body",
+       "prop": "$",
+       "default": "{\"entity_id\": \"light.living_room\"}"
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/services",
+     "action": "Get services",
+     "list": true
+    }
+   ]
+  },
+  {
+   "name": "state",
+   "display": "State",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/states",
+     "action": "Get many states",
+     "list": true
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/states/{entityId}",
+     "action": "Get a state",
+     "params": [
+      {
+       "name": "entityId",
+       "display": "Entity ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "upsert",
+     "display": "Create or Update",
+     "method": "POST",
+     "path": "/states/{entityId}",
+     "action": "Set a state",
+     "params": [
+      {
+       "name": "entityId",
+       "display": "Entity ID",
+       "required": true
+      },
+      {
+       "name": "state",
+       "display": "State",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "stateAttributes",
+       "display": "Attributes (JSON)",
+       "type": "json",
+       "send": "body",
+       "prop": "attributes"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "event",
+   "display": "Event",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/events",
+     "action": "Get events",
+     "list": true
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/events/{eventType}",
+     "action": "Fire an event",
+     "params": [
+      {
+       "name": "eventType",
+       "display": "Event Type",
+       "required": true
+      },
+      {
+       "name": "eventAttributes",
+       "display": "Event Data (JSON)",
+       "type": "json",
+       "send": "body",
+       "prop": "$"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "config",
+   "display": "Config",
+   "ops": [
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/config",
+     "action": "Get the configuration"
+    }
+   ]
+  },
+  {
+   "name": "template",
+   "display": "Template",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/template",
+     "action": "Render a template",
+     "params": [
+      {
+       "name": "template",
+       "display": "Template",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

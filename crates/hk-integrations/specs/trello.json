@@ -1,0 +1,291 @@
+{
+ "name": "trello",
+ "type": "n8n-nodes-base.trello",
+ "display": "Trello",
+ "description": "Boards, lists and cards",
+ "color": "#0079BF",
+ "versions": [
+  1
+ ],
+ "base": "https://api.trello.com/1",
+ "cred": {
+  "name": "trelloApi",
+  "display": "Trello",
+  "fields": [
+   {
+    "name": "apiKey",
+    "display": "API Key",
+    "required": true
+   },
+   {
+    "name": "apiToken",
+    "display": "API Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "query": {
+    "key": "={{$credentials.apiKey}}",
+    "token": "={{$credentials.apiToken}}"
+   }
+  },
+  "test": "/members/me"
+ },
+ "resources": [
+  {
+   "name": "card",
+   "display": "Card",
+   "ops": [
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/cards/{id}",
+     "action": "Get a card",
+     "params": [
+      {
+       "name": "id",
+       "display": "Card ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/cards",
+     "action": "Create a card",
+     "params": [
+      {
+       "name": "listId",
+       "display": "List ID",
+       "required": true,
+       "send": "body",
+       "prop": "idList"
+      },
+      {
+       "name": "name",
+       "display": "Name",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body",
+       "prop": "desc"
+      },
+      {
+       "name": "pos",
+       "display": "Position",
+       "send": "body"
+      },
+      {
+       "name": "due",
+       "display": "Due Date",
+       "send": "body"
+      },
+      {
+       "name": "idMembers",
+       "display": "Member IDs",
+       "send": "body"
+      },
+      {
+       "name": "idLabels",
+       "display": "Label IDs",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PUT",
+     "path": "/cards/{id}",
+     "action": "Update a card",
+     "params": [
+      {
+       "name": "id",
+       "display": "Card ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "name",
+       "display": "Name",
+       "send": "body"
+      },
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body",
+       "prop": "desc"
+      },
+      {
+       "name": "idList",
+       "display": "List ID",
+       "send": "body"
+      },
+      {
+       "name": "closed",
+       "display": "Archived",
+       "type": "boolean",
+       "send": "body"
+      },
+      {
+       "name": "due",
+       "display": "Due Date",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/cards/{id}",
+     "action": "Delete a card",
+     "params": [
+      {
+       "name": "id",
+       "display": "Card ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "addComment",
+     "display": "Add Comment",
+     "method": "POST",
+     "path": "/cards/{id}/actions/comments",
+     "action": "Comment on a card",
+     "params": [
+      {
+       "name": "id",
+       "display": "Card ID",
+       "required": true
+      },
+      {
+       "name": "text",
+       "display": "Comment",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "list",
+   "display": "List",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/boards/{boardId}/lists",
+     "action": "Get lists of a board",
+     "params": [
+      {
+       "name": "boardId",
+       "display": "Board ID",
+       "required": true
+      }
+     ],
+     "list": true
+    },
+    {
+     "name": "getCards",
+     "display": "Get Cards",
+     "method": "GET",
+     "path": "/lists/{id}/cards",
+     "action": "Get cards in a list",
+     "params": [
+      {
+       "name": "id",
+       "display": "List ID",
+       "required": true
+      }
+     ],
+     "list": true
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/lists",
+     "action": "Create a list",
+     "params": [
+      {
+       "name": "idBoard",
+       "display": "Board ID",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "name",
+       "display": "Name",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "board",
+   "display": "Board",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/members/me/boards",
+     "action": "Get my boards",
+     "list": true
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/boards/{id}",
+     "action": "Get a board",
+     "params": [
+      {
+       "name": "id",
+       "display": "Board ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/boards",
+     "action": "Create a board",
+     "params": [
+      {
+       "name": "name",
+       "display": "Name",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "desc",
+       "display": "Description",
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,76 @@
+{
+ "name": "perplexity",
+ "type": "n8n-nodes-base.perplexity",
+ "display": "Perplexity",
+ "description": "Search-grounded answers",
+ "color": "#20808D",
+ "versions": [
+  1
+ ],
+ "base": "https://api.perplexity.ai",
+ "cred": {
+  "name": "perplexityApi",
+  "display": "Perplexity",
+  "fields": [
+   {
+    "name": "apiKey",
+    "display": "API Key",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=Bearer {{$credentials.apiKey}}"
+   }
+  }
+ },
+ "resources": [
+  {
+   "name": "chat",
+   "display": "Chat",
+   "ops": [
+    {
+     "name": "complete",
+     "display": "Complete",
+     "method": "POST",
+     "path": "/chat/completions",
+     "action": "Chat with a search-grounded model",
+     "params": [
+      {
+       "name": "model",
+       "display": "Model",
+       "required": true,
+       "send": "body",
+       "default": "sonar"
+      },
+      {
+       "name": "text",
+       "display": "Prompt",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "temperature",
+       "display": "Temperature",
+       "type": "number",
+       "send": "body"
+      },
+      {
+       "name": "maxTokens",
+       "display": "Max Tokens",
+       "type": "number",
+       "send": "body",
+       "prop": "max_tokens"
+      }
+     ],
+     "body": {
+      "messages": "={{ [{\"role\": \"user\", \"content\": $parameter[\"text\"]}] }}"
+     },
+     "out": "choices"
+    }
+   ]
+  }
+ ]
+}

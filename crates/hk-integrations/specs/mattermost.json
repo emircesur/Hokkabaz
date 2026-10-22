@@ -1,0 +1,214 @@
+{
+ "name": "mattermost",
+ "type": "n8n-nodes-base.mattermost",
+ "display": "Mattermost",
+ "description": "Posts, channels and users",
+ "color": "#0058CC",
+ "versions": [
+  1
+ ],
+ "base": "={{$credentials.baseUrl}}/api/v4",
+ "cred": {
+  "name": "mattermostApi",
+  "display": "Mattermost",
+  "fields": [
+   {
+    "name": "baseUrl",
+    "display": "Base URL",
+    "required": true,
+    "desc": "https://chat.example.com"
+   },
+   {
+    "name": "accessToken",
+    "display": "Access Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=Bearer {{$credentials.accessToken}}"
+   }
+  },
+  "test": "/users/me"
+ },
+ "resources": [
+  {
+   "name": "message",
+   "display": "Message",
+   "ops": [
+    {
+     "name": "post",
+     "display": "Post",
+     "method": "POST",
+     "path": "/posts",
+     "action": "Post a message",
+     "params": [
+      {
+       "name": "channelId",
+       "display": "Channel ID",
+       "required": true,
+       "send": "body",
+       "prop": "channel_id"
+      },
+      {
+       "name": "message",
+       "display": "Message",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "rootId",
+       "display": "Reply To Post ID",
+       "send": "body",
+       "prop": "root_id"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "channel",
+   "display": "Channel",
+   "ops": [
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/channels/{channelId}",
+     "action": "Get a channel",
+     "params": [
+      {
+       "name": "channelId",
+       "display": "Channel ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/teams/{teamId}/channels",
+     "action": "Get channels of a team",
+     "params": [
+      {
+       "name": "teamId",
+       "display": "Team ID",
+       "required": true
+      }
+     ],
+     "list": true
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/channels",
+     "action": "Create a channel",
+     "params": [
+      {
+       "name": "teamId",
+       "display": "Team ID",
+       "required": true,
+       "send": "body",
+       "prop": "team_id"
+      },
+      {
+       "name": "name",
+       "display": "Name",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "displayName",
+       "display": "Display Name",
+       "required": true,
+       "send": "body",
+       "prop": "display_name"
+      },
+      {
+       "name": "type",
+       "display": "Type",
+       "send": "body",
+       "default": "O"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "user",
+   "display": "User",
+   "ops": [
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/users/{userId}",
+     "action": "Get a user",
+     "params": [
+      {
+       "name": "userId",
+       "display": "User ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/users",
+     "action": "Get many users",
+     "list": true,
+     "page": {
+      "type": "page",
+      "pageParam": "page",
+      "sizeParam": "per_page",
+      "pageSize": 200,
+      "firstPage": 0
+     }
+    }
+   ]
+  },
+  {
+   "name": "reaction",
+   "display": "Reaction",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/reactions",
+     "action": "React to a post",
+     "params": [
+      {
+       "name": "userId",
+       "display": "User ID",
+       "required": true,
+       "send": "body",
+       "prop": "user_id"
+      },
+      {
+       "name": "postId",
+       "display": "Post ID",
+       "required": true,
+       "send": "body",
+       "prop": "post_id"
+      },
+      {
+       "name": "emojiName",
+       "display": "Emoji Name",
+       "required": true,
+       "send": "body",
+       "prop": "emoji_name"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

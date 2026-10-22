@@ -1,0 +1,119 @@
+{
+ "name": "googleGemini",
+ "type": "@n8n/n8n-nodes-langchain.googleGemini",
+ "display": "Google Gemini",
+ "description": "Gemini models: generateContent, embeddings, model list",
+ "color": "#4285F4",
+ "versions": [
+  1
+ ],
+ "base": "={{$credentials.host}}/v1beta",
+ "cred": {
+  "name": "googlePalmApi",
+  "display": "Google Gemini(PaLM) Api",
+  "fields": [
+   {
+    "name": "host",
+    "display": "Host",
+    "default": "https://generativelanguage.googleapis.com"
+   },
+   {
+    "name": "apiKey",
+    "display": "API Key",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "x-goog-api-key": "={{$credentials.apiKey}}"
+   }
+  },
+  "test": "/models"
+ },
+ "resources": [
+  {
+   "name": "text",
+   "display": "Text",
+   "ops": [
+    {
+     "name": "message",
+     "display": "Message a Model",
+     "method": "POST",
+     "path": "/models/{modelId}:generateContent",
+     "action": "Message a model",
+     "params": [
+      {
+       "name": "modelId",
+       "display": "Model",
+       "required": true,
+       "default": "gemini-2.5-flash"
+      },
+      {
+       "name": "text",
+       "display": "Prompt",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "generationConfig",
+       "display": "Generation Config (JSON)",
+       "type": "json",
+       "send": "body"
+      }
+     ],
+     "body": {
+      "contents": "={{ [{\"role\": \"user\", \"parts\": [{\"text\": $parameter[\"text\"]}]}] }}"
+     },
+     "out": "candidates"
+    },
+    {
+     "name": "embed",
+     "display": "Create Embedding",
+     "method": "POST",
+     "path": "/models/{modelId}:embedContent",
+     "action": "Create an embedding",
+     "params": [
+      {
+       "name": "modelId",
+       "display": "Model",
+       "required": true,
+       "default": "gemini-embedding-001"
+      },
+      {
+       "name": "text",
+       "display": "Text",
+       "required": true
+      }
+     ],
+     "body": {
+      "content": "={{ {\"parts\": [{\"text\": $parameter[\"text\"]}]} }}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "model",
+   "display": "Model",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/models",
+     "action": "List models",
+     "out": "models",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "pageToken",
+      "nextPath": "nextPageToken",
+      "pageSize": 100,
+      "sizeParam": "pageSize"
+     }
+    }
+   ]
+  }
+ ]
+}

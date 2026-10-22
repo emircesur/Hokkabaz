@@ -1,0 +1,106 @@
+{
+ "name": "bitly",
+ "type": "n8n-nodes-base.bitly",
+ "display": "Bitly",
+ "description": "Shorten and manage links",
+ "color": "#EE6123",
+ "versions": [
+  1
+ ],
+ "base": "https://api-ssl.bitly.com/v4",
+ "cred": {
+  "name": "bitlyApi",
+  "display": "Bitly",
+  "fields": [
+   {
+    "name": "accessToken",
+    "display": "Access Token",
+    "secret": true,
+    "required": true
+   }
+  ],
+  "auth": {
+   "header": {
+    "Authorization": "=Bearer {{$credentials.accessToken}}"
+   }
+  },
+  "test": "/user"
+ },
+ "resources": [
+  {
+   "name": "link",
+   "display": "Link",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/shorten",
+     "action": "Shorten a URL",
+     "params": [
+      {
+       "name": "longUrl",
+       "display": "Long URL",
+       "required": true,
+       "send": "body",
+       "prop": "long_url"
+      }
+     ],
+     "extra": [
+      {
+       "name": "domain",
+       "display": "Domain",
+       "send": "body"
+      },
+      {
+       "name": "title",
+       "display": "Title",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/bitlinks/{id}",
+     "action": "Get a link",
+     "params": [
+      {
+       "name": "id",
+       "display": "Bitlink (e.g. bit.ly/abc)",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PATCH",
+     "path": "/bitlinks/{id}",
+     "action": "Update a link",
+     "params": [
+      {
+       "name": "id",
+       "display": "Bitlink",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "title",
+       "display": "Title",
+       "send": "body"
+      },
+      {
+       "name": "archived",
+       "display": "Archived",
+       "type": "boolean",
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
