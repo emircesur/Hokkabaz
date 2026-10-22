@@ -34,6 +34,7 @@ hk-server = { version = "0.0.0", path = "../hk-server", default-features = false
 hk-mcp = { version = "0.0.0", path = "../hk-mcp" }
 hk-media = { version = "0.0.0", path = "../hk-media" }
 hk-plugin = { version = "0.0.0", path = "../hk-plugin", default-features = false }
+hk-providers = { version = "0.0.0", path = "../hk-providers" }
 hk-session = { version = "0.0.0", path = "../hk-session" }
 hk-studio = { version = "0.0.0", path = "../hk-studio" }
 hk-stt = { version = "0.0.0", path = "../hk-stt" }

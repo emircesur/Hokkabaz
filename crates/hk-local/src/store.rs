@@ -40,6 +40,8 @@ struct Custom {
 #[derive(Clone)]
 pub struct ModelStore {
     dir: PathBuf,
+    /// Downloadable entries this store knows (LLMs by default; see [`ModelStore::with_catalog`]).
+    catalog: Arc<Vec<CatalogEntry>>,
     client: reqwest::Client,
     active: Arc<Mutex<Vec<String>>>,
 }
@@ -69,12 +71,18 @@ fn slug(s: &str) -> String {
 
 impl ModelStore {
     pub fn new(dir: impl Into<PathBuf>) -> Self {
+        Self::with_catalog(dir, catalog::builtin())
+    }
+
+    /// Store over another catalog, e.g. the whisper speech models.
+    pub fn with_catalog(dir: impl Into<PathBuf>, catalog: Vec<CatalogEntry>) -> Self {
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(20))
             .build()
             .unwrap_or_default();
         Self {
             dir: dir.into(),
+            catalog: Arc::new(catalog),
             client,
             active: Arc::default(),
         }
@@ -106,7 +114,7 @@ impl ModelStore {
 
     pub fn installed(&self) -> Vec<InstalledModel> {
         let mut out = Vec::new();
-        for m in catalog::builtin() {
+        for m in self.catalog.iter().cloned() {
             let p = self.dir.join(&m.file);
             if let Ok(md) = std::fs::metadata(&p)
                 && md.len() == m.size_bytes

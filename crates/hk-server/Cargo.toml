@@ -38,6 +38,7 @@ server = [
   "tokio/fs",
   "tokio/io-util",
   "dep:hk-store",
+  "dep:hk-providers",
   "dep:subtle",
   "dep:getrandom",
   "dep:hk-flow",
@@ -67,6 +68,7 @@ getrandom = { version = "0.3", optional = true }
 hk-agent = { version = "0.0.0", path = "../hk-agent", optional = true }
 hk-concat = { version = "0.0.0", path = "../hk-concat", optional = true }
 hk-core = { version = "0.0.0", path = "../hk-core", optional = true }
+hk-providers = { version = "0.0.0", path = "../hk-providers", optional = true }
 # Webhook response types (ResponseSink etc.) and workflow validation only; no QuickJS/reqwest here.
 hk-flow = { version = "0.0.0", path = "../hk-flow", optional = true, default-features = false }
 hk-llm = { version = "0.0.0", path = "../hk-llm", optional = true }

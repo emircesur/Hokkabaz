@@ -16,6 +16,7 @@ use crate::auth::{Auth, Principal, Scope};
 use crate::error::ApiError;
 use crate::flow::FlowApi;
 use crate::pairing::{self, Pairing};
+use crate::providers;
 use crate::ratelimit::{RateLimit, RateLimiter};
 use crate::runtime::{
     AgentRuntime, ApprovalDecision, CreateSession, SessionDetail, SessionInfo, TurnAccepted,
@@ -41,6 +42,8 @@ pub struct AppState {
     /// Video Studio of this instance (`/api/v1/studio`). `None` leaves those routes unmounted.
     pub studio: Option<Arc<dyn StudioApi>>,
     pub tickets: Arc<Tickets>,
+    /// Provider settings of this instance (`/api/v1/providers`, `/settings`). `None` leaves them unmounted.
+    pub providers: Option<Arc<hk_providers::ProviderHub>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -61,6 +64,7 @@ impl AppState {
             pairing: None,
             studio: None,
             tickets: Arc::new(Tickets::default()),
+            providers: None,
         }
     }
 
@@ -82,6 +86,13 @@ impl AppState {
     #[must_use]
     pub fn with_studio(mut self, studio: Arc<dyn StudioApi>) -> Self {
         self.studio = Some(studio);
+        self
+    }
+
+    /// Let remote apps manage this instance's model providers.
+    #[must_use]
+    pub fn with_providers(mut self, hub: Arc<hk_providers::ProviderHub>) -> Self {
+        self.providers = Some(hub);
         self
     }
 
@@ -144,6 +155,25 @@ pub fn router(state: AppState) -> Router {
         v1 = v1
             .route("/pairing", get(pairing::issue))
             .route("/pairing/exchange", post(pairing::exchange));
+    }
+    if state.providers.is_some() {
+        v1 = v1
+            .route("/settings", get(providers::get_settings))
+            .route(
+                "/settings/preferences",
+                axum::routing::put(providers::set_preferences),
+            )
+            .route("/providers", axum::routing::put(providers::save_provider))
+            .route(
+                "/providers/{id}",
+                axum::routing::delete(providers::remove_provider),
+            )
+            .route(
+                "/providers/{id}/key",
+                axum::routing::put(providers::set_key),
+            )
+            .route("/providers/models", get(providers::models))
+            .route("/providers/catalog", post(providers::refresh_catalog));
     }
     if state.studio.is_some() {
         v1 = v1
@@ -208,7 +238,13 @@ async fn create_session(
     body: Option<Json<CreateSession>>,
 ) -> Result<(StatusCode, Json<SessionInfo>), ApiError> {
     p.require(Scope::Run)?;
-    let req = body.map(|Json(b)| b).unwrap_or_default();
+    let mut req = body.map(|Json(b)| b).unwrap_or_default();
+    // The app picks the default model in the instance settings; the runtime's own default is only a floor.
+    if req.model.is_none()
+        && let Some(hub) = &s.providers
+    {
+        req.model = hub.default_model().await;
+    }
     Ok((
         StatusCode::CREATED,
         Json(s.runtime.create_session(req).await?),

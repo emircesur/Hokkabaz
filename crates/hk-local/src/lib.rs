@@ -3,6 +3,7 @@
 //! * [`catalog`]: curated GGUF models with sizes and checksums, device RAM and a fit check.
 //! * [`store`]: installed models on disk; resumable, checksum-verified downloads.
 //! * [`toolcall`]: streaming parser for `<tool_call>` blocks (small models call tools in-text).
+//! * [`whisper`]: speech models (ggml) for local transcription, same store.
 //! * [`engine`] (feature `llama`): a [`hk_llm::Provider`] (`local`) on llama.cpp.
 //!
 //! Without the `llama` feature the manager still works (browse, download, delete); the provider
@@ -14,6 +15,7 @@ pub mod engine;
 mod error;
 pub mod store;
 pub mod toolcall;
+pub mod whisper;
 
 pub use catalog::{CatalogEntry, Device, Fit};
 pub use error::{LocalError, Result};

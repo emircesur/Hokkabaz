@@ -17,11 +17,11 @@ use crate::secrets::FileSecretStore;
 /// `--admin-token-file`.
 pub const ADMIN_TOKEN_ENV: &str = "HOKKABAZ_ADMIN_TOKEN";
 
-pub const DEEPSEEK_ENV: &str = "DEEPSEEK_API_KEY";
-pub const DEEPSEEK_SECRET: &str = "deepseek";
+/// Secret name older daemons kept the DeepSeek key under; migrated to the provider key on start.
+pub const LEGACY_DEEPSEEK_SECRET: &str = "deepseek";
 
-/// Stand-in so the daemon (and `/health`) runs before a key is configured; turns fail with a
-/// clear provider error instead.
+/// Provider that has no models and fails every turn with a clear error: for tests and embedders
+/// that never run a model.
 #[derive(Debug)]
 pub struct Unconfigured;
 
@@ -38,9 +38,10 @@ impl Provider for Unconfigured {
         _req: ChatRequest,
         _cancel: CancellationToken,
     ) -> hk_llm::Result<EventStream> {
-        Err(LlmError::Auth(format!(
-            "no DeepSeek API key: set {DEEPSEEK_ENV} or store secret `{DEEPSEEK_SECRET}`"
-        )))
+        Err(LlmError::Auth(
+            "no model provider configured: add one under Models (or set e.g. ANTHROPIC_API_KEY)"
+                .into(),
+        ))
     }
 }
 

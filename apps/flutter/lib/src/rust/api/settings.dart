@@ -40,3 +40,8 @@ Future<ModelListDto> listModels() =>
 /// Re-fetch the models.dev catalog (best effort; the cached copy stays on failure).
 Future<void> refreshCatalog() =>
     RustLib.instance.api.crateApiSettingsRefreshCatalog();
+
+/// Known OpenAI-compatible services (hosted and local) as a JSON array of
+/// `{id, label, kind, base_url, env, local}`; the "add endpoint" dialog prefills from these.
+String providerPresets() =>
+    RustLib.instance.api.crateApiSettingsProviderPresets();

@@ -25,6 +25,9 @@ integrations = ["dep:hk-integrations"]
 plugins = ["integrations", "dep:hk-plugin", "dep:hk-tools"]
 # Video Studio for remote apps (`/api/v1/studio`); needs ffmpeg on the host.
 studio = ["dep:hk-studio", "dep:hk-media", "dep:futures"]
+# On-device GGUF models served by this instance (provider `local`; `hokkabazd models pull`).
+# Needs cmake + a C++ toolchain at build time; off by default.
+local-llm = ["dep:hk-local", "hk-local/llama-openmp"]
 default = ["integrations", "plugins", "studio"]
 
 [dependencies]
@@ -39,6 +42,8 @@ hk-media = { version = "0.0.0", path = "../../crates/hk-media", optional = true 
 hk-plugin = { version = "0.0.0", path = "../../crates/hk-plugin", optional = true }
 hk-tools = { version = "0.0.0", path = "../../crates/hk-tools", optional = true }
 hk-llm = { version = "0.0.0", path = "../../crates/hk-llm" }
+hk-local = { version = "0.0.0", path = "../../crates/hk-local", optional = true }
+hk-providers = { version = "0.0.0", path = "../../crates/hk-providers" }
 hk-server = { version = "0.0.0", path = "../../crates/hk-server" }
 hk-store = { version = "0.0.0", path = "../../crates/hk-store" }
 serde_json = "1"

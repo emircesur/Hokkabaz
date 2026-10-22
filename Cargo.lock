@@ -2917,8 +2917,10 @@ dependencies = [
  "hk-flow",
  "hk-integrations",
  "hk-llm",
+ "hk-local",
  "hk-media",
  "hk-plugin",
+ "hk-providers",
  "hk-server",
  "hk-store",
  "hk-studio",
@@ -2947,6 +2949,7 @@ dependencies = [
  "hk-mcp",
  "hk-media",
  "hk-plugin",
+ "hk-providers",
  "hk-server",
  "hk-session",
  "hk-store",
@@ -3119,6 +3122,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hk-providers"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "hk-llm",
+ "hk-store",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "hk-sandbox"
 version = "0.0.0"
 dependencies = [
@@ -3145,6 +3163,7 @@ dependencies = [
  "hk-core",
  "hk-flow",
  "hk-llm",
+ "hk-providers",
  "hk-session",
  "hk-store",
  "hk-tools",

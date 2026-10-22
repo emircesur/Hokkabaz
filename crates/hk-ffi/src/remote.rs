@@ -35,8 +35,8 @@ use tokio_tungstenite::tungstenite::{self, Message};
 use crate::dto::{
     CoreProfile, CreateSessionDto, FlowRunDetailDto, FlowRunEventDto, FlowRunEventKind,
     FlowRunModeDto, FlowRunSummaryDto, InstanceStateDto, InstanceStatusDto, ModeDto, ModelListDto,
-    PreferencesDto, ProviderInputDto, SessionDetailDto, SessionEventDto, SessionEventKind,
-    SessionInfoDto, SettingsDto, TurnAcceptedDto, TurnRequestDto,
+    PreferencesDto, ProviderErrorDto, ProviderInputDto, SessionDetailDto, SessionEventDto,
+    SessionEventKind, SessionInfoDto, SettingsDto, TurnAcceptedDto, TurnRequestDto,
 };
 use crate::error::{HkError, HkErrorKind};
 use crate::flow_runs::{self, DETAIL_MAX_BYTES, DETAIL_MAX_ITEMS, MAX_INPUT_ITEMS};
@@ -151,11 +151,20 @@ async fn check(res: reqwest::Response) -> Result<reqwest::Response, HkError> {
     Err(HkError::new(kind, message))
 }
 
-fn unsupported(what: &str) -> HkError {
-    HkError::new(
-        HkErrorKind::Unsupported,
-        format!("{what} is managed on the instance, not from this app"),
-    )
+#[derive(serde::Deserialize)]
+struct SettingsReply {
+    settings: hk_providers::SettingsView,
+}
+
+/// Older instances have no provider API (404): say so instead of "not found".
+fn providers_unavailable(e: HkError) -> HkError {
+    if e.kind == HkErrorKind::NotFound {
+        return HkError::new(
+            HkErrorKind::Unsupported,
+            "this instance is too old to manage providers from the app; update it",
+        );
+    }
+    e
 }
 
 impl Inner {
@@ -243,6 +252,18 @@ struct WireDetail {
 }
 
 impl RemoteCore {
+    fn settings_dto(&self, v: &hk_providers::SettingsView) -> SettingsDto {
+        SettingsDto {
+            providers: settings::provider_dtos(v),
+            default_model: v.default_model.clone(),
+            mode: settings::mode(v.plan_mode),
+            // The instance owns its workspace and data dir.
+            workspace_root: v.workspace_root.clone().unwrap_or_default(),
+            profile: self.i.profile,
+            data_dir: String::new(),
+        }
+    }
+
     /// `token` is the instance's bearer. Nothing is contacted until the first call.
     pub fn new(base_url: &str, token: Secret, profile: CoreProfile) -> Result<Arc<Self>, HkError> {
         Ok(Arc::new(Self {
@@ -371,46 +392,98 @@ impl CoreHandle for RemoteCore {
     }
 
     async fn get_settings(&self) -> Result<SettingsDto, HkError> {
-        Err(unsupported("Provider setup"))
+        let r: SettingsReply = self
+            .i
+            .json(self.i.request(Method::GET, &["settings"]))
+            .await
+            .map_err(providers_unavailable)?;
+        Ok(self.settings_dto(&r.settings))
     }
 
-    async fn save_provider(&self, _input: ProviderInputDto) -> Result<SettingsDto, HkError> {
-        Err(unsupported("Provider setup"))
+    async fn save_provider(&self, input: ProviderInputDto) -> Result<SettingsDto, HkError> {
+        let rb = self
+            .i
+            .request(Method::PUT, &["providers"])
+            .json(&settings::input(input));
+        let r: SettingsReply = self.i.json(rb).await?;
+        Ok(self.settings_dto(&r.settings))
     }
 
-    async fn remove_provider(&self, _id: String) -> Result<SettingsDto, HkError> {
-        Err(unsupported("Provider setup"))
+    async fn remove_provider(&self, id: String) -> Result<SettingsDto, HkError> {
+        let r: SettingsReply = self
+            .i
+            .json(self.i.request(Method::DELETE, &["providers", &id]))
+            .await?;
+        Ok(self.settings_dto(&r.settings))
     }
 
     async fn set_api_key(
         &self,
-        _provider_id: String,
-        _key: Option<String>,
+        provider_id: String,
+        key: Option<String>,
     ) -> Result<SettingsDto, HkError> {
-        Err(unsupported("API keys"))
+        let rb = self
+            .i
+            .request(Method::PUT, &["providers", &provider_id, "key"])
+            .json(&json!({ "key": key }));
+        let r: SettingsReply = self.i.json(rb).await?;
+        Ok(self.settings_dto(&r.settings))
     }
 
-    async fn set_preferences(&self, _prefs: PreferencesDto) -> Result<SettingsDto, HkError> {
-        Err(unsupported("Preferences"))
+    async fn set_preferences(&self, prefs: PreferencesDto) -> Result<SettingsDto, HkError> {
+        let rb = self
+            .i
+            .request(Method::PUT, &["settings", "preferences"])
+            .json(&json!({
+                "default_model": prefs.default_model,
+                "plan_mode": matches!(prefs.mode, crate::dto::ModeDto::Plan),
+            }));
+        let r: SettingsReply = self.i.json(rb).await?;
+        Ok(self.settings_dto(&r.settings))
     }
 
     async fn list_models(&self) -> Result<ModelListDto, HkError> {
-        #[derive(serde::Deserialize)]
-        struct Models {
-            models: Vec<ModelInfo>,
-        }
-        let m: Models = self
+        // Newer instances report which providers failed; older ones only list models.
+        match self
             .i
-            .json(self.i.request(Method::GET, &["models"]))
-            .await?;
-        Ok(ModelListDto {
-            models: m.models.iter().map(settings::model_dto).collect(),
-            errors: Vec::new(),
-        })
+            .json::<hk_providers::ModelsView>(self.i.request(Method::GET, &["providers", "models"]))
+            .await
+        {
+            Ok(m) => Ok(ModelListDto {
+                models: m.models.iter().map(settings::model_dto).collect(),
+                errors: m
+                    .errors
+                    .into_iter()
+                    .map(|(provider_id, message)| ProviderErrorDto {
+                        provider_id,
+                        message,
+                    })
+                    .collect(),
+            }),
+            Err(e) if e.kind == HkErrorKind::NotFound => {
+                #[derive(serde::Deserialize)]
+                struct Models {
+                    models: Vec<ModelInfo>,
+                }
+                let m: Models = self
+                    .i
+                    .json(self.i.request(Method::GET, &["models"]))
+                    .await?;
+                Ok(ModelListDto {
+                    models: m.models.iter().map(settings::model_dto).collect(),
+                    errors: Vec::new(),
+                })
+            }
+            Err(e) => Err(e),
+        }
     }
 
     async fn refresh_catalog(&self) -> Result<(), HkError> {
-        Err(unsupported("The model catalog"))
+        self.i
+            .send(self.i.request(Method::POST, &["providers", "catalog"]))
+            .await
+            .map_err(providers_unavailable)?;
+        Ok(())
     }
 
     async fn create_session(&self, req: CreateSessionDto) -> Result<SessionInfoDto, HkError> {

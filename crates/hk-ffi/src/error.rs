@@ -82,3 +82,17 @@ impl From<serde_json::Error> for HkError {
         Self::internal(format!("json: {e}"))
     }
 }
+
+impl From<hk_providers::ProvidersError> for HkError {
+    fn from(e: hk_providers::ProvidersError) -> Self {
+        use hk_providers::ProvidersError as E;
+        let kind = match &e {
+            E::Invalid(_) => HkErrorKind::InvalidArgument,
+            E::NotFound(_) => HkErrorKind::NotFound,
+            E::Conflict(_) => HkErrorKind::Conflict,
+            E::Provider(_) => HkErrorKind::Provider,
+            E::Store(_) | E::Json(_) => HkErrorKind::Internal,
+        };
+        Self::new(kind, e.to_string())
+    }
+}

@@ -40,3 +40,10 @@ pub async fn list_models() -> Result<ModelListDto, HkError> {
 pub async fn refresh_catalog() -> Result<(), HkError> {
     core()?.refresh_catalog().await
 }
+
+/// Known OpenAI-compatible services (hosted and local) as a JSON array of
+/// `{id, label, kind, base_url, env, local}`; the "add endpoint" dialog prefills from these.
+#[flutter_rust_bridge::frb(sync)]
+pub fn provider_presets() -> String {
+    serde_json::to_string(hk_providers::PRESETS).unwrap_or_else(|_| "[]".to_owned())
+}

@@ -8,34 +8,33 @@
 //! Provider changes rebuild the registry and swap the router behind a [`Reloadable`], so live
 //! agents pick the new providers on their next request without being restarted.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::path::PathBuf;
-use std::sync::{Arc, PoisonError, RwLock};
+use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures::stream::{self, BoxStream};
-use hk_llm::catalog::{Catalog, CatalogStore};
-use hk_llm::registry::{KeyRef, ProviderRegistry, build_router};
-use hk_llm::{CancellationToken, ChatRequest, EventStream, ModelInfo, Provider};
+use hk_llm::{CancellationToken, Provider};
+use hk_providers::{HubOptions, Offline, Preferences, ProviderHub, SettingsView};
 use hk_server::{
     AgentRuntime, ApprovalDecision, CreateSession, LocalConfig, LocalRuntime, SessionInfo,
     TurnMode, TurnRequest,
 };
 use hk_session::EventKind;
-use hk_store::{Secret, SecretStore, Store};
-use tokio::sync::{Mutex, broadcast};
+use hk_store::{SecretStore, Store};
+use tokio::sync::broadcast;
 
 use crate::dto::{
     CoreProfile, CreateSessionDto, FlowRunDetailDto, FlowRunEventDto, FlowRunModeDto,
     FlowRunSummaryDto, MessageDto, ModeDto, ModelListDto, PendingApprovalDto, PreferencesDto,
-    ProviderDto, ProviderErrorDto, ProviderInputDto, RoleDto, SessionDetailDto, SessionEventDto,
+    ProviderErrorDto, ProviderInputDto, RoleDto, SessionDetailDto, SessionEventDto,
     SessionEventKind, SessionInfoDto, SettingsDto, ToolCallDto, TurnAcceptedDto, TurnRequestDto,
 };
 use crate::error::{HkError, HkErrorKind};
 use crate::flow_runs::LocalFlows;
 use crate::handle::CoreHandle;
-use crate::settings::{self, Stored};
+use crate::settings;
 use crate::{events, secrets};
 
 /// Overridable pieces; `Default` is what `core_init` uses.
@@ -66,62 +65,12 @@ impl std::fmt::Debug for CoreOptions {
     }
 }
 
-/// Provider whose target can be swapped while agents hold it.
-struct Reloadable(RwLock<Arc<dyn Provider>>);
-
-impl Reloadable {
-    fn current(&self) -> Arc<dyn Provider> {
-        self.0
-            .read()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
-    }
-
-    fn swap(&self, p: Arc<dyn Provider>) {
-        *self.0.write().unwrap_or_else(PoisonError::into_inner) = p;
-    }
-}
-
-#[async_trait]
-impl Provider for Reloadable {
-    fn id(&self) -> &str {
-        "hk-core"
-    }
-
-    async fn models(&self) -> hk_llm::Result<Vec<ModelInfo>> {
-        self.current().models().await
-    }
-
-    async fn stream(
-        &self,
-        req: ChatRequest,
-        cancel: CancellationToken,
-    ) -> hk_llm::Result<EventStream> {
-        self.current().stream(req, cancel).await
-    }
-}
-
-/// Result of the last registry build.
-struct Built {
-    registry: ProviderRegistry,
-    /// Provider id -> why it is unusable.
-    errors: HashMap<String, String>,
-}
-
 struct Inner {
     profile: CoreProfile,
     data_dir: PathBuf,
-    store: Store,
-    secrets: Arc<dyn SecretStore>,
-    /// Serialises settings read-modify-write.
-    settings: Mutex<Stored>,
-    built: RwLock<Arc<Built>>,
-    catalog: RwLock<Option<Arc<Catalog>>>,
-    catalog_store: CatalogStore,
-    reload: Arc<Reloadable>,
+    hub: Arc<ProviderHub>,
     runtime: LocalRuntime,
     flows: LocalFlows,
-    extras: Vec<Arc<dyn Provider>>,
     shutdown: CancellationToken,
 }
 
@@ -151,19 +100,36 @@ impl LocalCore {
         let secrets = opts
             .secrets
             .unwrap_or_else(|| secrets::select(profile, &data_dir));
-        let stored = Stored::load(store.get_setting(settings::SETTINGS_KEY).await?.as_deref())?;
 
-        let workspace = effective_workspace(&stored, &data_dir);
+        // On-device models: the `local` provider is always registered (it lists only what is
+        // downloaded); the offline fallback chain is added by the hub.
+        let local_ctx = crate::local_models::install(&data_dir, store.clone()).await?;
+        let mut extras = opts.extra_providers;
+        if let Some(p) = crate::local_models::provider(&local_ctx) {
+            extras.push(p);
+        }
+        let hub = ProviderHub::open(
+            store.clone(),
+            HubOptions {
+                secrets: secrets.clone(),
+                extras,
+                catalog_path: data_dir.join("models.json"),
+                offline: Some(Offline {
+                    provider_id: hk_local::PROVIDER_ID.to_owned(),
+                    model: Arc::new(crate::local_models::fallback),
+                }),
+                env: false,
+            },
+        )
+        .await?;
+
+        let workspace = effective_workspace(&hub.stored().await, &data_dir);
         std::fs::create_dir_all(&workspace)
             .map_err(|e| HkError::internal(format!("workspace: {e}")))?;
+        let stale = hub.catalog_is_stale();
 
-        let catalog_store = CatalogStore::new(data_dir.join("models.json"));
-        let catalog = catalog_store.load_cached().map(Arc::new);
-        let stale = !catalog_store.is_fresh();
-
-        let reload = Arc::new(Reloadable(RwLock::new(Arc::new(hk_llm::Router::new()))));
         let runtime = LocalRuntime::new(LocalConfig {
-            provider: reload.clone(),
+            provider: hub.provider(),
             sessions_dir: data_dir.join("sessions"),
             spill_dir: data_dir.join("spill"),
             // Sessions always get an explicit model from `create_session`; this is only a floor.
@@ -178,14 +144,6 @@ impl LocalCore {
         });
         let flows = LocalFlows::new(&data_dir, creds.clone())?;
 
-        // On-device models: the `local` provider is always registered (it lists only what is
-        // downloaded); the offline fallback chain is added in `rebuild`.
-        let local_ctx = crate::local_models::install(&data_dir, store.clone()).await?;
-        let mut extras = opts.extra_providers;
-        if let Some(p) = crate::local_models::provider(&local_ctx) {
-            extras.push(p);
-        }
-
         // Video Studio: shared service + the agent's studio_* tools.
         let studio_settings: crate::studio::SharedSettings =
             Arc::new(RwLock::new(crate::studio::StudioSettings::load(
@@ -198,7 +156,7 @@ impl LocalCore {
             data_dir.join("studio"),
             hk_media::Tools::from_env(),
             Arc::new(crate::studio::AppBackends {
-                provider: reload.clone(),
+                provider: hub.provider(),
                 secrets: secrets.clone(),
                 settings: studio_settings.clone(),
                 data_dir: data_dir.clone(),
@@ -229,33 +187,17 @@ impl LocalCore {
             i: Arc::new(Inner {
                 profile,
                 data_dir,
-                store,
-                secrets,
-                settings: Mutex::new(stored.clone()),
-                built: RwLock::new(Arc::new(Built {
-                    registry: ProviderRegistry::new(),
-                    errors: HashMap::new(),
-                })),
-                catalog: RwLock::new(catalog),
-                catalog_store,
-                reload,
+                hub: hub.clone(),
                 runtime,
                 flows,
-                extras,
                 shutdown: CancellationToken::new(),
             }),
         });
-        core.i.rebuild(&stored)?;
         {
-            let i = core.i.clone();
+            let hub = core.i.hub.clone();
             local_ctx.set_rebuild(Arc::new(move || {
-                let i = i.clone();
-                Box::pin(async move {
-                    let s = i.settings.lock().await.clone();
-                    if let Err(e) = i.rebuild(&s) {
-                        tracing::warn!(error = %e, "provider rebuild failed");
-                    }
-                })
+                let hub = hub.clone();
+                Box::pin(async move { hub.rebuild_current().await })
             }));
         }
 
@@ -264,7 +206,7 @@ impl LocalCore {
             tokio::spawn(async move {
                 tokio::select! {
                     () = i.shutdown.cancelled() => {}
-                    r = i.refresh_catalog() => {
+                    r = i.hub.refresh_catalog() => {
                         if let Err(e) = r {
                             // Offline is normal; the cached/empty catalog keeps working.
                             tracing::info!(error = %e, "catalog refresh skipped");
@@ -277,127 +219,28 @@ impl LocalCore {
     }
 }
 
-fn effective_workspace(s: &Stored, data_dir: &std::path::Path) -> PathBuf {
+fn effective_workspace(s: &hk_providers::Stored, data_dir: &std::path::Path) -> PathBuf {
     s.workspace_root
         .as_deref()
         .map_or_else(|| data_dir.join("workspace"), PathBuf::from)
 }
 
 impl Inner {
-    fn has_key(&self, provider_id: &str) -> bool {
-        matches!(
-            self.secrets.get(&settings::key_name(provider_id)),
-            Ok(Some(_))
-        )
-    }
-
-    /// Rebuild providers from `stored` (lenient: one bad provider does not hide the rest).
-    fn rebuild(&self, stored: &Stored) -> Result<(), HkError> {
-        let configs = settings::to_configs(stored, |id| self.has_key(id));
-        let secrets = self.secrets.clone();
-        let keys = move |r: &KeyRef| {
-            secrets
-                .get(&r.0)
-                .ok()
-                .flatten()
-                .map(|s| s.expose().to_owned())
+    fn settings_dto(&self, v: &SettingsView) -> SettingsDto {
+        let stored = hk_providers::Stored {
+            workspace_root: v.workspace_root.clone(),
+            ..hk_providers::Stored::default()
         };
-        let (mut registry, errs) = ProviderRegistry::build_lenient(&configs, &keys);
-        for p in &self.extras {
-            registry = registry.with_provider(p.clone());
-        }
-        let errors = errs
-            .iter()
-            .map(|e| {
-                (
-                    settings::registry_error_provider(e).to_owned(),
-                    e.to_string(),
-                )
-            })
-            .collect::<HashMap<_, _>>();
-        // Offline fallback: the default model's chain ends in the chosen on-device model.
-        let mut routes = Vec::new();
-        if let (Some(local), Some(def)) = (
-            crate::local_models::fallback(),
-            stored.default_model.clone(),
-        ) && !def.starts_with("local/")
-            && registry
-                .providers()
-                .any(|p| p.id() == hk_local::PROVIDER_ID)
-        {
-            routes.push(hk_llm::RouteConfig {
-                key: Some(def.clone()),
-                refs: vec![def, format!("{}/{local}", hk_local::PROVIDER_ID)],
-            });
-        }
-        let mut router = build_router(&registry, routes)
-            .map_err(|e| HkError::new(HkErrorKind::Provider, e.to_string()))?;
-        if let Some(c) = self
-            .catalog
-            .read()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
-        {
-            router = router.catalog(c);
-        }
-        self.reload.swap(Arc::new(router));
-        *self.built.write().unwrap_or_else(PoisonError::into_inner) =
-            Arc::new(Built { registry, errors });
-        Ok(())
-    }
-
-    async fn refresh_catalog(&self) -> Result<(), HkError> {
-        let client = hk_llm::openai::default_client()
-            .map_err(|e| HkError::new(HkErrorKind::Provider, e.to_string()))?;
-        let cat = self
-            .catalog_store
-            .refresh(&client)
-            .await
-            .map_err(|e| HkError::new(HkErrorKind::Provider, format!("catalog: {e}")))?;
-        *self.catalog.write().unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(cat));
-        let stored = self.settings.lock().await.clone();
-        self.rebuild(&stored)
-    }
-
-    fn settings_dto(&self, s: &Stored) -> SettingsDto {
-        let built = self
-            .built
-            .read()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone();
         SettingsDto {
-            providers: s
-                .providers
-                .iter()
-                .map(|p| ProviderDto {
-                    id: p.id.clone(),
-                    kind: settings::kind_dto(&p.kind),
-                    base_url: p.base_url.clone(),
-                    enabled: p.enabled,
-                    has_key: self.has_key(&p.id),
-                    builtin: settings::is_builtin(&p.id),
-                    models: p.models.clone(),
-                    error: p
-                        .enabled
-                        .then(|| built.errors.get(&p.id).cloned())
-                        .flatten(),
-                })
-                .collect(),
-            default_model: s.default_model.clone(),
-            mode: s.mode(),
-            workspace_root: effective_workspace(s, &self.data_dir).display().to_string(),
+            providers: settings::provider_dtos(v),
+            default_model: v.default_model.clone(),
+            mode: settings::mode(v.plan_mode),
+            workspace_root: effective_workspace(&stored, &self.data_dir)
+                .display()
+                .to_string(),
             profile: self.profile,
             data_dir: self.data_dir.display().to_string(),
         }
-    }
-
-    /// Persist, rebuild providers, return the new view.
-    async fn commit(&self, s: &Stored) -> Result<SettingsDto, HkError> {
-        self.store
-            .set_setting(settings::SETTINGS_KEY, &serde_json::to_string(s)?)
-            .await?;
-        self.rebuild(s)?;
-        Ok(self.settings_dto(s))
     }
 }
 
@@ -469,35 +312,17 @@ impl CoreHandle for LocalCore {
     }
 
     async fn get_settings(&self) -> Result<SettingsDto, HkError> {
-        let s = self.i.settings.lock().await;
-        Ok(self.i.settings_dto(&s))
+        Ok(self.i.settings_dto(&self.i.hub.view().await))
     }
 
     async fn save_provider(&self, input: ProviderInputDto) -> Result<SettingsDto, HkError> {
-        let mut s = self.i.settings.lock().await;
-        let mut next = s.clone();
-        next.upsert(input)?;
-        let dto = self.i.commit(&next).await?;
-        *s = next;
-        Ok(dto)
+        let v = self.i.hub.save_provider(settings::input(input)).await?;
+        Ok(self.i.settings_dto(&v))
     }
 
     async fn remove_provider(&self, id: String) -> Result<SettingsDto, HkError> {
-        let mut s = self.i.settings.lock().await;
-        let mut next = s.clone();
-        next.remove(&id)?;
-        // Drop the orphaned key too; a failure here must not block removal.
-        if let Err(e) = self
-            .i
-            .store
-            .delete_secret(&*self.i.secrets, &settings::key_name(&id))
-            .await
-        {
-            tracing::warn!(provider = %id, error = %e, "could not delete provider key");
-        }
-        let dto = self.i.commit(&next).await?;
-        *s = next;
-        Ok(dto)
+        let v = self.i.hub.remove_provider(&id).await?;
+        Ok(self.i.settings_dto(&v))
     }
 
     async fn set_api_key(
@@ -505,84 +330,49 @@ impl CoreHandle for LocalCore {
         provider_id: String,
         key: Option<String>,
     ) -> Result<SettingsDto, HkError> {
-        let s = self.i.settings.lock().await;
-        if s.find(&provider_id).is_none() {
-            return Err(HkError::new(
-                HkErrorKind::NotFound,
-                format!("no provider `{provider_id}`"),
-            ));
-        }
-        let name = settings::key_name(&provider_id);
-        match key.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
-            Some(k) => {
-                self.i
-                    .store
-                    .put_secret(&*self.i.secrets, &name, Secret::new(k))
-                    .await?
-            }
-            None => self.i.store.delete_secret(&*self.i.secrets, &name).await?,
-        }
-        self.i.rebuild(&s)?;
-        Ok(self.i.settings_dto(&s))
+        let v = self.i.hub.set_api_key(&provider_id, key.as_deref()).await?;
+        Ok(self.i.settings_dto(&v))
     }
 
     async fn set_preferences(&self, prefs: PreferencesDto) -> Result<SettingsDto, HkError> {
-        let mut s = self.i.settings.lock().await;
-        let mut next = s.clone();
-        if let Some(m) = &prefs.default_model {
-            settings::validate_model_ref(m)?;
-        }
-        next.default_model = prefs.default_model;
-        next.set_mode(prefs.mode);
-        next.workspace_root = match prefs.workspace_root {
+        let workspace_root = match prefs.workspace_root {
             Some(p) => Some(settings::prepare_workspace(&p)?.display().to_string()),
             None => None,
         };
-        let dto = self.i.commit(&next).await?;
-        *s = next;
-        Ok(dto)
+        let v = self
+            .i
+            .hub
+            .set_preferences(Preferences {
+                default_model: prefs.default_model,
+                plan_mode: matches!(prefs.mode, ModeDto::Plan),
+                workspace_root,
+            })
+            .await?;
+        Ok(self.i.settings_dto(&v))
     }
 
     async fn list_models(&self) -> Result<ModelListDto, HkError> {
-        let built = self
-            .i
-            .built
-            .read()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone();
-        let catalog = self
-            .i
-            .catalog
-            .read()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone();
-        let list = built.registry.list_models(catalog.as_deref()).await;
-        let mut errors: Vec<ProviderErrorDto> = built
-            .errors
-            .iter()
-            .map(|(id, m)| ProviderErrorDto {
-                provider_id: id.clone(),
-                message: m.clone(),
-            })
-            .collect();
-        errors.sort_by(|a, b| a.provider_id.cmp(&b.provider_id));
-        errors.extend(list.errors.into_iter().map(|(id, e)| ProviderErrorDto {
-            provider_id: id,
-            message: e.to_string(),
-        }));
+        let list = self.i.hub.list_models().await;
         Ok(ModelListDto {
             models: list.models.iter().map(settings::model_dto).collect(),
-            errors,
+            errors: list
+                .errors
+                .into_iter()
+                .map(|(provider_id, message)| ProviderErrorDto {
+                    provider_id,
+                    message,
+                })
+                .collect(),
         })
     }
 
     async fn refresh_catalog(&self) -> Result<(), HkError> {
-        self.i.refresh_catalog().await
+        Ok(self.i.hub.refresh_catalog().await?)
     }
 
     async fn create_session(&self, req: CreateSessionDto) -> Result<SessionInfoDto, HkError> {
         let (model, cwd) = {
-            let s = self.i.settings.lock().await;
+            let s = self.i.hub.stored().await;
             let model = req
                 .model
                 .or_else(|| s.default_model.clone())
@@ -640,7 +430,7 @@ impl CoreHandle for LocalCore {
         }
         let mode = match req.mode {
             Some(m) => m,
-            None => self.i.settings.lock().await.mode(),
+            None => settings::mode(self.i.hub.stored().await.is_plan()),
         };
         let accepted = self
             .i

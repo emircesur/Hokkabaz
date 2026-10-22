@@ -32,6 +32,8 @@ mod pairing;
 #[cfg(feature = "server")]
 mod payload;
 #[cfg(feature = "server")]
+mod providers;
+#[cfg(feature = "server")]
 mod ratelimit;
 mod runtime;
 #[cfg(feature = "server")]

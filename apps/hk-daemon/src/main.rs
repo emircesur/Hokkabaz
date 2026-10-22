@@ -9,14 +9,11 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
-use hk_daemon::daemon::{
-    ADMIN_TOKEN_ENV, DEEPSEEK_ENV, DEEPSEEK_SECRET, Unconfigured, assemble, open,
-};
+use hk_daemon::daemon::{ADMIN_TOKEN_ENV, LEGACY_DEEPSEEK_SECRET, assemble, open};
 use hk_daemon::{FlowConfig, Opened};
-use hk_llm::Provider;
-use hk_llm::deepseek::DeepSeek;
+use hk_providers::{HubOptions, ProviderHub, ProviderInput};
 use hk_server::{Auth, LocalConfig, LocalRuntime, Pairing, Scope};
-use hk_store::SecretStore;
+use hk_store::{SecretStore, Store};
 
 #[derive(Debug, Parser)]
 #[command(name = "hokkabazd", version, about = "Hokkabaz headless instance")]
@@ -43,9 +40,10 @@ struct Cli {
     /// Host env vars workflows may read via `$env` (comma separated). Default: none.
     #[arg(long, env = "HOKKABAZ_ENV_ALLOWLIST", value_delimiter = ',')]
     env_allow: Vec<String>,
-    /// Model for sessions created without one.
-    #[arg(long, default_value = "deepseek-chat")]
-    model: String,
+    /// `provider/model` for sessions created without one. Default: the one chosen in the app
+    /// (instance settings), else `deepseek/deepseek-chat`.
+    #[arg(long, env = "HOKKABAZ_MODEL")]
+    model: Option<String>,
     /// Override the DeepSeek API endpoint (gateway, mock server).
     #[arg(long, env = "DEEPSEEK_BASE_URL")]
     base_url: Option<String>,
@@ -74,8 +72,31 @@ enum Cmd {
         #[arg(long, default_value_t = 300)]
         ttl: u64,
     },
+    /// Manage on-device models (`local/<id>` provider).
+    #[cfg(feature = "local-llm")]
+    Models {
+        #[command(subcommand)]
+        action: ModelsCmd,
+    },
     /// Exit 0 when the instance at --listen answers `/api/v1/health` (container healthcheck).
     Healthcheck,
+}
+
+#[cfg(feature = "local-llm")]
+#[derive(Debug, Subcommand)]
+enum ModelsCmd {
+    /// Catalog entries, installed state and whether they fit this machine.
+    List,
+    /// Download a catalog model (resumes a partial file).
+    Pull { id: String },
+    /// Register a GGUF file you already have.
+    Add {
+        path: PathBuf,
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// Delete an installed model.
+    Remove { id: String },
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -105,32 +126,70 @@ fn data_dir(explicit: Option<PathBuf>) -> Result<PathBuf> {
     Ok(PathBuf::from(home).join(".hokkabaz"))
 }
 
-fn provider(secrets: &dyn SecretStore, base_url: Option<&str>) -> Arc<dyn Provider> {
-    let key = std::env::var(DEEPSEEK_ENV)
-        .ok()
-        .map(|k| k.trim().to_owned())
-        .filter(|k| !k.is_empty())
-        .or_else(|| {
-            secrets
-                .get(DEEPSEEK_SECRET)
-                .ok()
-                .flatten()
-                .map(|s| s.expose().to_owned())
-        });
-    let Some(key) = key else {
-        tracing::warn!("no DeepSeek API key configured; turns will fail until one is set");
-        return Arc::new(Unconfigured);
-    };
-    match DeepSeek::new(key) {
-        Ok(p) => Arc::new(match base_url {
-            Some(u) => p.base_url(u),
-            None => p,
-        }),
-        Err(e) => {
-            tracing::error!(error = %e, "cannot build DeepSeek client");
-            Arc::new(Unconfigured)
-        }
+/// Providers come from the instance settings (managed from the app) plus the environment:
+/// `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `OPENROUTER_API_KEY`,
+/// ... and `OLLAMA_HOST` enable their provider with no further setup.
+async fn providers(
+    store: &Store,
+    secrets: &Arc<dyn SecretStore>,
+    data: &std::path::Path,
+    deepseek_base_url: Option<&str>,
+) -> Result<Arc<ProviderHub>> {
+    // Before multi-provider the DeepSeek key lived under the bare name `deepseek`.
+    let key = hk_providers::settings::key_name("deepseek");
+    if matches!(secrets.get(&key), Ok(None))
+        && let Ok(Some(old)) = secrets.get(LEGACY_DEEPSEEK_SECRET)
+    {
+        store
+            .put_secret(secrets.as_ref(), &key, old)
+            .await
+            .context("migrate DeepSeek key")?;
     }
+    let hub = ProviderHub::open(
+        store.clone(),
+        HubOptions {
+            secrets: secrets.clone(),
+            extras: local_providers(data),
+            catalog_path: data.join("models.json"),
+            offline: None,
+            env: true,
+        },
+    )
+    .await
+    .context("providers")?;
+    if let Some(url) = deepseek_base_url {
+        hub.save_provider(ProviderInput {
+            id: "deepseek".into(),
+            kind: "deepseek".into(),
+            base_url: Some(url.to_owned()),
+            enabled: true,
+            models: Vec::new(),
+        })
+        .await
+        .context("DeepSeek endpoint")?;
+    }
+    if hub.catalog_is_stale() {
+        let hub = hub.clone();
+        tokio::spawn(async move {
+            if let Err(e) = hub.refresh_catalog().await {
+                tracing::info!(error = %e, "model catalog refresh skipped");
+            }
+        });
+    }
+    Ok(hub)
+}
+
+#[cfg(not(feature = "local-llm"))]
+fn local_providers(_data: &std::path::Path) -> Vec<Arc<dyn hk_llm::Provider>> {
+    Vec::new()
+}
+
+/// On-device GGUF models served by this instance (`<data>/models`), provider id `local`.
+#[cfg(feature = "local-llm")]
+fn local_providers(data: &std::path::Path) -> Vec<Arc<dyn hk_llm::Provider>> {
+    vec![Arc::new(hk_local::engine::LlamaProvider::new(
+        hk_local::ModelStore::new(data.join("models")),
+    ))]
 }
 
 fn admin_token(file: Option<&PathBuf>) -> Result<Option<String>> {
@@ -216,6 +275,60 @@ fn print_pairing(auth: &Auth, public_url: &str, scope: Scope, ttl: Duration) -> 
     Ok(())
 }
 
+#[cfg(feature = "local-llm")]
+#[allow(clippy::print_stdout)]
+async fn models_cmd(data: &std::path::Path, action: ModelsCmd) -> Result<()> {
+    use hk_local::{ModelStore, catalog};
+    let store = ModelStore::new(data.join("models"));
+    match action {
+        ModelsCmd::List => {
+            let dev = catalog::Device::probe();
+            let have = store.installed();
+            for e in catalog::builtin() {
+                println!(
+                    "{:<28} {:>5.1}B {:>6} MB  {:?}  {}",
+                    e.id,
+                    e.params_b,
+                    e.size_bytes / 1_000_000,
+                    catalog::fit(e.size_bytes, &dev),
+                    if have.iter().any(|m| m.id == e.id) {
+                        "installed"
+                    } else {
+                        ""
+                    },
+                );
+            }
+            for m in have.iter().filter(|m| m.custom) {
+                println!("{:<28} custom  {}", m.id, m.path.display());
+            }
+        }
+        ModelsCmd::Pull { id } => {
+            let entry = catalog::builtin()
+                .into_iter()
+                .find(|e| e.id == id)
+                .with_context(|| format!("no catalog model `{id}` (see `models list`)"))?;
+            let done = store
+                .download(
+                    &entry,
+                    |p| tracing::info!(done = p.done, total = p.total, "downloading"),
+                    hk_llm::CancellationToken::new(),
+                )
+                .await
+                .context("download")?;
+            println!("installed: local/{} ({})", done.id, done.path.display());
+        }
+        ModelsCmd::Add { path, name } => {
+            let m = store.add_custom(&path, name.as_deref()).context("add")?;
+            println!("registered: local/{}", m.id);
+        }
+        ModelsCmd::Remove { id } => {
+            store.remove(&id).context("remove")?;
+            println!("removed: {id}");
+        }
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -241,6 +354,10 @@ async fn main() -> Result<()> {
     let public_url = cli
         .public_url
         .unwrap_or_else(|| format!("http://{}", cli.listen));
+    #[cfg(feature = "local-llm")]
+    if let Some(Cmd::Models { action }) = cli.cmd {
+        return models_cmd(&data, action).await;
+    }
     let opened = open(
         &data,
         admin_token(cli.admin_token_file.as_ref())?.as_deref(),
@@ -258,6 +375,8 @@ async fn main() -> Result<()> {
             );
         }
         Some(Cmd::Healthcheck) => unreachable!("handled above"),
+        #[cfg(feature = "local-llm")]
+        Some(Cmd::Models { .. }) => unreachable!("handled above"),
         Some(Cmd::Serve) | None => {}
     }
 
@@ -266,12 +385,18 @@ async fn main() -> Result<()> {
         secrets,
         auth,
     } = opened;
-    let model_provider = provider(secrets.as_ref(), cli.base_url.as_deref());
+    let hub = providers(&store, &secrets, &data, cli.base_url.as_deref()).await?;
+    let model_provider = hub.provider();
+    let default_model = match cli.model.or(hub.default_model().await) {
+        Some(m) if m.contains('/') => m,
+        Some(m) => format!("deepseek/{m}"),
+        None => "deepseek/deepseek-chat".to_owned(),
+    };
     let runtime = LocalRuntime::new(LocalConfig {
         provider: model_provider.clone(),
         sessions_dir: data.join("sessions"),
         spill_dir: data.join("spill"),
-        default_model: cli.model,
+        default_model,
         default_cwd: std::env::current_dir().ok(),
         max_steps: cli.max_steps,
     })
@@ -288,7 +413,6 @@ async fn main() -> Result<()> {
     let studio =
         hk_daemon::studio_api::build(&data, store.clone(), secrets.clone(), model_provider).await?;
     let runtime = Arc::new(runtime);
-    #[allow(unused_mut)]
     let mut a = assemble(
         Opened {
             store,
@@ -308,6 +432,7 @@ async fn main() -> Result<()> {
             .state
             .with_studio(Arc::new(hk_daemon::studio_api::Api(studio)));
     }
+    a.state = a.state.with_providers(hub);
 
     let listener = tokio::net::TcpListener::bind(cli.listen)
         .await

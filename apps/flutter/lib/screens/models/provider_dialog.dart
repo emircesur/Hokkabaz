@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/breakpoints.dart';
 import '../../ffi/settings_providers.dart';
+import '../../src/rust/api/settings.dart' as rust;
 import '../../src/rust/dto.dart';
 import '../../theme/tokens.dart';
 
@@ -44,6 +47,24 @@ class _ProviderDialogState extends ConsumerState<_ProviderDialog> {
   late ProviderKindDto _kind;
   bool _saving = false;
   String? _error;
+  final List<Map<String, dynamic>> _presets = _loadPresets();
+
+  static List<Map<String, dynamic>> _loadPresets() {
+    try {
+      return (jsonDecode(rust.providerPresets()) as List)
+          .cast<Map<String, dynamic>>();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  void _usePreset(Map<String, dynamic> p) => setState(() {
+    _id.text = p['id'] as String;
+    _url.text = p['base_url'] as String;
+    _kind = (p['kind'] as String) == 'ollama'
+        ? ProviderKindDto.ollama
+        : ProviderKindDto.openaiCompat;
+  });
 
   @override
   void initState() {
@@ -112,6 +133,24 @@ class _ProviderDialogState extends ConsumerState<_ProviderDialog> {
     final form = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (!editing && _presets.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: HkTokens.s3),
+            child: Wrap(
+              spacing: HkTokens.s2,
+              runSpacing: HkTokens.s1,
+              children: [
+                for (final p in _presets)
+                  ActionChip(
+                    label: Text(p['label'] as String),
+                    avatar: (p['local'] as bool)
+                        ? const Icon(Icons.computer, size: 16)
+                        : null,
+                    onPressed: () => _usePreset(p),
+                  ),
+              ],
+            ),
+          ),
         if (!editing)
           DropdownButtonFormField<ProviderKindDto>(
             initialValue: _kind,
