@@ -56,3 +56,31 @@ Project files: `<data>/studio/<project-id>/{project.json, transcript.json, proxi
 | Long videos (2h+) cost | chunked transcription, cached results, proxy files, cheap-model first pass then rerank |
 | Platform publishing APIs need app review | Export package + manual copy always works; connectors are optional |
 | Virality score is a heuristic | Label as estimate; show reasons; allow custom rubric prompt |
+
+
+## Status and how to use it
+
+Implemented (see PLAN.md Phase 8 for per-task notes):
+
+| Area | State |
+|---|---|
+| Import, transcript (word-level), filler / pause detection | working; STT = OpenAI-compatible HTTP (OpenAI, Groq, local server) or local whisper.cpp (feature `whisper`, untested without a model) |
+| Highlights + virality score | working with any `hk-llm` provider; scored by a fixed 7-criterion rubric, an estimate not a prediction |
+| Text-based editing | click / select / delete words; fillers and pauses switches; undo / redo; preview plays the edit instantly (no render) |
+| Captions | karaoke / word-by-word / line presets, colours, size, position; burned in with ASS |
+| Smart reframing | 9:16 or 1:1 crop path following a face (SeetaFace, model downloaded once) or moving subject; camera dead zone + smoothing |
+| B-roll | LLM picks moments; Pexels, Pixabay or your own folder; still images preview live, video B-roll is composited at render |
+| Social copy | per-platform titles / descriptions / tags within limits |
+| Publish | YouTube Shorts upload (your OAuth refresh token, private by default); other platforms: export package |
+| Agent | `studio_*` tools (projects, transcribe, transcript, highlights, edit, reframe, b-roll, social, render, export, publish); edits appear live in the editor, tagged "Agent edited" |
+| Concat | `hk-concat` bridge + `concat_*` tools (docs/CONCAT.md) |
+
+Setup (Studio settings in the app):
+
+1. Install **ffmpeg** (6+) and make sure `ffmpeg` / `ffprobe` are on `PATH`, or set `HK_FFMPEG` / `HK_FFPROBE`.
+2. Models tab: add a provider, then pick the Studio model (`provider/model`) in Studio settings.
+3. Speech to text: base URL + model (+ key) of any OpenAI-compatible transcription endpoint.
+4. Optional: Pexels / Pixabay keys or a folder of your own footage; YouTube OAuth client + refresh token; "Download face model".
+5. Linux desktop playback uses libmpv (`libmpv-dev` / `mpv-libs`); Windows bundles it; Android uses the system player.
+
+Known gaps: Studio runs only where ffmpeg runs (desktop, or a daemon) - on Android the screen works but import / render fail until a remote Studio host is connected (not built yet); no speaker diarization (largest / nearest face is followed); TikTok / Instagram direct publishing; n8n nodes for Studio.
