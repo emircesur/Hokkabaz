@@ -77,6 +77,36 @@ impl LiveStudio {
         Ok(out)
     }
 
+    /// Change the project outside the edit-op vocabulary (pipeline results). Recorded for undo,
+    /// persisted, announced as `ClipsChanged`.
+    pub async fn mutate<R>(&self, f: impl FnOnce(&mut StudioProject) -> R) -> Result<R> {
+        let mut g = self.inner.lock().await;
+        {
+            let Inner { project, history, .. } = &mut *g;
+            history.record(project);
+        }
+        let out = f(&mut g.project);
+        g.rev += 1;
+        let rev = g.rev;
+        self.store.save(&g.project).await?;
+        drop(g);
+        self.emit(StudioEvent::ClipsChanged { rev });
+        Ok(out)
+    }
+
+    /// Store a new transcript (separate file) and announce it.
+    pub async fn set_transcript(&self, t: hk_stt::Transcript) -> Result<()> {
+        let mut g = self.inner.lock().await;
+        g.project.transcript = Some(t);
+        g.rev += 1;
+        let rev = g.rev;
+        self.store.save_transcript(&g.project).await?;
+        self.store.save(&g.project).await?;
+        drop(g);
+        self.emit(StudioEvent::Transcribed { rev });
+        Ok(())
+    }
+
     /// Apply an edit. `by` names the actor ("ui", "agent").
     pub async fn edit(&self, op: EditOp, by: &str) -> Result<u64> {
         let mut g = self.inner.lock().await;
