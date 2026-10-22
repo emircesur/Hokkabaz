@@ -45,12 +45,10 @@ fn stitch_removes_jitter_duplicate_at_cut() {
     // and just after it in chunk 1 (engine jitter) must appear once.
     let mut a = chunk(0.0, 10.0);
     let mut b = chunk(8.0, 18.0);
-    a.transcript.words.retain(|w| w.start + 0.0 < 8.5);
-    b.transcript.words.retain(|w| w.start > 1.2);
-    a.transcript.words.push(Word::new("x", 8.55, 8.95)); // mid 8.75 < 9
-    b.transcript.words.insert(0, Word::new("x", 0.7, 1.1)); // abs 8.7..9.1, mid 8.9... shift to after cut
-    b.transcript.words[0].start = 0.9;
-    b.transcript.words[0].end = 1.3; // abs 8.9..9.3, mid 9.1 >= 9
+    a.transcript.words.retain(|w| w.end < 8.5);
+    b.transcript.words.retain(|w| w.start > 1.4); // abs > 9.4
+    a.transcript.words.push(Word::new("x", 8.7, 9.0)); // mid 8.85 < cut
+    b.transcript.words.insert(0, Word::new("x", 0.9, 1.3)); // abs 8.9..9.3, mid 9.1 >= cut
     let t = stitch(vec![a, b], 18.0);
     assert_eq!(t.words.iter().filter(|w| w.text == "x").count(), 1);
 }
@@ -66,6 +64,7 @@ fn stitch_segments_by_center_and_relinks() {
     assert!(t.segments.windows(2).all(|p| p[0].start < p[1].start));
     let covered: usize = t.segments.iter().map(|s| s.word_range.len()).sum();
     assert!(covered > 0 && covered <= t.words.len());
+    assert!(t.segments.windows(2).all(|p| p[0].word_range.end <= p[1].word_range.start));
 }
 
 struct FakeSplitter {

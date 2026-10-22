@@ -61,9 +61,10 @@ impl ConcatError {
         Self::Decode { tool: tool.to_owned(), reason: reason.to_string() }
     }
 
-    /// The process is gone or wedged; a caller holding a cached client should reconnect.
+    /// The process is gone; a caller holding a cached client should reconnect. Deliberately not
+    /// `Timeout`/`Protocol`: a reconnect drops the editor's unsaved in-memory project edits.
     pub fn is_connection_lost(&self) -> bool {
-        matches!(self, Self::Closed { .. } | Self::Timeout(_) | Self::Protocol(_))
+        matches!(self, Self::Closed { .. })
     }
 
     /// Maps the text of a Concat tool error (`"<sentence> (code: <code>)"`) to a typed error.

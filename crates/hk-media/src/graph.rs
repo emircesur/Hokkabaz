@@ -258,7 +258,10 @@ impl CropPath {
     /// ffmpeg expression of one coordinate over `tvar`, nested `if(lt(t,..))` of per-interval lerps.
     fn expr(&self, pick: fn(&CropKey) -> f64, tvar: &str) -> String {
         let ks = &self.keys;
-        if ks.windows(2).all(|w| (pick(&w[0]) - pick(&w[1])).abs() < 1e-9) {
+        if ks
+            .windows(2)
+            .all(|w| (pick(&w[0]) - pick(&w[1])).abs() < 1e-9)
+        {
             return num(pick(&ks[0]));
         }
         let mut e = num(pick(&ks[ks.len() - 1]));
@@ -324,7 +327,7 @@ impl RenderSpec {
             }
         }
         if let Some(f) = self.fps {
-            if !(f > 0.0) {
+            if !f.is_finite() || f <= 0.0 {
                 return Err(bad("fps must be > 0"));
             }
         }

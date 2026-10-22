@@ -34,7 +34,7 @@ fn word_level_fixture() {
     assert!(t.words[1].flags.gap_after && t.words[2].flags.gap_before);
     let kept = t.kept_ranges(&t.filler_indices(), 0.0);
     assert_eq!(kept.len(), 2);
-    assert!((kept[0].end - 2.3).abs() < 0.2); // run before "um" ends where um starts (midpoint rule off at 0 pad)
+    assert!((kept[0].end - t.words[3].end).abs() < 1e-9); // ends with "is", silence before "um" is cut
     assert!((kept[1].start - 2.5).abs() < 1e-9);
 }
 

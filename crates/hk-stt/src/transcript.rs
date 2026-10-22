@@ -144,7 +144,7 @@ pub(crate) fn normalize_token(s: &str) -> String {
 }
 
 fn ends_sentence(text: &str) -> bool {
-    let t = text.trim_end_matches(|c: char| matches!(c, '"' | '\'' | ')' | ']' | '”' | '’' | '»'));
+    let t = text.trim_end_matches(['"', '\'', ')', ']', '”', '’', '»']);
     t.ends_with(['.', '!', '?', '…', '。', '！', '？', '।'])
 }
 
@@ -385,6 +385,7 @@ impl Transcript {
         }
         let horizon = self.words.last().map_or(0.0, |w| w.end).max(self.duration);
         let mut out: Vec<Range<f64>> = Vec::new();
+        let mut prev_we = f64::NEG_INFINITY;
         for (k, &(s, e)) in runs.iter().enumerate() {
             let ws = self.words[s].start;
             let we = self.words[e].end;
@@ -402,10 +403,13 @@ impl Transcript {
             };
             let start = (ws - pad).max(lo).min(ws).max(0.0);
             let end = (we + pad).min(hi).max(we);
+            // Merge only when nothing audible was removed between the runs
+            // (zero-length deleted words); padding alone must not undo a cut.
             match out.last_mut() {
-                Some(last) if start <= last.end + 1e-9 => last.end = last.end.max(end),
+                Some(last) if ws - prev_we <= 1e-9 => last.end = last.end.max(end),
                 _ => out.push(start..end),
             }
+            prev_we = we;
         }
         out
     }

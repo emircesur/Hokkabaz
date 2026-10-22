@@ -85,7 +85,11 @@ fn wav_args(src: &Path, dst: &Path, spec: AudioSpec, window: Option<Range>) -> V
 /// Fixed-length windows with `overlap` seconds shared between neighbours.
 /// Overlap lets the caller de-duplicate words cut at chunk borders.
 pub fn plan_chunks(total: f64, chunk_len: f64, overlap: f64) -> Result<Vec<Range>> {
-    if !(chunk_len > 0.0) || !(0.0..chunk_len).contains(&overlap) || !(total >= 0.0) {
+    if !(chunk_len.is_finite() && total.is_finite())
+        || chunk_len <= 0.0
+        || total < 0.0
+        || !(0.0..chunk_len).contains(&overlap)
+    {
         return Err(MediaError::InvalidSpec(format!(
             "chunking needs chunk_len > overlap >= 0 and total >= 0 (got {chunk_len}, {overlap}, {total})"
         )));

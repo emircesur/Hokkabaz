@@ -108,7 +108,7 @@ impl ConcatClient {
         let backend: Arc<dyn ConcatBackend> = match cfg.backend {
             crate::BackendKind::Process => Arc::new(crate::ProcessBackend::spawn(cfg).await?),
             #[cfg(feature = "engine")]
-            crate::BackendKind::Engine => Arc::new(crate::engine::EngineBackend::start()?),
+            crate::BackendKind::Engine => Arc::new(crate::engine::EngineBackend::start_with_roots(cfg.roots.clone())?),
             #[cfg(not(feature = "engine"))]
             crate::BackendKind::Engine => {
                 return Err(ConcatError::Unsupported("built without the `engine` cargo feature of hk-concat"));

@@ -116,9 +116,15 @@ pub fn stitch(parts: Vec<ChunkResult>, total_duration: f64) -> Transcript {
             last_chunk = k;
             out.words.push(w);
         }
-        for s in t.segments {
+        for mut s in t.segments {
             let m = (s.start + s.end) / 2.0;
             if m >= lo && m < hi {
+                // Segments straddling a cut overlap their neighbour; trim so
+                // each word links to exactly one segment.
+                if let Some(prev) = out.segments.last() {
+                    s.start = s.start.max(prev.end);
+                    s.end = s.end.max(s.start);
+                }
                 out.segments.push(Segment { word_range: 0..0, ..s });
             }
         }
@@ -127,6 +133,11 @@ pub fn stitch(parts: Vec<ChunkResult>, total_duration: f64) -> Transcript {
         out.duration = out.duration.max(w.end);
     }
     out.link_segments();
+    // Engine text may repeat words cut away above; words are the source of truth.
+    out.segments.retain(|s| !s.word_range.is_empty());
+    for s in &mut out.segments {
+        s.text = out.words[s.word_range.clone()].iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ");
+    }
     out
 }
 
