@@ -9,6 +9,7 @@ import 'api/flow_runs.dart';
 import 'api/flows.dart';
 import 'api/instances.dart';
 import 'api/settings.dart';
+import 'api/studio.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -74,7 +75,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -101633661;
+  int get rustContentHash => -508319077;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -199,6 +200,104 @@ abstract class RustLibApi extends BaseApi {
     required String workflowJson,
     required bool active,
   });
+
+  Future<String> crateApiStudioStudioAnalyze({
+    required String id,
+    required int count,
+    required double minSecs,
+    required double maxSecs,
+    String? brief,
+    String? template,
+  });
+
+  Future<int> crateApiStudioStudioBroll({
+    required String id,
+    required String clip,
+    required int max,
+  });
+
+  Future<bool> crateApiStudioStudioCancelRender({required String job});
+
+  Future<String> crateApiStudioStudioCheckTools();
+
+  Future<void> crateApiStudioStudioDelete({required String id});
+
+  Future<BigInt> crateApiStudioStudioEdit({
+    required String id,
+    required String opsJson,
+    required String by,
+  });
+
+  Stream<String> crateApiStudioStudioEvents({required String id});
+
+  Future<String> crateApiStudioStudioExport({
+    required String id,
+    required String clip,
+    required String dir,
+  });
+
+  Future<String> crateApiStudioStudioGetSettings();
+
+  Future<String> crateApiStudioStudioHistory({required String id});
+
+  Future<String> crateApiStudioStudioImport({
+    required String path,
+    String? name,
+  });
+
+  Future<bool> crateApiStudioStudioPrepareFaceModel();
+
+  Future<String> crateApiStudioStudioPreview({
+    required String id,
+    required String clip,
+  });
+
+  Future<String> crateApiStudioStudioProject({required String id});
+
+  Future<String> crateApiStudioStudioProjects();
+
+  Future<String> crateApiStudioStudioProxy({required String id});
+
+  Future<bool> crateApiStudioStudioRedo({required String id});
+
+  Future<int> crateApiStudioStudioReframe({
+    required String id,
+    required String clip,
+    required bool square,
+  });
+
+  Future<String> crateApiStudioStudioRender({
+    required String id,
+    required String clip,
+  });
+
+  Future<String?> crateApiStudioStudioRenderPath({
+    required String id,
+    required String clip,
+  });
+
+  Future<void> crateApiStudioStudioSaveSettings({required String settingsJson});
+
+  Future<void> crateApiStudioStudioSetKey({required String which, String? key});
+
+  Future<void> crateApiStudioStudioSocial({
+    required String id,
+    required String clip,
+    required String platformsJson,
+    String? tone,
+    String? language,
+  });
+
+  Future<String> crateApiStudioStudioTemplates();
+
+  Future<String> crateApiStudioStudioThumbnail({
+    required String id,
+    required double at,
+  });
+
+  Future<void> crateApiStudioStudioTranscribe({required String id});
+
+  Future<bool> crateApiStudioStudioUndo({required String id});
 
   Future<TurnAcceptedDto> crateApiChatSubmitTurn({
     required String sessionId,
@@ -1201,6 +1300,864 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String> crateApiStudioStudioAnalyze({
+    required String id,
+    required int count,
+    required double minSecs,
+    required double maxSecs,
+    String? brief,
+    String? template,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          sse_encode_u_32(count, serializer);
+          sse_encode_f_64(minSecs, serializer);
+          sse_encode_f_64(maxSecs, serializer);
+          sse_encode_opt_String(brief, serializer);
+          sse_encode_opt_String(template, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 32,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioAnalyzeConstMeta,
+        argValues: [id, count, minSecs, maxSecs, brief, template],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioAnalyzeConstMeta =>
+      const TaskConstMeta(
+        debugName: "studio_analyze",
+        argNames: ["id", "count", "minSecs", "maxSecs", "brief", "template"],
+      );
+
+  @override
+  Future<int> crateApiStudioStudioBroll({
+    required String id,
+    required String clip,
+    required int max,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          sse_encode_String(clip, serializer);
+          sse_encode_u_32(max, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 33,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_32,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioBrollConstMeta,
+        argValues: [id, clip, max],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioBrollConstMeta => const TaskConstMeta(
+    debugName: "studio_broll",
+    argNames: ["id", "clip", "max"],
+  );
+
+  @override
+  Future<bool> crateApiStudioStudioCancelRender({required String job}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(job, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 34,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioCancelRenderConstMeta,
+        argValues: [job],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioCancelRenderConstMeta =>
+      const TaskConstMeta(debugName: "studio_cancel_render", argNames: ["job"]);
+
+  @override
+  Future<String> crateApiStudioStudioCheckTools() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 35,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioCheckToolsConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioCheckToolsConstMeta =>
+      const TaskConstMeta(debugName: "studio_check_tools", argNames: []);
+
+  @override
+  Future<void> crateApiStudioStudioDelete({required String id}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 36,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioDeleteConstMeta,
+        argValues: [id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioDeleteConstMeta =>
+      const TaskConstMeta(debugName: "studio_delete", argNames: ["id"]);
+
+  @override
+  Future<BigInt> crateApiStudioStudioEdit({
+    required String id,
+    required String opsJson,
+    required String by,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          sse_encode_String(opsJson, serializer);
+          sse_encode_String(by, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 37,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_64,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioEditConstMeta,
+        argValues: [id, opsJson, by],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioEditConstMeta => const TaskConstMeta(
+    debugName: "studio_edit",
+    argNames: ["id", "opsJson", "by"],
+  );
+
+  @override
+  Stream<String> crateApiStudioStudioEvents({required String id}) {
+    final sink = RustStreamSink<String>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_String(id, serializer);
+            sse_encode_StreamSink_String_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 38,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_hk_error,
+          ),
+          constMeta: kCrateApiStudioStudioEventsConstMeta,
+          argValues: [id, sink],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioEventsConstMeta =>
+      const TaskConstMeta(debugName: "studio_events", argNames: ["id", "sink"]);
+
+  @override
+  Future<String> crateApiStudioStudioExport({
+    required String id,
+    required String clip,
+    required String dir,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          sse_encode_String(clip, serializer);
+          sse_encode_String(dir, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 39,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioExportConstMeta,
+        argValues: [id, clip, dir],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioExportConstMeta => const TaskConstMeta(
+    debugName: "studio_export",
+    argNames: ["id", "clip", "dir"],
+  );
+
+  @override
+  Future<String> crateApiStudioStudioGetSettings() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 40,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioGetSettingsConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioGetSettingsConstMeta =>
+      const TaskConstMeta(debugName: "studio_get_settings", argNames: []);
+
+  @override
+  Future<String> crateApiStudioStudioHistory({required String id}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 41,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioHistoryConstMeta,
+        argValues: [id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioHistoryConstMeta =>
+      const TaskConstMeta(debugName: "studio_history", argNames: ["id"]);
+
+  @override
+  Future<String> crateApiStudioStudioImport({
+    required String path,
+    String? name,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(path, serializer);
+          sse_encode_opt_String(name, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 42,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioImportConstMeta,
+        argValues: [path, name],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioImportConstMeta => const TaskConstMeta(
+    debugName: "studio_import",
+    argNames: ["path", "name"],
+  );
+
+  @override
+  Future<bool> crateApiStudioStudioPrepareFaceModel() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 43,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioPrepareFaceModelConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioPrepareFaceModelConstMeta =>
+      const TaskConstMeta(debugName: "studio_prepare_face_model", argNames: []);
+
+  @override
+  Future<String> crateApiStudioStudioPreview({
+    required String id,
+    required String clip,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          sse_encode_String(clip, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 44,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioPreviewConstMeta,
+        argValues: [id, clip],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioPreviewConstMeta =>
+      const TaskConstMeta(
+        debugName: "studio_preview",
+        argNames: ["id", "clip"],
+      );
+
+  @override
+  Future<String> crateApiStudioStudioProject({required String id}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 45,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioProjectConstMeta,
+        argValues: [id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioProjectConstMeta =>
+      const TaskConstMeta(debugName: "studio_project", argNames: ["id"]);
+
+  @override
+  Future<String> crateApiStudioStudioProjects() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 46,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioProjectsConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioProjectsConstMeta =>
+      const TaskConstMeta(debugName: "studio_projects", argNames: []);
+
+  @override
+  Future<String> crateApiStudioStudioProxy({required String id}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 47,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioProxyConstMeta,
+        argValues: [id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioProxyConstMeta =>
+      const TaskConstMeta(debugName: "studio_proxy", argNames: ["id"]);
+
+  @override
+  Future<bool> crateApiStudioStudioRedo({required String id}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 48,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioRedoConstMeta,
+        argValues: [id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioRedoConstMeta =>
+      const TaskConstMeta(debugName: "studio_redo", argNames: ["id"]);
+
+  @override
+  Future<int> crateApiStudioStudioReframe({
+    required String id,
+    required String clip,
+    required bool square,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          sse_encode_String(clip, serializer);
+          sse_encode_bool(square, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 49,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_32,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioReframeConstMeta,
+        argValues: [id, clip, square],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioReframeConstMeta =>
+      const TaskConstMeta(
+        debugName: "studio_reframe",
+        argNames: ["id", "clip", "square"],
+      );
+
+  @override
+  Future<String> crateApiStudioStudioRender({
+    required String id,
+    required String clip,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          sse_encode_String(clip, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 50,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioRenderConstMeta,
+        argValues: [id, clip],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioRenderConstMeta =>
+      const TaskConstMeta(debugName: "studio_render", argNames: ["id", "clip"]);
+
+  @override
+  Future<String?> crateApiStudioStudioRenderPath({
+    required String id,
+    required String clip,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          sse_encode_String(clip, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 51,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioRenderPathConstMeta,
+        argValues: [id, clip],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioRenderPathConstMeta =>
+      const TaskConstMeta(
+        debugName: "studio_render_path",
+        argNames: ["id", "clip"],
+      );
+
+  @override
+  Future<void> crateApiStudioStudioSaveSettings({
+    required String settingsJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(settingsJson, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 52,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioSaveSettingsConstMeta,
+        argValues: [settingsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioSaveSettingsConstMeta =>
+      const TaskConstMeta(
+        debugName: "studio_save_settings",
+        argNames: ["settingsJson"],
+      );
+
+  @override
+  Future<void> crateApiStudioStudioSetKey({
+    required String which,
+    String? key,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(which, serializer);
+          sse_encode_opt_String(key, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 53,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioSetKeyConstMeta,
+        argValues: [which, key],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioSetKeyConstMeta => const TaskConstMeta(
+    debugName: "studio_set_key",
+    argNames: ["which", "key"],
+  );
+
+  @override
+  Future<void> crateApiStudioStudioSocial({
+    required String id,
+    required String clip,
+    required String platformsJson,
+    String? tone,
+    String? language,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          sse_encode_String(clip, serializer);
+          sse_encode_String(platformsJson, serializer);
+          sse_encode_opt_String(tone, serializer);
+          sse_encode_opt_String(language, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 54,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioSocialConstMeta,
+        argValues: [id, clip, platformsJson, tone, language],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioSocialConstMeta => const TaskConstMeta(
+    debugName: "studio_social",
+    argNames: ["id", "clip", "platformsJson", "tone", "language"],
+  );
+
+  @override
+  Future<String> crateApiStudioStudioTemplates() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 55,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioTemplatesConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioTemplatesConstMeta =>
+      const TaskConstMeta(debugName: "studio_templates", argNames: []);
+
+  @override
+  Future<String> crateApiStudioStudioThumbnail({
+    required String id,
+    required double at,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          sse_encode_f_64(at, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 56,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioThumbnailConstMeta,
+        argValues: [id, at],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioThumbnailConstMeta =>
+      const TaskConstMeta(
+        debugName: "studio_thumbnail",
+        argNames: ["id", "at"],
+      );
+
+  @override
+  Future<void> crateApiStudioStudioTranscribe({required String id}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 57,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioTranscribeConstMeta,
+        argValues: [id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioTranscribeConstMeta =>
+      const TaskConstMeta(debugName: "studio_transcribe", argNames: ["id"]);
+
+  @override
+  Future<bool> crateApiStudioStudioUndo({required String id}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 58,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiStudioStudioUndoConstMeta,
+        argValues: [id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStudioStudioUndoConstMeta =>
+      const TaskConstMeta(debugName: "studio_undo", argNames: ["id"]);
+
+  @override
   Future<TurnAcceptedDto> crateApiChatSubmitTurn({
     required String sessionId,
     required String prompt,
@@ -1218,7 +2175,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 59,
             port: port_,
           );
         },
@@ -1245,7 +2202,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(json, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 60)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
@@ -1265,6 +2222,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   AnyhowException dco_decode_AnyhowException(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AnyhowException(raw as String);
+  }
+
+  @protected
+  RustStreamSink<String> dco_decode_StreamSink_String_Sse(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
   }
 
   @protected
@@ -1903,6 +2866,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt dco_decode_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeU64(raw);
+  }
+
+  @protected
   int dco_decode_u_8(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
@@ -1934,6 +2903,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_String(deserializer);
     return AnyhowException(inner);
+  }
+
+  @protected
+  RustStreamSink<String> sse_decode_StreamSink_String_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
   }
 
   @protected
@@ -2779,6 +3756,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt sse_decode_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getBigUint64();
+  }
+
+  @protected
   int sse_decode_u_8(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8();
@@ -2813,6 +3796,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.message, serializer);
+  }
+
+  @protected
+  void sse_encode_StreamSink_String_Sse(
+    RustStreamSink<String> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
   }
 
   @protected
@@ -3553,6 +4553,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_u_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint32(self);
+  }
+
+  @protected
+  void sse_encode_u_64(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putBigUint64(self);
   }
 
   @protected

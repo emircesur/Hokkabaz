@@ -149,6 +149,23 @@ impl LocalCore {
         })?;
 
         let flows = LocalFlows::new(&data_dir)?;
+
+        // Video Studio: shared service + the agent's studio_* tools.
+        let studio_settings: crate::studio::SharedSettings =
+            Arc::new(RwLock::new(crate::studio::StudioSettings::load(store.get_setting(crate::studio::SETTINGS_KEY).await?.as_deref())));
+        let studio_svc = Arc::new(hk_studio::StudioService::new(
+            data_dir.join("studio"),
+            hk_media::Tools::from_env(),
+            Arc::new(crate::studio::FfiBackends {
+                provider: reload.clone(),
+                secrets: secrets.clone(),
+                settings: studio_settings.clone(),
+                data_dir: data_dir.clone(),
+            }),
+        ));
+        runtime.add_tools(hk_studio::studio_tools(studio_svc.clone()));
+        crate::studio::install(crate::studio::Ctx { svc: studio_svc, settings: studio_settings, store: store.clone(), secrets: secrets.clone() });
+
         let core = Arc::new(Self {
             i: Arc::new(Inner {
                 profile,
@@ -528,6 +545,7 @@ impl CoreHandle for LocalCore {
 
     async fn shutdown(&self) {
         self.i.shutdown.cancel();
+        crate::studio::uninstall();
         // Stop running turns so nothing keeps calling providers after the app tore the core down.
         if let Ok(rows) = self.i.runtime.list_sessions(u32::MAX, 0).await {
             for s in rows.into_iter().filter(|s| s.running) {
