@@ -1,0 +1,37 @@
+{
+  "parts": [
+    {
+      "name": "hokkabaz-windows-x64.zip.part000",
+      "bytes": 50331648,
+      "sha256": "b0cb47c6b9cb3e0bc0a7ebbc3e18c8d3dbd4e90cadc8ddeaabc095de32c8e540"
+    },
+    {
+      "name": "hokkabaz-windows-x64.zip.part001",
+      "bytes": 50331648,
+      "sha256": "6057b79d7c5522c1ef8611d39fb8267fb4ff55a61dc3447b72dc26c3cea35758"
+    },
+    {
+      "name": "hokkabaz-windows-x64.zip.part002",
+      "bytes": 50331648,
+      "sha256": "97dbb87efa1d55d10275d69a622324640537c8e45e3dc5d7f7baade99c9a57d8"
+    },
+    {
+      "name": "hokkabaz-windows-x64.zip.part003",
+      "bytes": 50331648,
+      "sha256": "280b19a19902d9293d081b04ee1dc7fb8541a68aba836fbb85eea0f94fd21b03"
+    },
+    {
+      "name": "hokkabaz-windows-x64.zip.part004",
+      "bytes": 50331648,
+      "sha256": "e648af98bf901e685d8a867edbfd6cb0b191579f9937b42bf24954b293ff518a"
+    },
+    {
+      "name": "hokkabaz-windows-x64.zip.part005",
+      "bytes": 14079471,
+      "sha256": "07ba13e925058b29083f80b245c1f86af23590558c7865b7d8938fc9d2e81446"
+    }
+  ],
+  "source_sha": "f2483add7b11398473790ec6ebe689eb960f21a1",
+  "run_url": "https://github.com/emircesur/Hokkabaz/actions/runs/39714742731",
+  "status": "success"
+}
