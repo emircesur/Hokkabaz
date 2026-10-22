@@ -54,8 +54,16 @@ tracing = "0.1"
 webpki-roots = "1"
 
 # Wasmtime has no JIT on Android: plugins load on desktop builds only.
-[target.'cfg(not(target_os = "android"))'.dependencies]
+[target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
+hk-local = { version = "0.0.0", path = "../hk-local", features = ["llama-openmp"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
 hk-local = { version = "0.0.0", path = "../hk-local", features = ["llama"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+hk-local = { version = "0.0.0", path = "../hk-local", features = ["llama-android"] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
 hk-plugin = { version = "0.0.0", path = "../hk-plugin", features = ["wasm-plugins"] }
 
 [dev-dependencies]

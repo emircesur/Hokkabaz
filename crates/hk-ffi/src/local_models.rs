@@ -101,7 +101,7 @@ pub fn provider(c: &Ctx) -> Option<Arc<dyn Provider>> {
     }
 }
 
-pub const ENGINE: bool = cfg!(not(target_os = "android"));
+pub const ENGINE: bool = cfg!(not(target_os = "ios"));
 
 fn fit_str(f: catalog::Fit) -> &'static str {
     match f {

@@ -55,7 +55,7 @@ jobs:
       - run: |
           for t in aarch64-linux-android x86_64-linux-android; do
             tree=$(cargo tree -p hk-ffi --target "$t" -e normal --prefix none)
-            if echo "$tree" | grep -E '^(landlock|hk-acp|hk-sandbox|hk-mcp|hk-plugin|wasmtime|portable-pty|axum|rmcp) '; then
+            if echo "$tree" | grep -E '^(landlock|hk-acp|hk-sandbox|wasmtime|wasmtime-wasi|portable-pty|axum) '; then
               echo "::error::desktop-only dep leaked into $t"; exit 1
             fi
           done

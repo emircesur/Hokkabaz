@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,7 +73,7 @@ class _ProjectsView extends ConsumerWidget {
                 margin: const EdgeInsets.only(top: HkTokens.s3),
                 padding: const EdgeInsets.all(HkTokens.s3),
                 decoration: BoxDecoration(color: hk.warn.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(HkTokens.radiusCard)),
-                child: const Text('ffmpeg was not found on this device, so videos cannot be imported or rendered here. Install ffmpeg (or point HK_FFMPEG at it), or connect to a Hokkabaz instance that has it.'),
+                child: Text(Platform.isAndroid ? 'Video Studio needs ffmpeg, which Android does not provide. Projects and the agent tools work on desktop; use the desktop app for editing and rendering.' : 'ffmpeg was not found on this device, so videos cannot be imported or rendered here. Install ffmpeg (or point HK_FFMPEG at it).'),
               ),
             const SizedBox(height: HkTokens.s4),
             list.when(

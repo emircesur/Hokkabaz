@@ -2,7 +2,8 @@
 
 - Target ABIs: arm64-v8a (aarch64-linux-android), x86_64, armeabi-v7a (cargokit only).
 - `hk-ffi` is the only Rust crate on the Android path. Its tree must not contain landlock,
-  hk-acp, hk-sandbox, hk-mcp, hk-plugin, wasmtime, portable-pty, axum, rmcp.
+  hk-acp, hk-sandbox, wasmtime, portable-pty, axum. (`hk-mcp`/`rmcp` are in, HTTP transport only; `hk-plugin` is in
+  without its `wasm-plugins` feature, so plugins can be listed but not run; `hk-local` carries llama.cpp, linked with a static libc++.)
   `hk-server` is pulled with `default-features = false, features = ["runtime"]`; `portable-pty`
   in `hk-tools` is `cfg(not(target_os = "android"))`. CI job `audit` in
   `.github/workflows/android.yml` enforces this via `cargo tree --target <triple>`.
