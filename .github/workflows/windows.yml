@@ -10,6 +10,9 @@ on:
       - "crates/**"
       - ".github/workflows/windows.yml"
       - "scripts/*windows*"
+      - "LICENSE"
+      - "THIRD_PARTY_NOTICES.md"
+      - "docs/WINDOWS.md"
 
 permissions:
   contents: write
