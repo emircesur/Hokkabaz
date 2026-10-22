@@ -8,11 +8,14 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `json_err`, `project_json`, `to_json`
+// These functions are ignored because they are not marked as `pub`: `parse`, `rpc_json`, `rpc`, `want`
 
-/// Is ffmpeg usable? `{ffmpeg: bool, ffprobe: bool, version: string|null}`.
+/// Is ffmpeg usable where the Studio runs? `{ffmpeg: bool, ffprobe: bool, version: string|null}`.
 Future<String> studioCheckTools() =>
     RustLib.instance.api.crateApiStudioStudioCheckTools();
+
+/// True when the Studio runs on a connected instance (files must be uploaded / downloaded).
+bool studioIsRemote() => RustLib.instance.api.crateApiStudioStudioIsRemote();
 
 /// Studio preferences plus which keys are set.
 Future<String> studioGetSettings() =>
@@ -35,7 +38,8 @@ Future<String> studioTemplates() =>
 Future<String> studioProjects() =>
     RustLib.instance.api.crateApiStudioStudioProjects();
 
-/// Import a video file; returns the project JSON.
+/// Import a video file that is already where the Studio runs (use `studio_upload` first on a
+/// remote instance); returns the project JSON.
 Future<String> studioImport({required String path, String? name}) =>
     RustLib.instance.api.crateApiStudioStudioImport(path: path, name: name);
 
@@ -138,7 +142,7 @@ Future<String> studioRender({required String id, required String clip}) =>
 Future<bool> studioCancelRender({required String job}) =>
     RustLib.instance.api.crateApiStudioStudioCancelRender(job: job);
 
-/// Path of the rendered MP4, if the clip was rendered.
+/// Path of the rendered MP4 where the Studio runs, if the clip was rendered.
 Future<String?> studioRenderPath({required String id, required String clip}) =>
     RustLib.instance.api.crateApiStudioStudioRenderPath(id: id, clip: clip);
 
@@ -154,7 +158,8 @@ Future<String> studioPublishYoutube({
   privacy: privacy,
 );
 
-/// Write clip.mp4 + captions + per-platform post text into `dir`. Returns the folder.
+/// Write clip.mp4 + captions + per-platform post text into `dir` (on the machine running the
+/// Studio). Returns the folder.
 Future<String> studioExport({
   required String id,
   required String clip,
@@ -165,13 +170,32 @@ Future<String> studioExport({
   dir: dir,
 );
 
-/// JPEG frame of the source at `at` seconds.
+/// JPEG frame of the source at `at` seconds (path where the Studio runs).
 Future<String> studioThumbnail({required String id, required double at}) =>
     RustLib.instance.api.crateApiStudioStudioThumbnail(id: id, at: at);
 
 /// Low-res proxy of the source for smooth scrubbing (made once; may take a while).
 Future<String> studioProxy({required String id}) =>
     RustLib.instance.api.crateApiStudioStudioProxy(id: id);
+
+/// What a media player can open for a path from a Studio result: the path on this device, or a
+/// short-lived authenticated URL for a connected instance.
+Future<String> studioMedia({required String path}) =>
+    RustLib.instance.api.crateApiStudioStudioMedia(path: path);
+
+/// Copy a local video to where the Studio runs. Emits `{"sent":N,"total":N}` progress JSON and
+/// finally `{"path":"..."}` (the path to pass to `studio_import`).
+Stream<String> studioUpload({required String localPath}) =>
+    RustLib.instance.api.crateApiStudioStudioUpload(localPath: localPath);
+
+/// Copy a rendered clip from where the Studio runs to `dest` on this device.
+Future<void> studioDownload({
+  required String serverPath,
+  required String dest,
+}) => RustLib.instance.api.crateApiStudioStudioDownload(
+  serverPath: serverPath,
+  dest: dest,
+);
 
 /// Live change feed of one project as JSON `StudioEvent`s (edits by you or the agent, transcript
 /// ready, clips added, render progress). A `{"kind":"resync"}` event means events were missed:

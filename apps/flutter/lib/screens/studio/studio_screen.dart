@@ -38,7 +38,7 @@ class _ProjectsView extends ConsumerWidget {
   Future<void> _import(BuildContext context, WidgetRef ref) async {
     final files = await FilePicker.pickFiles(type: FileType.video, dialogTitle: 'Choose a video');
     final path = files.firstOrNull?.path;
-    if (path == null) return;
+    if (path == null || !context.mounted) return;
     try {
       final list = ref.read(studioListProvider.notifier);
       final id = studioRemote

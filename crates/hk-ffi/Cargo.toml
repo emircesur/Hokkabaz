@@ -69,5 +69,6 @@ hk-plugin = { version = "0.0.0", path = "../hk-plugin", features = ["wasm-plugin
 [dev-dependencies]
 # Test-only: boots the real axum surface in-process (never compiled into the app).
 hk-server = { version = "0.0.0", path = "../hk-server", features = ["server"] }
+hk-daemon = { version = "0.0.0", path = "../../apps/hk-daemon" }
 tempfile = "3"
 tokio = { version = "1", features = ["rt", "macros", "time"] }

@@ -2939,6 +2939,7 @@ dependencies = [
  "async-trait",
  "flutter_rust_bridge",
  "futures",
+ "hk-daemon",
  "hk-flow",
  "hk-integrations",
  "hk-llm",

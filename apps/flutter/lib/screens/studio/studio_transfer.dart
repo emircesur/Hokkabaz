@@ -80,7 +80,7 @@ Future<String?> saveRemoteClip(String serverPath, String suggestedName) async {
   await api.studioDownload(serverPath: serverPath, dest: dest);
   final bytes = await File(dest).readAsBytes();
   try {
-    return await FilePicker.saveFile(dialogTitle: 'Save clip', fileName: suggestedName, bytes: bytes);
+    return (await FilePicker.saveFile(dialogTitle: 'Save clip', fileName: suggestedName, bytes: bytes))?.toString();
   } finally {
     unawaitedDelete(dest);
   }
