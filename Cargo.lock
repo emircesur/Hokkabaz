@@ -2815,6 +2815,7 @@ dependencies = [
  "futures",
  "getrandom 0.3.4",
  "hk-agent",
+ "hk-concat",
  "hk-core",
  "hk-flow",
  "hk-llm",
@@ -2878,6 +2879,23 @@ dependencies = [
  "tokio",
  "tracing",
  "whisper-rs",
+]
+
+[[package]]
+name = "hk-studio"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "hk-llm",
+ "hk-media",
+ "hk-stt",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

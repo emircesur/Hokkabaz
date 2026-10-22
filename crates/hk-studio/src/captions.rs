@@ -211,7 +211,7 @@ fn ass_time(t: f64) -> String {
 }
 
 fn escape(text: &str, upper: bool) -> String {
-    let t: String = text.chars().map(|c| if matches!(c, '{' | '}') { '(' } else if c == '\\' || c == '\n' { ' ' } else { c }).collect();
+    let t: String = text.chars().map(|c| if c == '{' { '(' } else if c == '}' { ')' } else if c == '\\' || c == '\n' { ' ' } else { c }).collect();
     if upper { t.to_uppercase() } else { t }
 }
 

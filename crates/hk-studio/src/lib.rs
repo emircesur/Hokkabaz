@@ -1,0 +1,27 @@
+//! hk-studio: long video → short clips.
+//!
+//! * [`project`] / [`edl`] / [`edit`]: the edit decision list, word-level text
+//!   editing, undo/redo.
+//! * [`live`]: a shared editing session that broadcasts every change.
+//! * [`captions`], [`reframe`], [`broll`], [`templates`], [`social`]: the look.
+//! * [`highlights`]: LLM highlight detection and virality scoring.
+//! * [`pipeline`]: import, transcribe, analyze, preview, render (ffmpeg via `hk-media`).
+
+pub mod broll;
+pub mod captions;
+pub mod edit;
+pub mod edl;
+mod error;
+pub mod highlights;
+pub mod live;
+pub mod llm;
+pub mod pipeline;
+pub mod project;
+pub mod reframe;
+pub mod social;
+pub mod templates;
+
+pub use error::{Result, StudioError};
+pub use live::{LiveStudio, StudioEvent};
+pub use pipeline::{PreviewPlan, PreviewWord, RenderOpts, Studio};
+pub use project::{Clip, ProjectStore, StudioProject};

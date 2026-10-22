@@ -120,7 +120,8 @@ pub struct StudioProject {
     pub name: String,
     pub created_ms: u64,
     pub source: SourceRef,
-    #[serde(default)]
+    /// Stored separately (`transcript.json`) so edits do not rewrite megabytes.
+    #[serde(default, skip)]
     pub transcript: Option<Transcript>,
     #[serde(default)]
     pub clips: Vec<Clip>,
@@ -164,7 +165,7 @@ impl StudioProject {
     /// Add a clip, clamping it to the source.
     pub fn add_clip(&mut self, title: impl Into<String>, start: f64, end: f64) -> Result<&mut Clip> {
         let (s, e) = (start.max(0.0), end.min(self.source.duration));
-        if !(e - s > 0.1) {
+        if (e - s).is_nan() || e - s <= 0.1 {
             return Err(StudioError::Invalid(format!("empty clip range {start}..{end}")));
         }
         self.clips.push(Clip::new(new_id("c"), title, s, e));
@@ -221,12 +222,29 @@ impl ProjectStore {
         Ok(())
     }
 
+    /// Write `transcript.json` (call after the transcript changes).
+    pub async fn save_transcript(&self, p: &StudioProject) -> Result<()> {
+        Self::check_id(&p.id)?;
+        if let Some(t) = &p.transcript {
+            let dir = self.dir(&p.id);
+            tokio::fs::create_dir_all(&dir).await?;
+            let tmp = dir.join("transcript.json.tmp");
+            tokio::fs::write(&tmp, serde_json::to_vec(t)?).await?;
+            tokio::fs::rename(&tmp, dir.join("transcript.json")).await?;
+        }
+        Ok(())
+    }
+
     pub async fn load(&self, id: &str) -> Result<StudioProject> {
         Self::check_id(id)?;
         let bytes = tokio::fs::read(self.dir(id).join("project.json"))
             .await
             .map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { StudioError::NotFound(format!("project {id}")) } else { e.into() })?;
-        Ok(serde_json::from_slice(&bytes)?)
+        let mut p: StudioProject = serde_json::from_slice(&bytes)?;
+        if let Ok(t) = tokio::fs::read(self.dir(id).join("transcript.json")).await {
+            p.transcript = Some(serde_json::from_slice(&t)?);
+        }
+        Ok(p)
     }
 
     pub async fn list(&self) -> Result<Vec<StudioProject>> {
