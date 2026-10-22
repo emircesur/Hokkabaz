@@ -39,6 +39,8 @@ pub mod n8n;
 pub mod n8n_remote;
 #[cfg(any(feature = "int-github", feature = "int-gitea", feature = "int-n8n"))]
 pub mod pathparam;
+#[cfg(feature = "int-slack")]
+pub mod slack;
 
 #[cfg(feature = "int-email")]
 pub mod email;
@@ -146,5 +148,7 @@ pub fn register_integrations_with_polling(
     searxng::register(nodes, creds)?;
     #[cfg(feature = "int-ollama")]
     ollama::register(nodes, creds)?;
+    #[cfg(feature = "int-slack")]
+    slack::register(nodes, creds)?;
     Ok(())
 }

@@ -14,7 +14,7 @@ workspace = true
 # Pure-HTTP integrations are android-safe, so they are on by default. An integration that
 # needs a native dep must gate it with cfg(not(target_os = "android")) and stay out of here.
 default = ["all-integrations"]
-all-integrations = ["int-ntfy", "int-github", "int-gitea", "int-git", "int-n8n", "int-telegram", "int-matrix", "int-gotify", "int-email", "int-rss", "int-sqlite", "int-postgres", "int-redis", "int-s3", "int-searxng", "int-ollama"]
+all-integrations = ["int-ntfy", "int-github", "int-gitea", "int-git", "int-n8n", "int-telegram", "int-matrix", "int-gotify", "int-email", "int-rss", "int-sqlite", "int-postgres", "int-redis", "int-s3", "int-searxng", "int-ollama", "int-slack"]
 # ntfy.sh: send notification
 int-ntfy = []
 # GitHub node + polling GitHub Trigger
@@ -47,6 +47,8 @@ int-s3 = ["dep:hmac", "dep:sha2"]
 int-searxng = ["dep:hk-tools"]
 # Ollama node
 int-ollama = []
+# Slack node (Web API, bot token)
+int-slack = []
 
 [dependencies]
 # expr: node parameters (`={{ ... }}`) evaluate through the QuickJS engine; http: shared reqwest stack
