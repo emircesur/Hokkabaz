@@ -4,6 +4,7 @@ import '../../ffi/ffi.dart';
 import '../../ffi/settings_providers.dart';
 import '../../src/rust/api/instances.dart' as api;
 import '../../src/rust/dto.dart';
+import '../studio/studio_providers.dart';
 import '../chat/chat_providers.dart'
     show describeError, selectedSessionProvider, sessionListProvider;
 
@@ -62,6 +63,11 @@ class InstanceBook extends AsyncNotifier<List<InstanceDto>> {
     ref.invalidate(sessionListProvider);
     ref.invalidate(settingsProvider);
     ref.invalidate(modelListProvider);
+    // The Studio lives where ffmpeg is: the other instance has its own projects and tools.
+    ref.invalidate(studioListProvider);
+    ref.invalidate(studioToolsProvider);
+    ref.invalidate(studioCatalogProvider);
+    ref.read(selectedStudioProjectProvider.notifier).select(null);
   }
 }
 
