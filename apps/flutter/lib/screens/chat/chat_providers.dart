@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../ffi/android_runtime.dart';
 import '../../ffi/ffi.dart';
 import '../../ffi/notifications.dart';
 import '../../src/rust/api/chat.dart' as chat;
@@ -132,9 +133,11 @@ class ChatController extends Notifier<ChatState> {
 
   @override
   ChatState build() {
+    final work = ref.read(activeWorkProvider.notifier);
     ref.onDispose(() {
       _disposed = true;
       _sub?.cancel();
+      Future.microtask(() => work.set('chat:$sessionId', false));
     });
     _start();
     return const ChatState();
@@ -174,6 +177,7 @@ class ChatController extends Notifier<ChatState> {
       return;
     }
     state = reduceEvent(state, e);
+    ref.read(activeWorkProvider.notifier).set('chat:$sessionId', state.running);
     _autoAnswer();
     _syncApprovals();
     if (e.kind == SessionEventKind.titleChanged ||

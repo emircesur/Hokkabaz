@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../ffi/android_runtime.dart';
 import '../ffi/notifications.dart';
 import '../screens/chat/approvals_inbox.dart';
 import '../screens/chat/chat_providers.dart';
@@ -24,6 +25,14 @@ class AppShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen(keepAliveProvider, (prev, next) {
+      final hint = next.hint;
+      if (hint != null && hint != prev?.hint) {
+        ScaffoldMessenger.maybeOf(context)
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(hint)));
+      }
+    });
     final wide = !isNarrow(context);
     return AppShortcuts(
       child: wide ? _wide(context, ref) : _narrow(context, ref),
