@@ -10,7 +10,7 @@ Native, open-source AI agent harness + automation workbench. Rust core, Flutter 
 
 Built on ideas from [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) and [OpenCode](https://github.com/anomalyco/opencode).
 
-Status: planning. See [DESIGN.md](DESIGN.md), [PLAN.md](PLAN.md), [CLAUDE.md](CLAUDE.md).
+Status: working builds for Windows, Linux, macOS and Android. Docs: [user guide](docs/USER_GUIDE.md), [deploying](docs/DEPLOY.md), [plugins](docs/PLUGINS.md), [studio](docs/STUDIO.md), [local models](docs/LOCAL_MODELS.md), [n8n link](docs/N8N_SYNC.md), [security](docs/SECURITY.md). Design: [DESIGN.md](DESIGN.md), plan: [PLAN.md](PLAN.md), agent rules: [CLAUDE.md](CLAUDE.md).
 
 
 ## Cloning

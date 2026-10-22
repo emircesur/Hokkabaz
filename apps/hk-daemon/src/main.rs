@@ -224,7 +224,14 @@ async fn main() -> Result<()> {
         )
         .with_writer(std::io::stderr)
         .init();
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
+    // PaaS hosts (Railway, Heroku-style) hand the port over as $PORT and expect all interfaces.
+    if std::env::var_os("HOKKABAZ_LISTEN").is_none()
+        && !std::env::args().any(|a| a == "--listen" || a.starts_with("--listen="))
+        && let Some(port) = std::env::var("PORT").ok().and_then(|p| p.parse::<u16>().ok())
+    {
+        cli.listen = SocketAddr::from(([0, 0, 0, 0], port));
+    }
     if matches!(cli.cmd, Some(Cmd::Healthcheck)) {
         return healthcheck(cli.listen).await;
     }
