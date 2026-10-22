@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../ffi/settings_providers.dart';
 import '../../src/rust/dto.dart';
 import '../../theme/tokens.dart';
+import 'local_models_section.dart';
 import 'provider_card.dart';
 import 'provider_dialog.dart';
 import 'preferences_section.dart';
@@ -75,6 +76,8 @@ class _Body extends ConsumerWidget {
             ),
             const SizedBox(height: HkTokens.s4),
             PreferencesSection(settings: settings, models: models),
+            const SizedBox(height: HkTokens.s6),
+            const LocalModelsSection(),
             const SizedBox(height: HkTokens.s6),
             Row(
               children: [

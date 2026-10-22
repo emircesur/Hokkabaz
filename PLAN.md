@@ -143,7 +143,7 @@ Integration order after core + AI nodes: implementing agent decides (D14), using
 | P6.3 | C | Mobile layouts: bottom nav, chat full-screen, inspector sheet, approvals via notifications | P3.2 | L | none | – | done — no OS notifications (flutter_local_notifications not in pub cache): interface + in-app banner/badge only; inbox may hold stale entries until session reopened |
 | P6.4 | F | Foreground service for long runs / optional local webhook server; battery-aware | P6.1, P4.6 | M | none | – | todo |
 | P6.5 | C | Remote-first UX: pair via QR camera scan, instance switcher | P4.8, P6.3 | S | none | phone controls daemon | done — QR scan (mobile_scanner) fills the pairing link on Android/iOS; paste still works; not run on a device |
-| P6.7 | B | On-device LLM (`local-llm`, llama-cpp-2): GGUF model manager (HF download, resume, checksum, fit check), desktop + Android aarch64, router offline fallback | P2.5, P6.1 | L | none | offline chat on phone | todo |
+| P6.7 | B | On-device LLM (`local-llm`, llama-cpp-2): GGUF model manager (HF download, resume, checksum, fit check), desktop + Android aarch64, router offline fallback | P2.5, P6.1 | L | none | offline chat on phone | done — hk-local (llama.cpp desktop; Android build pending verification), docs/LOCAL_MODELS.md |
 | P6.8 | C | Local models UI: browse/download/delete, device-class recommendations, offline indicator | P6.7, P3.6 | M | none | – | todo |
 | P6.6 | F | Release signing, F-Droid metadata, GitHub Releases APK | P6.1 | S | none | signed APK published | partial — signing via android/key.properties or env (scripts/gen-android-keystore.sh), release.yml (tag v* → signed APKs + Windows zip → GitHub Release), fastlane metadata; no F-Droid inclusion request; no keystore generated (owner must create one) |
 
@@ -152,7 +152,7 @@ Integration order after core + AI nodes: implementing agent decides (D14), using
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
 | P7.2 | E | T2 integrations as n8n node types, ordered by P5.11 report (GitLab, Home Assistant, Nextcloud, Discord, Docker, Qdrant, …) | P5.4 | L | fixture | ≥ 80% of top-500 template node usages supported | todo |
-| P7.2b | D | Code node Python mode | P4.3b | M | fixture | – | todo |
+| P7.2b | D | Code node Python mode | P4.3b | M | fixture | – | done — python3 subprocess, opt-in (HOKKABAZ_ALLOW_PYTHON=1), desktop only |
 | P7.3 | E | JS/Python plugin SDK docs (jco, componentize-py) | P5.3 | S | none | – | todo |
 | P7.4 | A | Security pass: redaction audit, injection tagging, webhook fuzz (one-off) | P4.6 | M | unit | – | todo |
 | P7.5 | F | Desktop packaging: AppImage/deb, dmg, msi; auto-update channel | P3.7 | M | none | – | todo |

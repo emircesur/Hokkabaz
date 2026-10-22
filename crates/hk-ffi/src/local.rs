@@ -151,6 +151,14 @@ impl LocalCore {
         let creds = Arc::new(crate::credentials::Credentials { store: store.clone(), secrets: secrets.clone() });
         let flows = LocalFlows::new(&data_dir, creds.clone())?;
 
+        // On-device models: the `local` provider is always registered (it lists only what is
+        // downloaded); the offline fallback chain is added in `rebuild`.
+        let local_ctx = crate::local_models::install(&data_dir, store.clone()).await?;
+        let mut extras = opts.extra_providers;
+        if let Some(p) = crate::local_models::provider(&local_ctx) {
+            extras.push(p);
+        }
+
         // Video Studio: shared service + the agent's studio_* tools.
         let studio_settings: crate::studio::SharedSettings =
             Arc::new(RwLock::new(crate::studio::StudioSettings::load(store.get_setting(crate::studio::SETTINGS_KEY).await?.as_deref())));
@@ -189,11 +197,23 @@ impl LocalCore {
                 reload,
                 runtime,
                 flows,
-                extras: opts.extra_providers,
+                extras,
                 shutdown: CancellationToken::new(),
             }),
         });
         core.i.rebuild(&stored)?;
+        {
+            let i = core.i.clone();
+            local_ctx.set_rebuild(Arc::new(move || {
+                let i = i.clone();
+                Box::pin(async move {
+                    let s = i.settings.lock().await.clone();
+                    if let Err(e) = i.rebuild(&s) {
+                        tracing::warn!(error = %e, "provider rebuild failed");
+                    }
+                })
+            }));
+        }
 
         if opts.refresh_catalog && stale {
             let i = core.i.clone();
@@ -235,7 +255,15 @@ impl Inner {
             .iter()
             .map(|e| (settings::registry_error_provider(e).to_owned(), e.to_string()))
             .collect::<HashMap<_, _>>();
-        let mut router = build_router(&registry, Vec::new()).map_err(|e| HkError::new(HkErrorKind::Provider, e.to_string()))?;
+        // Offline fallback: the default model's chain ends in the chosen on-device model.
+        let mut routes = Vec::new();
+        if let (Some(local), Some(def)) = (crate::local_models::fallback(), stored.default_model.clone())
+            && !def.starts_with("local/")
+            && registry.providers().any(|p| p.id() == hk_local::PROVIDER_ID)
+        {
+            routes.push(hk_llm::RouteConfig { key: Some(def.clone()), refs: vec![def, format!("{}/{local}", hk_local::PROVIDER_ID)] });
+        }
+        let mut router = build_router(&registry, routes).map_err(|e| HkError::new(HkErrorKind::Provider, e.to_string()))?;
         if let Some(c) = self.catalog.read().unwrap_or_else(PoisonError::into_inner).clone() {
             router = router.catalog(c);
         }
@@ -556,6 +584,7 @@ impl CoreHandle for LocalCore {
     async fn shutdown(&self) {
         self.i.shutdown.cancel();
         crate::studio::uninstall();
+        crate::local_models::uninstall();
         crate::plugins::uninstall();
         crate::credentials::uninstall();
         crate::n8n_sync::uninstall();

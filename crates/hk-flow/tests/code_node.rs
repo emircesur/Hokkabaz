@@ -180,7 +180,7 @@ async fn errors_carry_line_and_item() {
 }
 
 #[tokio::test]
-async fn python_is_unsupported() {
+async fn python_is_off_unless_opted_in() {
     let e = run_with(
         json!({"language": "python", "pythonCode": "return []"}),
         json!([{}]),
@@ -188,7 +188,8 @@ async fn python_is_unsupported() {
     )
     .await
     .unwrap_err();
-    assert!(msg(e).contains("not supported"));
+    let m = msg(e);
+    assert!(m.contains("off by default") || m.contains("not available"), "{m}");
 }
 
 #[tokio::test]

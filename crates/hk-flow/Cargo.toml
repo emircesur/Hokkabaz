@@ -34,7 +34,7 @@ thiserror = "2"
 tracing = "0.1"
 async-trait = "0.1"
 # retry back-off sleeps; `rt` for the scheduler tick task, `sync` for the app event bus
-tokio = { version = "1", features = ["time", "rt", "sync"] }
+tokio = { version = "1", features = ["time", "rt", "sync", "process", "io-util"] }
 # cron next-fire (DST-aware, optional seconds field, chrono tz)
 croner = "4"
 rquickjs = { version = "0.14", optional = true, default-features = false }

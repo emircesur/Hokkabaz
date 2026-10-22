@@ -26,6 +26,8 @@ async-trait = "0.1"
 flutter_rust_bridge = "=2.11.1"
 futures = "0.3"
 hk-flow = { version = "0.0.0", path = "../hk-flow" }
+hk-local = { version = "0.0.0", path = "../hk-local" }
+tokio-util = "0.7"
 hk-integrations = { version = "0.0.0", path = "../hk-integrations" }
 hk-llm = { version = "0.0.0", path = "../hk-llm" }
 hk-server = { version = "0.0.0", path = "../hk-server", default-features = false, features = ["runtime"] }
@@ -53,6 +55,7 @@ webpki-roots = "1"
 
 # Wasmtime has no JIT on Android: plugins load on desktop builds only.
 [target.'cfg(not(target_os = "android"))'.dependencies]
+hk-local = { version = "0.0.0", path = "../hk-local", features = ["llama"] }
 hk-plugin = { version = "0.0.0", path = "../hk-plugin", features = ["wasm-plugins"] }
 
 [dev-dependencies]

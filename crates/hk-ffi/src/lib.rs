@@ -9,6 +9,7 @@ pub mod api;
 pub mod dto;
 pub mod error;
 mod credentials;
+mod local_models;
 mod n8n_sync;
 mod events;
 mod flow_runs;

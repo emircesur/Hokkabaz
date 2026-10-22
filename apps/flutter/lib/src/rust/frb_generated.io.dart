@@ -9,6 +9,7 @@ import 'api/credentials.dart';
 import 'api/flow_runs.dart';
 import 'api/flows.dart';
 import 'api/instances.dart';
+import 'api/local_models.dart';
 import 'api/n8n.dart';
 import 'api/plugins.dart';
 import 'api/settings.dart';

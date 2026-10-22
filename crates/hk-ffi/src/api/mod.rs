@@ -8,6 +8,7 @@ pub mod credentials;
 pub mod flow_runs;
 pub mod flows;
 pub mod instances;
+pub mod local_models;
 pub mod n8n;
 pub mod plugins;
 pub mod settings;

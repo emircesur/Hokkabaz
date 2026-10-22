@@ -112,6 +112,8 @@ pub struct NodeHooks {
     pub sub_workflow: Option<Arc<dyn SubWorkflowRunner>>,
     pub response: Option<Arc<dyn ResponseSink>>,
     pub credentials: Option<Arc<dyn CredentialResolver>>,
+    /// Python mode of the Code node (unsandboxed subprocess); also enabled by `HOKKABAZ_ALLOW_PYTHON=1`.
+    pub allow_python: bool,
     /// Fallback for unsupported node types; `None` fails them as before.
     pub remote_nodes: Option<Arc<dyn RemoteNodeRunner>>,
     /// Longest Wait handled in-process; longer ones suspend the execution (durable wait).
@@ -138,6 +140,7 @@ impl Default for NodeHooks {
             response: None,
             credentials: None,
             remote_nodes: None,
+            allow_python: false,
             max_inline_wait: Duration::from_secs(65),
             durable_wait: false,
             #[cfg(feature = "ai")]

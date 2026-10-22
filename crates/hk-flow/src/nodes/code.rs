@@ -81,14 +81,11 @@ impl FlowNode for CodeNode {
             _ => default.to_owned(),
         };
         let language = text("language", "javaScript");
+        if language == "python" || language == "pythonNative" {
+            return self.execute_python(ctx).await;
+        }
         if language != "javaScript" {
-            return Err(node_err(
-                ctx,
-                format!(
-                    "Language '{language}' is not supported. Hokkabaz runs the Code node in \
-                     JavaScript only; switch the node's language to JavaScript."
-                ),
-            ));
+            return Err(node_err(ctx, format!("Unknown language '{language}'")));
         }
         let mode = match text("mode", "runOnceForAllItems").as_str() {
             "runOnceForAllItems" => ScriptMode::AllItems,
@@ -119,6 +116,51 @@ impl FlowNode for CodeNode {
             ScriptMode::EachItem => {
                 each_items(out.value, &out.undefined).map_err(|m| node_err(ctx, m))?
             }
+        };
+        Ok(vec![items])
+    }
+}
+
+impl CodeNode {
+    async fn execute_python(&self, ctx: &NodeContext) -> Result<NodeOutput, FlowError> {
+        if !super::python::allowed(ctx.hooks.allow_python) {
+            return Err(node_err(
+                ctx,
+                "Python runs as an unsandboxed process on this device, so it is off by default. \
+                 Set HOKKABAZ_ALLOW_PYTHON=1 to enable it, or switch the node to JavaScript.",
+            ));
+        }
+        let each = match raw_param(ctx, "mode") {
+            Some(Value::String(s)) => s == "runOnceForEachItem",
+            _ => false,
+        };
+        let code = match raw_param(ctx, "pythonCode") {
+            Some(Value::String(s)) => s.clone(),
+            _ => String::new(),
+        };
+        let input = port(ctx, 0);
+        if each && input.is_empty() {
+            return Ok(vec![Vec::new()]);
+        }
+        let items: Vec<Value> = input.iter().map(|i| json!({"json": i.json})).collect();
+        let out = super::python::run(&code, each, items).await.map_err(|m| node_err(ctx, m))?;
+        let items = if each {
+            let Value::Array(results) = out else { return Err(node_err(ctx, NOT_OBJECT)) };
+            let mut v = Vec::new();
+            for (i, r) in results.into_iter().enumerate() {
+                match r {
+                    Value::Null => {}
+                    Value::Object(_) => {
+                        let mut item = to_item(r).map_err(|m| node_err(ctx, at_item(&m, i)))?;
+                        item.paired_item = Some(PairedItem::Index(i));
+                        v.push(item);
+                    }
+                    _ => return Err(node_err(ctx, at_item(NOT_OBJECT, i))),
+                }
+            }
+            v
+        } else {
+            all_items(out).map_err(|m| node_err(ctx, m))?
         };
         Ok(vec![items])
     }
