@@ -31,6 +31,9 @@ $editor = Get-ChildItem $expanded -Filter concat.exe -Recurse | Select-Object -F
 if (!$editor) { throw "Upstream installer contains no concat.exe" }
 New-Item -ItemType Directory -Force "$stage/concat" | Out-Null
 Copy-Item "$($editor.DirectoryName)/*" "$stage/concat" -Recurse -Force
+# The Flutter runner/plugins also import these. Windows searches beside the
+# application, not in concat/, on machines without a global VC++ runtime.
+Get-ChildItem "$stage/concat" -File | Where-Object { $_.Name -match '^(MSVCP|VCRUNTIME|CONCRT|VCOMP).*\.dll$' } | Copy-Item -Destination $stage -Force
 
 # Reuse the submodule's pinned, checksum-verified FFmpeg build. Shared DLLs stay
 # beside these executables, isolated from Concat's and media_kit's versions.
@@ -51,7 +54,7 @@ Copy-Item docs/WINDOWS.md "$stage/README.md"
 $sha = git rev-parse HEAD
 @"
 Hokkabaz source: https://github.com/emircesur/Hokkabaz/tree/$sha
-Concat source (complete upstream UI): https://github.com/jub0t/Concat/tree/2756209a92766a4e4726999a51648349a272c159
+Concat source (complete upstream UI): https://github.com/jub0t/Concat/tree/v0.2.8
 FFmpeg source and build recipe: $($fields[1])
 All Hokkabaz modifications and build instructions are in the Hokkabaz source above.
 "@ | Set-Content "$stage/SOURCE.txt"
