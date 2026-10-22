@@ -1,5 +1,12 @@
 param([switch]$DependenciesOnly, [string]$Release = "apps/flutter/build/windows/x64/runner/Release", [string]$Output = "hokkabaz-windows-x64.zip")
 $ErrorActionPreference = "Stop"
+trap {
+  $details = ($_ | Out-String) + $_.ScriptStackTrace
+  $details | Add-Content (Join-Path $PSScriptRoot '../windows-package.log')
+  $message = $_.Exception.Message -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A'
+  Write-Host "::error::$message"
+  exit 1
+}
 $stage = if ($DependenciesOnly) { Join-Path ([System.IO.Path]::GetTempPath()) "hokkabaz-dependency-check" } else { (Resolve-Path $Release).Path }
 New-Item -ItemType Directory -Force $stage | Out-Null
 $cache = Join-Path ([System.IO.Path]::GetTempPath()) "hokkabaz-windows-deps"
