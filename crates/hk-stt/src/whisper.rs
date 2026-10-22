@@ -26,6 +26,8 @@ pub struct WhisperOptions {
     pub threads: Option<i32>,
     /// Language used when the call gives none; `None` = auto-detect.
     pub default_language: Option<String>,
+    /// GPU device index; `None` = CPU only. Ignored by builds without a GPU backend.
+    pub gpu: Option<i32>,
 }
 
 /// whisper.cpp through whisper-rs.
@@ -50,7 +52,10 @@ impl WhisperRsTranscriber {
             .model_path
             .to_str()
             .ok_or_else(|| SttError::Config("model_path is not utf-8".into()))?;
-        let ctx = WhisperContext::new_with_params(path, WhisperContextParameters::default())
+        let mut params = WhisperContextParameters::default();
+        params.use_gpu(opts.gpu.is_some());
+        params.gpu_device(opts.gpu.unwrap_or(0));
+        let ctx = WhisperContext::new_with_params(path, params)
             .map_err(|e| SttError::Config(format!("whisper model {path}: {e}")))?;
         Ok(Self {
             ctx: Arc::new(ctx),

@@ -46,6 +46,11 @@ pub struct StudioSettings {
     pub whisper_model_path: Option<String>,
     /// Downloaded speech model for `whisper_local` (`tiny` | `base` | `small` | `medium` | `large-v3-turbo`).
     pub whisper_model: Option<String>,
+    /// Run local whisper on the GPU (`None` = yes when the helper has a GPU backend). A failed GPU
+    /// run falls back to the CPU on its own.
+    pub whisper_gpu: Option<bool>,
+    /// GPU index when there are several (0 = first).
+    pub gpu_device: Option<i32>,
     /// A folder of your own footage / images used as a B-roll source.
     pub broll_dir: Option<String>,
     /// Google OAuth client id for YouTube uploads (secret + refresh token are in the secret store).
@@ -160,6 +165,9 @@ impl Backends for AppBackends {
                 )));
             }
             cfg.model_path = path;
+            if s.whisper_gpu != Some(false) {
+                cfg.gpu = Some(s.gpu_device.unwrap_or(0).max(0));
+            }
         }
         if self.secret(KEY_STT).is_some() {
             cfg.key_ref = Some(KeyRef::new(KEY_STT));

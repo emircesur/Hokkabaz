@@ -14,6 +14,11 @@ workspace = true
 default = []
 # Local whisper.cpp via whisper-rs. Off by default: needs cmake + a C++ toolchain.
 whisper = ["dep:whisper-rs", "dep:hound"]
+# GPU backends for the in-process engine (hk-whisper builds pick one). Vulkan covers NVIDIA, AMD
+# and Intel GPUs; it needs the Vulkan SDK at build time.
+whisper-vulkan = ["whisper", "whisper-rs/vulkan"]
+whisper-cuda = ["whisper", "whisper-rs/cuda"]
+whisper-metal = ["whisper", "whisper-rs/metal"]
 
 [dependencies]
 async-trait = "0.1"

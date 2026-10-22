@@ -21,6 +21,9 @@ use crate::project::{Clip, ProjectStore, StudioProject, probe_source};
 use crate::reframe::plan_crop;
 use crate::templates::{apply_template, builtin};
 
+/// Title of the whole-video clip every import starts with.
+pub const FULL_VIDEO: &str = "Full video";
+
 /// A transcript word as the live editor shows it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PreviewWord {
@@ -317,7 +320,9 @@ impl Studio {
                     .map(str::to_string)
             })
             .unwrap_or_else(|| "Untitled".into());
-        let p = StudioProject::new(name, src);
+        let mut p = StudioProject::new(name, src);
+        // Plain editing starts right away: the whole video is the first clip, no transcript needed.
+        let _ = p.add_clip(FULL_VIDEO, 0.0, p.source.duration);
         self.store.save(&p).await?;
         Ok(p)
     }

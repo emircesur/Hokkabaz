@@ -13,6 +13,7 @@ pub mod catalog;
 #[cfg(feature = "llama")]
 pub mod engine;
 mod error;
+pub mod gpu;
 pub mod store;
 pub mod toolcall;
 pub mod whisper;

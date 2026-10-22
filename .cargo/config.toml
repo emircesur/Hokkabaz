@@ -1,0 +1,5 @@
+[env]
+# whisper-rs-sys leaves ggml's GGML_NATIVE on, which tunes whisper.cpp to the build machine's CPU
+# (AVX-512 on CI runners) and crashes hk-whisper on other PCs. OFF = portable AVX2 baseline.
+# llama-cpp-sys-2 already builds non-native.
+GGML_NATIVE = "OFF"

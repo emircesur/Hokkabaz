@@ -8,7 +8,9 @@ fn to_json(v: &serde_json::Value) -> Result<String, HkError> {
     serde_json::to_string(v).map_err(|e| HkError::internal(e.to_string()))
 }
 
-/// `{engine, device:{total_ram,available_ram,cores}, recommended, models:[..], custom:[..], fallback}`.
+/// `{engine, device:{total_ram,available_ram,cores}, recommended, models:[..], custom:[..], fallback,
+/// gpu:{backend, settings:{enabled, device, layers}}}`. `backend` is null when this build runs on
+/// the CPU only.
 /// Each catalog model carries `fit` (good|tight|too_big), `installed`, `downloading`, `progress`.
 pub async fn local_models_overview() -> Result<String, HkError> {
     to_json(&ctx()?.overview())
@@ -56,4 +58,12 @@ pub async fn local_set_fallback(id: Option<String>) -> Result<(), HkError> {
     c.set_fallback(id).await?;
     c.rebuild_providers().await;
     Ok(())
+}
+
+/// GPU offload for local models: `{"enabled": bool, "device": 0, "layers": null | N}` (null = all
+/// layers). Takes effect on the next model load; a load that fails on the GPU falls back to the CPU.
+pub async fn local_set_gpu(settings_json: String) -> Result<(), HkError> {
+    let g: hk_local::gpu::GpuSettings =
+        serde_json::from_str(&settings_json).map_err(|e| HkError::invalid(e.to_string()))?;
+    ctx()?.set_gpu(g).await
 }

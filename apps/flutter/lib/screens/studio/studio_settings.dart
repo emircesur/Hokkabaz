@@ -32,6 +32,8 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
   final _ytId = TextEditingController();
   final _ytSecret = TextEditingController();
   final _ytRefresh = TextEditingController();
+  final _gpuDevice = TextEditingController(text: '0');
+  bool _whisperGpu = true;
   bool _hasYtSecret = false;
   bool _hasYtRefresh = false;
   String? _llm;
@@ -53,7 +55,7 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
 
   @override
   void dispose() {
-    for (final c in [_sttUrl, _sttModel, _sttLang, _whisperPath, _sttKey, _pexels, _pixabay, _brollDir, _ytId, _ytSecret, _ytRefresh]) {
+    for (final c in [_sttUrl, _sttModel, _sttLang, _whisperPath, _sttKey, _pexels, _pixabay, _brollDir, _ytId, _ytSecret, _ytRefresh, _gpuDevice]) {
       c.dispose();
     }
     super.dispose();
@@ -61,6 +63,10 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
 
   Future<void> _load() async {
     try {
+      try {
+        final w = jsonDecode(await api.studioWhisperStatus()) as Map;
+        _whisperBackend = w['gpu'] as String?;
+      } catch (_) {}
       final j = jsonDecode(await api.studioGetSettings()) as Map;
       final s = (j['settings'] as Map).cast<String, dynamic>();
       setState(() {
@@ -71,6 +77,8 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
         _sttLang.text = (s['stt_language'] as String?) ?? '';
         _whisperModel = s['whisper_model'] as String?;
         _whisperPath.text = (s['whisper_model_path'] as String?) ?? '';
+        _whisperGpu = s['whisper_gpu'] != false;
+        _gpuDevice.text = '${(s['gpu_device'] as num?)?.toInt() ?? 0}';
         _brollDir.text = (s['broll_dir'] as String?) ?? '';
         _ytId.text = (s['youtube_client_id'] as String?) ?? '';
         _hasYtSecret = j['has_youtube_secret'] == true;
@@ -87,6 +95,13 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
       });
     }
   }
+
+  /// GPU backend of the whisper helper (`vulkan`, ...), from the whisper status.
+  String? _whisperBackend;
+
+  String _gpuNote() => _whisperBackend == null
+      ? 'This install transcribes on the CPU (the helper has no GPU backend).'
+      : 'Runs on ${_whisperBackend!} when available; falls back to the CPU on its own.';
 
   String? _n(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
 
@@ -105,6 +120,8 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
           'stt_language': _n(_sttLang),
           'whisper_model': _whisperModel,
           'whisper_model_path': _n(_whisperPath),
+          'whisper_gpu': _whisperGpu,
+          'gpu_device': int.tryParse(_gpuDevice.text.trim()) ?? 0,
           'broll_dir': _n(_brollDir),
           'youtube_client_id': _n(_ytId),
         }),
@@ -169,6 +186,20 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
                     ] else ...[
                       WhisperModelsPicker(selected: _whisperModel, onSelected: (v) => setState(() => _whisperModel = v)),
                       _Field(_whisperPath, 'Or your own ggml file (optional)', '/path/to/ggml-base.bin'),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Use the GPU'),
+                              subtitle: Text(_gpuNote(), style: TextStyle(color: hk.textMuted)),
+                              value: _whisperGpu,
+                              onChanged: (v) => setState(() => _whisperGpu = v),
+                            ),
+                          ),
+                          if (_whisperGpu) SizedBox(width: 90, child: _Field(_gpuDevice, 'GPU #', '0')),
+                        ],
+                      ),
                     ],
                     _Field(_sttLang, 'Language (optional)', 'en, tr, … empty = detect'),
                     const _H('B-roll sources'),

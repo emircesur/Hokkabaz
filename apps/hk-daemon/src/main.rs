@@ -187,6 +187,18 @@ fn local_providers(_data: &std::path::Path) -> Vec<Arc<dyn hk_llm::Provider>> {
 /// On-device GGUF models served by this instance (`<data>/models`), provider id `local`.
 #[cfg(feature = "local-llm")]
 fn local_providers(data: &std::path::Path) -> Vec<Arc<dyn hk_llm::Provider>> {
+    // GPU offload (builds with `local-llm-vulkan`/`-cuda`): HOKKABAZ_GPU=0 turns it off,
+    // HOKKABAZ_GPU_DEVICE picks the card, HOKKABAZ_GPU_LAYERS caps offloaded layers.
+    let env = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
+    let mut g = hk_local::gpu::GpuSettings::default();
+    if let Some(v) = env("HOKKABAZ_GPU") {
+        g.enabled = !matches!(v.as_str(), "0" | "false" | "off");
+    }
+    if let Some(d) = env("HOKKABAZ_GPU_DEVICE").and_then(|v| v.parse().ok()) {
+        g.device = d;
+    }
+    g.layers = env("HOKKABAZ_GPU_LAYERS").and_then(|v| v.parse().ok());
+    hk_local::gpu::set(g);
     vec![Arc::new(hk_local::engine::LlamaProvider::new(
         hk_local::ModelStore::new(data.join("models")),
     ))]

@@ -45,6 +45,8 @@ pub struct SttConfig {
     pub model_path: Option<PathBuf>,
     /// CPU threads for `whisper_local`.
     pub threads: Option<i32>,
+    /// GPU device for `whisper_local`; `None` = CPU. Falls back to CPU if the GPU run fails.
+    pub gpu: Option<i32>,
     /// HTTP retries on 429/5xx.
     pub max_retries: u32,
     /// HTTP request timeout, seconds.
@@ -72,6 +74,7 @@ impl Default for SttConfig {
             language: None,
             model_path: None,
             threads: None,
+            gpu: None,
             max_retries: 3,
             timeout_secs: 600,
             max_upload_bytes: DEFAULT_MAX_UPLOAD_BYTES,
@@ -162,6 +165,7 @@ fn build_whisper(cfg: &SttConfig) -> Result<Arc<dyn Transcriber>> {
         model_path,
         threads: cfg.threads,
         default_language: cfg.language.clone(),
+        gpu: cfg.gpu,
     })?;
     Ok(Arc::new(t))
 }
@@ -185,6 +189,7 @@ fn build_whisper(cfg: &SttConfig) -> Result<Arc<dyn Transcriber>> {
             model_path,
             threads: cfg.threads,
             default_language: cfg.language.clone(),
+            gpu: cfg.gpu,
         },
     )?))
 }

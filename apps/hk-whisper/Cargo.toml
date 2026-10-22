@@ -23,3 +23,7 @@ tokio = { version = "1", features = ["rt", "macros"] }
 [features]
 # Multi-threaded kernels through OpenMP is the whisper.cpp default on Linux/Windows; nothing to toggle.
 default = []
+# GPU builds (`--gpu N` at run time; CPU stays available with `--cpu`). Vulkan needs the Vulkan SDK.
+vulkan = ["hk-stt/whisper-vulkan"]
+cuda = ["hk-stt/whisper-cuda"]
+metal = ["hk-stt/whisper-metal"]

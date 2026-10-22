@@ -23,6 +23,9 @@ async fn transcribes_with_the_real_helper() {
         model_path: PathBuf::from(model),
         threads: Some(4),
         default_language: Some("en".into()),
+        gpu: std::env::var("HK_WHISPER_GPU")
+            .ok()
+            .and_then(|g| g.parse().ok()),
     })
     .unwrap();
     let tr = t

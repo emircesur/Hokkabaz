@@ -7,6 +7,8 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use async_trait::async_trait;
 use tokio::io::AsyncReadExt;
@@ -51,6 +53,25 @@ pub fn find_helper() -> Option<PathBuf> {
     })
 }
 
+/// GPU backend compiled into the helper (`vulkan`, `cuda`, `metal`), from `--info`; cached.
+pub fn helper_gpu() -> Option<String> {
+    static GPU: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    GPU.get_or_init(|| {
+        let helper = find_helper()?;
+        let mut cmd = std::process::Command::new(helper);
+        cmd.arg("--info").stdin(Stdio::null()).stderr(Stdio::null());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt as _;
+            cmd.creation_flags(0x0800_0000);
+        }
+        let out = cmd.output().ok()?;
+        let v: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
+        v["gpu"].as_str().map(str::to_owned)
+    })
+    .clone()
+}
+
 /// Settings for [`ExternalWhisper`].
 #[derive(Debug, Clone)]
 pub struct ExternalOptions {
@@ -62,12 +83,15 @@ pub struct ExternalOptions {
     pub threads: Option<i32>,
     /// Language used when the call gives none; `None` = auto-detect.
     pub default_language: Option<String>,
+    /// GPU device; `None` = CPU. A failed GPU run is retried on the CPU, which then sticks.
+    pub gpu: Option<i32>,
 }
 
 /// Transcriber backed by the `hk-whisper` helper.
 #[derive(Debug, Clone)]
 pub struct ExternalWhisper {
     opts: ExternalOptions,
+    gpu_failed: Arc<AtomicBool>,
 }
 
 impl ExternalWhisper {
@@ -85,14 +109,43 @@ impl ExternalWhisper {
                 opts.model_path.display()
             )));
         }
-        Ok(Self { opts })
+        Ok(Self {
+            opts,
+            gpu_failed: Arc::default(),
+        })
     }
 }
 
 #[async_trait]
 impl Transcriber for ExternalWhisper {
     async fn transcribe(&self, audio_path: &Path, opts: &TranscribeOpts) -> Result<Transcript> {
+        let gpu = self
+            .opts
+            .gpu
+            .filter(|_| !self.gpu_failed.load(Ordering::Relaxed));
+        match self.run(audio_path, opts, gpu).await {
+            Err(e) if gpu.is_some() => {
+                tracing::warn!(error = %e, "whisper on the GPU failed; using the CPU");
+                self.gpu_failed.store(true, Ordering::Relaxed);
+                self.run(audio_path, opts, None).await
+            }
+            r => r,
+        }
+    }
+}
+
+impl ExternalWhisper {
+    async fn run(
+        &self,
+        audio_path: &Path,
+        opts: &TranscribeOpts,
+        gpu: Option<i32>,
+    ) -> Result<Transcript> {
         let mut cmd = Command::new(&self.opts.helper);
+        match gpu {
+            Some(d) => cmd.arg("--gpu").arg(d.to_string()),
+            None => cmd.arg("--cpu"),
+        };
         cmd.arg("--model")
             .arg(&self.opts.model_path)
             .arg("--audio")
@@ -110,6 +163,9 @@ impl Transcriber for ExternalWhisper {
         if let Some(p) = opts.prompt.as_ref().filter(|p| !p.is_empty()) {
             cmd.arg("--prompt").arg(p);
         }
+        // No console window flashing up per chunk on Windows.
+        #[cfg(windows)]
+        cmd.creation_flags(0x0800_0000);
         let mut child = cmd
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -145,6 +201,9 @@ impl Transcriber for ExternalWhisper {
                 .chars()
                 .take(300)
                 .collect();
+            if let Some(why) = crash_reason(&status) {
+                return Err(SttError::Audio(format!("{HELPER} crashed: {why}")));
+            }
             return Err(SttError::Audio(format!(
                 "{HELPER} failed ({status}): {tail}"
             )));
@@ -154,11 +213,41 @@ impl Transcriber for ExternalWhisper {
     }
 }
 
+/// Plain words for the crashes users actually hit (they print nothing on stderr).
+fn crash_reason(status: &std::process::ExitStatus) -> Option<&'static str> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt as _;
+        if status.signal() == Some(4) {
+            return Some(
+                "this CPU lacks instructions the helper was built for (illegal instruction)",
+            );
+        }
+    }
+    // NTSTATUS codes come back as the exit code.
+    match status.code().map(|c| c as u32) {
+        Some(0xC000_001D) => {
+            Some("this CPU lacks instructions the helper was built for (illegal instruction)")
+        }
+        Some(0xC000_0135) => Some(
+            "a DLL it needs is missing; install the Microsoft Visual C++ Redistributable (x64)",
+        ),
+        Some(0xC000_0005) => {
+            Some("access violation (the model file may be damaged; download it again)")
+        }
+        _ => None,
+    }
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use std::os::unix::fs::PermissionsExt;
 
     use super::*;
+
+    /// Writing a script while another test forks leaks the write fd into that child, and exec
+    /// then fails with ETXTBSY: tests that write and spawn helpers run one at a time.
+    static SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
     /// A fake helper that answers with a fixed transcript and echoes its language flag.
     fn fake(dir: &Path, script: &str) -> PathBuf {
@@ -176,11 +265,13 @@ mod tests {
             model_path: model,
             threads: Some(2),
             default_language: None,
+            gpu: None,
         }
     }
 
     #[tokio::test]
     async fn parses_helper_json() {
+        let _serial = SERIAL.lock().await;
         let d = tempfile::tempdir().unwrap();
         let h = fake(
             d.path(),
@@ -197,6 +288,7 @@ mod tests {
 
     #[tokio::test]
     async fn surfaces_helper_error() {
+        let _serial = SERIAL.lock().await;
         let d = tempfile::tempdir().unwrap();
         let h = fake(d.path(), "echo 'error: bad model' >&2; exit 1");
         let t = ExternalWhisper::new(opts(h, d.path())).unwrap();
@@ -205,6 +297,28 @@ mod tests {
             .await
             .unwrap_err();
         assert!(e.to_string().contains("bad model"), "{e}");
+    }
+
+    #[tokio::test]
+    async fn gpu_failure_falls_back_to_cpu() {
+        let _serial = SERIAL.lock().await;
+        let d = tempfile::tempdir().unwrap();
+        let h = fake(
+            d.path(),
+            r#"[ "$1" = "--gpu" ] && { echo 'error: no vulkan device' >&2; exit 1; }
+echo '{"language":"en","duration":1.0,"words":[],"segments":[]}'"#,
+        );
+        let mut o = opts(h, d.path());
+        o.gpu = Some(0);
+        let t = ExternalWhisper::new(o).unwrap();
+        for _ in 0..2 {
+            let tr = t
+                .transcribe(Path::new("a.wav"), &TranscribeOpts::default())
+                .await
+                .unwrap();
+            assert_eq!(tr.language.as_deref(), Some("en"));
+        }
+        assert!(t.gpu_failed.load(Ordering::Relaxed));
     }
 
     #[test]

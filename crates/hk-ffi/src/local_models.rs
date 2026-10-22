@@ -12,6 +12,7 @@ use tokio_util::sync::CancellationToken;
 use crate::error::{HkError, HkErrorKind};
 
 const FALLBACK_KEY: &str = "local.fallback";
+const GPU_KEY: &str = "local.gpu";
 
 pub type Rebuild =
     Arc<dyn Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> + Send + Sync>;
@@ -38,6 +39,13 @@ pub async fn install(data_dir: &Path, db: hk_store::Store) -> Result<Arc<Ctx>, H
         .get_setting(FALLBACK_KEY)
         .await?
         .filter(|s| !s.is_empty());
+    if let Some(g) = db
+        .get_setting(GPU_KEY)
+        .await?
+        .and_then(|s| serde_json::from_str::<hk_local::gpu::GpuSettings>(&s).ok())
+    {
+        hk_local::gpu::set(g);
+    }
     let c = Arc::new(Ctx {
         store: ModelStore::new(data_dir.join("models")),
         db,
@@ -154,7 +162,16 @@ impl Ctx {
             "models": models,
             "custom": custom,
             "fallback": self.fallback.read().unwrap_or_else(PoisonError::into_inner).clone(),
+            "gpu": {"backend": hk_local::gpu::BACKEND, "settings": hk_local::gpu::get()},
         })
+    }
+
+    /// GPU offload for local models; saved, and used from the next model load on.
+    pub async fn set_gpu(&self, g: hk_local::gpu::GpuSettings) -> Result<(), HkError> {
+        let raw = serde_json::to_string(&g).map_err(|e| HkError::internal(e.to_string()))?;
+        self.db.set_setting(GPU_KEY, &raw).await?;
+        hk_local::gpu::set(g);
+        Ok(())
     }
 
     pub async fn set_fallback(&self, id: Option<String>) -> Result<(), HkError> {

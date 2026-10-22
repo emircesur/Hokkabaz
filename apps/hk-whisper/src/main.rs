@@ -2,8 +2,8 @@
 //! [`hk_stt::Transcript`] as JSON on stdout. Exists so the app and `hokkabazd` (which link
 //! llama.cpp) never link a second copy of ggml: see `hk_stt::external`.
 //!
-//! `hk-whisper --model M.bin --audio A.wav [--lang xx] [--threads N] [--prompt TEXT]`
-//! `hk-whisper --version`
+//! `hk-whisper --model M.bin --audio A.wav [--lang xx] [--threads N] [--prompt TEXT] [--gpu N | --cpu]`
+//! `hk-whisper --version`, `hk-whisper --info` (JSON: version, compiled-in GPU backend)
 
 use std::path::PathBuf;
 
@@ -18,15 +18,36 @@ struct Args {
     lang: Option<String>,
     threads: Option<i32>,
     prompt: Option<String>,
+    gpu: Option<i32>,
 }
 
-fn parse() -> Result<Option<Args>> {
+/// GPU backend compiled into this helper, if any.
+const GPU_BACKEND: Option<&str> = if cfg!(feature = "vulkan") {
+    Some("vulkan")
+} else if cfg!(feature = "cuda") {
+    Some("cuda")
+} else if cfg!(feature = "metal") {
+    Some("metal")
+} else {
+    None
+};
+
+enum Cmd {
+    Version,
+    Info,
+    Run(Args),
+}
+
+fn parse() -> Result<Cmd> {
     let mut a = Args::default();
     let mut it = std::env::args().skip(1);
     while let Some(k) = it.next() {
         let mut val = |name: &str| it.next().with_context(|| format!("{name} needs a value"));
         match k.as_str() {
-            "--version" | "-V" => return Ok(None),
+            "--version" | "-V" => return Ok(Cmd::Version),
+            "--info" => return Ok(Cmd::Info),
+            "--gpu" => a.gpu = Some(val("--gpu")?.parse().context("--gpu")?),
+            "--cpu" => a.gpu = None,
             "--model" => a.model = Some(val("--model")?.into()),
             "--audio" => a.audio = Some(val("--audio")?.into()),
             "--lang" => a.lang = Some(val("--lang")?).filter(|l| !l.is_empty() && l != "auto"),
@@ -35,14 +56,23 @@ fn parse() -> Result<Option<Args>> {
             other => bail!("unknown argument `{other}`"),
         }
     }
-    Ok(Some(a))
+    Ok(Cmd::Run(a))
 }
 
 #[allow(clippy::print_stdout)]
 fn run() -> Result<()> {
-    let Some(a) = parse()? else {
-        println!("hk-whisper {}", env!("CARGO_PKG_VERSION"));
-        return Ok(());
+    let a = match parse()? {
+        Cmd::Version => {
+            println!("hk-whisper {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        Cmd::Info => {
+            let info =
+                serde_json::json!({"version": env!("CARGO_PKG_VERSION"), "gpu": GPU_BACKEND});
+            println!("{info}");
+            return Ok(());
+        }
+        Cmd::Run(a) => a,
     };
     let model = a.model.context("--model is required")?;
     let audio = a.audio.context("--audio is required")?;
@@ -50,6 +80,7 @@ fn run() -> Result<()> {
         model_path: model,
         threads: a.threads,
         default_language: a.lang.clone(),
+        gpu: a.gpu.filter(|_| GPU_BACKEND.is_some()),
     })?;
     let rt = tokio::runtime::Builder::new_current_thread().build()?;
     let tr = rt.block_on(t.transcribe(

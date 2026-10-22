@@ -37,6 +37,7 @@ class ClipsPane extends ConsumerWidget {
                     : const Icon(Icons.auto_awesome, size: 18),
                 label: Text(s.busy.contains('analyze') ? 'Finding…' : 'Find highlights'),
               ),
+              OutlinedButton.icon(onPressed: ctl.addWholeVideo, icon: const Icon(Icons.movie_edit, size: 18), label: const Text('Whole video')),
               if (!project.hasTranscript)
                 OutlinedButton.icon(
                   onPressed: s.busy.contains('transcribe') ? null : ctl.transcribe,
@@ -55,7 +56,9 @@ class ClipsPane extends ConsumerWidget {
                   child: Padding(
                     padding: const EdgeInsets.all(HkTokens.s4),
                     child: Text(
-                      project.hasTranscript ? 'No clips yet. Find highlights, or long-press the timeline to add one.' : 'Transcribe the video first, then let the AI find the best moments.',
+                      project.hasTranscript
+                          ? 'No clips yet. Edit the whole video, find highlights, or long-press the timeline to add one.'
+                          : 'Edit the whole video now, or transcribe it first so the AI can find the best moments and you can edit by text.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: hk.textMuted),
                     ),

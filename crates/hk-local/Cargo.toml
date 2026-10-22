@@ -16,6 +16,9 @@ default = []
 llama = ["dep:llama-cpp-2"]
 # Multi-threaded kernels through OpenMP (Linux, Windows).
 llama-openmp = ["llama", "llama-cpp-2/openmp"]
+# GPU offload through Vulkan (NVIDIA, AMD, Intel). Needs the Vulkan SDK at build time.
+llama-vulkan = ["llama", "llama-cpp-2/vulkan"]
+llama-cuda = ["llama", "llama-cpp-2/cuda"]
 # Android: link libc++ statically so the app needs no libc++_shared.so.
 llama-android = ["llama", "llama-cpp-2/android-static-stdcxx"]
 

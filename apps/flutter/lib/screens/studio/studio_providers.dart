@@ -236,6 +236,17 @@ class StudioController extends Notifier<StudioState> {
     }
   }
 
+  /// A clip spanning the whole source: plain editing without transcript or highlights.
+  Future<void> addWholeVideo() async {
+    final d = state.project?.source.duration ?? 0;
+    if (d <= 0) return;
+    final ok = await edit([
+      {'op': 'add_clip', 'title': 'Full video', 'start': 0, 'end': d},
+    ]);
+    final last = state.project?.clips.lastOrNull;
+    if (ok && last != null) await selectClip(last.id);
+  }
+
   Future<void> undo() async {
     try {
       await api.studioUndo(id: projectId);

@@ -16,7 +16,7 @@ use hk_llm::{
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
-use llama_cpp_2::model::params::LlamaModelParams;
+use llama_cpp_2::model::params::{LlamaModelParams, LlamaSplitMode};
 use llama_cpp_2::model::{LlamaChatMessage, LlamaModel};
 use llama_cpp_2::sampling::LlamaSampler;
 use serde_json::json;
@@ -43,6 +43,8 @@ fn backend() -> R<&'static LlamaBackend> {
 struct Loaded {
     id: String,
     model: Arc<LlamaModel>,
+    /// [`crate::gpu::generation`] the model was loaded under.
+    gpu_gen: u64,
 }
 
 struct Shared {
@@ -86,7 +88,8 @@ impl LlamaProvider {
 impl Shared {
     fn model(&self, id: &str) -> R<Arc<LlamaModel>> {
         let mut slot = self.loaded.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(l) = slot.as_ref().filter(|l| l.id == id) {
+        let gpu_gen = crate::gpu::generation();
+        if let Some(l) = slot.as_ref().filter(|l| l.id == id && l.gpu_gen == gpu_gen) {
             return Ok(l.model.clone());
         }
         let m = self
@@ -95,12 +98,29 @@ impl Shared {
             .ok_or_else(|| LlmError::InvalidRequest(format!("model `{id}` is not downloaded")))?;
         let b = backend()?;
         *slot = None; // free the old weights before mapping the new ones
-        let model = LlamaModel::load_from_file(b, &m.path, &LlamaModelParams::default())
-            .map_err(|e| LlmError::InvalidRequest(format!("cannot load `{id}`: {e}")))?;
+        let gpu = crate::gpu::get();
+        let layers = gpu.effective_layers();
+        let mut params = LlamaModelParams::default().with_n_gpu_layers(layers);
+        if layers > 0 && gpu.device > 0 {
+            params = params
+                .with_split_mode(LlamaSplitMode::None)
+                .with_main_gpu(gpu.device);
+        }
+        let model = match LlamaModel::load_from_file(b, &m.path, &params) {
+            Err(e) if layers > 0 => {
+                // Usually too little video memory: the CPU always works.
+                tracing::warn!(error = %e, model = id, "GPU load failed; loading on the CPU");
+                let cpu = LlamaModelParams::default().with_n_gpu_layers(0);
+                LlamaModel::load_from_file(b, &m.path, &cpu)
+            }
+            r => r,
+        }
+        .map_err(|e| LlmError::InvalidRequest(format!("cannot load `{id}`: {e}")))?;
         let model = Arc::new(model);
         *slot = Some(Loaded {
             id: id.to_owned(),
             model: model.clone(),
+            gpu_gen,
         });
         Ok(model)
     }

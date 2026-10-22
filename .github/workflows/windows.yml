@@ -27,6 +27,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
+      - name: Install Vulkan SDK
+        # GPU builds: llama.cpp (in hk_ffi.dll) and whisper.cpp (hk-whisper.exe) compile their Vulkan
+        # backends against it. At run time they only need vulkan-1.dll, which every GPU driver ships.
+        shell: pwsh
+        env:
+          VULKAN_VERSION: 1.4.313.2
+        run: |
+          $exe = "$env:RUNNER_TEMP\vulkansdk.exe"
+          curl.exe -sSfL -o $exe "https://sdk.lunarg.com/sdk/download/$env:VULKAN_VERSION/windows/vulkansdk-windows-X64-$env:VULKAN_VERSION.exe"
+          Start-Process -FilePath $exe -ArgumentList '--root','C:\VulkanSDK','--accept-licenses','--default-answer','--confirm-command','install' -Wait -NoNewWindow
+          if (-not (Test-Path 'C:\VulkanSDK\Bin\glslc.exe')) { Get-ChildItem C:\VulkanSDK; throw 'Vulkan SDK install failed' }
+          Add-Content $env:GITHUB_ENV 'VULKAN_SDK=C:\VulkanSDK'
+          Add-Content $env:GITHUB_PATH 'C:\VulkanSDK\Bin'
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.47.7"
@@ -44,7 +57,7 @@ jobs:
         env:
           CARGO_TARGET_DIR: 'C:\hkw'
         run: |
-          cargo build --release -p hk-whisper
+          cargo build --release -p hk-whisper --features vulkan
           Copy-Item C:\hkw\release\hk-whisper.exe apps/flutter/build/windows/x64/runner/Release/
       - name: Package
         shell: pwsh

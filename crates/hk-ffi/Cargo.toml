@@ -55,8 +55,12 @@ tracing = "0.1"
 webpki-roots = "1"
 
 # Wasmtime has no JIT on Android: plugins load on desktop builds only.
-[target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 hk-local = { version = "0.0.0", path = "../hk-local", features = ["llama-openmp"] }
+
+# Windows: GPU offload through Vulkan (any vendor); the build needs the Vulkan SDK (VULKAN_SDK).
+[target.'cfg(target_os = "windows")'.dependencies]
+hk-local = { version = "0.0.0", path = "../hk-local", features = ["llama-openmp", "llama-vulkan"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hk-local = { version = "0.0.0", path = "../hk-local", features = ["llama"] }

@@ -10,7 +10,9 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `to_json`
 
-/// `{engine, device:{total_ram,available_ram,cores}, recommended, models:[..], custom:[..], fallback}`.
+/// `{engine, device:{total_ram,available_ram,cores}, recommended, models:[..], custom:[..], fallback,
+/// gpu:{backend, settings:{enabled, device, layers}}}`. `backend` is null when this build runs on
+/// the CPU only.
 /// Each catalog model carries `fit` (good|tight|too_big), `installed`, `downloading`, `progress`.
 Future<String> localModelsOverview() =>
     RustLib.instance.api.crateApiLocalModelsLocalModelsOverview();
@@ -38,3 +40,8 @@ Future<String> localModelAddFile({required String path, String? name}) =>
 /// `None` turns the fallback off. Applies immediately.
 Future<void> localSetFallback({String? id}) =>
     RustLib.instance.api.crateApiLocalModelsLocalSetFallback(id: id);
+
+/// GPU offload for local models: `{"enabled": bool, "device": 0, "layers": null | N}` (null = all
+/// layers). Takes effect on the next model load; a load that fails on the GPU falls back to the CPU.
+Future<void> localSetGpu({required String settingsJson}) => RustLib.instance.api
+    .crateApiLocalModelsLocalSetGpu(settingsJson: settingsJson);

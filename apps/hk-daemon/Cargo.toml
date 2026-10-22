@@ -28,6 +28,9 @@ studio = ["dep:hk-studio", "dep:hk-media", "dep:futures"]
 # On-device GGUF models served by this instance (provider `local`; `hokkabazd models pull`).
 # Needs cmake + a C++ toolchain at build time; off by default.
 local-llm = ["dep:hk-local", "hk-local/llama-openmp"]
+# GPU offload for local models (needs the Vulkan SDK / CUDA toolkit at build time).
+local-llm-vulkan = ["local-llm", "hk-local/llama-vulkan"]
+local-llm-cuda = ["local-llm", "hk-local/llama-cuda"]
 default = ["integrations", "plugins", "studio"]
 
 [dependencies]

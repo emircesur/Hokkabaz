@@ -33,8 +33,16 @@ class LocalOverview {
       recommended = j['recommended'] as String?,
       fallback = j['fallback'] as String?,
       models = (j['models'] as List).map((m) => LocalModel((m as Map).cast())).toList(),
-      custom = (j['custom'] as List).map((m) => (m as Map).cast<String, dynamic>()).toList();
+      custom = (j['custom'] as List).map((m) => (m as Map).cast<String, dynamic>()).toList(),
+      gpuBackend = (j['gpu'] as Map?)?['backend'] as String?,
+      gpu = (((j['gpu'] as Map?)?['settings'] as Map?) ?? const {'enabled': true, 'device': 0}).cast<String, dynamic>();
   final bool engine;
+
+  /// `vulkan` | `cuda` | `metal`, or null when local models run on the CPU only.
+  final String? gpuBackend;
+
+  /// `{enabled, device, layers}` (layers null = all).
+  final Map<String, dynamic> gpu;
   final int totalRam;
   final String? recommended, fallback;
   final List<LocalModel> models;
@@ -109,6 +117,16 @@ class LocalModelsNotifier extends AsyncNotifier<LocalOverview> {
   Future<String?> addFile(String path) async {
     try {
       await api.localModelAddFile(path: path);
+      await reload();
+      return null;
+    } catch (e) {
+      return describeError(e);
+    }
+  }
+
+  Future<String?> setGpu({required bool enabled, required int device, int? layers}) async {
+    try {
+      await api.localSetGpu(settingsJson: jsonEncode({'enabled': enabled, 'device': device, 'layers': layers}));
       await reload();
       return null;
     } catch (e) {
@@ -204,6 +222,11 @@ class LocalModelsSection extends ConsumerWidget {
                   if (err != null && context.mounted) toast(err);
                 },
               ),
+              const SizedBox(height: HkTokens.s2),
+              _GpuCard(overview: o, onChanged: (en, dev, layers) async {
+                final err = await notifier.setGpu(enabled: en, device: dev, layers: layers);
+                if (err != null && context.mounted) toast(err);
+              }),
               const SizedBox(height: HkTokens.s3),
               for (final m in o.models)
                 _ModelRow(
@@ -320,6 +343,83 @@ class _ModelRow extends StatelessWidget {
               child: LinearProgressIndicator(value: progress == 0 ? null : progress),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// GPU offload for local models: on/off, which card, how many layers.
+class _GpuCard extends StatefulWidget {
+  const _GpuCard({required this.overview, required this.onChanged});
+
+  final LocalOverview overview;
+  final Future<void> Function(bool enabled, int device, int? layers) onChanged;
+
+  @override
+  State<_GpuCard> createState() => _GpuCardState();
+}
+
+class _GpuCardState extends State<_GpuCard> {
+  late final _layers = TextEditingController(text: (widget.overview.gpu['layers'] as num?)?.toString() ?? '');
+
+  @override
+  void dispose() {
+    _layers.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final o = widget.overview;
+    final hk = context.hk;
+    final text = Theme.of(context).textTheme;
+    final backend = o.gpuBackend;
+    if (backend == null) {
+      return Text('Local models run on the CPU in this build.', style: text.bodySmall?.copyWith(color: hk.textMuted));
+    }
+    final enabled = o.gpu['enabled'] != false;
+    final device = (o.gpu['device'] as num?)?.toInt() ?? 0;
+    int? layers() => int.tryParse(_layers.text.trim());
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(HkTokens.s3),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text('Use the GPU (${backend[0].toUpperCase()}${backend.substring(1)})'),
+              subtitle: const Text('Much faster when the model fits in video memory. If loading on the GPU fails, the CPU is used.'),
+              value: enabled,
+              onChanged: (v) => widget.onChanged(v, device, layers()),
+            ),
+            if (enabled)
+              Row(
+                children: [
+                  SizedBox(
+                    width: 140,
+                    child: DropdownButtonFormField<int>(
+                      initialValue: device.clamp(0, 3),
+                      decoration: const InputDecoration(labelText: 'GPU', isDense: true),
+                      items: [for (var i = 0; i < 4; i++) DropdownMenuItem(value: i, child: Text(i == 0 ? 'First (0)' : 'GPU $i'))],
+                      onChanged: (v) => widget.onChanged(enabled, v ?? 0, layers()),
+                    ),
+                  ),
+                  const SizedBox(width: HkTokens.s3),
+                  Expanded(
+                    child: TextField(
+                      controller: _layers,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Layers on the GPU', hintText: 'empty = all', isDense: true),
+                      onSubmitted: (_) => widget.onChanged(enabled, device, layers()),
+                    ),
+                  ),
+                  IconButton(tooltip: 'Apply', icon: const Icon(Icons.check), onPressed: () => widget.onChanged(enabled, device, layers())),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }

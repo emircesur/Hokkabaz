@@ -348,7 +348,16 @@ class _Center extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.all(HkTokens.s2),
             child: clip == null
-                ? Center(child: Text('Pick or create a clip', style: TextStyle(color: hk.textMuted)))
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Pick or create a clip', style: TextStyle(color: hk.textMuted)),
+                        const SizedBox(height: HkTokens.s2),
+                        FilledButton.icon(onPressed: ctl.addWholeVideo, icon: const Icon(Icons.movie_edit), label: const Text('Edit the whole video')),
+                      ],
+                    ),
+                  )
                 : playerError != null
                 ? Center(child: Padding(padding: const EdgeInsets.all(HkTokens.s4), child: Text(playerError!, textAlign: TextAlign.center)))
                 : ListenableBuilder(listenable: player, builder: (context, _) => VideoPreview(controller: player, plan: state.plan, source: source)),

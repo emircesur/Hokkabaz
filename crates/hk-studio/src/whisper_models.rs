@@ -74,6 +74,7 @@ impl WhisperModels {
             .collect();
         json!({
             "helper": hk_stt::external::find_helper().is_some(),
+            "gpu": hk_stt::external::helper_gpu(),
             "models": models,
         })
     }

@@ -68,3 +68,8 @@ Anything else (LM Studio, vLLM, llama.cpp server, private gateways) is added fro
 connected instance too (admin token). `HOKKABAZ_MODEL=provider/model` sets the default model. Build with
 `--features local-llm` to run GGUF models inside the daemon (`hokkabazd models pull <id>`).
 Local transcription needs the `hk-whisper` helper next to `hokkabazd` (`Dockerfile.studio` includes it).
+
+GPU: build with `--features local-llm-vulkan` (or `local-llm-cuda`) and `hk-whisper` with `--features vulkan` (or `cuda`).
+Local models offload every layer by default; `HOKKABAZ_GPU=0` turns it off, `HOKKABAZ_GPU_DEVICE=N` picks the card,
+`HOKKABAZ_GPU_LAYERS=N` caps the layers (models that do not fit load on the CPU). Whisper's GPU switch is in the Studio
+settings. In the app the same switches are under Models > On-device models.

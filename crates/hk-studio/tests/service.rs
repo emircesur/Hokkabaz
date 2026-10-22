@@ -221,7 +221,8 @@ async fn import_transcribe_analyze_render_export() {
         }),
     );
     let again = svc2.open(&id).await.unwrap().snapshot().await;
-    assert_eq!(again.clips.len(), 1);
+    // The whole-video clip from import plus the highlight.
+    assert_eq!(again.clips.len(), 2);
     assert!(again.transcript.is_some());
     std::fs::remove_dir_all(&dir).ok();
 }
@@ -321,7 +322,7 @@ async fn agent_tools_edit_the_live_project() {
     )
     .await;
     assert!(!edited.is_error, "{}", edited.content);
-    let clip = live.snapshot().await.clips[0].id.clone();
+    let clip = live.snapshot().await.clips.last().unwrap().id.clone();
     let edited = run(
         by("studio_edit"),
         json!({"project": id, "ops": [
@@ -332,7 +333,7 @@ async fn agent_tools_edit_the_live_project() {
     .await;
     assert!(!edited.is_error, "{}", edited.content);
     let v: serde_json::Value = serde_json::from_str(&edited.content).unwrap();
-    assert_eq!(v["clips"][0]["deleted_words"], 2);
+    assert_eq!(v["clips"][1]["deleted_words"], 2);
     // The UI-side subscriber saw the agent's edits.
     let mut agent_events = 0;
     while let Ok(ev) = rx.try_recv() {

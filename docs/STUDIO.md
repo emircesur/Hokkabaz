@@ -123,6 +123,18 @@ downloads what is missing, on the machine that runs the Studio (this PC, or the 
 Android cannot run downloaded executables: use a connected instance (it installs its own tools; the token needs `admin`).
 Behind a TLS-inspecting proxy set `HK_CA_BUNDLE` to the proxy's CA PEM.
 
+## Plain editing and the GPU
+
+Every imported video starts with a **Full video** clip, so it shows up in the live editor right away: trim, cut ranges,
+style, reframe and render without a transcript. Transcribe to edit by text and to find highlights. "Whole video" in the
+clips pane (or "Edit the whole video" in the preview) adds it back to older projects.
+
+Local whisper runs in the `hk-whisper` helper. Windows builds ship it with **Vulkan** (NVIDIA, AMD and Intel GPUs), macOS
+release builds with Metal; Linux builds are CPU only unless built with `--features vulkan`. Studio settings > Speech to
+text > *Use the GPU* (on by default) and *GPU #* pick the card; a GPU run that fails is retried on the CPU and the CPU is
+used for the rest of the import. `hk-whisper --info` prints the compiled-in backend. The helper is built without
+`GGML_NATIVE` (`.cargo/config.toml`), so one binary runs on any x86-64 CPU with AVX2.
+
 ## Concat inside the Studio
 
 On a clip: **Edit in Concat** builds a Concat project from the clip's current edit (kept ranges, captions, reframe path,

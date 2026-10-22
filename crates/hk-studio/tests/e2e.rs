@@ -101,7 +101,7 @@ async fn edit_preview_render() {
     )
     .await
     .unwrap();
-    let clip = live.snapshot().await.clips[0].id.clone();
+    let clip = live.snapshot().await.clips.last().unwrap().id.clone();
     let full = live.preview(&clip).await.unwrap().duration;
     assert!(full > 7.9, "untouched clip is ~full length: {full}");
 
@@ -161,7 +161,15 @@ async fn edit_preview_render() {
 
     // Undo the template and redo it.
     assert!(live.undo().await.unwrap());
-    assert!(live.snapshot().await.clips[0].reframe.is_none());
+    assert!(
+        live.snapshot()
+            .await
+            .clips
+            .last()
+            .unwrap()
+            .reframe
+            .is_none()
+    );
     assert!(live.redo().await.unwrap());
 
     let snap = live.snapshot().await;
