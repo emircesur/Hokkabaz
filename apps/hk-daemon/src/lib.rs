@@ -1,6 +1,7 @@
 //! `hokkabazd` as a library: assembly of the headless instance (store, auth, agent runtime,
 //! flow runtime) so integration tests drive the same wiring as the binary.
 
+pub mod agent_runner;
 pub mod daemon;
 pub mod flow_runtime;
 pub mod scrub;

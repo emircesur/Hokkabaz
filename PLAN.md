@@ -113,7 +113,7 @@ Rules:
 | P4.8 | C | `RemoteCore` impl of `CoreHandle` (WS/REST) + Instances screen + pairing | P4.6, P3.1 | M | none | desktop controls remote daemon | todo |
 | P4.9 | C | Flows screen: list, canvas (pan/zoom, ports, bezier edges), node picker, params form from node description, n8n paste/copy/import, ⚠ placeholder for unsupported nodes | P4.1, P3.1 | L | unit (canvas model) | n8n workflow pasted, edited, exported | done — persistence = JSON files in app support dir (FlowStore swap point); no file/URL import (no file_picker), no Test/Activate/pin-data (P4.10), no expression live preview |
 | P4.10 | C | Test-run mode, pinned data, execution overlay; Runs screen | P4.9, P4.2 | M | none | – | todo |
-| P4.11 | A | `flow_run` + `flow_author` agent tools | P4.2, P1.8 | S | none | agent drafts flow, user opens in canvas | todo |
+| P4.11 | A | `flow_run` + `flow_author` agent tools | P4.2, P1.8 | S | none | agent drafts flow, user opens in canvas | done — tools live in hk-server flow_tools.rs (server feature); draft flag = meta.hokkabaz.draft; AgentRunRequest tools allow-list + max_steps not enforceable; hk-ffi local runtime does not register flow tools; no live agent-runner e2e |
 
 ## Phase 5 — Plugins + integrations as n8n nodes  (milestone **M5: plugin SDK + T1 integrations, top n8n template coverage**)
 

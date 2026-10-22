@@ -96,9 +96,13 @@ impl std::fmt::Debug for Assembled {
 pub async fn assemble(
     o: Opened,
     runtime: Arc<dyn AgentRuntime>,
-    flow_cfg: FlowConfig,
+    mut flow_cfg: FlowConfig,
     public_url: &str,
 ) -> Result<Assembled> {
+    // `hokkabaz.agent` runs full sessions on this instance's own agent runtime.
+    if flow_cfg.agent_runner.is_none() {
+        flow_cfg.agent_runner = Some(Arc::new(crate::agent_runner::RuntimeAgentRunner::new(runtime.clone())));
+    }
     let base = FlowApi::new(o.store.clone(), o.secrets.clone());
     let flow = FlowRuntime::start(base.clone(), flow_cfg).context("start flow runtime")?;
     let api = base.with_webhooks(flow.webhook_handler()).with_activator(flow.activator());
@@ -106,6 +110,8 @@ pub async fn assemble(
     // Waits whose time passed while the daemon was down resume now, not at the first tick.
     let resumed = flow.resume_due(now_ms()).await;
     tracing::info!(active = n, resumed, "flow runtime up");
+    // Agents can draft and test-run workflows on this instance.
+    runtime.add_tools(hk_server::flow_tools(flow.clone(), o.store.clone()));
     let pairing = Pairing::new(&o.auth, public_url).context("pairing")?;
     let state = AppState::new(runtime, o.auth).with_flow(api).with_pairing(pairing);
     Ok(Assembled { state, flow })

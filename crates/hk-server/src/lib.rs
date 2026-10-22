@@ -18,6 +18,8 @@ mod auth;
 mod error;
 #[cfg(feature = "server")]
 mod flow;
+#[cfg(feature = "server")]
+mod flow_tools;
 mod local;
 #[cfg(feature = "server")]
 mod n8n;
@@ -47,6 +49,8 @@ pub use api::{AppState, router, serve, serve_listener};
 pub use auth::{Auth, AuthError, Grants, Principal, Reject, Scope};
 #[cfg(feature = "server")]
 pub use flow::{BuiltinCredentialSchemas, CredentialSchemas, FlowApi, WorkflowActivator};
+#[cfg(feature = "server")]
+pub use flow_tools::{FlowToolHost, TestRun, flow_tools};
 #[cfg(feature = "server")]
 pub use n8n::workflow_json;
 #[cfg(feature = "server")]

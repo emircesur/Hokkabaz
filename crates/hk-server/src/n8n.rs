@@ -53,12 +53,12 @@ fn random_bytes<const N: usize>() -> Result<[u8; N], ApiError> {
 }
 
 /// 16 chars like n8n's workflow ids.
-fn new_id() -> Result<String, ApiError> {
+pub(crate) fn new_id() -> Result<String, ApiError> {
     const A: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     Ok(random_bytes::<16>()?.iter().map(|b| A[*b as usize % A.len()] as char).collect())
 }
 
-fn new_version_id() -> Result<String, ApiError> {
+pub(crate) fn new_version_id() -> Result<String, ApiError> {
     let b = random_bytes::<16>()?;
     let h: String = b.iter().map(|x| format!("{x:02x}")).collect();
     Ok(format!("{}-{}-{}-{}-{}", &h[..8], &h[8..12], &h[12..16], &h[16..20], &h[20..]))
@@ -69,12 +69,12 @@ fn new_version_id() -> Result<String, ApiError> {
 /// Fields owned by the server; clients can't set them.
 const RESERVED: [&str; 6] = ["id", "name", "active", "createdAt", "updatedAt", "versionId"];
 
-struct Prepared {
-    name: String,
-    data: Map<String, Value>,
+pub(crate) struct Prepared {
+    pub(crate) name: String,
+    pub(crate) data: Map<String, Value>,
 }
 
-fn prepare_workflow(body: Value) -> Result<Prepared, ApiError> {
+pub(crate) fn prepare_workflow(body: Value) -> Result<Prepared, ApiError> {
     let Value::Object(mut m) = body else {
         return Err(ApiError::BadRequest("request body must be a JSON object".into()));
     };

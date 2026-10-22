@@ -17,7 +17,7 @@ use hk_core::{Effect, EventBus};
 use hk_llm::{ModelInfo, Provider};
 use hk_session::{NewSession, SessionStore, SessionSummary, derive_messages, read_log};
 use hk_tools::builtin::register_builtins;
-use hk_tools::{OutputLimits, ToolPipeline, ToolRegistry};
+use hk_tools::{OutputLimits, Tool, ToolPipeline, ToolRegistry};
 use serde_json::{Value, json};
 use tokio::sync::{Notify, broadcast};
 
@@ -71,6 +71,8 @@ struct Inner {
     store: SessionStore,
     tx: broadcast::Sender<ServerEvent>,
     live: Mutex<HashMap<String, Arc<Live>>>,
+    /// Registered next to the builtins in every session created after they are added.
+    extra_tools: Mutex<Vec<Arc<dyn Tool>>>,
 }
 
 /// Agent runtime for the daemon and the desktop app's embedded server.
@@ -91,7 +93,7 @@ impl LocalRuntime {
     pub fn new(cfg: LocalConfig) -> Result<Self, ApiError> {
         let store = SessionStore::open(&cfg.sessions_dir)?;
         let (tx, _) = broadcast::channel(FEED_CAPACITY);
-        Ok(Self(Arc::new(Inner { cfg, store, tx, live: Mutex::default() })))
+        Ok(Self(Arc::new(Inner { cfg, store, tx, live: Mutex::default(), extra_tools: Mutex::default() })))
     }
 
     fn info(&self, s: &SessionSummary) -> SessionInfo {
@@ -132,6 +134,9 @@ impl LocalRuntime {
         let registry = ToolRegistry::new();
         let mut effects: Vec<Effect> =
             register_builtins(&registry).map_err(|e| ApiError::Internal(format!("tools: {e}")))?;
+        for t in lock(&self.0.extra_tools).iter() {
+            effects.push(registry.register(t.clone()).map_err(|e| ApiError::Internal(format!("tools: {e}")))?);
+        }
         let pipeline = ToolPipeline::new(registry, bus.clone(), OutputLimits::new(self.0.cfg.spill_dir.clone()));
 
         let mut cfg = AgentConfig::new(summary.model.clone().unwrap_or_else(|| self.0.cfg.default_model.clone()));
@@ -344,5 +349,9 @@ impl AgentRuntime for LocalRuntime {
 
     fn subscribe(&self) -> broadcast::Receiver<ServerEvent> {
         self.0.tx.subscribe()
+    }
+
+    fn add_tools(&self, tools: Vec<Arc<dyn Tool>>) {
+        lock(&self.0.extra_tools).extend(tools);
     }
 }

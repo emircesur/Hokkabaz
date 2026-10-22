@@ -43,11 +43,13 @@ pub struct FlowConfig {
     pub webhook_base_url: Option<String>,
     /// Scheduler / due-wait poll period.
     pub tick: Duration,
+    /// Backs `hokkabaz.agent`; `assemble` fills it with a session-backed runner when unset.
+    pub agent_runner: Option<Arc<dyn hk_flow::nodes::ai::AgentRunner>>,
 }
 
 impl Default for FlowConfig {
     fn default() -> Self {
-        Self { env_allowlist: Vec::new(), webhook_base_url: None, tick: Duration::from_secs(1) }
+        Self { env_allowlist: Vec::new(), webhook_base_url: None, tick: Duration::from_secs(1), agent_runner: None }
     }
 }
 
@@ -55,6 +57,7 @@ pub struct FlowRuntime {
     api: FlowApi,
     exec_cfg: ExecutorConfig,
     executor: Executor,
+    nodes: Arc<NodeRegistry>,
     host: Arc<LocalTriggerHost>,
     registry: Arc<ft::WebhookRegistry>,
     base_url: Option<String>,
@@ -87,11 +90,13 @@ impl FlowRuntime {
             webhook_base_url: cfg.webhook_base_url.clone(),
             hooks: hk_flow::NodeHooks {
                 credentials: Some(Arc::new(StoredCredentials { store: api.store.clone(), secrets: api.secrets.clone() })),
+                agent_runner: cfg.agent_runner,
                 ..hk_flow::NodeHooks::default()
             },
             ..ExecutorConfig::default()
         };
-        let executor = Executor::new(Arc::new(nodes))
+        let nodes = Arc::new(nodes);
+        let executor = Executor::new(nodes.clone())
             .with_wait_store(Arc::new(SqliteWaitStore::new(api.store.clone())))
             .with_config(exec_cfg.clone());
 
@@ -102,6 +107,7 @@ impl FlowRuntime {
             api,
             exec_cfg,
             executor: executor.clone(),
+            nodes,
             host: host.clone(),
             registry,
             base_url: cfg.webhook_base_url.map(|b| b.trim_end_matches('/').to_owned()),
@@ -474,5 +480,49 @@ impl CredentialResolver for StoredCredentials {
             Ok(Value::Object(m)) => Ok(m),
             _ => Err(FlowError::Invalid(format!("credential {id} is corrupt"))),
         }
+    }
+}
+
+// ------------------------------------------------------------------ agent tools
+
+#[async_trait]
+impl hs::FlowToolHost for FlowRuntime {
+    fn nodes(&self) -> &NodeRegistry {
+        &self.nodes
+    }
+
+    /// Manual-mode run for `flow_run`: pin data honoured, no activation, no error workflow.
+    /// Stored workflows get an execution row so the run shows up in the UI history.
+    async fn run_test(&self, req: hs::TestRun) -> Result<ExecutionResult, String> {
+        let exec_id = match &req.workflow_id {
+            Some(id) => {
+                let json = req.workflow.to_json_value().map_err(|e| e.to_string())?;
+                Some(self.api.start_execution(id, "manual", Some(&json)).await.map_err(|e| e.to_string())?)
+            }
+            None => None,
+        };
+        let mut cfg = self.exec_cfg.clone();
+        cfg.mode = "manual".into();
+        cfg.use_pin_data = true;
+        let mut input = ExecuteInput::new(req.start_node, req.items);
+        input.execution_id = exec_id.map(|i| i.to_string());
+        match self.executor.clone().with_config(cfg).execute(&req.workflow, &input).await {
+            Ok(res) => {
+                if let Some(id) = exec_id {
+                    self.finalize(id, &res).await;
+                }
+                Ok(res)
+            }
+            Err(e) => {
+                if let Some(id) = exec_id {
+                    let _ = self.fail(id, &e).await;
+                }
+                Err(e.to_string())
+            }
+        }
+    }
+
+    fn scrub(&self, data: &mut Value) {
+        scrub_headers(data);
     }
 }

@@ -111,4 +111,7 @@ pub trait AgentRuntime: Send + Sync + 'static {
     async fn models(&self) -> Result<Vec<ModelInfo>, ApiError>;
     /// Live feed: agent bus events and logged session events for every session.
     fn subscribe(&self) -> broadcast::Receiver<ServerEvent>;
+    /// Extra tools offered to sessions started after this call (flow tools etc.). Backings
+    /// without a tool registry ignore it.
+    fn add_tools(&self, _tools: Vec<std::sync::Arc<dyn hk_tools::Tool>>) {}
 }
