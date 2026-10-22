@@ -81,7 +81,7 @@ Rules:
 | P2.8 | A | Subagents (`task` tool), parallel limit, linked child sessions | P1.9 | M | unit | parent receives child result | done — child approvals deny by default, 1 level deep |
 | P2.9 | A | Compaction + guards (repeat-tool, timeouts, cost cap) | P1.9 | M | unit | compaction keeps log replayable | done |
 | P2.10 | C | `hk` TUI (ratatui): sessions pane, stream view, tool cards, approval prompt | P1.11 | L | none | usable full TUI | done — session delete + --remote skipped; no live-terminal smoke run |
-| P2.11 | B | `hk-acp`: ACP client; run `dsh --profile acp` / `opencode acp` as external engine (desktop) | P1.4 | M | none | external engine chat via `hk chat --engine dsh` | todo |
+| P2.11 | B | `hk-acp`: ACP client; run `dsh --profile acp` / `opencode acp` as external engine (desktop) | P1.4 | M | none | external engine chat via `hk chat --engine dsh` | done — hand-written ACP client (official crate not in registry cache); no AgentRuntime impl, no --session/--resume with engine, no ACP auth methods, no terminal/*; --mode plan ignored with --engine |
 
 ## Phase 3 — Desktop app: Chat  (milestone **M3: desktop Flutter chat at TUI parity**)
 
