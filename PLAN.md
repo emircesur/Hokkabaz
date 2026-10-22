@@ -91,7 +91,7 @@ Rules:
 | P3.2 | C | Chat screen: sessions list, conversation stream, reasoning collapse, tool cards, diff viewer | P3.1 | L | none | DESIGN §4.3 layout works | done — inspector pane + model chip deferred (P3.3/P3.4); no widget test yet (reduceEvent candidate) |
 | P3.3 | C | Composer: `@` files/MCP, `/` commands, mode + model chips, image paste | P3.2 | M | none | – | partial — image paste not possible w/o native plugin (stub, no UI); MCP mentions placeholder; not run in live app |
 | P3.4 | C | Inspector: context, todo/plan, cost, subagent tree, files changed | P3.2 | M | none | – | done — DTO gaps: no cost/price, no context-window size, no plan event (todo from tool args), subagent link parsed from result footer; bash file changes not counted |
-| P3.5 | C | Approvals inbox + inline cards | P3.2, P1.10 | S | none | approve/deny round-trip | partial — inline approval card done; inbox screen todo; no "always for session" option in respond_approval |
+| P3.5 | C | Approvals inbox + inline cards | P3.2, P1.10 | S | none | approve/deny round-trip | done — inline cards + approvals inbox sheet + "always allow tool X for this session" (client-side rule, the core still sees one-shot decisions) |
 | P3.6 | C | Models screen: providers, keys, local models (Ollama pull), routing | P2.1, P2.5 | M | none | – | done — Ollama pull/routing = placeholder card (P6.8); not run vs live core |
 | P3.7 | C | Command palette, keyboard shortcuts, light/dark | P3.2 | S | none | – | done — theme persisted via file in support dir; not run in live app |
 
@@ -139,13 +139,13 @@ Integration order after core + AI nodes: implementing agent decides (D14), using
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
 | P6.1 | F | `cargo-ndk` build for aarch64 + x86_64; cfg-gate desktop-only deps; mobile profile | P3.1 | M | none | `.so` builds in CI | done — CI untested (apk job); cargokit hardcodes --release so apk job mirrors mobile profile via CARGO_PROFILE_RELEASE_* env; see docs/android-build.md |
-| P6.2 | F | Android Keystore secrets bridge; app-private data dir; SAF file picks | P6.1, P1.12 | M | none | – | todo |
+| P6.2 | F | Android Keystore secrets bridge; app-private data dir; SAF file picks | P6.1, P1.12 | M | none | – | done — secrets file ChaCha20-Poly1305 encrypted with a 32-byte key wrapped by the Android Keystore (Kotlin MethodChannel); plaintext file migrates; SAF picks via file_picker; not run on a device |
 | P6.3 | C | Mobile layouts: bottom nav, chat full-screen, inspector sheet, approvals via notifications | P3.2 | L | none | – | done — no OS notifications (flutter_local_notifications not in pub cache): interface + in-app banner/badge only; inbox may hold stale entries until session reopened |
 | P6.4 | F | Foreground service for long runs / optional local webhook server; battery-aware | P6.1, P4.6 | M | none | – | todo |
-| P6.5 | C | Remote-first UX: pair via QR camera scan, instance switcher | P4.8, P6.3 | S | none | phone controls daemon | todo |
+| P6.5 | C | Remote-first UX: pair via QR camera scan, instance switcher | P4.8, P6.3 | S | none | phone controls daemon | done — QR scan (mobile_scanner) fills the pairing link on Android/iOS; paste still works; not run on a device |
 | P6.7 | B | On-device LLM (`local-llm`, llama-cpp-2): GGUF model manager (HF download, resume, checksum, fit check), desktop + Android aarch64, router offline fallback | P2.5, P6.1 | L | none | offline chat on phone | todo |
 | P6.8 | C | Local models UI: browse/download/delete, device-class recommendations, offline indicator | P6.7, P3.6 | M | none | – | todo |
-| P6.6 | F | Release signing, F-Droid metadata, GitHub Releases APK | P6.1 | S | none | signed APK published | todo |
+| P6.6 | F | Release signing, F-Droid metadata, GitHub Releases APK | P6.1 | S | none | signed APK published | partial — signing via android/key.properties or env (scripts/gen-android-keystore.sh), release.yml (tag v* → signed APKs + Windows zip → GitHub Release), fastlane metadata; no F-Droid inclusion request; no keystore generated (owner must create one) |
 
 ## Phase 7 — Hardening & extras  (milestone **M7: v1.0**)
 

@@ -1,8 +1,11 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../theme/tokens.dart';
+import 'qr_scan_page.dart';
 import 'instances_providers.dart';
 
 /// Add an instance by URL + API token.
@@ -139,6 +142,11 @@ class _PairDialogState extends ConsumerState<_PairDialog> {
     if (data?.text != null) setState(() => _link.text = data!.text!.trim());
   }
 
+  Future<void> _scan() async {
+    final value = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => const QrScanPage()));
+    if (value != null && mounted) setState(() => _link.text = value.trim());
+  }
+
   Future<void> _submit() async {
     setState(() {
       _busy = true;
@@ -184,10 +192,13 @@ class _PairDialogState extends ConsumerState<_PairDialog> {
                 decoration: InputDecoration(
                   labelText: 'Pairing link',
                   hintText: 'hokkabaz://pair?url=…&token=…',
-                  suffixIcon: IconButton(
-                    tooltip: 'Paste',
-                    icon: const Icon(Icons.content_paste),
-                    onPressed: _paste,
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (Platform.isAndroid || Platform.isIOS)
+                        IconButton(tooltip: 'Scan QR code', icon: const Icon(Icons.qr_code_scanner), onPressed: _scan),
+                      IconButton(tooltip: 'Paste', icon: const Icon(Icons.content_paste), onPressed: _paste),
+                    ],
                   ),
                 ),
               ),
