@@ -78,6 +78,7 @@ async fn offset_pagination_return_all_with_simplify() {
         limit_param: "limit".into(),
         offset_param: "offset".into(),
         page_size: 2,
+        in_body: false,
     });
     let (url, seen) = serve(vec![page(&[1, 2]), page(&[3])]).await;
     let out = n
@@ -149,6 +150,7 @@ async fn cursor_and_next_url_pagination() {
         next_path: "next".into(),
         size_param: None,
         page_size: 10,
+        in_body: false,
     });
     let p1 = http_resp("200 OK", r#"{"data":[{"id":1}],"next":"c2"}"#);
     let p2 = http_resp("200 OK", r#"{"data":[{"id":2}],"next":""}"#);
