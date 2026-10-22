@@ -14,11 +14,16 @@ Separate Flutter screen (`/studio`) + Rust crates for long-video → short-clip 
 | Virality score | LLM rubric (hook strength, emotion, novelty, clarity, pacing, shareability, platform fit) → 0–100 + per-criterion reasons; calibrated prompt, cached by clip hash |
 | B-roll + templates | keyword extraction per sentence (LLM) → stock providers (Pexels, Pixabay: user key; local folder; generated images optional) → overlay track in EDL; JSON templates (caption style + layout + intro/outro + music ducking) |
 | Social posting | LLM titles/descriptions/hashtags per platform; publish connectors as hk-integrations nodes (YouTube Data API first; others behind user-supplied tokens) so n8n flows can automate; manual "copy / export package" always available |
-| Fine editing | optional external editor: **Concat** (https://github.com/jub0t/concat) via `concat --mcp` / JSON-RPC; "Open in Concat" + agent tool bridge |
+| Fine editing / rich render | **Concat** included (see below): engine + MCP bridge, "Open in Concat", agent tool bridge |
 
-## Concat license decision
+## Concat (included)
 
-Concat is **AGPL-3.0-or-later**. Hokkabaz license is deferred (DESIGN D10). We therefore never vendor or link Concat: it is an optional, user-installed external program driven over MCP/JSON-RPC (process boundary). Core pipeline (`hk-media`, `hk-stt`, `hk-studio`) is our own code on ffmpeg (process) + permissive crates.
+Concat (https://github.com/jub0t/concat, Rust, AGPL-3.0-or-later, beta) is part of Hokkabaz: git submodule `third_party/concat` pinned to a SHA (see `docs/UPSTREAM.md`), crate `hk-concat` bridges it.
+
+- **Process bridge (always available):** `concat --mcp` (headless or via window automation) and its JSON-RPC API, driven through hk-mcp; used by the Studio agent as an editing backend (projects, cuts, titles, captions, keyframes, effects, frame preview, export) and for "Open in Concat" fine editing.
+- **In-process engine (cargo feature `engine`, off by default):** path deps on `concat-api`, `concat-project`, `concat-export`, `concat-effects`, `concat-text`, `concat-speech`, `concat-vision`. Needs FFmpeg 7 dev libs, cmake, C++, Rust ≥ 1.93 (see third_party/concat README). Built in desktop release CI, not required for day-to-day work.
+- **License consequence:** Hokkabaz is AGPL-3.0-or-later (DESIGN D10). Concat's name/logo are trademarked (`third_party/concat/TRADEMARK.md`): we describe it nominatively ("powered by / compatible with Concat"); modified Concat builds must not be named Concat. Upstream contributions need its CLA.
+- **Division of labour:** own pipeline (`hk-media` ffmpeg process, `hk-stt`, `hk-studio` EDL/highlights/virality/social) stays headless and Android-remote-friendly; Concat is the rich editor/render engine on desktop. `hk-studio` EDL maps to a Concat project (export/import adapter) so one project can use either backend.
 
 ## Architecture
 

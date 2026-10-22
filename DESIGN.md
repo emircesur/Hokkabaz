@@ -355,8 +355,8 @@ Cards: name, URL, version, status dot, active flows, queue depth. Actions: pair 
 | D8 | ACP bridge to real dsh/opencode on desktop | Day-one parity, comparison | — |
 | D9 | DeepSeek is default provider and first adapter | User priority, cost | — |
 | D15 | Studio (OpusClip-class agentic video screen) is a v1 feature set: own pipeline on ffmpeg process + hk-llm/hk-stt; see docs/STUDIO.md | Owner requirement | Defer to v2 |
-| D16 | Concat (AGPL-3.0) only as optional external process over MCP/JSON-RPC; never vendored or linked | License deferred (D10); avoids copyleft on core | Embed/fork if Hokkabaz goes AGPL |
-| D10 | License: deferred (owner: not important now). Placeholder MIT OR Apache-2.0 | Compatible with MIT upstreams | — |
+| D16 | Concat (AGPL-3.0, https://github.com/jub0t/concat) is INCLUDED: git submodule `third_party/concat` (pinned SHA), used (a) in-process via cargo feature `engine` of crate `hk-concat` (path deps on concat-* crates) and (b) as external `concat --mcp` / JSON-RPC bridge; name/logo not used for modified builds (TRADEMARK.md) | Owner requirement; Concat is a ready Rust editor with captions, effects, export, MCP | Process-only bridge |
+| D10 | License: **AGPL-3.0-or-later** (was deferred) | Concat (AGPL-3.0-or-later) is included and linked in Studio builds, so the combined work is AGPL; MIT upstreams are compatible | Keep Concat process-only and relicense |
 
 ## 7. Open questions
 

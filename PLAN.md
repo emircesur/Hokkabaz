@@ -162,7 +162,7 @@ Integration order after core + AI nodes: implementing agent decides (D14), using
 
 ## Phase 8 — Studio: agentic video screen  (milestone **M8: long video → scored, captioned, reframed vertical clips, exportable from the app**)
 
-Design: `docs/STUDIO.md`. Concat (AGPL) is external-process only (DESIGN D16).
+Design: `docs/STUDIO.md`. Concat (AGPL) is included as submodule + `hk-concat` bridge (DESIGN D16); project license AGPL-3.0-or-later (D10).
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
@@ -177,7 +177,7 @@ Design: `docs/STUDIO.md`. Concat (AGPL) is external-process only (DESIGN D16).
 | P8.9 | C | hk-ffi `api/studio.rs` (projects, import, transcribe, analyze, render queue with progress streams) + `StudioHandle` local/remote | P8.3, P3.1 | M | none | – | todo |
 | P8.10 | C | Flutter `/studio` screen: media bin, player (+proxies), transcript editor (click word → delete, filler/silence toggles), timeline strip, clip candidates list with scores, caption/reframe/template panels, export queue | P8.9 | L | unit (transcript editor model) | edit by text → export | todo |
 | P8.11 | A | Studio agent: tools (`media_probe`, `transcribe`, `find_highlights`, `score_clip`, `reframe`, `caption`, `add_broll`, `render`, `write_social`, `publish`) + agent panel in /studio reusing chat widgets; flow nodes `hokkabaz.studio*` for n8n automation | P8.4, P8.9 | M | fixture | "make 5 viral shorts from this video" end-to-end | todo |
-| P8.12 | B | Concat bridge: optional external editor (`concat --mcp`/JSON-RPC over hk-mcp), "Open in Concat", tool passthrough; docs on AGPL boundary | P8.3 | S | none | – | todo |
+| P8.12 | B | `hk-concat`: bridge to included Concat (submodule `third_party/concat`): process bridge (`concat --mcp`/JSON-RPC via hk-mcp, typed wrapper), feature `engine` in-process path deps, EDL ↔ Concat project adapter, studio agent tool passthrough, CI job building with FFmpeg 7 dev libs | P8.1 | L | unit (adapter) | agent edits+exports a project through Concat | todo |
 
 ## Critical path
 

@@ -28,3 +28,9 @@ Hokkabaz ports semantics (not code) from two MIT-licensed TypeScript projects.
 1. Bump pinned SHA here.
 2. Diff the reading-list paths since last SHA.
 3. Open a task in PLAN.md per behavior worth porting.
+
+## Concat (included, AGPL-3.0-or-later)
+
+- Repo: https://github.com/jub0t/concat — submodule `third_party/concat`
+- Pinned SHA: 2756209a92766a4e4726999a51648349a272c159 (v0.2.8)
+- Bridge crate: `hk-concat` (P8.12). Update SHA here when bumping the submodule.

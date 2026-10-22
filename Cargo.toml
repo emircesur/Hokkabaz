@@ -1,13 +1,14 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "apps/hk-cli", "apps/hk-daemon"]
+exclude = ["third_party/concat"]
 
 [workspace.package]
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.85"
-# license deferred, see DESIGN D10
-license = "LicenseRef-TBD"
+# AGPL-3.0-or-later since Concat is included (DESIGN D10/D16)
+license = "AGPL-3.0-or-later"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

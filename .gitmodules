@@ -1,0 +1,3 @@
+[submodule "third_party/concat"]
+	path = third_party/concat
+	url = https://github.com/jub0t/concat

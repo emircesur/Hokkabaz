@@ -9,6 +9,9 @@
 //!   description's routing; a typical integration is ~50 lines (see `ntfy.rs`).
 //! - [`poll`]: polling trigger base and a `TriggerHost` wrapper that arms it.
 //!
+//! - `sqlite`, `postgres`, `redis`, `s3`, `searxng`, `ollama`: data and infra nodes. `searxng`
+//!   also exports [`searxng_web_search_tool`], a `web_search` agent tool (hk-tools `Tool`).
+//!
 //! Secrets: values come from hk-flow's `CredentialResolver` (hk-store secrets behind it),
 //! are applied to one request and dropped; no type here logs or stores them.
 //! Android: everything is pure Rust over reqwest/rustls. An integration needing a native
@@ -83,7 +86,7 @@ pub use credentials::{
 };
 pub use poll::{PollRegistry, PollingHost, PollingTrigger};
 #[cfg(feature = "int-searxng")]
-pub use searxng::searxng_web_search_tool;
+pub use searxng::{searxng_web_search_tool, searxng_web_search_tool_with_token};
 
 use hk_flow::{FlowError, NodeRegistry};
 

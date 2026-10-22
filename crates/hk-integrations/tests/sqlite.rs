@@ -118,7 +118,7 @@ async fn expressions_in_queries_are_bound_not_concatenated() {
 }
 
 #[tokio::test]
-async fn errors_are_per_item_with_continue_on_fail() {
+async fn query_errors_surface() {
     let db = Db::new("err");
     let out = run(&db, json!({"operation": "executeQuery", "query": "SELECT * FROM missing"}), vec![json!({})]).await;
     assert!(out.unwrap_err().to_string().contains("no such table"));
