@@ -6,8 +6,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use hk_acp::{
-    AcpEngine, ApprovalPrompt, Approver, Decision, EngineEvent, EngineOptions, EngineSpec, SessionMapper,
-    StopReason, ToolInfo,
+    AcpEngine, ApprovalPrompt, Approver, Decision, EngineEvent, EngineOptions, EngineSpec,
+    SessionMapper, StopReason, ToolInfo,
 };
 use hk_core::{Config, LoadOptions, Profile};
 use hk_session::{NewSession, SessionStore};
@@ -35,7 +35,9 @@ impl Approver for CliApprover {
 
 pub async fn run(paths: &Paths, args: ChatArgs, engine_arg: &str) -> Result<()> {
     if args.session.is_some() || args.resume {
-        bail!("--session/--resume are not supported with --engine (external agent owns its session)");
+        bail!(
+            "--session/--resume are not supported with --engine (external agent owns its session)"
+        );
     }
     let cwd = std::env::current_dir().context("cwd")?;
     let mut opts = LoadOptions::new(Profile::Cli).with_process_env();
@@ -45,9 +47,12 @@ pub async fn run(paths: &Paths, args: ChatArgs, engine_arg: &str) -> Result<()> 
     let spec = EngineSpec::resolve(Some(&cfg), engine_arg)?;
 
     let (appr_tx, mut appr_rx) = mpsc::unbounded_channel::<ApprovalAsk>();
-    let mut engine = AcpEngine::spawn(&spec, EngineOptions::new(cwd.clone(), Arc::new(CliApprover(appr_tx))))
-        .await
-        .with_context(|| format!("start engine `{}`", spec.name))?;
+    let mut engine = AcpEngine::spawn(
+        &spec,
+        EngineOptions::new(cwd.clone(), Arc::new(CliApprover(appr_tx))),
+    )
+    .await
+    .with_context(|| format!("start engine `{}`", spec.name))?;
     let mut events = engine.take_events().context("engine events")?;
 
     let store = SessionStore::open(paths.sessions()).context("open session store")?;
@@ -60,7 +65,11 @@ pub async fn run(paths: &Paths, args: ChatArgs, engine_arg: &str) -> Result<()> 
         .agent_info()
         .map(|i| format!("{} {}", i.name, i.version))
         .unwrap_or_else(|| spec.name.clone());
-    err(&format!("session {}  engine {} ({agent})\n", writer.session_id(), spec.name));
+    err(&format!(
+        "session {}  engine {} ({agent})\n",
+        writer.session_id(),
+        spec.name
+    ));
 
     let mut lines = stdin_lines();
     let oneshot = !args.prompt.is_empty();
@@ -181,18 +190,31 @@ impl Ui {
         match ev {
             EngineEvent::Text(t) => self.text(t),
             EngineEvent::Thought(t) if self.show_reasoning => self.text(&dim(t)),
-            EngineEvent::Thought(_) | EngineEvent::ApprovalRequested(_) | EngineEvent::ApprovalResolved { .. } => {}
+            EngineEvent::Thought(_)
+            | EngineEvent::ApprovalRequested(_)
+            | EngineEvent::ApprovalResolved { .. } => {}
             EngineEvent::ToolCall(t) => self.line(&dim(&format!("> {}", tool_label(t)))),
             EngineEvent::ToolUpdate(t) => {
                 if let Some(s) = t.status.filter(|s| s.is_terminal()) {
-                    let tag = if s == hk_acp::proto::ToolStatus::Failed { "error" } else { "ok" };
+                    let tag = if s == hk_acp::proto::ToolStatus::Failed {
+                        "error"
+                    } else {
+                        "ok"
+                    };
                     let body = t.content.as_deref().unwrap_or_default();
-                    self.line(&dim(&format!("  = {tag}: {}", clip(&body.replace('\n', " | "), 400))));
+                    self.line(&dim(&format!(
+                        "  = {tag}: {}",
+                        clip(&body.replace('\n', " | "), 400)
+                    )));
                 }
             }
             EngineEvent::Plan(p) => {
                 for e in p {
-                    self.line(&dim(&format!("  [{}] {}", e.status.as_deref().unwrap_or("?"), e.content)));
+                    self.line(&dim(&format!(
+                        "  [{}] {}",
+                        e.status.as_deref().unwrap_or("?"),
+                        e.content
+                    )));
                 }
             }
         }
@@ -207,7 +229,11 @@ fn tool_label(t: &ToolInfo) -> String {
     }
 }
 
-async fn ask(lines: &mut mpsc::UnboundedReceiver<String>, ui: &mut Ui, p: &ApprovalPrompt) -> Decision {
+async fn ask(
+    lines: &mut mpsc::UnboundedReceiver<String>,
+    ui: &mut Ui,
+    p: &ApprovalPrompt,
+) -> Decision {
     ui.newline();
     err(&format!(
         "approve {} {}? [y/N/a=always] ",
@@ -219,7 +245,11 @@ async fn ask(lines: &mut mpsc::UnboundedReceiver<String>, ui: &mut Ui, p: &Appro
         _ = tokio::signal::ctrl_c() => None,
     };
     // EOF / interrupt count as a denial: never auto-approve.
-    match answer.as_deref().map(|a| a.trim().to_ascii_lowercase()).as_deref() {
+    match answer
+        .as_deref()
+        .map(|a| a.trim().to_ascii_lowercase())
+        .as_deref()
+    {
         Some("y" | "yes") => Decision::AllowOnce,
         Some("a" | "always") => Decision::AllowAlways,
         _ => Decision::Deny,

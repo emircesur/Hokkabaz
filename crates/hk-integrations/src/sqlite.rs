@@ -24,13 +24,14 @@ pub const NODE_TYPE: &str = "hokkabaz.sqlite";
 pub const CREDENTIAL: &str = "sqliteDb";
 
 pub fn credential_type() -> CredentialType {
-    CredentialType::new(CREDENTIAL, "SQLite Database")
-        .property(
-            Prop::string("path", "Database File")
-                .required()
-                .placeholder("/path/to/data.db")
-                .description("Path of the SQLite file on the machine running the flow. Created if missing"),
-        )
+    CredentialType::new(CREDENTIAL, "SQLite Database").property(
+        Prop::string("path", "Database File")
+            .required()
+            .placeholder("/path/to/data.db")
+            .description(
+                "Path of the SQLite file on the machine running the flow. Created if missing",
+            ),
+    )
 }
 
 fn description() -> NodeTypeDescription {
@@ -50,7 +51,10 @@ fn to_sql(v: &Value) -> Sql {
     match v {
         Value::Null => Sql::Null,
         Value::Bool(b) => Sql::Integer(i64::from(*b)),
-        Value::Number(n) => n.as_i64().map(Sql::Integer).unwrap_or_else(|| Sql::Real(n.as_f64().unwrap_or(0.0))),
+        Value::Number(n) => n
+            .as_i64()
+            .map(Sql::Integer)
+            .unwrap_or_else(|| Sql::Real(n.as_f64().unwrap_or(0.0))),
         Value::String(s) => Sql::Text(s.clone()),
         other => Sql::Text(other.to_string()),
     }
@@ -98,8 +102,10 @@ pub(crate) fn run_stmt(conn: &rusqlite::Connection, stmt: &Stmt) -> Result<Vec<V
 }
 
 fn open(path: &str) -> Result<rusqlite::Connection, String> {
-    let conn = rusqlite::Connection::open(path).map_err(|e| format!("Could not open the database: {e}"))?;
-    conn.busy_timeout(std::time::Duration::from_secs(5)).map_err(|e| e.to_string())?;
+    let conn = rusqlite::Connection::open(path)
+        .map_err(|e| format!("Could not open the database: {e}"))?;
+    conn.busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(|e| e.to_string())?;
     Ok(conn)
 }
 
@@ -135,7 +141,8 @@ impl FlowNode for SqliteNode {
             return Err(node_err(ctx, "The credential has no database file"));
         }
         // evaluate expressions here (needs the node context), execute in one blocking task
-        let plans: Vec<Result<Stmt, FlowError>> = (0..input_len).map(|i| self.plan(ctx, i)).collect();
+        let plans: Vec<Result<Stmt, FlowError>> =
+            (0..input_len).map(|i| self.plan(ctx, i)).collect();
         let (stmts, errs): (Vec<_>, Vec<_>) = plans
             .into_iter()
             .map(|p| match p {
@@ -174,5 +181,8 @@ impl FlowNode for SqliteNode {
 /// Node and credential type into the shared registries. Features: `int-sqlite`.
 pub fn register(nodes: &mut NodeRegistry, creds: &CredentialTypes) -> Result<(), FlowError> {
     creds.register_if_absent(credential_type());
-    nodes.register(Arc::new(SqliteNode { desc: description(), creds: creds.clone() }))
+    nodes.register(Arc::new(SqliteNode {
+        desc: description(),
+        creds: creds.clone(),
+    }))
 }

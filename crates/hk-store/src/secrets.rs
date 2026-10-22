@@ -89,11 +89,14 @@ mod keyring_backend {
 
     impl KeyringSecretStore {
         pub fn new(service: impl Into<String>) -> Self {
-            Self { service: service.into() }
+            Self {
+                service: service.into(),
+            }
         }
 
         fn entry(&self, name: &str) -> Result<keyring::Entry, SecretError> {
-            keyring::Entry::new(&self.service, name).map_err(|e| SecretError::Backend(e.to_string()))
+            keyring::Entry::new(&self.service, name)
+                .map_err(|e| SecretError::Backend(e.to_string()))
         }
     }
 
@@ -113,7 +116,9 @@ mod keyring_backend {
         }
 
         fn set(&self, name: &str, value: &Secret) -> Result<(), SecretError> {
-            self.entry(name)?.set_password(value.expose()).map_err(|e| SecretError::Backend(e.to_string()))
+            self.entry(name)?
+                .set_password(value.expose())
+                .map_err(|e| SecretError::Backend(e.to_string()))
         }
 
         fn delete(&self, name: &str) -> Result<(), SecretError> {

@@ -9,10 +9,12 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
-use hk_daemon::daemon::{ADMIN_TOKEN_ENV, DEEPSEEK_ENV, DEEPSEEK_SECRET, Unconfigured, assemble, open};
+use hk_daemon::daemon::{
+    ADMIN_TOKEN_ENV, DEEPSEEK_ENV, DEEPSEEK_SECRET, Unconfigured, assemble, open,
+};
 use hk_daemon::{FlowConfig, Opened};
-use hk_llm::deepseek::DeepSeek;
 use hk_llm::Provider;
+use hk_llm::deepseek::DeepSeek;
 use hk_server::{Auth, LocalConfig, LocalRuntime, Pairing, Scope};
 use hk_store::SecretStore;
 
@@ -23,7 +25,12 @@ struct Cli {
     #[arg(long, global = true, env = "HOKKABAZ_HOME")]
     data_dir: Option<PathBuf>,
     /// Listen address. Loopback by default; bind wider only behind TLS termination.
-    #[arg(long, global = true, env = "HOKKABAZ_LISTEN", default_value = "127.0.0.1:7878")]
+    #[arg(
+        long,
+        global = true,
+        env = "HOKKABAZ_LISTEN",
+        default_value = "127.0.0.1:7878"
+    )]
     listen: SocketAddr,
     /// Public base URL clients reach this instance at (webhook URLs, pairing QR).
     /// Default: http://<listen>.
@@ -103,7 +110,13 @@ fn provider(secrets: &dyn SecretStore, base_url: Option<&str>) -> Arc<dyn Provid
         .ok()
         .map(|k| k.trim().to_owned())
         .filter(|k| !k.is_empty())
-        .or_else(|| secrets.get(DEEPSEEK_SECRET).ok().flatten().map(|s| s.expose().to_owned()));
+        .or_else(|| {
+            secrets
+                .get(DEEPSEEK_SECRET)
+                .ok()
+                .flatten()
+                .map(|s| s.expose().to_owned())
+        });
     let Some(key) = key else {
         tracing::warn!("no DeepSeek API key configured; turns will fail until one is set");
         return Arc::new(Unconfigured);
@@ -125,7 +138,9 @@ fn admin_token(file: Option<&PathBuf>) -> Result<Option<String>> {
         let t = std::fs::read_to_string(f).with_context(|| format!("read {}", f.display()))?;
         return Ok(Some(t.trim().to_owned()));
     }
-    Ok(std::env::var(ADMIN_TOKEN_ENV).ok().filter(|t| !t.trim().is_empty()))
+    Ok(std::env::var(ADMIN_TOKEN_ENV)
+        .ok()
+        .filter(|t| !t.trim().is_empty()))
 }
 
 /// SIGINT or SIGTERM (docker stop, systemd).
@@ -147,19 +162,32 @@ async fn shutdown_signal() {
 /// Plain-TCP GET so the image needs no curl.
 async fn healthcheck(listen: SocketAddr) -> Result<()> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let addr = if listen.ip().is_unspecified() { SocketAddr::from(([127, 0, 0, 1], listen.port())) } else { listen };
+    let addr = if listen.ip().is_unspecified() {
+        SocketAddr::from(([127, 0, 0, 1], listen.port()))
+    } else {
+        listen
+    };
     let probe = async {
         let mut s = tokio::net::TcpStream::connect(addr).await?;
-        s.write_all(b"GET /api/v1/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n").await?;
+        s.write_all(b"GET /api/v1/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            .await?;
         let mut buf = Vec::new();
         s.read_to_end(&mut buf).await?;
         Ok::<_, std::io::Error>(buf)
     };
-    let buf = tokio::time::timeout(Duration::from_secs(4), probe).await.context("healthcheck timed out")??;
+    let buf = tokio::time::timeout(Duration::from_secs(4), probe)
+        .await
+        .context("healthcheck timed out")??;
     if buf.starts_with(b"HTTP/1.1 200") {
         Ok(())
     } else {
-        bail!("unhealthy: {}", String::from_utf8_lossy(&buf[..buf.len().min(40)]).lines().next().unwrap_or(""))
+        bail!(
+            "unhealthy: {}",
+            String::from_utf8_lossy(&buf[..buf.len().min(40)])
+                .lines()
+                .next()
+                .unwrap_or("")
+        )
     }
 }
 
@@ -178,7 +206,10 @@ fn print_pairing(auth: &Auth, public_url: &str, scope: Scope, ttl: Duration) -> 
     println!("Scan with the Hokkabaz app (scope: {}).", scope.as_str());
     println!("url:   {}", m.url);
     println!("token: {}", m.token);
-    println!("The pairing token is single-use and expires in {}s.", ttl.as_secs());
+    println!(
+        "The pairing token is single-use and expires in {}s.",
+        ttl.as_secs()
+    );
     if public_url.contains("0.0.0.0") || public_url.contains("127.0.0.1") {
         println!("warning: {public_url} is not reachable from a phone; set --public-url.");
     }
@@ -188,7 +219,9 @@ fn print_pairing(auth: &Auth, public_url: &str, scope: Scope, ttl: Duration) -> 
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+        )
         .with_writer(std::io::stderr)
         .init();
     let cli = Cli::parse();
@@ -196,19 +229,34 @@ async fn main() -> Result<()> {
         return healthcheck(cli.listen).await;
     }
     let data = data_dir(cli.data_dir)?;
-    let public_url = cli.public_url.unwrap_or_else(|| format!("http://{}", cli.listen));
-    let opened = open(&data, admin_token(cli.admin_token_file.as_ref())?.as_deref()).await?;
+    let public_url = cli
+        .public_url
+        .unwrap_or_else(|| format!("http://{}", cli.listen));
+    let opened = open(
+        &data,
+        admin_token(cli.admin_token_file.as_ref())?.as_deref(),
+    )
+    .await?;
 
     match cli.cmd {
         Some(Cmd::Token { scope }) => return print_token(&opened.auth, scope.into()),
         Some(Cmd::Pair { scope, ttl }) => {
-            return print_pairing(&opened.auth, &public_url, scope.into(), Duration::from_secs(ttl));
+            return print_pairing(
+                &opened.auth,
+                &public_url,
+                scope.into(),
+                Duration::from_secs(ttl),
+            );
         }
         Some(Cmd::Healthcheck) => unreachable!("handled above"),
         Some(Cmd::Serve) | None => {}
     }
 
-    let Opened { store, secrets, auth } = opened;
+    let Opened {
+        store,
+        secrets,
+        auth,
+    } = opened;
     let runtime = LocalRuntime::new(LocalConfig {
         provider: provider(secrets.as_ref(), cli.base_url.as_deref()),
         sessions_dir: data.join("sessions"),
@@ -225,7 +273,17 @@ async fn main() -> Result<()> {
         ..FlowConfig::default()
     };
     let pool = store.clone();
-    let a = assemble(Opened { store, secrets, auth }, Arc::new(runtime), flow_cfg, &public_url).await?;
+    let a = assemble(
+        Opened {
+            store,
+            secrets,
+            auth,
+        },
+        Arc::new(runtime),
+        flow_cfg,
+        &public_url,
+    )
+    .await?;
 
     let listener = tokio::net::TcpListener::bind(cli.listen)
         .await
@@ -235,7 +293,9 @@ async fn main() -> Result<()> {
         shutdown_signal().await;
         tracing::info!("shutting down");
     };
-    let served = hk_server::serve_listener(listener, a.state, shutdown).await.context("serve");
+    let served = hk_server::serve_listener(listener, a.state, shutdown)
+        .await
+        .context("serve");
     // Stop schedulers first so nothing starts mid-close; then flush the WAL.
     a.flow.shutdown();
     pool.pool().close().await;

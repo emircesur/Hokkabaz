@@ -4,11 +4,16 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use hk_stt::{
-    FillerSet, OpenAiCompatOptions, OpenAiCompatTranscriber, SttError, TranscribeOpts, Transcriber, parse_verbose_json,
+    FillerSet, OpenAiCompatOptions, OpenAiCompatTranscriber, SttError, TranscribeOpts, Transcriber,
+    parse_verbose_json,
 };
 
 fn fixture(name: &str) -> String {
-    std::fs::read_to_string(format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap()
+    std::fs::read_to_string(format!(
+        "{}/tests/fixtures/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap()
 }
 
 #[test]
@@ -71,7 +76,10 @@ fn nested_and_plain_text_variants() {
     assert!((t.words[3].end - 3.0).abs() < 1e-9);
     assert_eq!(t.language.as_deref(), Some("en"));
 
-    assert!(matches!(parse_verbose_json("nope", None), Err(SttError::Parse(_))));
+    assert!(matches!(
+        parse_verbose_json("nope", None),
+        Err(SttError::Parse(_))
+    ));
     assert!(parse_verbose_json("{}", None).unwrap().words.is_empty());
 }
 
@@ -84,7 +92,9 @@ async fn serve(responses: Vec<String>) -> (String, Arc<Mutex<Vec<Vec<u8>>>>) {
     let seen2 = seen.clone();
     tokio::spawn(async move {
         for resp in responses {
-            let Ok((mut sock, _)) = listener.accept().await else { return };
+            let Ok((mut sock, _)) = listener.accept().await else {
+                return;
+            };
             let mut buf = Vec::new();
             let mut chunk = [0u8; 8192];
             loop {
@@ -94,7 +104,10 @@ async fn serve(responses: Vec<String>) -> (String, Arc<Mutex<Vec<Vec<u8>>>>) {
                     let head = String::from_utf8_lossy(&buf[..h]).to_ascii_lowercase();
                     let len = head
                         .lines()
-                        .find_map(|l| l.strip_prefix("content-length:").map(|v| v.trim().parse::<usize>().unwrap_or(0)))
+                        .find_map(|l| {
+                            l.strip_prefix("content-length:")
+                                .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                        })
                         .unwrap_or(0);
                     if buf.len() >= h + 4 + len {
                         break;
@@ -124,7 +137,11 @@ fn resp(status: &str, extra: &str, body: &str) -> String {
 }
 
 fn fast_opts() -> OpenAiCompatOptions {
-    OpenAiCompatOptions { backoff_base: Duration::from_millis(1), max_retries: 2, ..Default::default() }
+    OpenAiCompatOptions {
+        backoff_base: Duration::from_millis(1),
+        max_retries: 2,
+        ..Default::default()
+    }
 }
 
 fn audio_file(name: &str, bytes: &[u8]) -> std::path::PathBuf {
@@ -137,24 +154,51 @@ fn audio_file(name: &str, bytes: &[u8]) -> std::path::PathBuf {
 async fn multipart_request_and_retry_on_429() {
     let ok = fixture("openai_words.json");
     let (base, seen) = serve(vec![
-        resp("429 Too Many Requests", "Retry-After: 0\r\n", r#"{"error":"slow down"}"#),
+        resp(
+            "429 Too Many Requests",
+            "Retry-After: 0\r\n",
+            r#"{"error":"slow down"}"#,
+        ),
         resp("503 Service Unavailable", "", "busy"),
         resp("200 OK", "", &ok),
     ])
     .await;
     let path = audio_file("a.mp3", b"FAKE-AUDIO-BYTES");
-    let tr = OpenAiCompatTranscriber::new(&format!("{base}/"), "whisper-1", Some("sk-test".into()), fast_opts()).unwrap();
-    let opts = TranscribeOpts { language: Some("tr-TR".into()), prompt: Some("Hokkabaz, ffmpeg".into()), word_timestamps: true };
+    let tr = OpenAiCompatTranscriber::new(
+        &format!("{base}/"),
+        "whisper-1",
+        Some("sk-test".into()),
+        fast_opts(),
+    )
+    .unwrap();
+    let opts = TranscribeOpts {
+        language: Some("tr-TR".into()),
+        prompt: Some("Hokkabaz, ffmpeg".into()),
+        word_timestamps: true,
+    };
     let t = tr.transcribe(&path, &opts).await.unwrap();
     assert_eq!(t.words.len(), 7);
 
     let reqs = seen.lock().unwrap().clone();
     assert_eq!(reqs.len(), 3, "two retries then success");
-    let all: Vec<String> = reqs.iter().map(|r| String::from_utf8_lossy(r).into_owned()).collect();
+    let all: Vec<String> = reqs
+        .iter()
+        .map(|r| String::from_utf8_lossy(r).into_owned())
+        .collect();
     for r in &all {
-        assert!(r.starts_with("POST /v1/audio/transcriptions HTTP/1.1"), "{}", &r[..60]);
-        assert!(r.to_ascii_lowercase().contains("authorization: bearer sk-test"));
-        assert!(r.to_ascii_lowercase().contains("content-type: multipart/form-data; boundary="));
+        assert!(
+            r.starts_with("POST /v1/audio/transcriptions HTTP/1.1"),
+            "{}",
+            &r[..60]
+        );
+        assert!(
+            r.to_ascii_lowercase()
+                .contains("authorization: bearer sk-test")
+        );
+        assert!(
+            r.to_ascii_lowercase()
+                .contains("content-type: multipart/form-data; boundary=")
+        );
         for needle in [
             "name=\"model\"\r\n\r\nwhisper-1",
             "name=\"response_format\"\r\n\r\nverbose_json",
@@ -175,8 +219,12 @@ async fn multipart_request_and_retry_on_429() {
 async fn client_error_not_retried_and_key_not_leaked() {
     let (base, seen) = serve(vec![resp("401 Unauthorized", "", r#"{"error":"bad key"}"#)]).await;
     let path = audio_file("b.wav", b"x");
-    let tr = OpenAiCompatTranscriber::new(&base, "m", Some("sk-secret".into()), fast_opts()).unwrap();
-    let err = tr.transcribe(&path, &TranscribeOpts::default()).await.unwrap_err();
+    let tr =
+        OpenAiCompatTranscriber::new(&base, "m", Some("sk-secret".into()), fast_opts()).unwrap();
+    let err = tr
+        .transcribe(&path, &TranscribeOpts::default())
+        .await
+        .unwrap_err();
     assert!(matches!(err, SttError::Http { status: 401, .. }), "{err:?}");
     assert_eq!(seen.lock().unwrap().len(), 1);
     assert!(!format!("{tr:?}").contains("sk-secret"));
@@ -188,14 +236,26 @@ async fn gives_up_after_retries_and_enforces_size_limit() {
     let (base, seen) = serve(vec![resp("500 Internal Server Error", "", "e"); 3]).await;
     let path = audio_file("c.ogg", b"0123456789");
     let tr = OpenAiCompatTranscriber::new(&base, "m", None, fast_opts()).unwrap();
-    let err = tr.transcribe(&path, &TranscribeOpts::default()).await.unwrap_err();
+    let err = tr
+        .transcribe(&path, &TranscribeOpts::default())
+        .await
+        .unwrap_err();
     assert!(matches!(err, SttError::Http { status: 500, .. }), "{err:?}");
     assert_eq!(seen.lock().unwrap().len(), 3);
 
-    let small = OpenAiCompatOptions { max_upload_bytes: 5, ..fast_opts() };
+    let small = OpenAiCompatOptions {
+        max_upload_bytes: 5,
+        ..fast_opts()
+    };
     let tr = OpenAiCompatTranscriber::new(&base, "m", None, small).unwrap();
-    let err = tr.transcribe(&path, &TranscribeOpts::default()).await.unwrap_err();
-    assert!(matches!(err, SttError::TooLarge { size: 10, limit: 5 }), "{err:?}");
+    let err = tr
+        .transcribe(&path, &TranscribeOpts::default())
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, SttError::TooLarge { size: 10, limit: 5 }),
+        "{err:?}"
+    );
     assert_eq!(tr.max_upload_bytes(), Some(5));
     let _ = std::fs::remove_file(path);
 }

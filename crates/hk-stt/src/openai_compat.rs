@@ -97,7 +97,10 @@ impl OpenAiCompatTranscriber {
             let mut req = self
                 .client
                 .post(&self.url)
-                .header("content-type", format!("multipart/form-data; boundary={boundary}"))
+                .header(
+                    "content-type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
                 .body(body.clone());
             if let Some(k) = &self.key {
                 req = req.bearer_auth(k);
@@ -114,15 +117,24 @@ impl OpenAiCompatTranscriber {
                         .and_then(|v| v.to_str().ok())
                         .and_then(|v| v.trim().parse::<u64>().ok())
                         .map(|s| Duration::from_secs(s.min(60)));
-                    let text = resp.text().await.map_err(|e| SttError::Network(e.to_string()))?;
+                    let text = resp
+                        .text()
+                        .await
+                        .map_err(|e| SttError::Network(e.to_string()))?;
                     if status.is_success() {
                         return Ok(text);
                     }
                     let code = status.as_u16();
                     if code == 413 {
-                        return Err(SttError::TooLarge { size: body.len() as u64, limit: self.opts.max_upload_bytes });
+                        return Err(SttError::TooLarge {
+                            size: body.len() as u64,
+                            limit: self.opts.max_upload_bytes,
+                        });
                     }
-                    let e = SttError::Http { status: code, body: truncate(&text, 500) };
+                    let e = SttError::Http {
+                        status: code,
+                        body: truncate(&text, 500),
+                    };
                     if code != 429 && !status.is_server_error() {
                         return Err(e);
                     }
@@ -149,14 +161,26 @@ impl OpenAiCompatTranscriber {
 #[async_trait]
 impl Transcriber for OpenAiCompatTranscriber {
     async fn transcribe(&self, audio_path: &Path, opts: &TranscribeOpts) -> Result<Transcript> {
-        let io = |source| SttError::Io { path: audio_path.to_path_buf(), source };
+        let io = |source| SttError::Io {
+            path: audio_path.to_path_buf(),
+            source,
+        };
         let size = tokio::fs::metadata(audio_path).await.map_err(io)?.len();
         if size > self.opts.max_upload_bytes {
-            return Err(SttError::TooLarge { size, limit: self.opts.max_upload_bytes });
+            return Err(SttError::TooLarge {
+                size,
+                limit: self.opts.max_upload_bytes,
+            });
         }
         let data = tokio::fs::read(audio_path).await.map_err(io)?;
-        let language = opts.language.clone().or_else(|| self.opts.default_language.clone());
-        let filename = audio_path.file_name().and_then(|n| n.to_str()).unwrap_or("audio");
+        let language = opts
+            .language
+            .clone()
+            .or_else(|| self.opts.default_language.clone());
+        let filename = audio_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("audio");
         let (boundary, body) = multipart_body(
             filename,
             content_type_for(audio_path),
@@ -179,7 +203,12 @@ fn truncate(s: &str, n: usize) -> String {
 }
 
 fn content_type_for(p: &Path) -> &'static str {
-    match p.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).as_deref() {
+    match p
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
         Some("mp3" | "mpeg" | "mpga") => "audio/mpeg",
         Some("wav") => "audio/wav",
         Some("m4a" | "mp4") => "audio/mp4",
@@ -205,14 +234,23 @@ fn multipart_body(
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos());
-    let mut boundary = format!("hkstt{nanos:x}{:x}", BOUNDARY_SEQ.fetch_add(1, Ordering::Relaxed));
-    while data.windows(boundary.len()).any(|w| w == boundary.as_bytes()) {
+    let mut boundary = format!(
+        "hkstt{nanos:x}{:x}",
+        BOUNDARY_SEQ.fetch_add(1, Ordering::Relaxed)
+    );
+    while data
+        .windows(boundary.len())
+        .any(|w| w == boundary.as_bytes())
+    {
         boundary.push('x');
     }
     let mut body: Vec<u8> = Vec::with_capacity(data.len() + 1024);
     let mut field = |name: &str, value: &str| {
         body.extend_from_slice(
-            format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n").as_bytes(),
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n"
+            )
+            .as_bytes(),
         );
     };
     field("model", model);
@@ -227,7 +265,10 @@ fn multipart_body(
     if let Some(p) = opts.prompt.as_deref().filter(|p| !p.is_empty()) {
         field("prompt", p);
     }
-    let safe_name: String = filename.chars().filter(|c| !matches!(c, '"' | '\r' | '\n' | '\\')).collect();
+    let safe_name: String = filename
+        .chars()
+        .filter(|c| !matches!(c, '"' | '\r' | '\n' | '\\'))
+        .collect();
     body.extend_from_slice(
         format!(
             "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{safe_name}\"\r\nContent-Type: {content_type}\r\n\r\n"
@@ -254,8 +295,13 @@ fn parse_word(v: &Value, seg_conf: Option<f32>) -> Option<Word> {
     }
     let start = num(v.get("start"))?;
     let end = num(v.get("end")).unwrap_or(start);
-    let conf = num(v.get("probability").or_else(|| v.get("confidence"))).map(|c| c as f32).or(seg_conf);
-    Some(Word { confidence: conf, ..Word::new(text, start, end) })
+    let conf = num(v.get("probability").or_else(|| v.get("confidence")))
+        .map(|c| c as f32)
+        .or(seg_conf);
+    Some(Word {
+        confidence: conf,
+        ..Word::new(text, start, end)
+    })
 }
 
 /// Spread `text` over `[start, end]` proportionally to token length.
@@ -264,8 +310,15 @@ fn interpolate(text: &str, start: f64, end: f64, conf: Option<f32>) -> Vec<Word>
     if toks.is_empty() {
         return Vec::new();
     }
-    let end = if end > start { end } else { start + 0.35 * toks.len() as f64 };
-    let weights: Vec<f64> = toks.iter().map(|t| t.chars().count() as f64 + 1.0).collect();
+    let end = if end > start {
+        end
+    } else {
+        start + 0.35 * toks.len() as f64
+    };
+    let weights: Vec<f64> = toks
+        .iter()
+        .map(|t| t.chars().count() as f64 + 1.0)
+        .collect();
     let total: f64 = weights.iter().sum();
     let mut t = start;
     toks.iter()
@@ -274,7 +327,10 @@ fn interpolate(text: &str, start: f64, end: f64, conf: Option<f32>) -> Vec<Word>
             let e = t + (end - start) * w / total;
             let word = Word {
                 confidence: conf,
-                flags: WordFlags { estimated: true, ..Default::default() },
+                flags: WordFlags {
+                    estimated: true,
+                    ..Default::default()
+                },
                 ..Word::new(*tok, t, e)
             };
             t = e;
@@ -288,7 +344,8 @@ fn interpolate(text: &str, start: f64, end: f64, conf: Option<f32>) -> Vec<Word>
 /// segment; segment-only responses get interpolated (flagged `estimated`)
 /// words; plain `{text}` responses become one segment.
 pub fn parse_verbose_json(body: &str, fallback_language: Option<&str>) -> Result<Transcript> {
-    let v: Value = serde_json::from_str(body).map_err(|e| SttError::Parse(format!("not json: {e}")))?;
+    let v: Value =
+        serde_json::from_str(body).map_err(|e| SttError::Parse(format!("not json: {e}")))?;
     if !v.is_object() {
         return Err(SttError::Parse("expected json object".into()));
     }
@@ -306,7 +363,12 @@ pub fn parse_verbose_json(body: &str, fallback_language: Option<&str>) -> Result
     let mut nested = false;
     if let Some(arr) = v.get("segments").and_then(Value::as_array) {
         for s in arr {
-            let text = s.get("text").and_then(Value::as_str).unwrap_or("").trim().to_string();
+            let text = s
+                .get("text")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .trim()
+                .to_string();
             let start = num(s.get("start")).unwrap_or(0.0);
             let end = num(s.get("end")).unwrap_or(start);
             let conf = num(s.get("avg_logprob")).map(|lp| lp.exp().clamp(0.0, 1.0) as f32);
@@ -321,7 +383,12 @@ pub fn parse_verbose_json(body: &str, fallback_language: Option<&str>) -> Result
                 nested = true;
             }
             seg_words.extend(words);
-            segments.push(Segment { text, start, end, word_range: 0..0 });
+            segments.push(Segment {
+                text,
+                start,
+                end,
+                word_range: 0..0,
+            });
         }
     }
 
@@ -340,7 +407,12 @@ pub fn parse_verbose_json(body: &str, fallback_language: Option<&str>) -> Result
         let w = interpolate(text, 0.0, duration, None);
         if !text.is_empty() {
             let end = w.last().map_or(0.0, |w| w.end);
-            segments.push(Segment { text: text.to_string(), start: 0.0, end, word_range: 0..0 });
+            segments.push(Segment {
+                text: text.to_string(),
+                start: 0.0,
+                end,
+                word_range: 0..0,
+            });
         }
         w
     } else {
@@ -351,17 +423,29 @@ pub fn parse_verbose_json(body: &str, fallback_language: Option<&str>) -> Result
         let confs: Vec<Option<f32>> = v
             .get("segments")
             .and_then(Value::as_array)
-            .map(|a| a.iter().map(|s| num(s.get("avg_logprob")).map(|lp| lp.exp().clamp(0.0, 1.0) as f32)).collect())
+            .map(|a| {
+                a.iter()
+                    .map(|s| num(s.get("avg_logprob")).map(|lp| lp.exp().clamp(0.0, 1.0) as f32))
+                    .collect()
+            })
             .unwrap_or_default();
         for w in words.iter_mut().filter(|w| w.confidence.is_none()) {
             let m = w.mid();
-            if let Some(i) = segments.iter().position(|s| m >= s.start && m < s.end.max(s.start + 1e-6)) {
+            if let Some(i) = segments
+                .iter()
+                .position(|s| m >= s.start && m < s.end.max(s.start + 1e-6))
+            {
                 w.confidence = confs.get(i).copied().flatten();
             }
         }
     }
 
-    let mut t = Transcript { language, duration, words: Vec::new(), segments };
+    let mut t = Transcript {
+        language,
+        duration,
+        words: Vec::new(),
+        segments,
+    };
     duration = duration.max(words.last().map_or(0.0, |w| w.end));
     t.duration = duration;
     t.words = std::mem::take(&mut words);

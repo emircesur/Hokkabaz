@@ -18,7 +18,10 @@ use crate::rest::{RestNode, RestRequest};
 use crate::template::display;
 
 pub fn node_err(ctx: &NodeContext, message: impl Into<String>) -> FlowError {
-    FlowError::Node { node: ctx.node.name.clone(), message: message.into() }
+    FlowError::Node {
+        node: ctx.node.name.clone(),
+        message: message.into(),
+    }
 }
 
 /// n8n resource locators (`{__rl: true, value, mode}`) collapse to their value.
@@ -41,7 +44,9 @@ pub fn opt_str(
         Some(v) => Some(v),
         None => defaults.get(path).cloned(),
     };
-    Ok(v.map(unwrap_rl).map(|v| display(&v)).filter(|s| !s.is_empty()))
+    Ok(v.map(unwrap_rl)
+        .map(|v| display(&v))
+        .filter(|s| !s.is_empty()))
 }
 
 pub fn req_str(
@@ -118,7 +123,12 @@ pub fn expand(
 pub fn string_list(v: &Value) -> Vec<String> {
     fn walk(v: &Value, out: &mut Vec<String>) {
         match v {
-            Value::String(s) => out.extend(s.split(',').map(str::trim).filter(|x| !x.is_empty()).map(str::to_owned)),
+            Value::String(s) => out.extend(
+                s.split(',')
+                    .map(str::trim)
+                    .filter(|x| !x.is_empty())
+                    .map(str::to_owned),
+            ),
             Value::Array(a) => a.iter().for_each(|x| walk(x, out)),
             Value::Object(m) => m.values().for_each(|x| walk(x, out)),
             Value::Number(n) => out.push(n.to_string()),
@@ -152,22 +162,32 @@ pub struct ShaFirst {
 
 impl std::fmt::Debug for ShaFirst {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ShaFirst").field("inner", &self.inner).finish_non_exhaustive()
+        f.debug_struct("ShaFirst")
+            .field("inner", &self.inner)
+            .finish_non_exhaustive()
     }
 }
 
 impl ShaFirst {
     pub fn new(inner: RestNode, needs_sha: &'static [&'static str]) -> Self {
         let defaults = defaults_of(inner.description());
-        Self { inner, defaults, needs_sha }
+        Self {
+            inner,
+            defaults,
+            needs_sha,
+        }
     }
 
     fn item_ctx(ctx: &NodeContext, i: usize, operation: &str, sha: Option<&str>) -> NodeContext {
         let mut c = ctx.clone();
         c.input = vec![vec![ctx.input[0][i].clone()]];
-        c.node.parameters.insert("operation".into(), Value::String(operation.to_owned()));
+        c.node
+            .parameters
+            .insert("operation".into(), Value::String(operation.to_owned()));
         if let Some(sha) = sha {
-            c.node.parameters.insert("__sha".into(), Value::String(sha.to_owned()));
+            c.node
+                .parameters
+                .insert("__sha".into(), Value::String(sha.to_owned()));
         }
         c
     }
@@ -194,7 +214,10 @@ impl FlowNode for ShaFirst {
                 .eval_param_at("additionalParameters", i)?
                 .and_then(|v| nested_str(&v, "branch", "branch"))
             {
-                lookup.node.parameters.insert("__ref".into(), Value::String(b));
+                lookup
+                    .node
+                    .parameters
+                    .insert("__ref".into(), Value::String(b));
             }
             let got = self.inner.execute(&lookup).await?;
             let first = got.into_iter().next().and_then(|v| v.into_iter().next());
@@ -206,11 +229,20 @@ impl FlowNode for ShaFirst {
                 continue;
             }
             let Some(sha) = first.json.get("sha").and_then(Value::as_str) else {
-                return Err(node_err(ctx, "Could not determine the sha of the file (is the path a directory?)"));
+                return Err(node_err(
+                    ctx,
+                    "Could not determine the sha of the file (is the path a directory?)",
+                ));
             };
             let run = Self::item_ctx(ctx, i, &op, Some(sha));
             let res = self.inner.execute(&run).await?;
-            out.extend(res.into_iter().next().unwrap_or_default().into_iter().map(|o| retarget(o, i)));
+            out.extend(
+                res.into_iter()
+                    .next()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|o| retarget(o, i)),
+            );
         }
         Ok(vec![out])
     }
@@ -258,7 +290,10 @@ pub fn query_from(
     req: &mut RestRequest,
 ) -> Result<(), FlowError> {
     for k in keys {
-        if let Some(v) = ctx.eval_param_at(&format!("{coll}.{k}"), i)?.filter(|v| !v.is_null()) {
+        if let Some(v) = ctx
+            .eval_param_at(&format!("{coll}.{k}"), i)?
+            .filter(|v| !v.is_null())
+        {
             let s = display(&v);
             if !s.is_empty() {
                 req.query.push(((*k).to_owned(), s));
@@ -270,8 +305,15 @@ pub fn query_from(
 
 /// `author` / `committer` objects of the contents API.
 pub fn person(extra: &Value, who: &str) -> Option<Value> {
-    let name = extra.get(format!("{who}Name")).and_then(Value::as_str).map(str::to_owned).or_else(|| nested_str(extra, who, "name"))?;
-    let email = extra.get(format!("{who}Email")).and_then(Value::as_str).map(str::to_owned).or_else(|| nested_str(extra, who, "email"))?;
+    let name = extra
+        .get(format!("{who}Name"))
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .or_else(|| nested_str(extra, who, "name"))?;
+    let email = extra
+        .get(format!("{who}Email"))
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .or_else(|| nested_str(extra, who, "email"))?;
     Some(json!({"name": name, "email": email}))
 }
-

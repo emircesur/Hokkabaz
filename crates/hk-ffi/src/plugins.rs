@@ -73,7 +73,12 @@ pub fn manager() -> Result<Arc<Manager>, HkError> {
         .read()
         .unwrap_or_else(PoisonError::into_inner)
         .clone()
-        .ok_or_else(|| HkError::new(HkErrorKind::NotInitialized, "plugins need the in-process core (core_init)"))
+        .ok_or_else(|| {
+            HkError::new(
+                HkErrorKind::NotInitialized,
+                "plugins need the in-process core (core_init)",
+            )
+        })
 }
 
 fn perr(e: hk_plugin::PluginError) -> HkError {
@@ -97,12 +102,20 @@ struct SecretsBridge(Arc<dyn SecretStore>);
 impl hk_plugin::SecretLookup for SecretsBridge {
     fn get(&self, name: &str) -> Option<String> {
         // Plugins see only secrets stored under the `plugin/` namespace.
-        self.0.get(&format!("plugin/{name}")).ok().flatten().map(|s| s.expose().to_owned())
+        self.0
+            .get(&format!("plugin/{name}"))
+            .ok()
+            .flatten()
+            .map(|s| s.expose().to_owned())
     }
 }
 
 impl Manager {
-    pub fn new(data_dir: &std::path::Path, secrets: Arc<dyn SecretStore>, add_tools: AddTools) -> Result<Arc<Self>, HkError> {
+    pub fn new(
+        data_dir: &std::path::Path,
+        secrets: Arc<dyn SecretStore>,
+        add_tools: AddTools,
+    ) -> Result<Arc<Self>, HkError> {
         let store = PluginStore::new(data_dir.join("plugins"));
         #[cfg(not(target_os = "android"))]
         let host = hk_plugin::PluginHost::new(hk_plugin::HostServices {
@@ -158,7 +171,10 @@ impl Manager {
 
     #[cfg(target_os = "android")]
     fn load_one(&self, _p: &hk_plugin::store::InstalledPlugin) -> Result<(), HkError> {
-        Err(HkError::new(HkErrorKind::Unsupported, "WASM plugins cannot run on Android yet"))
+        Err(HkError::new(
+            HkErrorKind::Unsupported,
+            "WASM plugins cannot run on Android yet",
+        ))
     }
 
     fn rebuild_nodes(&self) {
@@ -194,9 +210,27 @@ impl Manager {
             #[cfg(not(target_os = "android"))]
             if let Some(lp) = self.host.get(&m.id) {
                 v["loaded"] = json!(true);
-                v["tools"] = json!(lp.description.tools.iter().map(|t| &t.name).collect::<Vec<_>>());
-                v["nodes"] = json!(lp.description.nodes.iter().filter_map(|n| n["displayName"].as_str()).collect::<Vec<_>>());
-                v["triggers"] = json!(lp.description.triggers.iter().map(|t| &t.name).collect::<Vec<_>>());
+                v["tools"] = json!(
+                    lp.description
+                        .tools
+                        .iter()
+                        .map(|t| &t.name)
+                        .collect::<Vec<_>>()
+                );
+                v["nodes"] = json!(
+                    lp.description
+                        .nodes
+                        .iter()
+                        .filter_map(|n| n["displayName"].as_str())
+                        .collect::<Vec<_>>()
+                );
+                v["triggers"] = json!(
+                    lp.description
+                        .triggers
+                        .iter()
+                        .map(|t| &t.name)
+                        .collect::<Vec<_>>()
+                );
                 v["settings_schema"] = lp.description.settings.clone().unwrap_or(Value::Null);
                 v["settings"] = lp.settings();
             }
@@ -237,9 +271,17 @@ impl Manager {
     }
 
     pub async fn registry_json(&self, index_url: Option<&str>) -> Result<Value, HkError> {
-        let url = index_url.filter(|u| !u.trim().is_empty()).unwrap_or(registry::DEFAULT_INDEX_URL);
+        let url = index_url
+            .filter(|u| !u.trim().is_empty())
+            .unwrap_or(registry::DEFAULT_INDEX_URL);
         let idx: RegistryIndex = registry::fetch_index(url).await.map_err(perr)?;
-        let installed: BTreeMap<String, String> = self.store.list().map_err(perr)?.into_iter().map(|p| (p.manifest.id, p.manifest.version)).collect();
+        let installed: BTreeMap<String, String> = self
+            .store
+            .list()
+            .map_err(perr)?
+            .into_iter()
+            .map(|p| (p.manifest.id, p.manifest.version))
+            .collect();
         let entries: Vec<Value> = idx
             .plugins
             .iter()
@@ -247,24 +289,52 @@ impl Manager {
                 let cur = installed.get(&e.id);
                 let mut v = serde_json::to_value(e).unwrap_or(Value::Null);
                 v["installed_version"] = json!(cur);
-                v["update_available"] = json!(cur.is_some_and(|c| registry::is_newer(&e.version, c)));
-                v["capability_summary"] = json!(Manifest { id: e.id.clone(), name: e.name.clone(), version: e.version.clone(), description: String::new(), wasm: "x.wasm".into(), author: String::new(), license: String::new(), homepage: String::new(), capabilities: e.capabilities.clone() }.capability_summary());
+                v["update_available"] =
+                    json!(cur.is_some_and(|c| registry::is_newer(&e.version, c)));
+                v["capability_summary"] = json!(
+                    Manifest {
+                        id: e.id.clone(),
+                        name: e.name.clone(),
+                        version: e.version.clone(),
+                        description: String::new(),
+                        wasm: "x.wasm".into(),
+                        author: String::new(),
+                        license: String::new(),
+                        homepage: String::new(),
+                        capabilities: e.capabilities.clone()
+                    }
+                    .capability_summary()
+                );
                 v
             })
             .collect();
         Ok(json!({"url": url, "plugins": entries}))
     }
 
-    pub async fn install_from_registry(&self, id: &str, index_url: Option<&str>) -> Result<String, HkError> {
-        let url = index_url.filter(|u| !u.trim().is_empty()).unwrap_or(registry::DEFAULT_INDEX_URL);
+    pub async fn install_from_registry(
+        &self,
+        id: &str,
+        index_url: Option<&str>,
+    ) -> Result<String, HkError> {
+        let url = index_url
+            .filter(|u| !u.trim().is_empty())
+            .unwrap_or(registry::DEFAULT_INDEX_URL);
         let idx = registry::fetch_index(url).await.map_err(perr)?;
-        let entry: &RegistryEntry = idx.find(id).ok_or_else(|| HkError::new(HkErrorKind::NotFound, format!("`{id}` is not in the registry")))?;
+        let entry: &RegistryEntry = idx.find(id).ok_or_else(|| {
+            HkError::new(
+                HkErrorKind::NotFound,
+                format!("`{id}` is not in the registry"),
+            )
+        })?;
         let bytes = registry::download(entry).await.map_err(perr)?;
         let p = self.store.install_archive(&bytes).map_err(perr)?;
         // The artifact must be the plugin the index promised.
         if p.manifest.id != entry.id {
             let _ = self.store.remove(&p.manifest.id);
-            return Err(HkError::invalid(format!("artifact contains `{}`, expected `{}`", p.manifest.id, entry.id)));
+            return Err(HkError::invalid(format!(
+                "artifact contains `{}`, expected `{}`",
+                p.manifest.id, entry.id
+            )));
         }
         self.after_install(p)
     }
@@ -299,18 +369,25 @@ impl Manager {
         if let Some(lp) = self.host.get(id) {
             return lp.set_settings(settings).map_err(perr);
         }
-        Err(HkError::new(HkErrorKind::Unsupported, "plugin is not loaded"))
+        Err(HkError::new(
+            HkErrorKind::Unsupported,
+            "plugin is not loaded",
+        ))
     }
 
     // --------------------------------------------------------------------- MCP
 
     fn read_mcp(&self) -> Vec<McpEntry> {
-        std::fs::read(&self.mcp_path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+        std::fs::read(&self.mcp_path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default()
     }
 
     fn write_mcp(&self, v: &[McpEntry]) -> Result<(), HkError> {
         let tmp = self.mcp_path.with_extension("tmp");
-        std::fs::write(&tmp, serde_json::to_vec_pretty(v)?).map_err(|e| HkError::internal(e.to_string()))?;
+        std::fs::write(&tmp, serde_json::to_vec_pretty(v)?)
+            .map_err(|e| HkError::internal(e.to_string()))?;
         std::fs::rename(&tmp, &self.mcp_path).map_err(|e| HkError::internal(e.to_string()))
     }
 
@@ -321,9 +398,17 @@ impl Manager {
     /// Config with its secrets filled in from the secret store.
     fn resolved(&self, cfg: &McpServerConfig) -> McpServerConfig {
         let mut c = cfg.clone();
-        let get = |k: String| self.secrets.get(&k).ok().flatten().map(|s| s.expose().to_owned());
+        let get = |k: String| {
+            self.secrets
+                .get(&k)
+                .ok()
+                .flatten()
+                .map(|s| s.expose().to_owned())
+        };
         match &mut c.transport {
-            McpTransportConfig::Http(h) => h.bearer_token = get(Self::mcp_secret(&cfg.name, "token")),
+            McpTransportConfig::Http(h) => {
+                h.bearer_token = get(Self::mcp_secret(&cfg.name, "token"))
+            }
             McpTransportConfig::Stdio(s) => {
                 for k in s.env.keys().cloned().collect::<Vec<_>>() {
                     if let Some(v) = get(Self::mcp_secret(&cfg.name, &format!("env/{k}"))) {
@@ -364,10 +449,16 @@ impl Manager {
     /// url, bearer_token, headers{}, timeout_secs}`. Secrets (`bearer_token`, `env` values) go to the
     /// secret store. Any change resets trust: the user must approve what will actually run.
     pub async fn mcp_save(&self, spec: &Value) -> Result<(), HkError> {
-        let mut cfg: McpServerConfig = serde_json::from_value(spec.clone()).map_err(|e| HkError::invalid(format!("bad MCP server: {e}")))?;
-        cfg.validate().map_err(|e| HkError::invalid(e.to_string()))?;
+        let mut cfg: McpServerConfig = serde_json::from_value(spec.clone())
+            .map_err(|e| HkError::invalid(format!("bad MCP server: {e}")))?;
+        cfg.validate()
+            .map_err(|e| HkError::invalid(e.to_string()))?;
         let name = cfg.name.clone();
-        let put = |k: String, v: &str| self.secrets.set(&k, &Secret::new(v)).map_err(|e| HkError::internal(format!("secret store: {e}")));
+        let put = |k: String, v: &str| {
+            self.secrets
+                .set(&k, &Secret::new(v))
+                .map_err(|e| HkError::internal(format!("secret store: {e}")))
+        };
         match &mut cfg.transport {
             McpTransportConfig::Http(h) => {
                 if let Some(t) = h.bearer_token.take().filter(|t| !t.is_empty()) {
@@ -384,9 +475,18 @@ impl Manager {
             }
         }
         let mut entries = self.read_mcp();
-        let was_trusted = entries.iter().find(|e| e.config.name == name).is_some_and(|e| e.trusted && serde_json::to_value(&e.config).ok() == serde_json::to_value(&cfg).ok());
+        let was_trusted = entries
+            .iter()
+            .find(|e| e.config.name == name)
+            .is_some_and(|e| {
+                e.trusted && serde_json::to_value(&e.config).ok() == serde_json::to_value(&cfg).ok()
+            });
         entries.retain(|e| e.config.name != name);
-        entries.push(McpEntry { config: cfg, trusted: was_trusted, enabled: true });
+        entries.push(McpEntry {
+            config: cfg,
+            trusted: was_trusted,
+            enabled: true,
+        });
         entries.sort_by(|a, b| a.config.name.cmp(&b.config.name));
         self.write_mcp(&entries)?;
         self.mcp.lock().await.clients.remove(&name);
@@ -395,7 +495,11 @@ impl Manager {
 
     pub async fn mcp_set_trusted(&self, name: &str, trusted: bool) -> Result<(), HkError> {
         let mut entries = self.read_mcp();
-        entries.iter_mut().find(|e| e.config.name == name).ok_or_else(|| HkError::new(HkErrorKind::NotFound, format!("MCP server {name}")))?.trusted = trusted;
+        entries
+            .iter_mut()
+            .find(|e| e.config.name == name)
+            .ok_or_else(|| HkError::new(HkErrorKind::NotFound, format!("MCP server {name}")))?
+            .trusted = trusted;
         self.write_mcp(&entries)?;
         if trusted {
             self.mcp_connect(name).await
@@ -407,7 +511,11 @@ impl Manager {
 
     pub async fn mcp_set_enabled(&self, name: &str, enabled: bool) -> Result<(), HkError> {
         let mut entries = self.read_mcp();
-        entries.iter_mut().find(|e| e.config.name == name).ok_or_else(|| HkError::new(HkErrorKind::NotFound, format!("MCP server {name}")))?.enabled = enabled;
+        entries
+            .iter_mut()
+            .find(|e| e.config.name == name)
+            .ok_or_else(|| HkError::new(HkErrorKind::NotFound, format!("MCP server {name}")))?
+            .enabled = enabled;
         self.write_mcp(&entries)?;
         if !enabled {
             self.mcp.lock().await.clients.remove(name);
@@ -420,7 +528,10 @@ impl Manager {
         let before = entries.len();
         entries.retain(|e| e.config.name != name);
         if entries.len() == before {
-            return Err(HkError::new(HkErrorKind::NotFound, format!("MCP server {name}")));
+            return Err(HkError::new(
+                HkErrorKind::NotFound,
+                format!("MCP server {name}"),
+            ));
         }
         self.write_mcp(&entries)?;
         let mut rt = self.mcp.lock().await;
@@ -433,7 +544,11 @@ impl Manager {
 
     /// Connect one trusted, enabled server and offer its tools to agents (new sessions).
     pub async fn mcp_connect(&self, name: &str) -> Result<(), HkError> {
-        let entry = self.read_mcp().into_iter().find(|e| e.config.name == name).ok_or_else(|| HkError::new(HkErrorKind::NotFound, format!("MCP server {name}")))?;
+        let entry = self
+            .read_mcp()
+            .into_iter()
+            .find(|e| e.config.name == name)
+            .ok_or_else(|| HkError::new(HkErrorKind::NotFound, format!("MCP server {name}")))?;
         if !entry.trusted {
             return Err(HkError::invalid("this MCP server has not been trusted yet"));
         }
@@ -444,7 +559,10 @@ impl Manager {
         let result: Result<Connected, String> = async {
             let client = Arc::new(McpClient::connect(&cfg).await.map_err(|e| e.to_string())?);
             let infos = client.list_tools().await.map_err(|e| e.to_string())?;
-            let tools = infos.into_iter().map(|i| Arc::new(McpTool::new(client.clone(), i)) as Arc<dyn Tool>).collect();
+            let tools = infos
+                .into_iter()
+                .map(|i| Arc::new(McpTool::new(client.clone(), i)) as Arc<dyn Tool>)
+                .collect();
             Ok((client, tools))
         }
         .await;
@@ -453,7 +571,10 @@ impl Manager {
             Ok((client, tools)) => {
                 rt.errors.remove(name);
                 let names: Vec<String> = tools.iter().map(|t| t.spec().name).collect();
-                let fresh: Vec<_> = tools.into_iter().filter(|t| lock(&self.registered_tools).insert(t.spec().name)).collect();
+                let fresh: Vec<_> = tools
+                    .into_iter()
+                    .filter(|t| lock(&self.registered_tools).insert(t.spec().name))
+                    .collect();
                 if !fresh.is_empty() {
                     (self.add_tools)(fresh);
                 }
@@ -470,7 +591,11 @@ impl Manager {
 
     /// Connect every trusted + enabled server (startup; errors are recorded per server).
     pub async fn mcp_connect_all(&self) {
-        for e in self.read_mcp().into_iter().filter(|e| e.trusted && e.enabled) {
+        for e in self
+            .read_mcp()
+            .into_iter()
+            .filter(|e| e.trusted && e.enabled)
+        {
             if let Err(err) = self.mcp_connect(&e.config.name).await {
                 tracing::warn!(server = %e.config.name, error = %err, "MCP server did not connect");
             }

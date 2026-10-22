@@ -102,7 +102,11 @@ impl Shared {
 
 /// `flow_author` + `flow_run`, ready for `AgentRuntime::add_tools`.
 pub fn flow_tools(host: Arc<dyn FlowToolHost>, store: Store) -> Vec<Arc<dyn Tool>> {
-    let sh = Arc::new(Shared { host, store, pure: Mutex::default() });
+    let sh = Arc::new(Shared {
+        host,
+        store,
+        pure: Mutex::default(),
+    });
     vec![Arc::new(FlowAuthor(sh.clone())), Arc::new(FlowRun(sh))]
 }
 
@@ -160,15 +164,24 @@ fn normalize(input: &Value, nodes: &NodeRegistry) -> (Value, Vec<String>) {
             errs.push(format!("nodes[{i}] must be an object"));
             continue;
         };
-        match m.get("type").and_then(Value::as_str).map(|t| resolve_type(nodes, t)) {
+        match m
+            .get("type")
+            .and_then(Value::as_str)
+            .map(|t| resolve_type(nodes, t))
+        {
             Some(t) => {
                 if !m.contains_key("typeVersion") {
                     // Unknown types still need a version to parse; validation reports the type.
-                    m.insert("typeVersion".into(), latest_version(nodes, &t).unwrap_or_else(|| json!(1)));
+                    m.insert(
+                        "typeVersion".into(),
+                        latest_version(nodes, &t).unwrap_or_else(|| json!(1)),
+                    );
                 }
                 m.insert("type".into(), json!(t));
             }
-            None => errs.push(format!("nodes[{i}] needs a `type` (e.g. `set`, `n8n-nodes-base.httpRequest`)")),
+            None => errs.push(format!(
+                "nodes[{i}] needs a `type` (e.g. `set`, `n8n-nodes-base.httpRequest`)"
+            )),
         }
         if !m.contains_key("name")
             && let Some(Value::String(t)) = m.get("type")
@@ -203,7 +216,9 @@ fn expand_links(links: Option<&Value>, nodes: &[Value], errs: &mut Vec<String>) 
         None | Some(Value::Null) => {
             let chain: Vec<&str> = nodes
                 .iter()
-                .filter(|n| n.get("type").and_then(Value::as_str) != Some("n8n-nodes-base.stickyNote"))
+                .filter(|n| {
+                    n.get("type").and_then(Value::as_str) != Some("n8n-nodes-base.stickyNote")
+                })
                 .filter_map(node_name)
                 .collect();
             for w in chain.windows(2) {
@@ -214,14 +229,27 @@ fn expand_links(links: Option<&Value>, nodes: &[Value], errs: &mut Vec<String>) 
             for (i, l) in ls.iter().enumerate() {
                 let parsed = match l {
                     Value::Array(a) if a.len() >= 2 && a.len() <= 4 => {
-                        let idx = |k: usize| a.get(k).and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok());
-                        a[0].as_str().zip(a[1].as_str()).map(|(f, t)| (f, t, idx(2).unwrap_or(0), idx(3).unwrap_or(0)))
+                        let idx = |k: usize| {
+                            a.get(k)
+                                .and_then(Value::as_u64)
+                                .and_then(|n| usize::try_from(n).ok())
+                        };
+                        a[0].as_str()
+                            .zip(a[1].as_str())
+                            .map(|(f, t)| (f, t, idx(2).unwrap_or(0), idx(3).unwrap_or(0)))
                     }
                     Value::Object(o) => {
-                        let idx = |k: &str| o.get(k).and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok());
-                        o.get("from").and_then(Value::as_str).zip(o.get("to").and_then(Value::as_str)).map(
-                            |(f, t)| (f, t, idx("output").unwrap_or(0), idx("input").unwrap_or(0)),
-                        )
+                        let idx = |k: &str| {
+                            o.get(k)
+                                .and_then(Value::as_u64)
+                                .and_then(|n| usize::try_from(n).ok())
+                        };
+                        o.get("from")
+                            .and_then(Value::as_str)
+                            .zip(o.get("to").and_then(Value::as_str))
+                            .map(|(f, t)| {
+                                (f, t, idx("output").unwrap_or(0), idx("input").unwrap_or(0))
+                            })
                     }
                     _ => None,
                 };
@@ -240,11 +268,16 @@ fn expand_links(links: Option<&Value>, nodes: &[Value], errs: &mut Vec<String>) 
     for (f, t, o, n) in edges {
         for (what, name) in [("from", &f), ("to", &t)] {
             if !names.contains(&name.as_str()) {
-                errs.push(format!("link {what} unknown node `{name}`; nodes: {}", names.join(", ")));
+                errs.push(format!(
+                    "link {what} unknown node `{name}`; nodes: {}",
+                    names.join(", ")
+                ));
             }
         }
         let slot = by_src.entry(f).or_insert_with(|| json!({ "main": [] }));
-        let Some(Value::Array(outs)) = slot.get_mut("main") else { continue };
+        let Some(Value::Array(outs)) = slot.get_mut("main") else {
+            continue;
+        };
         while outs.len() <= o {
             outs.push(json!([]));
         }
@@ -275,7 +308,11 @@ fn lev(a: &str, b: &str) -> usize {
     for (i, ca) in a.chars().enumerate() {
         let mut cur = vec![i + 1];
         for (j, cb) in b.iter().enumerate() {
-            cur.push((prev[j] + usize::from(ca != *cb)).min(prev[j + 1] + 1).min(cur[j] + 1));
+            cur.push(
+                (prev[j] + usize::from(ca != *cb))
+                    .min(prev[j + 1] + 1)
+                    .min(cur[j] + 1),
+            );
         }
         prev = cur;
     }
@@ -288,7 +325,11 @@ fn suggest(nodes: &NodeRegistry, ty: &str) -> Vec<String> {
         .types()
         .map(|t| {
             let s = t.rsplit('.').next().unwrap_or(t).to_lowercase();
-            let d = if s.contains(&short) || short.contains(&s) { 0 } else { lev(&s, &short) };
+            let d = if s.contains(&short) || short.contains(&s) {
+                0
+            } else {
+                lev(&s, &short)
+            };
             (d, t.to_owned())
         })
         .filter(|(d, _)| *d <= 2)
@@ -307,9 +348,16 @@ enum Shown {
 /// Evaluates `displayOptions` against the node parameters. Conditions the engine cannot decide
 /// (`_cnd`, root paths, `@version`) come out `Unknown` so no false "missing" error is raised.
 fn shown(p: &NodeProperty, params: &Map<String, Value>, desc_props: &[NodeProperty]) -> Shown {
-    let Some(d) = &p.display_options else { return Shown::Yes };
+    let Some(d) = &p.display_options else {
+        return Shown::Yes;
+    };
     let current = |k: &str| -> Option<Value> {
-        params.get(k).cloned().or_else(|| desc_props.iter().find(|q| q.name == k).and_then(|q| q.default.clone()))
+        params.get(k).cloned().or_else(|| {
+            desc_props
+                .iter()
+                .find(|q| q.name == k)
+                .and_then(|q| q.default.clone())
+        })
     };
     let mut verdict = Shown::Yes;
     for (map, show) in [(&d.show, true), (&d.hide, false)] {
@@ -319,7 +367,9 @@ fn shown(p: &NodeProperty, params: &Map<String, Value>, desc_props: &[NodeProper
             if k.starts_with('/') || k.starts_with('@') {
                 return Shown::Unknown;
             }
-            let Value::Array(opts) = want else { return Shown::Unknown };
+            let Value::Array(opts) = want else {
+                return Shown::Unknown;
+            };
             if opts.iter().any(Value::is_object) {
                 return Shown::Unknown;
             }
@@ -349,7 +399,13 @@ fn check_node(n: &Node, nodes: &NodeRegistry, rep: &mut Report) {
     let Ok(imp) = nodes.resolve(n) else {
         match nodes.latest(&n.node_type) {
             Some(i) => {
-                let vs: Vec<String> = i.description().version.to_vec().iter().map(|v| v.to_string()).collect();
+                let vs: Vec<String> = i
+                    .description()
+                    .version
+                    .to_vec()
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect();
                 rep.errors.push(format!(
                     "{label}: typeVersion {} is not supported; use one of [{}]",
                     n.type_version,
@@ -363,7 +419,8 @@ fn check_node(n: &Node, nodes: &NodeRegistry, rep: &mut Report) {
                 } else {
                     format!("did you mean: {}", s.join(", "))
                 };
-                rep.errors.push(format!("{label}: unknown node type; {hint}"));
+                rep.errors
+                    .push(format!("{label}: unknown node type; {hint}"));
             }
         }
         return;
@@ -378,13 +435,24 @@ fn check_node(n: &Node, nodes: &NodeRegistry, rep: &mut Report) {
             None => p.default.as_ref().is_none_or(empty_value),
         };
         if missing {
-            rep.errors.push(format!("{label}: missing required parameter `{}` ({})", p.name, p.display_name));
+            rep.errors.push(format!(
+                "{label}: missing required parameter `{}` ({})",
+                p.name, p.display_name
+            ));
         }
     }
     for c in &d.credentials {
         let needed = c.required == Some(true) && c.display_options.is_none();
-        if needed && !n.credentials.as_ref().is_some_and(|m| m.contains_key(&c.name)) {
-            rep.warnings.push(format!("{label}: needs credential `{}`; attach it in the canvas before running", c.name));
+        if needed
+            && !n
+                .credentials
+                .as_ref()
+                .is_some_and(|m| m.contains_key(&c.name))
+        {
+            rep.warnings.push(format!(
+                "{label}: needs credential `{}`; attach it in the canvas before running",
+                c.name
+            ));
         }
     }
 }
@@ -396,8 +464,15 @@ fn io_count(decl: &IoDecl, conn_type: &str) -> Option<usize> {
     }
 }
 
-fn validate(wf_json: &Value, expand_errs: Vec<String>, nodes: &NodeRegistry) -> (Option<Workflow>, Report) {
-    let mut rep = Report { errors: expand_errs, warnings: Vec::new() };
+fn validate(
+    wf_json: &Value,
+    expand_errs: Vec<String>,
+    nodes: &NodeRegistry,
+) -> (Option<Workflow>, Report) {
+    let mut rep = Report {
+        errors: expand_errs,
+        warnings: Vec::new(),
+    };
     let wf = match Workflow::from_json_value(wf_json.clone()) {
         Ok(w) => w,
         Err(e) => {
@@ -409,7 +484,8 @@ fn validate(wf_json: &Value, expand_errs: Vec<String>, nodes: &NodeRegistry) -> 
     };
     if let Err(e) = wf.validate() {
         let names: Vec<&str> = wf.nodes.iter().map(|n| n.name.as_str()).collect();
-        rep.errors.push(format!("{e}; node names: [{}]", names.join(", ")));
+        rep.errors
+            .push(format!("{e}; node names: [{}]", names.join(", ")));
     }
     for n in &wf.nodes {
         check_node(n, nodes, &mut rep);
@@ -420,7 +496,9 @@ fn validate(wf_json: &Value, expand_errs: Vec<String>, nodes: &NodeRegistry) -> 
         let Some(sn) = wf.node(src) else { continue };
         for (ct, outs) in &conns.0 {
             for (oi, targets) in outs.iter().enumerate() {
-                let Some(ts) = targets.as_ref().filter(|t| !t.is_empty()) else { continue };
+                let Some(ts) = targets.as_ref().filter(|t| !t.is_empty()) else {
+                    continue;
+                };
                 if let Some(imp) = nodes.latest(&sn.node_type)
                     && let Some(n) = io_count(&imp.description().outputs, ct)
                     && oi >= n
@@ -460,7 +538,11 @@ fn validate(wf_json: &Value, expand_errs: Vec<String>, nodes: &NodeRegistry) -> 
             }
         }
     }
-    let is_trigger = |n: &Node| nodes.latest(&n.node_type).is_some_and(|i| i.description().is_trigger());
+    let is_trigger = |n: &Node| {
+        nodes
+            .latest(&n.node_type)
+            .is_some_and(|i| i.description().is_trigger())
+    };
     if !wf.nodes.iter().any(|n| is_trigger(n) && !n.is_disabled()) {
         rep.warnings.push(
             "no trigger node; add `manualTrigger` so flow_run (and the canvas Test button) has a start".into(),
@@ -469,7 +551,10 @@ fn validate(wf_json: &Value, expand_errs: Vec<String>, nodes: &NodeRegistry) -> 
     for n in &wf.nodes {
         let note = n.node_type.ends_with(".stickyNote");
         if !note && !is_trigger(n) && !fed.contains(n.name.as_str()) {
-            rep.warnings.push(format!("node `{}` has no incoming connection and is not a trigger; it never runs", n.name));
+            rep.warnings.push(format!(
+                "node `{}` has no incoming connection and is not a trigger; it never runs",
+                n.name
+            ));
         }
         if n.is_disabled() {
             rep.warnings.push(format!("node `{}` is disabled", n.name));
@@ -483,7 +568,11 @@ fn side_effects(wf: &Workflow) -> Vec<String> {
     wf.nodes
         .iter()
         .filter(|n| !n.is_disabled())
-        .filter(|n| !n.node_type.strip_prefix(NS_BASE).is_some_and(|t| PURE.contains(&t)))
+        .filter(|n| {
+            !n.node_type
+                .strip_prefix(NS_BASE)
+                .is_some_and(|t| PURE.contains(&t))
+        })
         .map(|n| format!("`{}` ({})", n.name, n.node_type))
         .collect()
 }
@@ -491,15 +580,24 @@ fn side_effects(wf: &Workflow) -> Vec<String> {
 // ------------------------------------------------------------------ helpers
 
 fn args_obj<'a>(tool: &str, args: &'a Value) -> Result<&'a Map<String, Value>, ToolError> {
-    args.as_object().ok_or_else(|| ToolError::InvalidArgs { tool: tool.into(), reason: "arguments must be an object".into() })
+    args.as_object().ok_or_else(|| ToolError::InvalidArgs {
+        tool: tool.into(),
+        reason: "arguments must be an object".into(),
+    })
 }
 
 fn bad(tool: &str, reason: impl Into<String>) -> ToolError {
-    ToolError::InvalidArgs { tool: tool.into(), reason: reason.into() }
+    ToolError::InvalidArgs {
+        tool: tool.into(),
+        reason: reason.into(),
+    }
 }
 
 fn failed(tool: &str, reason: impl fmt::Display) -> ToolError {
-    ToolError::Failed { tool: tool.into(), reason: reason.to_string() }
+    ToolError::Failed {
+        tool: tool.into(),
+        reason: reason.to_string(),
+    }
 }
 
 fn json_out(v: &Value) -> ToolOutput {
@@ -519,7 +617,9 @@ fn truncate_chars(s: &str, max: usize) -> String {
 
 /// `meta.hokkabaz.draft`, the flag marking workflows an agent wrote and no human has saved.
 fn is_draft(data: &Value) -> bool {
-    data.pointer("/meta/hokkabaz/draft").and_then(Value::as_bool).unwrap_or(false)
+    data.pointer("/meta/hokkabaz/draft")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
 }
 
 fn mark_draft(data: &mut Map<String, Value>) {
@@ -528,7 +628,10 @@ fn mark_draft(data: &mut Map<String, Value>) {
         *meta = json!({});
     }
     if let Value::Object(m) = meta {
-        m.insert("hokkabaz".into(), json!({ "draft": true, "author": "agent" }));
+        m.insert(
+            "hokkabaz".into(),
+            json!({ "draft": true, "author": "agent" }),
+        );
     }
 }
 
@@ -582,8 +685,15 @@ impl Tool for FlowAuthor {
             Some("list") => self.list(a).await,
             Some("get") => {
                 let id = id.ok_or_else(|| bad(AUTHOR, "`id` is required for get"))?;
-                let Some(row) = sh.store.get_workflow(id).await.map_err(|e| failed(AUTHOR, e))? else {
-                    return Ok(ToolOutput::error(format!("workflow `{id}` not found; use action=list")));
+                let Some(row) = sh
+                    .store
+                    .get_workflow(id)
+                    .await
+                    .map_err(|e| failed(AUTHOR, e))?
+                else {
+                    return Ok(ToolOutput::error(format!(
+                        "workflow `{id}` not found; use action=list"
+                    )));
                 };
                 let data = serde_json::from_str::<Value>(&row.data).unwrap_or(Value::Null);
                 let wf = workflow_json(&row);
@@ -597,7 +707,12 @@ impl Tool for FlowAuthor {
             Some("validate") => {
                 let raw = match (a.get("workflow"), id) {
                     (Some(w), _) => w.clone(),
-                    (None, Some(id)) => match sh.store.get_workflow(id).await.map_err(|e| failed(AUTHOR, e))? {
+                    (None, Some(id)) => match sh
+                        .store
+                        .get_workflow(id)
+                        .await
+                        .map_err(|e| failed(AUTHOR, e))?
+                    {
                         Some(row) => workflow_json(&row),
                         None => return Ok(ToolOutput::error(format!("workflow `{id}` not found"))),
                     },
@@ -608,15 +723,26 @@ impl Tool for FlowAuthor {
                 Ok(json_out(&rep.to_json()))
             }
             Some(act @ ("create" | "update")) => {
-                let raw = a.get("workflow").ok_or_else(|| bad(AUTHOR, format!("`workflow` is required for {act}")))?;
+                let raw = a
+                    .get("workflow")
+                    .ok_or_else(|| bad(AUTHOR, format!("`workflow` is required for {act}")))?;
                 let mut raw = raw.clone();
                 let keep = match (act, id) {
-                    ("update", Some(id)) => sh.store.get_workflow(id).await.map_err(|e| failed(AUTHOR, e))?.map(|r| r.name),
+                    ("update", Some(id)) => sh
+                        .store
+                        .get_workflow(id)
+                        .await
+                        .map_err(|e| failed(AUTHOR, e))?
+                        .map(|r| r.name),
                     _ => None,
                 };
                 if let Some(o) = raw.as_object_mut() {
                     // Explicit `name` wins, then the workflow's own, then the stored one on update.
-                    if let Some(n) = name.map(str::to_owned).or(keep).filter(|_| name.is_some() || !o.contains_key("name")) {
+                    if let Some(n) = name
+                        .map(str::to_owned)
+                        .or(keep)
+                        .filter(|_| name.is_some() || !o.contains_key("name"))
+                    {
                         o.insert("name".into(), json!(n));
                     }
                 }
@@ -632,25 +758,50 @@ impl Tool for FlowAuthor {
                 mark_draft(&mut prepared.data);
                 let data = Value::Object(prepared.data).to_string();
                 let row = if act == "create" {
-                    let (wid, vid) = (new_id().map_err(|e| failed(AUTHOR, e))?, new_version_id().map_err(|e| failed(AUTHOR, e))?);
-                    sh.store.insert_workflow(&wid, &prepared.name, &vid, &data).await.map_err(|e| failed(AUTHOR, e))?
+                    let (wid, vid) = (
+                        new_id().map_err(|e| failed(AUTHOR, e))?,
+                        new_version_id().map_err(|e| failed(AUTHOR, e))?,
+                    );
+                    sh.store
+                        .insert_workflow(&wid, &prepared.name, &vid, &data)
+                        .await
+                        .map_err(|e| failed(AUTHOR, e))?
                 } else {
                     let id = id.ok_or_else(|| bad(AUTHOR, "`id` is required for update"))?;
-                    let Some(old) = sh.store.get_workflow(id).await.map_err(|e| failed(AUTHOR, e))? else {
-                        return Ok(ToolOutput::error(format!("workflow `{id}` not found; use action=create")));
+                    let Some(old) = sh
+                        .store
+                        .get_workflow(id)
+                        .await
+                        .map_err(|e| failed(AUTHOR, e))?
+                    else {
+                        return Ok(ToolOutput::error(format!(
+                            "workflow `{id}` not found; use action=create"
+                        )));
                     };
                     let old_data = serde_json::from_str::<Value>(&old.data).unwrap_or(Value::Null);
                     if old.active || !is_draft(&old_data) {
                         return Ok(ToolOutput::error(format!(
                             "workflow `{id}` is {}; only inactive agent drafts can be updated. Create a new draft instead.",
-                            if old.active { "active" } else { "not a draft (saved by a person)" }
+                            if old.active {
+                                "active"
+                            } else {
+                                "not a draft (saved by a person)"
+                            }
                         )));
                     }
                     let vid = new_version_id().map_err(|e| failed(AUTHOR, e))?;
-                    let upd = sh.store.update_workflow(id, &prepared.name, &vid, &data).await.map_err(|e| failed(AUTHOR, e))?;
+                    let upd = sh
+                        .store
+                        .update_workflow(id, &prepared.name, &vid, &data)
+                        .await
+                        .map_err(|e| failed(AUTHOR, e))?;
                     match upd {
                         Some(r) => r,
-                        None => return Ok(ToolOutput::error(format!("workflow `{id}` vanished during update"))),
+                        None => {
+                            return Ok(ToolOutput::error(format!(
+                                "workflow `{id}` vanished during update"
+                            )));
+                        }
                     }
                 };
                 sh.pure().remove(&row.id);
@@ -661,19 +812,33 @@ impl Tool for FlowAuthor {
                     "next": "saved as an inactive draft; the user opens it in the canvas to review and activate",
                 })))
             }
-            _ => Err(bad(AUTHOR, "`action` must be one of create, update, validate, list, get")),
+            _ => Err(bad(
+                AUTHOR,
+                "`action` must be one of create, update, validate, list, get",
+            )),
         }
     }
 }
 
 impl FlowAuthor {
     async fn list(&self, a: &Map<String, Value>) -> Result<ToolOutput, ToolError> {
-        let limit = a.get("limit").and_then(Value::as_u64).map_or(50, |l| l.clamp(1, 200)) as usize;
-        let drafts_only = a.get("drafts_only").and_then(Value::as_bool).unwrap_or(false);
+        let limit = a
+            .get("limit")
+            .and_then(Value::as_u64)
+            .map_or(50, |l| l.clamp(1, 200)) as usize;
+        let drafts_only = a
+            .get("drafts_only")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         let query = a.get("query").and_then(Value::as_str);
         let (mut out, mut offset) = (Vec::new(), 0u32);
         while out.len() < limit && offset < SCAN_LIMIT {
-            let rows = self.0.store.list_workflows(None, query, 100, offset).await.map_err(|e| failed(AUTHOR, e))?;
+            let rows = self
+                .0
+                .store
+                .list_workflows(None, query, 100, offset)
+                .await
+                .map_err(|e| failed(AUTHOR, e))?;
             if rows.is_empty() {
                 break;
             }
@@ -684,7 +849,10 @@ impl FlowAuthor {
                 if drafts_only && !draft {
                     continue;
                 }
-                let nodes = data.get("nodes").and_then(Value::as_array).map_or(0, Vec::len);
+                let nodes = data
+                    .get("nodes")
+                    .and_then(Value::as_array)
+                    .map_or(0, Vec::len);
                 out.push(json!({ "id": r.id, "name": r.name, "active": r.active, "draft": draft, "nodes": nodes, "updated_ms": r.updated_ms }));
                 if out.len() >= limit {
                     break;
@@ -737,9 +905,15 @@ impl Tool for FlowRun {
     fn risk(&self, args: &Value) -> Risk {
         let sh = &self.0;
         if let Some(id) = args.get("workflow_id").and_then(Value::as_str) {
-            return if sh.pure().contains(id) { Risk::Safe } else { Risk::Ask };
+            return if sh.pure().contains(id) {
+                Risk::Safe
+            } else {
+                Risk::Ask
+            };
         }
-        let Some(w) = args.get("workflow") else { return Risk::Ask };
+        let Some(w) = args.get("workflow") else {
+            return Risk::Ask;
+        };
         let (n, _) = normalize(w, sh.host.nodes());
         match Workflow::from_json_value(n) {
             Ok(wf) if side_effects(&wf).is_empty() => Risk::Safe,
@@ -752,22 +926,42 @@ impl Tool for FlowRun {
         let sh = &self.0;
         let nodes = sh.host.nodes();
 
-        let (raw, stored_id) = match (a.get("workflow_id").and_then(Value::as_str), a.get("workflow")) {
-            (Some(_), Some(_)) => return Err(bad(RUN, "give `workflow_id` or `workflow`, not both")),
-            (Some(id), None) => match sh.store.get_workflow(id).await.map_err(|e| failed(RUN, e))? {
+        let (raw, stored_id) = match (
+            a.get("workflow_id").and_then(Value::as_str),
+            a.get("workflow"),
+        ) {
+            (Some(_), Some(_)) => {
+                return Err(bad(RUN, "give `workflow_id` or `workflow`, not both"));
+            }
+            (Some(id), None) => match sh
+                .store
+                .get_workflow(id)
+                .await
+                .map_err(|e| failed(RUN, e))?
+            {
                 Some(row) => (workflow_json(&row), Some(row.id)),
-                None => return Ok(ToolOutput::error(format!("workflow `{id}` not found; use flow_author list"))),
+                None => {
+                    return Ok(ToolOutput::error(format!(
+                        "workflow `{id}` not found; use flow_author list"
+                    )));
+                }
             },
             (None, Some(w)) => (w.clone(), None),
             (None, None) => return Err(bad(RUN, "`workflow_id` or `workflow` is required")),
         };
         let (n, errs) = normalize(&raw, nodes);
         let (wf, rep) = validate(&n, errs, nodes);
-        let Some(wf) = wf.filter(|_| rep.errors.is_empty()) else { return Ok(report_err(&rep)) };
+        let Some(wf) = wf.filter(|_| rep.errors.is_empty()) else {
+            return Ok(report_err(&rep));
+        };
 
         let effects = side_effects(&wf);
         if let Some(id) = &stored_id {
-            let was_pure = if effects.is_empty() { !sh.pure().insert(id.clone()) } else { sh.pure().remove(id) };
+            let was_pure = if effects.is_empty() {
+                !sh.pure().insert(id.clone())
+            } else {
+                sh.pure().remove(id)
+            };
             // Auto-allowed on stale knowledge but the row now has side effects: refuse, the next
             // call is classified Ask and goes through approval.
             if was_pure && !effects.is_empty() {
@@ -781,7 +975,11 @@ impl Tool for FlowRun {
         let start = match a.get("start_node").and_then(Value::as_str) {
             Some(s) => match wf.node(s) {
                 Some(node) if !node.is_disabled() => node.name.clone(),
-                _ => return Ok(ToolOutput::error(format!("start_node `{s}` is not an enabled node"))),
+                _ => {
+                    return Ok(ToolOutput::error(format!(
+                        "start_node `{s}` is not an enabled node"
+                    )));
+                }
             },
             None => match find_trigger(&wf, TriggerKind::Manual) {
                 Some(t) => t.name.clone(),
@@ -789,7 +987,11 @@ impl Tool for FlowRun {
                     let others: Vec<&str> = wf
                         .nodes
                         .iter()
-                        .filter(|n| nodes.latest(&n.node_type).is_some_and(|i| i.description().is_trigger()))
+                        .filter(|n| {
+                            nodes
+                                .latest(&n.node_type)
+                                .is_some_and(|i| i.description().is_trigger())
+                        })
                         .map(|n| n.name.as_str())
                         .collect();
                     return Ok(ToolOutput::error(format!(
@@ -804,20 +1006,42 @@ impl Tool for FlowRun {
             Some(Value::Array(v)) if v.len() <= MAX_ITEMS_IN && v.iter().all(Value::is_object) => {
                 v.iter().cloned().map(Item::from_json).collect()
             }
-            Some(_) => return Err(bad(RUN, format!("`items` must be an array of up to {MAX_ITEMS_IN} objects"))),
+            Some(_) => {
+                return Err(bad(
+                    RUN,
+                    format!("`items` must be an array of up to {MAX_ITEMS_IN} objects"),
+                ));
+            }
         };
-        let secs = a.get("timeout_secs").and_then(Value::as_u64).unwrap_or(DEFAULT_TIMEOUT_SECS).clamp(1, MAX_TIMEOUT_SECS);
+        let secs = a
+            .get("timeout_secs")
+            .and_then(Value::as_u64)
+            .unwrap_or(DEFAULT_TIMEOUT_SECS)
+            .clamp(1, MAX_TIMEOUT_SECS);
 
-        let run = sh.host.run_test(TestRun { workflow: wf.clone(), workflow_id: stored_id.clone(), start_node: start, items });
+        let run = sh.host.run_test(TestRun {
+            workflow: wf.clone(),
+            workflow_id: stored_id.clone(),
+            start_node: start,
+            items,
+        });
         let res = match tokio::time::timeout(Duration::from_secs(secs), run).await {
             Ok(Ok(r)) => r,
             Ok(Err(e)) => return Ok(ToolOutput::error(format!("run failed: {e}"))),
-            Err(_) => return Ok(ToolOutput::error(format!("run exceeded {secs}s and was abandoned"))),
+            Err(_) => {
+                return Ok(ToolOutput::error(format!(
+                    "run exceeded {secs}s and was abandoned"
+                )));
+            }
         };
         let mut summary = summarize(&res, stored_id.as_deref(), &rep.warnings);
         sh.host.scrub(&mut summary);
         let text = summary.to_string();
-        Ok(if res.status == RunStatus::Error { ToolOutput::error(text) } else { ToolOutput::ok(text) })
+        Ok(if res.status == RunStatus::Error {
+            ToolOutput::error(text)
+        } else {
+            ToolOutput::ok(text)
+        })
     }
 }
 
@@ -835,7 +1059,10 @@ fn summarize(res: &ExecutionResult, workflow_id: Option<&str>, warnings: &[Strin
                 }
             }
             let first = runs.iter().map(|r| r.execution_index).min().unwrap_or(0);
-            let err = runs.iter().find_map(|r| r.error.as_ref()).map(|e| e.message.clone());
+            let err = runs
+                .iter()
+                .find_map(|r| r.error.as_ref())
+                .map(|e| e.message.clone());
             let mut v = json!({ "node": name, "runs": runs.len(), "items_out": counts });
             if let Some(e) = err {
                 v["error"] = json!(e);
@@ -845,7 +1072,10 @@ fn summarize(res: &ExecutionResult, workflow_id: Option<&str>, warnings: &[Strin
         .collect();
     per_node.sort_by_key(|(i, _)| *i);
 
-    let last = res.last_node_executed.as_deref().and_then(|n| res.run_data.get(n).map(|r| (n, r)));
+    let last = res
+        .last_node_executed
+        .as_deref()
+        .and_then(|n| res.run_data.get(n).map(|r| (n, r)));
     let last_out = last.map(|(name, runs)| {
         let items = runs.last().map_or(&[][..], |r| r.output(0));
         let (mut shown, mut budget) = (Vec::new(), PREVIEW_TOTAL_CHARS);
@@ -889,10 +1119,11 @@ fn summarize(res: &ExecutionResult, workflow_id: Option<&str>, warnings: &[Strin
 
 #[cfg(test)]
 mod tests {
-    use hk_flow::{
-        Executor, ExecutorConfig, FlowError, FlowNode, NodeContext, NodeTypeDescription, register_core_nodes,
-    };
     use hk_flow::{ExecuteInput, node::NodeOutput};
+    use hk_flow::{
+        Executor, ExecutorConfig, FlowError, FlowNode, NodeContext, NodeTypeDescription,
+        register_core_nodes,
+    };
 
     use super::*;
 
@@ -927,8 +1158,13 @@ mod tests {
             &self.nodes
         }
         async fn run_test(&self, req: TestRun) -> Result<ExecutionResult, String> {
-            let exec = self.exec.clone().with_config(ExecutorConfig { use_pin_data: true, ..ExecutorConfig::default() });
-            exec.execute(&req.workflow, &ExecuteInput::new(req.start_node, req.items)).await.map_err(|e| e.to_string())
+            let exec = self.exec.clone().with_config(ExecutorConfig {
+                use_pin_data: true,
+                ..ExecutorConfig::default()
+            });
+            exec.execute(&req.workflow, &ExecuteInput::new(req.start_node, req.items))
+                .await
+                .map_err(|e| e.to_string())
         }
     }
 
@@ -948,7 +1184,10 @@ mod tests {
         .unwrap();
         reg.register(Arc::new(NeedsUrl(desc))).unwrap();
         let nodes = Arc::new(reg);
-        let host = Arc::new(Host { exec: Executor::new(nodes.clone()), nodes });
+        let host = Arc::new(Host {
+            exec: Executor::new(nodes.clone()),
+            nodes,
+        });
         let store = Store::open_in_memory().await.unwrap();
         let mut tools = flow_tools(host, store.clone());
         let run = tools.pop().unwrap();
@@ -958,7 +1197,10 @@ mod tests {
 
     async fn call(t: &Arc<dyn Tool>, args: Value) -> (bool, Value) {
         let out = t.execute(ToolCtx::default(), args).await.unwrap();
-        (out.is_error, serde_json::from_str(&out.content).unwrap_or(Value::String(out.content)))
+        (
+            out.is_error,
+            serde_json::from_str(&out.content).unwrap_or(Value::String(out.content)),
+        )
     }
 
     fn set_flow() -> Value {
@@ -987,7 +1229,12 @@ mod tests {
         let (err, v) = call(&r.author, json!({"action": "validate", "workflow": spec})).await;
         assert!(!err && v["ok"] == false);
         let e = errors(&v);
-        assert!(e.contains("unknown node type") && e.contains("did you mean") && e.contains("n8n-nodes-base.set"), "{e}");
+        assert!(
+            e.contains("unknown node type")
+                && e.contains("did you mean")
+                && e.contains("n8n-nodes-base.set"),
+            "{e}"
+        );
         assert!(e.contains("missing required parameter `url`"), "{e}");
         assert!(e.contains("unknown node `Ghost`"), "{e}");
         assert!(e.contains("triggers take no input"), "{e}");
@@ -999,13 +1246,23 @@ mod tests {
         let spec = json!({"name": "Bad", "nodes": [{"name": "B", "type": "needsUrl"}]});
         let (err, v) = call(&r.author, json!({"action": "create", "workflow": spec})).await;
         assert!(err, "{v}");
-        assert!(r.store.list_workflows(None, None, 10, 0).await.unwrap().is_empty());
+        assert!(
+            r.store
+                .list_workflows(None, None, 10, 0)
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]
     async fn drafts_create_update_list_get() {
         let r = rig().await;
-        let (err, v) = call(&r.author, json!({"action": "create", "workflow": set_flow()})).await;
+        let (err, v) = call(
+            &r.author,
+            json!({"action": "create", "workflow": set_flow()}),
+        )
+        .await;
         assert!(!err, "{v}");
         let id = v["id"].as_str().unwrap().to_owned();
         assert_eq!(v["draft"], true);
@@ -1015,7 +1272,11 @@ mod tests {
 
         let mut next = set_flow();
         next["name"] = json!("Renamed");
-        let (err, v) = call(&r.author, json!({"action": "update", "id": id, "workflow": next})).await;
+        let (err, v) = call(
+            &r.author,
+            json!({"action": "update", "id": id, "workflow": next}),
+        )
+        .await;
         assert!(!err && v["name"] == "Renamed", "{v}");
 
         let (_, v) = call(&r.author, json!({"action": "list", "drafts_only": true})).await;
@@ -1025,9 +1286,19 @@ mod tests {
         assert_eq!(v["workflow"]["nodes"].as_array().unwrap().len(), 2);
 
         // A person saving it (no draft flag) locks it against agent updates.
-        r.store.update_workflow(&id, "Mine", "v2", r#"{"nodes":[],"connections":{}}"#).await.unwrap();
-        let (err, v) = call(&r.author, json!({"action": "update", "id": id, "workflow": set_flow()})).await;
-        assert!(err && v.as_str().is_some_and(|s| s.contains("not a draft")), "{v}");
+        r.store
+            .update_workflow(&id, "Mine", "v2", r#"{"nodes":[],"connections":{}}"#)
+            .await
+            .unwrap();
+        let (err, v) = call(
+            &r.author,
+            json!({"action": "update", "id": id, "workflow": set_flow()}),
+        )
+        .await;
+        assert!(
+            err && v.as_str().is_some_and(|s| s.contains("not a draft")),
+            "{v}"
+        );
     }
 
     #[tokio::test]
@@ -1038,7 +1309,12 @@ mod tests {
         let (err, v) = call(&r.run, args).await;
         assert!(!err, "{v}");
         assert_eq!(v["status"], "success");
-        let mark = v["nodes"].as_array().unwrap().iter().find(|n| n["node"] == "Mark").unwrap();
+        let mark = v["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|n| n["node"] == "Mark")
+            .unwrap();
         assert_eq!(mark["items_out"], json!([2]));
         assert_eq!(v["last_node"]["node"], "Mark");
         assert_eq!(v["last_node"]["item_count"], 2);
@@ -1048,11 +1324,18 @@ mod tests {
     #[tokio::test]
     async fn run_reports_validation_and_missing_trigger() {
         let r = rig().await;
-        let (err, v) = call(&r.run, json!({"workflow": {"nodes": [{"name": "B", "type": "needsUrl"}]}})).await;
+        let (err, v) = call(
+            &r.run,
+            json!({"workflow": {"nodes": [{"name": "B", "type": "needsUrl"}]}}),
+        )
+        .await;
         assert!(err && errors(&v).contains("`url`"), "{v}");
         let no_trigger = json!({"nodes": [{"name": "M", "type": "noOp"}]});
         let (err, v) = call(&r.run, json!({"workflow": no_trigger})).await;
-        assert!(err && v.as_str().is_some_and(|s| s.contains("no Manual Trigger")), "{v}");
+        assert!(
+            err && v.as_str().is_some_and(|s| s.contains("no Manual Trigger")),
+            "{v}"
+        );
     }
 
     #[tokio::test]
@@ -1064,7 +1347,11 @@ mod tests {
         assert_eq!(r.run.risk(&json!({"workflow": impure})), Risk::Ask);
 
         // Stored: unknown to the pure cache -> Ask; after a pure run -> Safe.
-        let (_, v) = call(&r.author, json!({"action": "create", "workflow": set_flow()})).await;
+        let (_, v) = call(
+            &r.author,
+            json!({"action": "create", "workflow": set_flow()}),
+        )
+        .await;
         let id = v["id"].as_str().unwrap().to_owned();
         let args = json!({"workflow_id": id});
         assert_eq!(r.run.risk(&args), Risk::Ask);
@@ -1078,9 +1365,15 @@ mod tests {
             {"name": "Start", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1, "position": [0, 0], "parameters": {}},
             {"name": "Call", "type": "n8n-nodes-base.needsUrl", "typeVersion": 1, "position": [0, 0], "parameters": {"url": "http://x"}}],
             "connections": {"Start": {"main": [[{"node": "Call", "type": "main", "index": 0}]]}}});
-        r.store.update_workflow(&id, "Edited", "v2", &edited.to_string()).await.unwrap();
+        r.store
+            .update_workflow(&id, "Edited", "v2", &edited.to_string())
+            .await
+            .unwrap();
         let (err, v) = call(&r.run, args.clone()).await;
-        assert!(err && v.as_str().is_some_and(|s| s.contains("side effects")), "{v}");
+        assert!(
+            err && v.as_str().is_some_and(|s| s.contains("side effects")),
+            "{v}"
+        );
         assert_eq!(r.run.risk(&args), Risk::Ask);
     }
 }

@@ -4,7 +4,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use hk_media::{AudioSpec, Ducking, MusicMix, Overlay, OverlayKind, RenderHandle, RenderSpec, Segment, Source, Tools, VideoCodec};
+use hk_media::{
+    AudioSpec, Ducking, MusicMix, Overlay, OverlayKind, RenderHandle, RenderSpec, Segment, Source,
+    Tools, VideoCodec,
+};
 use hk_stt::{AudioSplitter, FillerSet, SegmentOpts, TranscribeOpts, Transcriber};
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +15,7 @@ use crate::broll::{AssetKind, BrollPlacement};
 use crate::captions::{CapWord, CaptionStyle, to_ass, words_for_clip};
 use crate::edl::{OutputMap, kept_ranges};
 use crate::error::{Result, StudioError};
-use crate::highlights::{HighlightOpts, score_clip, find_highlights};
+use crate::highlights::{HighlightOpts, find_highlights, score_clip};
 use crate::llm::Llm;
 use crate::project::{Clip, ProjectStore, StudioProject, probe_source};
 use crate::reframe::plan_crop;
@@ -65,7 +68,8 @@ pub fn preview(p: &StudioProject, clip_id: &str) -> Result<PreviewPlan> {
             if w.end <= clip.start || w.start >= clip.end {
                 continue;
             }
-            let deleted = clip.deleted_words.contains(&i) || (clip.remove_fillers && w.flags.filler);
+            let deleted =
+                clip.deleted_words.contains(&i) || (clip.remove_fillers && w.flags.filler);
             words.push(PreviewWord {
                 idx: i,
                 text: w.text.clone(),
@@ -73,8 +77,16 @@ pub fn preview(p: &StudioProject, clip_id: &str) -> Result<PreviewPlan> {
                 end: w.end,
                 deleted,
                 filler: w.flags.filler,
-                out_start: if deleted { None } else { map.to_output(w.start.max(clip.start)) },
-                out_end: if deleted { None } else { map.to_output(w.end.min(clip.end)) },
+                out_start: if deleted {
+                    None
+                } else {
+                    map.to_output(w.start.max(clip.start))
+                },
+                out_end: if deleted {
+                    None
+                } else {
+                    map.to_output(w.end.min(clip.end))
+                },
             });
         }
         captions = words_for_clip(t, clip, &map);
@@ -85,7 +97,12 @@ pub fn preview(p: &StudioProject, clip_id: &str) -> Result<PreviewPlan> {
         None => (None, (sw, sh)),
     };
     let duration = map.duration();
-    let broll = clip.broll.iter().filter(|b| b.start < duration).cloned().collect();
+    let broll = clip
+        .broll
+        .iter()
+        .filter(|b| b.start < duration)
+        .cloned()
+        .collect();
     Ok(PreviewPlan {
         clip_id: clip.id.clone(),
         src_start: clip.start,
@@ -113,24 +130,48 @@ pub struct RenderOpts {
 
 impl Default for RenderOpts {
     fn default() -> Self {
-        Self { crf: 20, codec: VideoCodec::H264, burn_captions: true, fps: None, out_dir: None }
+        Self {
+            crf: 20,
+            codec: VideoCodec::H264,
+            burn_captions: true,
+            fps: None,
+            out_dir: None,
+        }
     }
 }
 
 /// Build the ffmpeg render spec for one clip (writes the ASS file).
-pub async fn build_render(store: &ProjectStore, p: &StudioProject, clip_id: &str, opts: &RenderOpts) -> Result<RenderSpec> {
+pub async fn build_render(
+    store: &ProjectStore,
+    p: &StudioProject,
+    clip_id: &str,
+    opts: &RenderOpts,
+) -> Result<RenderSpec> {
     let clip = p.clip(clip_id)?;
     let plan = preview(p, clip_id)?;
     if plan.ranges.is_empty() || plan.duration < 0.2 {
-        return Err(StudioError::Invalid("nothing left to render: every word is cut".into()));
+        return Err(StudioError::Invalid(
+            "nothing left to render: every word is cut".into(),
+        ));
     }
     let work = store.work_dir(&p.id);
     let out_dir = opts.out_dir.clone().unwrap_or_else(|| work.join("renders"));
     tokio::fs::create_dir_all(&out_dir).await?;
     let output = out_dir.join(format!("{}.mp4", clip.id));
 
-    let src = Source { path: p.source.path.clone(), has_audio: p.source.has_audio };
-    let segments: Vec<Segment> = plan.ranges.iter().map(|&(s, e)| Segment { source: 0, start: s, end: e }).collect();
+    let src = Source {
+        path: p.source.path.clone(),
+        has_audio: p.source.has_audio,
+    };
+    let segments: Vec<Segment> = plan
+        .ranges
+        .iter()
+        .map(|&(s, e)| Segment {
+            source: 0,
+            start: s,
+            end: e,
+        })
+        .collect();
     let mut spec = RenderSpec::new(vec![src], segments, output);
     spec.codec = opts.codec;
     spec.rate = hk_media::RateControl::Crf(opts.crf);
@@ -155,7 +196,11 @@ pub async fn build_render(store: &ProjectStore, p: &StudioProject, clip_id: &str
     for b in &plan.broll {
         spec.overlays.push(Overlay {
             path: b.asset.clone(),
-            kind: if b.kind == AssetKind::Video { OverlayKind::Video } else { OverlayKind::Image },
+            kind: if b.kind == AssetKind::Video {
+                OverlayKind::Video
+            } else {
+                OverlayKind::Image
+            },
             start: b.start,
             end: b.end.min(plan.duration),
             x: None,
@@ -165,7 +210,12 @@ pub async fn build_render(store: &ProjectStore, p: &StudioProject, clip_id: &str
         });
     }
     if let Some(m) = &clip.music {
-        spec.music = Some(MusicMix { path: m.path.clone(), gain: m.gain, ducking: m.duck.then(Ducking::default), loop_track: true });
+        spec.music = Some(MusicMix {
+            path: m.path.clone(),
+            gain: m.gain,
+            ducking: m.duck.then(Ducking::default),
+            loop_track: true,
+        });
     }
     Ok(spec)
 }
@@ -185,7 +235,11 @@ impl MediaSplitter {
 #[async_trait]
 impl AudioSplitter for MediaSplitter {
     async fn duration(&self, audio: &Path) -> hk_stt::Result<f64> {
-        let info = self.tools.probe(audio).await.map_err(|e| hk_stt::SttError::Audio(e.to_string()))?;
+        let info = self
+            .tools
+            .probe(audio)
+            .await
+            .map_err(|e| hk_stt::SttError::Audio(e.to_string()))?;
         Ok(info.duration.unwrap_or(0.0))
     }
 
@@ -193,12 +247,25 @@ impl AudioSplitter for MediaSplitter {
         #[cfg(target_os = "android")]
         {
             let _ = (audio, start, end, out);
-            Err(hk_stt::SttError::Audio("ffmpeg is not available on Android".into()))
+            Err(hk_stt::SttError::Audio(
+                "ffmpeg is not available on Android".into(),
+            ))
         }
         #[cfg(not(target_os = "android"))]
         {
             let status = tokio::process::Command::new(&self.tools.ffmpeg)
-                .args(["-hide_banner", "-nostdin", "-y", "-loglevel", "error", "-ss", &format!("{start:.3}"), "-t", &format!("{:.3}", (end - start).max(0.01)), "-i"])
+                .args([
+                    "-hide_banner",
+                    "-nostdin",
+                    "-y",
+                    "-loglevel",
+                    "error",
+                    "-ss",
+                    &format!("{start:.3}"),
+                    "-t",
+                    &format!("{:.3}", (end - start).max(0.01)),
+                    "-i",
+                ])
                 .arg(audio)
                 .args(["-vn", "-ac", "1", "-ar", "16000"])
                 .arg(out)
@@ -209,7 +276,9 @@ impl AudioSplitter for MediaSplitter {
             if status.status.success() {
                 Ok(())
             } else {
-                Err(hk_stt::SttError::Audio(String::from_utf8_lossy(&status.stderr).trim().to_string()))
+                Err(hk_stt::SttError::Audio(
+                    String::from_utf8_lossy(&status.stderr).trim().to_string(),
+                ))
             }
         }
     }
@@ -224,7 +293,10 @@ pub struct Studio {
 
 impl Studio {
     pub fn new(root: impl Into<PathBuf>, tools: Tools) -> Self {
-        Self { store: ProjectStore::new(root), tools }
+        Self {
+            store: ProjectStore::new(root),
+            tools,
+        }
     }
 
     pub fn splitter(&self) -> Arc<dyn AudioSplitter> {
@@ -236,21 +308,36 @@ impl Studio {
             return Err(StudioError::NotFound(format!("file {}", path.display())));
         }
         let src = probe_source(path).await?;
-        let name = name.map(str::to_string).or_else(|| path.file_stem().and_then(|s| s.to_str()).map(str::to_string)).unwrap_or_else(|| "Untitled".into());
+        let name = name
+            .map(str::to_string)
+            .or_else(|| {
+                path.file_stem()
+                    .and_then(|s| s.to_str())
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| "Untitled".into());
         let p = StudioProject::new(name, src);
         self.store.save(&p).await?;
         Ok(p)
     }
 
     /// Extract audio, transcribe (chunked if the transcriber is), mark fillers and pauses.
-    pub async fn transcribe(&self, p: &mut StudioProject, t: &dyn Transcriber, opts: &TranscribeOpts, aggressive_fillers: bool) -> Result<()> {
+    pub async fn transcribe(
+        &self,
+        p: &mut StudioProject,
+        t: &dyn Transcriber,
+        opts: &TranscribeOpts,
+        aggressive_fillers: bool,
+    ) -> Result<()> {
         if !p.source.has_audio {
             return Err(StudioError::Invalid("source has no audio track".into()));
         }
         let work = self.store.work_dir(&p.id);
         tokio::fs::create_dir_all(&work).await?;
         let audio = work.join("audio.wav");
-        self.tools.extract_audio(&p.source.path, &audio, AudioSpec::default()).await?;
+        self.tools
+            .extract_audio(&p.source.path, &audio, AudioSpec::default())
+            .await?;
         let mut tr = t.transcribe(&audio, opts).await?;
         tr.fix_timings();
         tr.regroup_segments(&SegmentOpts::default());
@@ -263,17 +350,36 @@ impl Studio {
     }
 
     /// Detect highlights, add them as scored clips (best first). Returns the new clip ids.
-    pub async fn analyze(&self, p: &mut StudioProject, llm: &dyn Llm, opts: &HighlightOpts, rubric: Option<&str>, template: Option<&str>) -> Result<Vec<String>> {
+    pub async fn analyze(
+        &self,
+        p: &mut StudioProject,
+        llm: &dyn Llm,
+        opts: &HighlightOpts,
+        rubric: Option<&str>,
+        template: Option<&str>,
+    ) -> Result<Vec<String>> {
         let tr = p.transcript()?.clone();
         let cands = find_highlights(llm, &tr, opts).await?;
         let tpl = match template {
-            Some(n) => Some(builtin(n).ok_or_else(|| StudioError::Invalid(format!("unknown template {n}")))?),
+            Some(n) => Some(
+                builtin(n).ok_or_else(|| StudioError::Invalid(format!("unknown template {n}")))?,
+            ),
             None => None,
         };
         let mut ids = Vec::new();
         for c in cands {
-            let score = score_clip(llm, &tr, c.start, c.end, rubric, None).await.ok();
-            let clip: &mut Clip = p.add_clip(if c.title.is_empty() { "Clip".to_string() } else { c.title.clone() }, c.start, c.end)?;
+            let score = score_clip(llm, &tr, c.start, c.end, rubric, None)
+                .await
+                .ok();
+            let clip: &mut Clip = p.add_clip(
+                if c.title.is_empty() {
+                    "Clip".to_string()
+                } else {
+                    c.title.clone()
+                },
+                c.start,
+                c.end,
+            )?;
             clip.hook = (!c.hook.is_empty()).then(|| c.hook.clone());
             clip.reason = (!c.reason.is_empty()).then(|| c.reason.clone());
             clip.score = score;
@@ -283,12 +389,18 @@ impl Studio {
             ids.push(clip.id.clone());
         }
         // Best score first.
-        p.clips.sort_by_key(|c| std::cmp::Reverse(c.score.as_ref().map_or(0, |s| s.total)));
+        p.clips
+            .sort_by_key(|c| std::cmp::Reverse(c.score.as_ref().map_or(0, |s| s.total)));
         self.store.save(p).await?;
         Ok(ids)
     }
 
-    pub async fn render(&self, p: &StudioProject, clip_id: &str, opts: &RenderOpts) -> Result<RenderHandle> {
+    pub async fn render(
+        &self,
+        p: &StudioProject,
+        clip_id: &str,
+        opts: &RenderOpts,
+    ) -> Result<RenderHandle> {
         let spec = build_render(&self.store, p, clip_id, opts).await?;
         Ok(self.tools.render(spec).await?)
     }

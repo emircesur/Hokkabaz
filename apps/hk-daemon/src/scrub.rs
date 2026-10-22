@@ -4,8 +4,14 @@
 
 use serde_json::Value;
 
-const SENSITIVE: [&str; 6] =
-    ["authorization", "proxy-authorization", "cookie", "set-cookie", "x-n8n-api-key", "x-api-key"];
+const SENSITIVE: [&str; 6] = [
+    "authorization",
+    "proxy-authorization",
+    "cookie",
+    "set-cookie",
+    "x-n8n-api-key",
+    "x-api-key",
+];
 pub const REDACTED: &str = "[redacted]";
 
 /// Blank credential-bearing entries of every `headers` object, at any depth.
@@ -44,7 +50,10 @@ mod tests {
         }}]]}}]}}});
         scrub_headers(&mut v);
         let j = &v["resultData"]["runData"]["Webhook"][0]["data"]["main"][0][0]["json"];
-        assert_eq!(j["headers"], json!({"Authorization": REDACTED, "content-type": "a/b", "cookie": REDACTED}));
+        assert_eq!(
+            j["headers"],
+            json!({"Authorization": REDACTED, "content-type": "a/b", "cookie": REDACTED})
+        );
         assert_eq!(j["body"]["authorization"], "kept: not a header");
         assert!(!v.to_string().contains("hkt_x"));
     }

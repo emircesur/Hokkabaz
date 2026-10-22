@@ -53,12 +53,17 @@ fn tail(stderr: &str) -> String {
 }
 
 fn code_suffix(code: &Option<String>) -> String {
-    code.as_ref().map(|c| format!(" (code: {c})")).unwrap_or_default()
+    code.as_ref()
+        .map(|c| format!(" (code: {c})"))
+        .unwrap_or_default()
 }
 
 impl ConcatError {
     pub(crate) fn decode(tool: &str, reason: impl std::fmt::Display) -> Self {
-        Self::Decode { tool: tool.to_owned(), reason: reason.to_string() }
+        Self::Decode {
+            tool: tool.to_owned(),
+            reason: reason.to_string(),
+        }
     }
 
     /// The process is gone; a caller holding a cached client should reconnect. Deliberately not
@@ -86,9 +91,15 @@ impl ConcatError {
             return Self::OutsideRoots { path, roots };
         }
         let (message, code) = match text.trim_end().rsplit_once(" (code: ") {
-            Some((m, c)) if c.ends_with(')') => (m.to_owned(), Some(c.trim_end_matches(')').to_owned())),
+            Some((m, c)) if c.ends_with(')') => {
+                (m.to_owned(), Some(c.trim_end_matches(')').to_owned()))
+            }
             _ => (text.trim().to_owned(), None),
         };
-        Self::Tool { tool: tool.to_owned(), code, message }
+        Self::Tool {
+            tool: tool.to_owned(),
+            code,
+            message,
+        }
     }
 }

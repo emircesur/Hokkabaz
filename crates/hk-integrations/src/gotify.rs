@@ -27,7 +27,11 @@ const PAGE: usize = 200;
 pub fn credential_type() -> CredentialType {
     CredentialType::new(CREDENTIAL, "Gotify API")
         .documentation("https://gotify.net/docs/")
-        .property(Prop::string("url", "URL").required().placeholder("https://gotify.example.com"))
+        .property(
+            Prop::string("url", "URL")
+                .required()
+                .placeholder("https://gotify.example.com"),
+        )
         .property(
             Prop::string("appApiToken", "App API Token")
                 .password()
@@ -47,7 +51,11 @@ fn description() -> NodeTypeDescription {
         .icon("fa:bell")
         .color("#71c6e8")
         .credential(CREDENTIAL, true)
-        .property(Prop::options("resource", "Resource", vec![Choice::new("Message", "message")]))
+        .property(Prop::options(
+            "resource",
+            "Resource",
+            vec![Choice::new("Message", "message")],
+        ))
         .property(
             Prop::options(
                 "operation",
@@ -82,7 +90,10 @@ fn description() -> NodeTypeDescription {
                     Prop::options(
                         "contentType",
                         "Content Type",
-                        vec![Choice::new("Plain", "text/plain"), Choice::new("Markdown", "text/markdown")],
+                        vec![
+                            Choice::new("Plain", "text/plain"),
+                            Choice::new("Markdown", "text/markdown"),
+                        ],
                     ),
                     Prop::string("title", "Title"),
                 ],
@@ -121,7 +132,10 @@ impl GotifyNode {
         let token = |key: &str, label: &str| -> Result<String, FlowError> {
             let t = kit::cred_str(cred, key);
             if t.is_empty() {
-                Err(node_err(ctx, format!("The credential has no {label}, which this operation needs")))
+                Err(node_err(
+                    ctx,
+                    format!("The credential has no {label}, which this operation needs"),
+                ))
             } else {
                 Ok(t)
             }
@@ -182,11 +196,19 @@ impl GotifyNode {
                         rb = rb.query(&[("since", s.to_string())]);
                     }
                     let body = kit::call(node, rb, ERROR_PATHS).await?;
-                    let msgs = body.get("messages").and_then(Value::as_array).cloned().unwrap_or_default();
+                    let msgs = body
+                        .get("messages")
+                        .and_then(Value::as_array)
+                        .cloned()
+                        .unwrap_or_default();
                     let n = msgs.len();
                     out.extend(msgs.into_iter().map(kit::to_item));
                     // paging.next is only present while older messages remain
-                    let next = body.pointer("/paging/next").is_some().then(|| body.pointer("/paging/since").and_then(Value::as_i64)).flatten();
+                    let next = body
+                        .pointer("/paging/next")
+                        .is_some()
+                        .then(|| body.pointer("/paging/since").and_then(Value::as_i64))
+                        .flatten();
                     match next {
                         Some(s) if out.len() < limit && n > 0 => since = Some(s),
                         _ => break,
@@ -225,5 +247,8 @@ impl FlowNode for GotifyNode {
 /// Node and credential type into the shared registries. Features: `int-gotify`.
 pub fn register(nodes: &mut NodeRegistry, creds: &CredentialTypes) -> Result<(), FlowError> {
     creds.register_if_absent(credential_type());
-    nodes.register(Arc::new(GotifyNode { desc: description(), creds: creds.clone() }))
+    nodes.register(Arc::new(GotifyNode {
+        desc: description(),
+        creds: creds.clone(),
+    }))
 }

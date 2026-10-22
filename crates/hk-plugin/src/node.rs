@@ -17,7 +17,10 @@ struct PluginNode {
 }
 
 fn node_err(ctx: &NodeContext, message: impl Into<String>) -> FlowError {
-    FlowError::Node { node: ctx.node.name.clone(), message: message.into() }
+    FlowError::Node {
+        node: ctx.node.name.clone(),
+        message: message.into(),
+    }
 }
 
 #[async_trait]
@@ -32,7 +35,11 @@ impl FlowNode for PluginNode {
         // per run, not per item); plugins that need per-item values read them from the items.
         let mut params = serde_json::Map::new();
         for (k, v) in &ctx.node.parameters {
-            params.insert(k.clone(), ctx.eval_param(v, 0).map_err(|e| node_err(ctx, e.to_string()))?);
+            params.insert(
+                k.clone(),
+                ctx.eval_param(v, 0)
+                    .map_err(|e| node_err(ctx, e.to_string()))?,
+            );
         }
         let input = json!({
             "params": Value::Object(params),
@@ -46,7 +53,9 @@ impl FlowNode for PluginNode {
                 PluginError::Plugin(m) => node_err(ctx, m),
                 other => node_err(ctx, other.to_string()),
             })?;
-        let outputs = out["items"].as_array().ok_or_else(|| node_err(ctx, "plugin returned no `items` outputs"))?;
+        let outputs = out["items"]
+            .as_array()
+            .ok_or_else(|| node_err(ctx, "plugin returned no `items` outputs"))?;
         Ok(outputs
             .iter()
             .map(|port| {
@@ -82,13 +91,20 @@ pub fn register_plugin_nodes(registry: &mut NodeRegistry, plugin: &Arc<LoadedPlu
     for raw in &plugin.description.nodes {
         match serde_json::from_value::<NodeTypeDescription>(raw.clone()) {
             Ok(description) => {
-                let node: Arc<dyn FlowNode> = Arc::new(PluginNode { plugin: plugin.clone(), description });
+                let node: Arc<dyn FlowNode> = Arc::new(PluginNode {
+                    plugin: plugin.clone(),
+                    description,
+                });
                 match registry.register(node) {
                     Ok(()) => n += 1,
-                    Err(e) => tracing::warn!(plugin = %plugin.manifest.id, error = %e, "plugin node not registered"),
+                    Err(e) => {
+                        tracing::warn!(plugin = %plugin.manifest.id, error = %e, "plugin node not registered")
+                    }
                 }
             }
-            Err(e) => tracing::warn!(plugin = %plugin.manifest.id, error = %e, "plugin node description is invalid"),
+            Err(e) => {
+                tracing::warn!(plugin = %plugin.manifest.id, error = %e, "plugin node description is invalid")
+            }
         }
     }
     n

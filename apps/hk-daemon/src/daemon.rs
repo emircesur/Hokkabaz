@@ -33,8 +33,14 @@ impl Provider for Unconfigured {
     async fn models(&self) -> hk_llm::Result<Vec<ModelInfo>> {
         Ok(Vec::new())
     }
-    async fn stream(&self, _req: ChatRequest, _cancel: CancellationToken) -> hk_llm::Result<EventStream> {
-        Err(LlmError::Auth(format!("no DeepSeek API key: set {DEEPSEEK_ENV} or store secret `{DEEPSEEK_SECRET}`")))
+    async fn stream(
+        &self,
+        _req: ChatRequest,
+        _cancel: CancellationToken,
+    ) -> hk_llm::Result<EventStream> {
+        Err(LlmError::Auth(format!(
+            "no DeepSeek API key: set {DEEPSEEK_ENV} or store secret `{DEEPSEEK_SECRET}`"
+        )))
     }
 }
 
@@ -46,7 +52,9 @@ pub struct Opened {
 
 impl std::fmt::Debug for Opened {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Opened").field("auth", &self.auth).finish_non_exhaustive()
+        f.debug_struct("Opened")
+            .field("auth", &self.auth)
+            .finish_non_exhaustive()
     }
 }
 
@@ -65,20 +73,34 @@ pub fn secret_backend(data: &Path) -> Arc<dyn SecretStore> {
 /// token to an operator-supplied value before the table loads.
 pub async fn open(data: &Path, admin_token: Option<&str>) -> Result<Opened> {
     std::fs::create_dir_all(data).with_context(|| format!("create {}", data.display()))?;
-    let store = Store::open(data.join("hk.db")).await.context("open store")?;
+    let store = Store::open(data.join("hk.db"))
+        .await
+        .context("open store")?;
     let secrets = secret_backend(data);
     open_with(store, secrets, admin_token).await
 }
 
 /// [`open`] over an existing store and secret backend (tests).
-pub async fn open_with(store: Store, secrets: Arc<dyn SecretStore>, admin_token: Option<&str>) -> Result<Opened> {
+pub async fn open_with(
+    store: Store,
+    secrets: Arc<dyn SecretStore>,
+    admin_token: Option<&str>,
+) -> Result<Opened> {
     if let Some(t) = admin_token
-        && Auth::bootstrap_tier_token(&store, secrets.as_ref(), Scope::Admin, t).await.context("admin token")?
+        && Auth::bootstrap_tier_token(&store, secrets.as_ref(), Scope::Admin, t)
+            .await
+            .context("admin token")?
     {
         tracing::info!("admin token set from bootstrap value");
     }
-    let auth = Auth::load_or_create(&store, secrets.as_ref()).await.context("load api tokens")?;
-    Ok(Opened { store, secrets, auth })
+    let auth = Auth::load_or_create(&store, secrets.as_ref())
+        .await
+        .context("load api tokens")?;
+    Ok(Opened {
+        store,
+        secrets,
+        auth,
+    })
 }
 
 pub struct Assembled {
@@ -88,7 +110,9 @@ pub struct Assembled {
 
 impl std::fmt::Debug for Assembled {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Assembled").field("flow", &self.flow).finish_non_exhaustive()
+        f.debug_struct("Assembled")
+            .field("flow", &self.flow)
+            .finish_non_exhaustive()
     }
 }
 
@@ -101,19 +125,29 @@ pub async fn assemble(
 ) -> Result<Assembled> {
     // `hokkabaz.agent` runs full sessions on this instance's own agent runtime.
     if flow_cfg.agent_runner.is_none() {
-        flow_cfg.agent_runner = Some(Arc::new(crate::agent_runner::RuntimeAgentRunner::new(runtime.clone())));
+        flow_cfg.agent_runner = Some(Arc::new(crate::agent_runner::RuntimeAgentRunner::new(
+            runtime.clone(),
+        )));
     }
     let base = FlowApi::new(o.store.clone(), o.secrets.clone());
     let flow = FlowRuntime::start(base.clone(), flow_cfg).context("start flow runtime")?;
-    let api = base.with_webhooks(flow.webhook_handler()).with_activator(flow.activator()).with_test_runner(flow.clone());
-    let n = flow.activate_stored().await.context("activate stored workflows")?;
+    let api = base
+        .with_webhooks(flow.webhook_handler())
+        .with_activator(flow.activator())
+        .with_test_runner(flow.clone());
+    let n = flow
+        .activate_stored()
+        .await
+        .context("activate stored workflows")?;
     // Waits whose time passed while the daemon was down resume now, not at the first tick.
     let resumed = flow.resume_due(now_ms()).await;
     tracing::info!(active = n, resumed, "flow runtime up");
     // Agents can draft and test-run workflows on this instance.
     runtime.add_tools(hk_server::flow_tools(flow.clone(), o.store.clone()));
     let pairing = Pairing::new(&o.auth, public_url).context("pairing")?;
-    let state = AppState::new(runtime, o.auth).with_flow(api).with_pairing(pairing);
+    let state = AppState::new(runtime, o.auth)
+        .with_flow(api)
+        .with_pairing(pairing);
     Ok(Assembled { state, flow })
 }
 

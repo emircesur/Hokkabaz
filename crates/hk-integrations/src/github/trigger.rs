@@ -26,7 +26,10 @@ const EVENTS: &[(&str, &str)] = &[
     ("issue_comment", "IssueCommentEvent"),
     ("pull_request", "PullRequestEvent"),
     ("pull_request_review", "PullRequestReviewEvent"),
-    ("pull_request_review_comment", "PullRequestReviewCommentEvent"),
+    (
+        "pull_request_review_comment",
+        "PullRequestReviewCommentEvent",
+    ),
     ("commit_comment", "CommitCommentEvent"),
     ("create", "CreateEvent"),
     ("delete", "DeleteEvent"),
@@ -61,7 +64,10 @@ impl GithubTrigger {
             ))
             .property(poll_times_prop())
             .build();
-        Self { desc, creds: creds.clone() }
+        Self {
+            desc,
+            creds: creds.clone(),
+        }
     }
 }
 
@@ -85,8 +91,15 @@ impl PollingTrigger for GithubTrigger {
         &self.desc
     }
 
-    async fn poll(&self, cx: &PollContext, _cursor: Option<&Value>) -> Result<PollBatch, FlowError> {
-        let node_err = |m: String| FlowError::Node { node: cx.node().name.clone(), message: m };
+    async fn poll(
+        &self,
+        cx: &PollContext,
+        _cursor: Option<&Value>,
+    ) -> Result<PollBatch, FlowError> {
+        let node_err = |m: String| FlowError::Node {
+            node: cx.node().name.clone(),
+            message: m,
+        };
         let owner = cx.param_str("owner", "")?;
         let repo = cx.param_str("repository", "")?;
         if owner.is_empty() || repo.is_empty() {
@@ -96,7 +109,10 @@ impl PollingTrigger for GithubTrigger {
 
         let raw = cx.credential(CREDENTIAL).await?;
         let data = self.creds.with_defaults(CREDENTIAL, &raw);
-        let auth = self.creds.apply(CREDENTIAL, &data).map_err(|e| node_err(e.to_string()))?;
+        let auth = self
+            .creds
+            .apply(CREDENTIAL, &data)
+            .map_err(|e| node_err(e.to_string()))?;
         let server = data.get("server").map(display).unwrap_or_default();
         let url = format!(
             "{}/repos/{}/{}/events?per_page=100",
@@ -129,7 +145,10 @@ impl PollingTrigger for GithubTrigger {
         let body: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
         if !status.is_success() {
             let detail = body.get("message").map(display).unwrap_or_default();
-            return Err(node_err(format!("The service returned an error: {} {detail}", status.as_u16())));
+            return Err(node_err(format!(
+                "The service returned an error: {} {detail}",
+                status.as_u16()
+            )));
         }
 
         // newest first on the wire; emit oldest first so downstream sees them in order
@@ -144,6 +163,9 @@ impl PollingTrigger for GithubTrigger {
             .filter_map(|e| Some(PolledItem::new(display(e.get("id")?), e.clone())))
             .collect();
         items.reverse();
-        Ok(PollBatch { items, cursor: None })
+        Ok(PollBatch {
+            items,
+            cursor: None,
+        })
     }
 }

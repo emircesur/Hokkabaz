@@ -19,8 +19,8 @@ use axum::extract::{Path, State};
 use axum::http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
 use futures::future::BoxFuture;
-use hk_flow::hooks::{ResponseBody, ResponseSink, WebhookResponse};
 use hk_flow::Item;
+use hk_flow::hooks::{ResponseBody, ResponseSink, WebhookResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use tokio::sync::oneshot;
@@ -196,7 +196,8 @@ pub trait WebhookHandler: Send + Sync + fmt::Debug {
     fn unregister_owner(&self, _owner: &str) {}
 
     /// Start the run. Must return quickly; the work continues in the background.
-    async fn handle(&self, route: &WebhookRoute, call: WebhookCall) -> Result<WebhookRun, ApiError>;
+    async fn handle(&self, route: &WebhookRoute, call: WebhookCall)
+    -> Result<WebhookRun, ApiError>;
 }
 
 /// How a registered target starts a run.
@@ -228,7 +229,9 @@ pub struct WebhookRegistry {
 impl fmt::Debug for WebhookRegistry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let n = self.lock().entries.len();
-        f.debug_struct("WebhookRegistry").field("entries", &n).finish()
+        f.debug_struct("WebhookRegistry")
+            .field("entries", &n)
+            .finish()
     }
 }
 
@@ -283,7 +286,9 @@ impl WebhookRegistry {
             m.make_ascii_uppercase();
         }
         if spec.path.is_empty() || spec.methods.is_empty() {
-            return Err(ApiError::BadRequest("webhook needs a path and at least one method".into()));
+            return Err(ApiError::BadRequest(
+                "webhook needs a path and at least one method".into(),
+            ));
         }
         let now = Instant::now();
         let mut g = self.lock();
@@ -301,7 +306,14 @@ impl WebhookRegistry {
         }
         g.next_id += 1;
         let id = g.next_id;
-        g.entries.push(Entry { id, mode, spec: Arc::new(spec), target, expires: ttl.map(|d| now + d), claimed: false });
+        g.entries.push(Entry {
+            id,
+            mode,
+            spec: Arc::new(spec),
+            target,
+            expires: ttl.map(|d| now + d),
+            claimed: false,
+        });
         Ok(id)
     }
 
@@ -338,10 +350,19 @@ impl WebhookHandler for WebhookRegistry {
         g.entries
             .iter()
             .filter(|e| e.mode == mode && !e.claimed && e.expires.is_none_or(|t| t > now))
-            .filter(|e| e.spec.methods.iter().any(|m| m.eq_ignore_ascii_case(method)))
+            .filter(|e| {
+                e.spec
+                    .methods
+                    .iter()
+                    .any(|m| m.eq_ignore_ascii_case(method))
+            })
             .filter_map(|e| match_path(&e.spec.path, &path).map(|(p, lit)| (lit, e, p)))
             .max_by_key(|(lit, ..)| *lit)
-            .map(|(_, e, params)| WebhookRoute { id: e.id, spec: Arc::clone(&e.spec), params })
+            .map(|(_, e, params)| WebhookRoute {
+                id: e.id,
+                spec: Arc::clone(&e.spec),
+                params,
+            })
     }
 
     fn unregister_owner(&self, owner: &str) {
@@ -351,7 +372,9 @@ impl WebhookHandler for WebhookRegistry {
     fn claim(&self, route: &WebhookRoute) -> bool {
         let now = Instant::now();
         let mut g = self.lock();
-        let Some(e) = g.entries.iter_mut().find(|e| e.id == route.id) else { return false };
+        let Some(e) = g.entries.iter_mut().find(|e| e.id == route.id) else {
+            return false;
+        };
         if e.claimed || e.expires.is_some_and(|t| t <= now) {
             return false;
         }
@@ -360,7 +383,11 @@ impl WebhookHandler for WebhookRegistry {
         true
     }
 
-    async fn handle(&self, route: &WebhookRoute, call: WebhookCall) -> Result<WebhookRun, ApiError> {
+    async fn handle(
+        &self,
+        route: &WebhookRoute,
+        call: WebhookCall,
+    ) -> Result<WebhookRun, ApiError> {
         let target = {
             let mut g = self.lock();
             let i = g
@@ -402,7 +429,11 @@ impl ResponseSink for ChannelSink {
 
 fn n8n_error(status: StatusCode, message: impl Into<String>) -> Response {
     // n8n's webhook error body: `{"code": <n>, "message": "..."}`.
-    (status, axum::Json(json!({ "code": status.as_u16(), "message": message.into() }))).into_response()
+    (
+        status,
+        axum::Json(json!({ "code": status.as_u16(), "message": message.into() })),
+    )
+        .into_response()
 }
 
 fn api_error(e: &ApiError) -> Response {
@@ -431,7 +462,16 @@ pub(crate) async fn production(
     headers: HeaderMap,
     body: Body,
 ) -> Response {
-    serve(state.0, WebhookMode::Production, path.0, method, uri, headers, body).await
+    serve(
+        state.0,
+        WebhookMode::Production,
+        path.0,
+        method,
+        uri,
+        headers,
+        body,
+    )
+    .await
 }
 
 pub(crate) async fn test(
@@ -442,7 +482,16 @@ pub(crate) async fn test(
     headers: HeaderMap,
     body: Body,
 ) -> Response {
-    serve(state.0, WebhookMode::Test, path.0, method, uri, headers, body).await
+    serve(
+        state.0,
+        WebhookMode::Test,
+        path.0,
+        method,
+        uri,
+        headers,
+        body,
+    )
+    .await
 }
 
 fn unix_now() -> u64 {
@@ -472,14 +521,21 @@ async fn serve(
     let spec = Arc::clone(&route.spec);
 
     if spec.auth == WebhookAuth::Bearer {
-        match authorize(&state, token_from(&headers)).and_then(|p| Ok(p.require(Scope::WebhookInvoke)?)) {
+        match authorize(&state, token_from(&headers))
+            .and_then(|p| Ok(p.require(Scope::WebhookInvoke)?))
+        {
             Ok(()) => {}
             Err(Reject::Api(e)) => return api_error(&e),
             Err(r @ Reject::Throttled(_)) => return axum::response::IntoResponse::into_response(r),
         }
     }
 
-    let too_big = || n8n_error(StatusCode::PAYLOAD_TOO_LARGE, format!("Payload too large (limit {} bytes)", spec.max_body_bytes));
+    let too_big = || {
+        n8n_error(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!("Payload too large (limit {} bytes)", spec.max_body_bytes),
+        )
+    };
     let declared = headers
         .get(header::CONTENT_LENGTH)
         .and_then(|v| v.to_str().ok())
@@ -498,10 +554,19 @@ async fn serve(
             // Fail closed; don't say which handle is missing to the caller.
             Ok(None) | Err(_) => {
                 tracing::error!(owner = %spec.owner, "webhook HMAC secret handle unavailable");
-                return n8n_error(StatusCode::INTERNAL_SERVER_ERROR, "Webhook signature check is misconfigured");
+                return n8n_error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Webhook signature check is misconfigured",
+                );
             }
         };
-        if let Err(e) = verify(&h.preset, key.expose().as_bytes(), &headers, &raw, unix_now()) {
+        if let Err(e) = verify(
+            &h.preset,
+            key.expose().as_bytes(),
+            &headers,
+            &raw,
+            unix_now(),
+        ) {
             tracing::warn!(owner = %spec.owner, reason = %e, "webhook signature rejected");
             return n8n_error(StatusCode::UNAUTHORIZED, "Invalid webhook signature");
         }
@@ -517,9 +582,15 @@ async fn serve(
     }
 
     let mut json = Map::new();
-    json.insert("headers".into(), Value::Object(payload::headers_json(&headers)));
+    json.insert(
+        "headers".into(),
+        Value::Object(payload::headers_json(&headers)),
+    );
     json.insert("params".into(), Value::Object(route.params.clone()));
-    json.insert("query".into(), Value::Object(payload::query_json(uri.query())));
+    json.insert(
+        "query".into(),
+        Value::Object(payload::query_json(uri.query())),
+    );
     json.insert("body".into(), body_json);
 
     let (sink, mut sink_rx) = ChannelSink::new();
@@ -538,11 +609,21 @@ async fn serve(
 
     let ok_status = StatusCode::from_u16(spec.response_code).unwrap_or(StatusCode::OK);
     match spec.response_mode {
-        ResponseMode::OnReceived => (ok_status, axum::Json(json!({ "message": "Workflow was started" }))).into_response(),
-        ResponseMode::LastNode => match tokio::time::timeout(spec.response_timeout, run.done).await {
-            Err(_) => n8n_error(StatusCode::GATEWAY_TIMEOUT, "Workflow did not finish in time"),
+        ResponseMode::OnReceived => (
+            ok_status,
+            axum::Json(json!({ "message": "Workflow was started" })),
+        )
+            .into_response(),
+        ResponseMode::LastNode => match tokio::time::timeout(spec.response_timeout, run.done).await
+        {
+            Err(_) => n8n_error(
+                StatusCode::GATEWAY_TIMEOUT,
+                "Workflow did not finish in time",
+            ),
             Ok(Ok(Ok(items))) => last_node_response(ok_status, spec.response_data, &items),
-            Ok(Ok(Err(_)) | Err(_)) => n8n_error(StatusCode::INTERNAL_SERVER_ERROR, "Error in workflow"),
+            Ok(Ok(Err(_)) | Err(_)) => {
+                n8n_error(StatusCode::INTERNAL_SERVER_ERROR, "Error in workflow")
+            }
         },
         ResponseMode::ResponseNode => {
             let mut done = run.done;
@@ -556,10 +637,17 @@ async fn serve(
             })
             .await;
             match outcome {
-                Err(_) => n8n_error(StatusCode::GATEWAY_TIMEOUT, "Workflow did not respond in time"),
+                Err(_) => n8n_error(
+                    StatusCode::GATEWAY_TIMEOUT,
+                    "Workflow did not respond in time",
+                ),
                 Ok(Some(resp)) => to_http(resp),
                 // Finished without reaching a Respond to Webhook node.
-                Ok(None) => (StatusCode::OK, axum::Json(json!({ "message": "Workflow executed successfully" }))).into_response(),
+                Ok(None) => (
+                    StatusCode::OK,
+                    axum::Json(json!({ "message": "Workflow executed successfully" })),
+                )
+                    .into_response(),
             }
         }
     }
@@ -569,12 +657,19 @@ fn last_node_response(status: StatusCode, mode: LastNodeData, items: &[Item]) ->
     match mode {
         LastNodeData::NoData => status.into_response(),
         LastNodeData::AllEntries => {
-            let all: Vec<Value> = items.iter().map(|i| Value::Object(i.json.clone())).collect();
+            let all: Vec<Value> = items
+                .iter()
+                .map(|i| Value::Object(i.json.clone()))
+                .collect();
             (status, axum::Json(Value::Array(all))).into_response()
         }
         LastNodeData::FirstEntryJson => match items.first() {
             Some(i) => (status, axum::Json(Value::Object(i.json.clone()))).into_response(),
-            None => (status, axum::Json(json!({ "message": "Workflow executed successfully" }))).into_response(),
+            None => (
+                status,
+                axum::Json(json!({ "message": "Workflow executed successfully" })),
+            )
+                .into_response(),
         },
     }
 }
@@ -584,7 +679,10 @@ fn to_http(r: WebhookResponse) -> Response {
     let mut status = StatusCode::from_u16(r.status).unwrap_or(StatusCode::OK);
     let (default_ct, body) = match r.body {
         ResponseBody::Empty => (None, Body::empty()),
-        ResponseBody::Json(v) => (Some("application/json".to_owned()), Body::from(v.to_string())),
+        ResponseBody::Json(v) => (
+            Some("application/json".to_owned()),
+            Body::from(v.to_string()),
+        ),
         ResponseBody::Text(t) => (Some("text/html; charset=utf-8".to_owned()), Body::from(t)),
         ResponseBody::Binary { mime_type, data } => (Some(mime_type), Body::from(data)),
         ResponseBody::Redirect(url) => {
@@ -612,12 +710,17 @@ fn to_http(r: WebhookResponse) -> Response {
 fn apply_headers(res: &mut Response, headers: &[(String, String)]) {
     for (k, v) in headers {
         // Framing is the server's business.
-        if matches!(k.to_ascii_lowercase().as_str(), "content-length" | "transfer-encoding" | "connection") {
+        if matches!(
+            k.to_ascii_lowercase().as_str(),
+            "content-length" | "transfer-encoding" | "connection"
+        ) {
             continue;
         }
-        if let (Ok(k), Ok(v)) = (HeaderName::from_bytes(k.as_bytes()), HeaderValue::from_str(v)) {
+        if let (Ok(k), Ok(v)) = (
+            HeaderName::from_bytes(k.as_bytes()),
+            HeaderValue::from_str(v),
+        ) {
             res.headers_mut().insert(k, v);
         }
     }
 }
-

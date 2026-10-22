@@ -18,7 +18,9 @@ use async_trait::async_trait;
 use futures::stream::{self, BoxStream};
 use futures::{SinkExt, StreamExt};
 use hk_llm::{CancellationToken, ModelInfo};
-use hk_server::{ApprovalDecision, CreateSession, ServerEvent, SessionInfo, TurnAccepted, TurnMode, TurnRequest};
+use hk_server::{
+    ApprovalDecision, CreateSession, ServerEvent, SessionInfo, TurnAccepted, TurnMode, TurnRequest,
+};
 use hk_store::Secret;
 use reqwest::{Method, Url};
 use serde::Serialize;
@@ -31,10 +33,10 @@ use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::{self, Message};
 
 use crate::dto::{
-    CoreProfile, CreateSessionDto, FlowRunDetailDto, FlowRunEventDto, FlowRunEventKind, FlowRunModeDto,
-    FlowRunSummaryDto, InstanceStateDto, InstanceStatusDto, ModeDto, ModelListDto, PreferencesDto,
-    ProviderInputDto, SessionDetailDto, SessionEventDto, SessionEventKind, SessionInfoDto, SettingsDto,
-    TurnAcceptedDto, TurnRequestDto,
+    CoreProfile, CreateSessionDto, FlowRunDetailDto, FlowRunEventDto, FlowRunEventKind,
+    FlowRunModeDto, FlowRunSummaryDto, InstanceStateDto, InstanceStatusDto, ModeDto, ModelListDto,
+    PreferencesDto, ProviderInputDto, SessionDetailDto, SessionEventDto, SessionEventKind,
+    SessionInfoDto, SettingsDto, TurnAcceptedDto, TurnRequestDto,
 };
 use crate::error::{HkError, HkErrorKind};
 use crate::flow_runs::{self, DETAIL_MAX_BYTES, DETAIL_MAX_ITEMS, MAX_INPUT_ITEMS};
@@ -75,13 +77,16 @@ pub struct RemoteCore {
 
 impl std::fmt::Debug for RemoteCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RemoteCore").field("base", &self.i.base.as_str()).finish_non_exhaustive()
+        f.debug_struct("RemoteCore")
+            .field("base", &self.i.base.as_str())
+            .finish_non_exhaustive()
     }
 }
 
 /// Validate and normalise an instance URL: http(s) only, no query/fragment, no trailing slash.
 pub fn parse_base_url(raw: &str) -> Result<Url, HkError> {
-    let mut url = Url::parse(raw.trim()).map_err(|e| HkError::invalid(format!("invalid URL: {e}")))?;
+    let mut url =
+        Url::parse(raw.trim()).map_err(|e| HkError::invalid(format!("invalid URL: {e}")))?;
     if !matches!(url.scheme(), "http" | "https") {
         return Err(HkError::invalid("URL must start with http:// or https://"));
     }
@@ -89,7 +94,9 @@ pub fn parse_base_url(raw: &str) -> Result<Url, HkError> {
         return Err(HkError::invalid("URL has no host"));
     }
     if !url.username().is_empty() || url.password().is_some() {
-        return Err(HkError::invalid("URL must not carry credentials; use the token field"));
+        return Err(HkError::invalid(
+            "URL must not carry credentials; use the token field",
+        ));
     }
     url.set_query(None);
     url.set_fragment(None);
@@ -109,7 +116,11 @@ fn http_client(timeout: Duration) -> Result<reqwest::Client, HkError> {
 
 fn net_err(e: reqwest::Error) -> HkError {
     let e = e.without_url();
-    let kind = if e.is_connect() || e.is_timeout() { HkErrorKind::Unavailable } else { HkErrorKind::Internal };
+    let kind = if e.is_connect() || e.is_timeout() {
+        HkErrorKind::Unavailable
+    } else {
+        HkErrorKind::Internal
+    };
     HkError::new(kind, format!("instance request failed: {e}"))
 }
 
@@ -136,7 +147,10 @@ async fn check(res: reqwest::Response) -> Result<reqwest::Response, HkError> {
 }
 
 fn unsupported(what: &str) -> HkError {
-    HkError::new(HkErrorKind::Unsupported, format!("{what} is managed on the instance, not from this app"))
+    HkError::new(
+        HkErrorKind::Unsupported,
+        format!("{what} is managed on the instance, not from this app"),
+    )
 }
 
 impl Inner {
@@ -150,7 +164,9 @@ impl Inner {
     }
 
     fn request(&self, method: Method, segments: &[&str]) -> reqwest::RequestBuilder {
-        self.http.request(method, self.url(segments)).bearer_auth(self.token.expose())
+        self.http
+            .request(method, self.url(segments))
+            .bearer_auth(self.token.expose())
     }
 
     async fn send(&self, rb: reqwest::RequestBuilder) -> Result<reqwest::Response, HkError> {
@@ -158,11 +174,20 @@ impl Inner {
     }
 
     async fn json<T: DeserializeOwned>(&self, rb: reqwest::RequestBuilder) -> Result<T, HkError> {
-        self.send(rb).await?.json().await.map_err(|e| HkError::internal(format!("bad reply from instance: {}", e.without_url())))
+        self.send(rb)
+            .await?
+            .json()
+            .await
+            .map_err(|e| HkError::internal(format!("bad reply from instance: {}", e.without_url())))
     }
 
-    async fn post_json(&self, segments: &[&str], body: &impl Serialize) -> Result<reqwest::Response, HkError> {
-        self.send(self.request(Method::POST, segments).json(body)).await
+    async fn post_json(
+        &self,
+        segments: &[&str],
+        body: &impl Serialize,
+    ) -> Result<reqwest::Response, HkError> {
+        self.send(self.request(Method::POST, segments).json(body))
+            .await
     }
 
     fn register_feed(&self, sid: &str) -> watch::Sender<bool> {
@@ -179,7 +204,11 @@ impl Inner {
     async fn feeds_ready(&self, sid: &str) {
         let pending: Vec<_> = {
             let feeds = self.feeds.lock().unwrap_or_else(PoisonError::into_inner);
-            feeds.iter().filter(|(s, r)| s == sid && !*r.borrow()).map(|(_, r)| r.clone()).collect()
+            feeds
+                .iter()
+                .filter(|(s, r)| s == sid && !*r.borrow())
+                .map(|(_, r)| r.clone())
+                .collect()
         };
         for mut rx in pending {
             let _ = tokio::time::timeout(FEED_ATTACH_WAIT, rx.wait_for(|ready| *ready)).await;
@@ -235,10 +264,11 @@ pub async fn probe(id: &str, base_url: &str, token: Option<&Secret>) -> Instance
         latency_ms,
         message,
     };
-    let (base, http) = match parse_base_url(base_url).and_then(|b| Ok((b, http_client(PROBE_TIMEOUT)?))) {
-        Ok(x) => x,
-        Err(e) => return status(InstanceStateDto::Unreachable, None, None, Some(e.message)),
-    };
+    let (base, http) =
+        match parse_base_url(base_url).and_then(|b| Ok((b, http_client(PROBE_TIMEOUT)?))) {
+            Ok(x) => x,
+            Err(e) => return status(InstanceStateDto::Unreachable, None, None, Some(e.message)),
+        };
     let inner = Inner {
         base,
         token: token.cloned().unwrap_or_else(|| Secret::new("")),
@@ -255,16 +285,39 @@ pub async fn probe(id: &str, base_url: &str, token: Option<&Secret>) -> Instance
         Ok(h) => h,
         Err(e) => return status(InstanceStateDto::Unreachable, None, None, Some(e.message)),
     };
-    let version = health.get("version").and_then(Value::as_str).map(str::to_owned);
+    let version = health
+        .get("version")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
     if token.is_none() {
-        return status(InstanceStateDto::Unauthorized, version, Some(latency), Some("no token stored".into()));
+        return status(
+            InstanceStateDto::Unauthorized,
+            version,
+            Some(latency),
+            Some("no token stored".into()),
+        );
     }
-    match inner.send(inner.request(Method::GET, &["sessions"]).query(&[("limit", 1)])).await {
+    match inner
+        .send(
+            inner
+                .request(Method::GET, &["sessions"])
+                .query(&[("limit", 1)]),
+        )
+        .await
+    {
         Ok(_) => status(InstanceStateDto::Online, version, Some(latency), None),
-        Err(e) if e.kind == HkErrorKind::Unauthorized => {
-            status(InstanceStateDto::Unauthorized, version, Some(latency), Some(e.message))
-        }
-        Err(e) => status(InstanceStateDto::Unreachable, version, Some(latency), Some(e.message)),
+        Err(e) if e.kind == HkErrorKind::Unauthorized => status(
+            InstanceStateDto::Unauthorized,
+            version,
+            Some(latency),
+            Some(e.message),
+        ),
+        Err(e) => status(
+            InstanceStateDto::Unreachable,
+            version,
+            Some(latency),
+            Some(e.message),
+        ),
     }
 }
 
@@ -284,16 +337,21 @@ pub async fn exchange_pairing(base_url: &str, pairing_token: &str) -> Result<Sec
         feeds: Mutex::default(),
         flow_ids: Mutex::default(),
     };
-    let rb = inner.http.post(inner.url(&["pairing", "exchange"])).json(&json!({ "token": pairing_token }));
+    let rb = inner
+        .http
+        .post(inner.url(&["pairing", "exchange"]))
+        .json(&json!({ "token": pairing_token }));
     match inner.json::<Exchanged>(rb).await {
         Ok(x) => Ok(Secret::new(x.token)),
         // The server answers every bad token the same way; say what the user can act on.
-        Err(e) if e.kind == HkErrorKind::Unauthorized => {
-            Err(HkError::new(HkErrorKind::Unauthorized, "pairing link is invalid, expired or already used"))
-        }
-        Err(e) if e.kind == HkErrorKind::NotFound => {
-            Err(HkError::new(HkErrorKind::Unsupported, "this instance has pairing disabled"))
-        }
+        Err(e) if e.kind == HkErrorKind::Unauthorized => Err(HkError::new(
+            HkErrorKind::Unauthorized,
+            "pairing link is invalid, expired or already used",
+        )),
+        Err(e) if e.kind == HkErrorKind::NotFound => Err(HkError::new(
+            HkErrorKind::Unsupported,
+            "this instance has pairing disabled",
+        )),
         Err(e) => Err(e),
     }
 }
@@ -316,7 +374,11 @@ impl CoreHandle for RemoteCore {
         Err(unsupported("Provider setup"))
     }
 
-    async fn set_api_key(&self, _provider_id: String, _key: Option<String>) -> Result<SettingsDto, HkError> {
+    async fn set_api_key(
+        &self,
+        _provider_id: String,
+        _key: Option<String>,
+    ) -> Result<SettingsDto, HkError> {
         Err(unsupported("API keys"))
     }
 
@@ -329,8 +391,14 @@ impl CoreHandle for RemoteCore {
         struct Models {
             models: Vec<ModelInfo>,
         }
-        let m: Models = self.i.json(self.i.request(Method::GET, &["models"])).await?;
-        Ok(ModelListDto { models: m.models.iter().map(settings::model_dto).collect(), errors: Vec::new() })
+        let m: Models = self
+            .i
+            .json(self.i.request(Method::GET, &["models"]))
+            .await?;
+        Ok(ModelListDto {
+            models: m.models.iter().map(settings::model_dto).collect(),
+            errors: Vec::new(),
+        })
     }
 
     async fn refresh_catalog(&self) -> Result<(), HkError> {
@@ -338,8 +406,18 @@ impl CoreHandle for RemoteCore {
     }
 
     async fn create_session(&self, req: CreateSessionDto) -> Result<SessionInfoDto, HkError> {
-        let body = CreateSession { cwd: req.workspace_root, model: req.model, title: req.title };
-        let info: SessionInfo = self.i.post_json(&["sessions"], &body).await?.json().await.map_err(bad_reply)?;
+        let body = CreateSession {
+            cwd: req.workspace_root,
+            model: req.model,
+            title: req.title,
+        };
+        let info: SessionInfo = self
+            .i
+            .post_json(&["sessions"], &body)
+            .await?
+            .json()
+            .await
+            .map_err(bad_reply)?;
         Ok(session_dto(info))
     }
 
@@ -348,15 +426,21 @@ impl CoreHandle for RemoteCore {
         struct Page {
             sessions: Vec<SessionInfo>,
         }
-        let rb = self.i.request(Method::GET, &["sessions"]).query(&[("limit", limit), ("offset", offset)]);
+        let rb = self
+            .i
+            .request(Method::GET, &["sessions"])
+            .query(&[("limit", limit), ("offset", offset)]);
         let p: Page = self.i.json(rb).await?;
         Ok(p.sessions.into_iter().map(session_dto).collect())
     }
 
     async fn get_session(&self, session_id: &str) -> Result<SessionDetailDto, HkError> {
         let d = self.i.detail(session_id, None).await?;
-        let logged: Vec<hk_session::SessionEvent> =
-            d.events.into_iter().filter_map(|e| serde_json::from_value(e).ok()).collect();
+        let logged: Vec<hk_session::SessionEvent> = d
+            .events
+            .into_iter()
+            .filter_map(|e| serde_json::from_value(e).ok())
+            .collect();
         Ok(SessionDetailDto {
             session: session_dto(d.session),
             messages: d.messages.into_iter().map(message_dto).collect(),
@@ -364,7 +448,11 @@ impl CoreHandle for RemoteCore {
         })
     }
 
-    async fn submit_turn(&self, session_id: &str, req: TurnRequestDto) -> Result<TurnAcceptedDto, HkError> {
+    async fn submit_turn(
+        &self,
+        session_id: &str,
+        req: TurnRequestDto,
+    ) -> Result<TurnAcceptedDto, HkError> {
         if req.prompt.trim().is_empty() {
             return Err(HkError::invalid("prompt must not be empty"));
         }
@@ -377,18 +465,38 @@ impl CoreHandle for RemoteCore {
             }),
             model: req.model,
         };
-        let a: TurnAccepted =
-            self.i.post_json(&["sessions", session_id, "turns"], &body).await?.json().await.map_err(bad_reply)?;
-        Ok(TurnAcceptedDto { session_id: a.session_id, queued: a.queued })
+        let a: TurnAccepted = self
+            .i
+            .post_json(&["sessions", session_id, "turns"], &body)
+            .await?
+            .json()
+            .await
+            .map_err(bad_reply)?;
+        Ok(TurnAcceptedDto {
+            session_id: a.session_id,
+            queued: a.queued,
+        })
     }
 
     async fn inject(&self, session_id: &str, text: String) -> Result<(), HkError> {
         self.i.feeds_ready(session_id).await;
-        self.i.post_json(&["sessions", session_id, "inject"], &json!({ "text": text })).await.map(drop)
+        self.i
+            .post_json(
+                &["sessions", session_id, "inject"],
+                &json!({ "text": text }),
+            )
+            .await
+            .map(drop)
     }
 
     async fn cancel(&self, session_id: &str) -> Result<(), HkError> {
-        self.i.send(self.i.request(Method::POST, &["sessions", session_id, "cancel"])).await.map(drop)
+        self.i
+            .send(
+                self.i
+                    .request(Method::POST, &["sessions", session_id, "cancel"]),
+            )
+            .await
+            .map(drop)
     }
 
     async fn respond_approval(
@@ -398,11 +506,21 @@ impl CoreHandle for RemoteCore {
         approved: bool,
         reason: Option<String>,
     ) -> Result<(), HkError> {
-        let body = ApprovalDecision { approved, reason, session_id: Some(session_id.to_owned()) };
-        self.i.post_json(&["approvals", approval_id], &body).await.map(drop)
+        let body = ApprovalDecision {
+            approved,
+            reason,
+            session_id: Some(session_id.to_owned()),
+        };
+        self.i
+            .post_json(&["approvals", approval_id], &body)
+            .await
+            .map(drop)
     }
 
-    fn session_events(&self, session_id: &str) -> Result<BoxStream<'static, SessionEventDto>, HkError> {
+    fn session_events(
+        &self,
+        session_id: &str,
+    ) -> Result<BoxStream<'static, SessionEventDto>, HkError> {
         if tokio::runtime::Handle::try_current().is_err() {
             return Err(HkError::internal("session_events needs a tokio runtime"));
         }
@@ -427,18 +545,22 @@ impl CoreHandle for RemoteCore {
             body.insert("triggerNode".into(), json!(n));
         }
         if let Some(items) = input_items_json.filter(|s| !s.trim().is_empty()) {
-            let v: Value = serde_json::from_str(&items).map_err(|e| HkError::invalid(format!("input items JSON: {e}")))?;
+            let v: Value = serde_json::from_str(&items)
+                .map_err(|e| HkError::invalid(format!("input items JSON: {e}")))?;
             if !v.as_array().is_some_and(|a| a.len() <= MAX_INPUT_ITEMS) {
-                return Err(HkError::invalid(format!("input items must be an array of up to {MAX_INPUT_ITEMS} objects")));
+                return Err(HkError::invalid(format!(
+                    "input items must be an array of up to {MAX_INPUT_ITEMS} objects"
+                )));
             }
             body.insert("items".into(), v);
         }
         // `Manual` ignores pins: an empty override beats the pinData stored with the uploaded copy.
         let pin = match (mode, pin_data_json.filter(|s| !s.trim().is_empty())) {
             (FlowRunModeDto::Manual, _) => Some(json!({})),
-            (FlowRunModeDto::Test, Some(p)) => {
-                Some(serde_json::from_str::<Value>(&p).map_err(|e| HkError::invalid(format!("pin data JSON: {e}")))?)
-            }
+            (FlowRunModeDto::Test, Some(p)) => Some(
+                serde_json::from_str::<Value>(&p)
+                    .map_err(|e| HkError::invalid(format!("pin data JSON: {e}")))?,
+            ),
             (FlowRunModeDto::Test, None) => None,
         };
         if let Some(p) = pin {
@@ -446,7 +568,11 @@ impl CoreHandle for RemoteCore {
         }
         let rid = self.i.ensure_workflow(&workflow_json).await?;
         // The reply comes when the run is done; long runs are the instance's 120 s limit, not ours.
-        let rb = self.i.request(Method::POST, &["workflows", &rid, "run"]).timeout(RUN_TIMEOUT).json(&Value::Object(body));
+        let rb = self
+            .i
+            .request(Method::POST, &["workflows", &rid, "run"])
+            .timeout(RUN_TIMEOUT)
+            .json(&Value::Object(body));
         let reply: Value = self.i.json(rb).await?;
         reply
             .get("executionId")
@@ -472,7 +598,11 @@ impl CoreHandle for RemoteCore {
         .boxed())
     }
 
-    async fn list_runs(&self, workflow_id: Option<String>, limit: u32) -> Result<Vec<FlowRunSummaryDto>, HkError> {
+    async fn list_runs(
+        &self,
+        workflow_id: Option<String>,
+        limit: u32,
+    ) -> Result<Vec<FlowRunSummaryDto>, HkError> {
         let limit = limit.clamp(1, 250).to_string();
         let mut q = vec![("limit", limit)];
         if let Some(w) = workflow_id {
@@ -480,7 +610,10 @@ impl CoreHandle for RemoteCore {
             let rid = lock(&self.i.flow_ids).get(&w).cloned().unwrap_or(w);
             q.push(("workflowId", rid));
         }
-        let page: Value = self.i.json(self.i.request(Method::GET, &["executions"]).query(&q)).await?;
+        let page: Value = self
+            .i
+            .json(self.i.request(Method::GET, &["executions"]).query(&q))
+            .await?;
         let names = self.i.workflow_names().await;
         Ok(page
             .get("data")
@@ -495,10 +628,17 @@ impl CoreHandle for RemoteCore {
         self.i.run_detail(run_id).await
     }
 
-    async fn set_workflow_active(&self, workflow_json: String, active: bool) -> Result<bool, HkError> {
+    async fn set_workflow_active(
+        &self,
+        workflow_json: String,
+        active: bool,
+    ) -> Result<bool, HkError> {
         let rid = self.i.ensure_workflow(&workflow_json).await?;
         let verb = if active { "activate" } else { "deactivate" };
-        let wf: Value = self.i.json(self.i.request(Method::POST, &["workflows", &rid, verb])).await?;
+        let wf: Value = self
+            .i
+            .json(self.i.request(Method::POST, &["workflows", &rid, verb]))
+            .await?;
         Ok(wf.get("active").and_then(Value::as_bool).unwrap_or(active))
     }
 
@@ -523,16 +663,37 @@ fn execution_summary(
     error: Option<String>,
     nodes: Option<u32>,
 ) -> FlowRunSummaryDto {
-    let ms = |k: &str| e.get(k).and_then(Value::as_str).and_then(flow_runs::parse_iso);
+    let ms = |k: &str| {
+        e.get(k)
+            .and_then(Value::as_str)
+            .and_then(flow_runs::parse_iso)
+    };
     let started = ms("startedAt").unwrap_or(0);
     let finished = ms("stoppedAt");
-    let wid = e.get("workflowId").and_then(Value::as_str).map(str::to_owned);
+    let wid = e
+        .get("workflowId")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
     FlowRunSummaryDto {
-        id: e.get("id").map(|v| v.as_str().map_or_else(|| v.to_string(), str::to_owned)).unwrap_or_default(),
-        workflow_name: wid.as_ref().and_then(|w| names.get(w).cloned()).unwrap_or_else(|| "Workflow".into()),
+        id: e
+            .get("id")
+            .map(|v| v.as_str().map_or_else(|| v.to_string(), str::to_owned))
+            .unwrap_or_default(),
+        workflow_name: wid
+            .as_ref()
+            .and_then(|w| names.get(w).cloned())
+            .unwrap_or_else(|| "Workflow".into()),
         workflow_id: wid,
-        mode: e.get("mode").and_then(Value::as_str).unwrap_or("manual").to_owned(),
-        status: e.get("status").and_then(Value::as_str).unwrap_or("unknown").to_owned(),
+        mode: e
+            .get("mode")
+            .and_then(Value::as_str)
+            .unwrap_or("manual")
+            .to_owned(),
+        status: e
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_owned(),
         started_ms: started,
         finished_ms: finished,
         duration_ms: finished.map_or(0, |f| (f - started).max(0)),
@@ -545,14 +706,23 @@ fn execution_summary(
 impl Inner {
     /// Workflow id -> name for the list; failure just means generic names.
     async fn workflow_names(&self) -> std::collections::HashMap<String, String> {
-        let page: Result<Value, _> =
-            self.json(self.request(Method::GET, &["workflows"]).query(&[("limit", "250")])).await;
+        let page: Result<Value, _> = self
+            .json(
+                self.request(Method::GET, &["workflows"])
+                    .query(&[("limit", "250")]),
+            )
+            .await;
         page.ok()
             .and_then(|p| p.get("data").cloned())
             .and_then(|d| d.as_array().cloned())
             .into_iter()
             .flatten()
-            .filter_map(|w| Some((w.get("id")?.as_str()?.to_owned(), w.get("name")?.as_str()?.to_owned())))
+            .filter_map(|w| {
+                Some((
+                    w.get("id")?.as_str()?.to_owned(),
+                    w.get("name")?.as_str()?.to_owned(),
+                ))
+            })
             .collect()
     }
 
@@ -560,9 +730,11 @@ impl Inner {
     /// it is now. The copy is tagged `meta.hokkabaz.localId` (the app's workflow id), which is
     /// how a later session finds it again; a rename in the app updates it, not duplicates it.
     async fn ensure_workflow(&self, workflow_json: &str) -> Result<String, HkError> {
-        let mut wf: Value =
-            serde_json::from_str(workflow_json).map_err(|e| HkError::invalid(format!("workflow JSON: {e}")))?;
-        let obj = wf.as_object_mut().ok_or_else(|| HkError::invalid("workflow must be a JSON object"))?;
+        let mut wf: Value = serde_json::from_str(workflow_json)
+            .map_err(|e| HkError::invalid(format!("workflow JSON: {e}")))?;
+        let obj = wf
+            .as_object_mut()
+            .ok_or_else(|| HkError::invalid("workflow must be a JSON object"))?;
         let local_id = obj
             .get("id")
             .and_then(Value::as_str)
@@ -590,16 +762,24 @@ impl Inner {
             if let Some(c) = &cursor {
                 q.push(("cursor", c.clone()));
             }
-            let page: Value = self.json(self.request(Method::GET, &["workflows"]).query(&q)).await?;
+            let page: Value = self
+                .json(self.request(Method::GET, &["workflows"]).query(&q))
+                .await?;
             known = page
                 .get("data")
                 .and_then(Value::as_array)
                 .into_iter()
                 .flatten()
-                .find(|w| w.pointer("/meta/hokkabaz/localId").and_then(Value::as_str) == Some(local_id.as_str()))
+                .find(|w| {
+                    w.pointer("/meta/hokkabaz/localId").and_then(Value::as_str)
+                        == Some(local_id.as_str())
+                })
                 .and_then(|w| w.get("id").and_then(Value::as_str))
                 .map(str::to_owned);
-            cursor = page.get("nextCursor").and_then(Value::as_str).map(str::to_owned);
+            cursor = page
+                .get("nextCursor")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
             if cursor.is_none() {
                 break;
             }
@@ -621,7 +801,9 @@ impl Inner {
     }
 
     async fn create_workflow(&self, wf: &Value) -> Result<String, HkError> {
-        let created: Value = self.json(self.request(Method::POST, &["workflows"]).json(wf)).await?;
+        let created: Value = self
+            .json(self.request(Method::POST, &["workflows"]).json(wf))
+            .await?;
         created
             .get("id")
             .and_then(Value::as_str)
@@ -630,21 +812,38 @@ impl Inner {
     }
 
     async fn run_detail(&self, id: &str) -> Result<FlowRunDetailDto, HkError> {
-        let e: Value =
-            self.json(self.request(Method::GET, &["executions", id]).query(&[("includeData", "true")])).await?;
+        let e: Value = self
+            .json(
+                self.request(Method::GET, &["executions", id])
+                    .query(&[("includeData", "true")]),
+            )
+            .await?;
         let result = e.pointer("/data/resultData");
-        let mut run_data = result.and_then(|r| r.get("runData")).cloned().unwrap_or_else(|| json!({}));
+        let mut run_data = result
+            .and_then(|r| r.get("runData"))
+            .cloned()
+            .unwrap_or_else(|| json!({}));
         flow_runs::shrink_run_data(&mut run_data, DETAIL_MAX_ITEMS, DETAIL_MAX_BYTES);
-        let error = result.and_then(|r| r.pointer("/error/message")).and_then(Value::as_str).map(str::to_owned);
-        let nodes = u32::try_from(run_data.as_object().map_or(0, serde_json::Map::len)).unwrap_or(u32::MAX);
+        let error = result
+            .and_then(|r| r.pointer("/error/message"))
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        let nodes =
+            u32::try_from(run_data.as_object().map_or(0, serde_json::Map::len)).unwrap_or(u32::MAX);
         let wf: Option<Value> = match e.get("workflowId").and_then(Value::as_str) {
-            Some(w) => self.json(self.request(Method::GET, &["workflows", w])).await.ok(),
+            Some(w) => self
+                .json(self.request(Method::GET, &["workflows", w]))
+                .await
+                .ok(),
             None => None,
         };
         let mut names = std::collections::HashMap::new();
-        if let (Some(w), Some(n)) =
-            (e.get("workflowId").and_then(Value::as_str), wf.as_ref().and_then(|w| w.get("name")).and_then(Value::as_str))
-        {
+        if let (Some(w), Some(n)) = (
+            e.get("workflowId").and_then(Value::as_str),
+            wf.as_ref()
+                .and_then(|w| w.get("name"))
+                .and_then(Value::as_str),
+        ) {
             names.insert(w.to_owned(), n.to_owned());
         }
         Ok(FlowRunDetailDto {
@@ -686,7 +885,12 @@ enum Ended {
     Dropped { live: bool },
 }
 
-async fn pump(i: Arc<Inner>, sid: String, tx: mpsc::Sender<SessionEventDto>, ready: watch::Sender<bool>) {
+async fn pump(
+    i: Arc<Inner>,
+    sid: String,
+    tx: mpsc::Sender<SessionEventDto>,
+    ready: watch::Sender<bool>,
+) {
     let mut cur = Cursor::default();
     let mut backoff = BACKOFF_MIN;
     let mut announced = false;
@@ -812,7 +1016,11 @@ async fn connection(
 }
 
 /// Run `ev` through dedupe and the DTO mapping into the feed.
-async fn forward(tx: &mpsc::Sender<SessionEventDto>, cur: &mut Cursor, ev: ServerEvent) -> Result<(), Ended> {
+async fn forward(
+    tx: &mpsc::Sender<SessionEventDto>,
+    cur: &mut Cursor,
+    ev: ServerEvent,
+) -> Result<(), Ended> {
     if let Some(seq) = ev.data.get("seq").and_then(Value::as_u64) {
         // Already delivered by an earlier socket or by a replay.
         if cur.seen.is_some_and(|s| seq <= s) {
@@ -828,7 +1036,12 @@ async fn forward(tx: &mpsc::Sender<SessionEventDto>, cur: &mut Cursor, ev: Serve
 
 /// First subscribe: remember where the log stood (the feed carries only what happens after
 /// attaching). Later ones: replay what the previous socket missed.
-async fn sync(i: &Inner, sid: &str, tx: &mpsc::Sender<SessionEventDto>, cur: &mut Cursor) -> Result<(), Ended> {
+async fn sync(
+    i: &Inner,
+    sid: &str,
+    tx: &mpsc::Sender<SessionEventDto>,
+    cur: &mut Cursor,
+) -> Result<(), Ended> {
     let fail = |e: HkError| match e.kind {
         HkErrorKind::NotFound | HkErrorKind::Unauthorized => Ended::Fatal(e.message),
         _ => Ended::Dropped { live: true },
@@ -843,8 +1056,21 @@ async fn sync(i: &Inner, sid: &str, tx: &mpsc::Sender<SessionEventDto>, cur: &mu
     let d = i.detail(sid, cur.after()).await.map_err(fail)?;
     let mut replay: VecDeque<Value> = d.events.into();
     while let Some(data) = replay.pop_front() {
-        let name = data.get("type").and_then(Value::as_str).unwrap_or("session/event").to_owned();
-        forward(tx, cur, ServerEvent { name, session_id: sid.to_owned(), data }).await?;
+        let name = data
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or("session/event")
+            .to_owned();
+        forward(
+            tx,
+            cur,
+            ServerEvent {
+                name,
+                session_id: sid.to_owned(),
+                data,
+            },
+        )
+        .await?;
     }
     Ok(())
 }
@@ -864,7 +1090,9 @@ type Ws = tokio_tungstenite::WebSocketStream<Box<dyn Io>>;
 fn tls_config() -> Result<Arc<rustls::ClientConfig>, String> {
     static CFG: OnceLock<Result<Arc<rustls::ClientConfig>, String>> = OnceLock::new();
     CFG.get_or_init(|| {
-        let roots = rustls::RootCertStore { roots: webpki_roots::TLS_SERVER_ROOTS.to_vec() };
+        let roots = rustls::RootCertStore {
+            roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+        };
         let provider = Arc::new(rustls::crypto::ring::default_provider());
         rustls::ClientConfig::builder_with_provider(provider)
             .with_safe_default_protocol_versions()
@@ -881,24 +1109,41 @@ async fn ws_connect(base: &Url, token: &Secret) -> Result<Ws, ConnectError> {
     if let Ok(mut s) = url.path_segments_mut() {
         s.pop_if_empty().extend(["api", "v1", "ws"]);
     }
-    url.set_scheme(if tls { "wss" } else { "ws" }).map_err(|()| other("cannot derive websocket URL".into()))?;
-    let host = base.host_str().ok_or_else(|| other("URL has no host".into()))?.to_owned();
-    let port = base.port_or_known_default().ok_or_else(|| other("URL has no port".into()))?;
+    url.set_scheme(if tls { "wss" } else { "ws" })
+        .map_err(|()| other("cannot derive websocket URL".into()))?;
+    let host = base
+        .host_str()
+        .ok_or_else(|| other("URL has no host".into()))?
+        .to_owned();
+    let port = base
+        .port_or_known_default()
+        .ok_or_else(|| other("URL has no port".into()))?;
 
-    let mut req = url.as_str().into_client_request().map_err(|e| other(e.to_string()))?;
-    let mut auth = HeaderValue::from_str(&format!("Bearer {}", token.expose()))
-        .map_err(|_| ConnectError::Auth("token contains characters a header cannot carry".into()))?;
+    let mut req = url
+        .as_str()
+        .into_client_request()
+        .map_err(|e| other(e.to_string()))?;
+    let mut auth = HeaderValue::from_str(&format!("Bearer {}", token.expose())).map_err(|_| {
+        ConnectError::Auth("token contains characters a header cannot carry".into())
+    })?;
     auth.set_sensitive(true);
-    req.headers_mut().insert(tungstenite::http::header::AUTHORIZATION, auth);
+    req.headers_mut()
+        .insert(tungstenite::http::header::AUTHORIZATION, auth);
 
     let handshake = async {
-        let tcp = tokio::net::TcpStream::connect((host.as_str(), port)).await.map_err(|e| other(e.to_string()))?;
+        let tcp = tokio::net::TcpStream::connect((host.as_str(), port))
+            .await
+            .map_err(|e| other(e.to_string()))?;
         // Small frames (deltas) must not wait for Nagle.
         let _ = tcp.set_nodelay(true);
         let io: Box<dyn Io> = if tls {
-            let name = rustls::pki_types::ServerName::try_from(host.clone()).map_err(|e| other(e.to_string()))?;
+            let name = rustls::pki_types::ServerName::try_from(host.clone())
+                .map_err(|e| other(e.to_string()))?;
             let cfg = tls_config().map_err(other)?;
-            let s = tokio_rustls::TlsConnector::from(cfg).connect(name, tcp).await.map_err(|e| other(e.to_string()))?;
+            let s = tokio_rustls::TlsConnector::from(cfg)
+                .connect(name, tcp)
+                .await
+                .map_err(|e| other(e.to_string()))?;
             Box::new(s)
         } else {
             Box::new(tcp)
@@ -906,12 +1151,17 @@ async fn ws_connect(base: &Url, token: &Secret) -> Result<Ws, ConnectError> {
         match tokio_tungstenite::client_async(req, io).await {
             Ok((ws, _)) => Ok(ws),
             Err(tungstenite::Error::Http(res)) if matches!(res.status().as_u16(), 401 | 403) => {
-                Err(ConnectError::Auth(format!("instance refused the token ({})", res.status())))
+                Err(ConnectError::Auth(format!(
+                    "instance refused the token ({})",
+                    res.status()
+                )))
             }
             Err(e) => Err(other(e.to_string())),
         }
     };
-    tokio::time::timeout(CONNECT_TIMEOUT, handshake).await.map_err(|_| other("websocket connect timed out".into()))?
+    tokio::time::timeout(CONNECT_TIMEOUT, handshake)
+        .await
+        .map_err(|_| other("websocket connect timed out".into()))?
 }
 
 #[cfg(test)]
@@ -920,7 +1170,10 @@ mod tests {
 
     #[test]
     fn base_url_normalises() {
-        assert_eq!(parse_base_url(" http://h:7878/ ").unwrap().as_str(), "http://h:7878/");
+        assert_eq!(
+            parse_base_url(" http://h:7878/ ").unwrap().as_str(),
+            "http://h:7878/"
+        );
         let u = parse_base_url("https://box.example/hk/?x=1#f").unwrap();
         assert_eq!(u.path(), "/hk");
         assert!(parse_base_url("ftp://h").is_err());
@@ -930,10 +1183,26 @@ mod tests {
 
     #[test]
     fn api_url_keeps_prefix_and_encodes() {
-        let core = RemoteCore::new("https://box.example/hk", Secret::new("t"), CoreProfile::Desktop).unwrap();
-        assert_eq!(core.i.url(&["sessions", "a b"]).as_str(), "https://box.example/hk/api/v1/sessions/a%20b");
-        let core = RemoteCore::new("http://127.0.0.1:1/", Secret::new("t"), CoreProfile::Desktop).unwrap();
-        assert_eq!(core.i.url(&["health"]).as_str(), "http://127.0.0.1:1/api/v1/health");
+        let core = RemoteCore::new(
+            "https://box.example/hk",
+            Secret::new("t"),
+            CoreProfile::Desktop,
+        )
+        .unwrap();
+        assert_eq!(
+            core.i.url(&["sessions", "a b"]).as_str(),
+            "https://box.example/hk/api/v1/sessions/a%20b"
+        );
+        let core = RemoteCore::new(
+            "http://127.0.0.1:1/",
+            Secret::new("t"),
+            CoreProfile::Desktop,
+        )
+        .unwrap();
+        assert_eq!(
+            core.i.url(&["health"]).as_str(),
+            "http://127.0.0.1:1/api/v1/health"
+        );
     }
 
     #[test]

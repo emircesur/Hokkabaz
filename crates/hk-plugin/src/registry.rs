@@ -16,7 +16,8 @@ use sha2::{Digest, Sha256};
 use crate::error::{PluginError, Result};
 use crate::manifest::Capabilities;
 
-pub const DEFAULT_INDEX_URL: &str = "https://raw.githubusercontent.com/emircesur/hokkabaz-plugins/main/index.json";
+pub const DEFAULT_INDEX_URL: &str =
+    "https://raw.githubusercontent.com/emircesur/hokkabaz-plugins/main/index.json";
 const MAX_ARTIFACT_BYTES: u64 = 140 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -48,20 +49,33 @@ pub struct RegistryIndex {
 
 impl RegistryIndex {
     pub fn parse(text: &str) -> Result<Self> {
-        let idx: RegistryIndex = serde_json::from_str(text).map_err(|e| PluginError::Registry(format!("bad index.json: {e}")))?;
+        let idx: RegistryIndex = serde_json::from_str(text)
+            .map_err(|e| PluginError::Registry(format!("bad index.json: {e}")))?;
         if idx.version != 1 {
-            return Err(PluginError::Registry(format!("unsupported registry version {}", idx.version)));
+            return Err(PluginError::Registry(format!(
+                "unsupported registry version {}",
+                idx.version
+            )));
         }
         let mut seen = std::collections::HashSet::new();
         for e in &idx.plugins {
             if !seen.insert(e.id.clone()) {
-                return Err(PluginError::Registry(format!("duplicate plugin id `{}`", e.id)));
+                return Err(PluginError::Registry(format!(
+                    "duplicate plugin id `{}`",
+                    e.id
+                )));
             }
             if e.sha256.len() != 64 || !e.sha256.chars().all(|c| c.is_ascii_hexdigit()) {
-                return Err(PluginError::Registry(format!("`{}` has an invalid sha256", e.id)));
+                return Err(PluginError::Registry(format!(
+                    "`{}` has an invalid sha256",
+                    e.id
+                )));
             }
             if !e.download_url.starts_with("https://") {
-                return Err(PluginError::Registry(format!("`{}` must be downloaded over https", e.id)));
+                return Err(PluginError::Registry(format!(
+                    "`{}` must be downloaded over https",
+                    e.id
+                )));
             }
         }
         Ok(idx)
@@ -72,10 +86,17 @@ impl RegistryIndex {
     }
 
     /// Entries newer than what is installed: `(entry, installed_version)`.
-    pub fn updates<'a>(&'a self, installed: &'a [(String, String)]) -> Vec<(&'a RegistryEntry, &'a str)> {
+    pub fn updates<'a>(
+        &'a self,
+        installed: &'a [(String, String)],
+    ) -> Vec<(&'a RegistryEntry, &'a str)> {
         installed
             .iter()
-            .filter_map(|(id, v)| self.find(id).filter(|e| is_newer(&e.version, v)).map(|e| (e, v.as_str())))
+            .filter_map(|(id, v)| {
+                self.find(id)
+                    .filter(|e| is_newer(&e.version, v))
+                    .map(|e| (e, v.as_str()))
+            })
             .collect()
     }
 }
@@ -97,29 +118,52 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 /// Check downloaded bytes against the index entry.
 pub fn verify(entry: &RegistryEntry, bytes: &[u8]) -> Result<()> {
     if entry.size != 0 && bytes.len() as u64 != entry.size {
-        return Err(PluginError::Registry(format!("`{}`: size {} does not match the index ({})", entry.id, bytes.len(), entry.size)));
+        return Err(PluginError::Registry(format!(
+            "`{}`: size {} does not match the index ({})",
+            entry.id,
+            bytes.len(),
+            entry.size
+        )));
     }
     let got = sha256_hex(bytes);
     if !got.eq_ignore_ascii_case(&entry.sha256) {
-        return Err(PluginError::Registry(format!("`{}`: checksum mismatch (expected {}, got {got})", entry.id, entry.sha256)));
+        return Err(PluginError::Registry(format!(
+            "`{}`: checksum mismatch (expected {}, got {got})",
+            entry.id, entry.sha256
+        )));
     }
     Ok(())
 }
 
 /// Download the index.
 pub async fn fetch_index(url: &str) -> Result<RegistryIndex> {
-    let text = reqwest::get(url).await.and_then(reqwest::Response::error_for_status).map_err(|e| PluginError::Registry(format!("index: {e}")))?.text().await.map_err(|e| PluginError::Registry(e.to_string()))?;
+    let text = reqwest::get(url)
+        .await
+        .and_then(reqwest::Response::error_for_status)
+        .map_err(|e| PluginError::Registry(format!("index: {e}")))?
+        .text()
+        .await
+        .map_err(|e| PluginError::Registry(e.to_string()))?;
     RegistryIndex::parse(&text)
 }
 
 /// Download an artifact and verify it. The caller then hands the bytes to
 /// [`PluginStore::install_archive`](crate::store::PluginStore::install_archive).
 pub async fn download(entry: &RegistryEntry) -> Result<Vec<u8>> {
-    let resp = reqwest::get(&entry.download_url).await.and_then(reqwest::Response::error_for_status).map_err(|e| PluginError::Registry(format!("download: {e}")))?;
-    if resp.content_length().is_some_and(|n| n > MAX_ARTIFACT_BYTES) {
+    let resp = reqwest::get(&entry.download_url)
+        .await
+        .and_then(reqwest::Response::error_for_status)
+        .map_err(|e| PluginError::Registry(format!("download: {e}")))?;
+    if resp
+        .content_length()
+        .is_some_and(|n| n > MAX_ARTIFACT_BYTES)
+    {
         return Err(PluginError::Registry("artifact is too large".into()));
     }
-    let bytes = resp.bytes().await.map_err(|e| PluginError::Registry(e.to_string()))?;
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| PluginError::Registry(e.to_string()))?;
     if bytes.len() as u64 > MAX_ARTIFACT_BYTES {
         return Err(PluginError::Registry("artifact is too large".into()));
     }
@@ -141,11 +185,21 @@ mod tests {
     fn parses_and_validates_the_index() {
         let sha = sha256_hex(b"hello");
         let idx = RegistryIndex::parse(&entry(&sha)).unwrap();
-        assert_eq!(idx.find("dev.example.demo").unwrap().capabilities.http, ["api.example.com"]);
+        assert_eq!(
+            idx.find("dev.example.demo").unwrap().capabilities.http,
+            ["api.example.com"]
+        );
         assert!(RegistryIndex::parse(&entry("zz")).is_err(), "bad sha");
-        assert!(RegistryIndex::parse(&entry(&sha).replace("https://example.com", "http://example.com")).is_err(), "http download");
-        assert!(RegistryIndex::parse(&entry(&sha).replace("\"version\":1,", "\"version\":2,")).is_err());
-        let dup = entry(&sha).replace("]}", ",") + &entry(&sha)[entry(&sha).find("{\"id\"").unwrap()..];
+        assert!(
+            RegistryIndex::parse(&entry(&sha).replace("https://example.com", "http://example.com"))
+                .is_err(),
+            "http download"
+        );
+        assert!(
+            RegistryIndex::parse(&entry(&sha).replace("\"version\":1,", "\"version\":2,")).is_err()
+        );
+        let dup =
+            entry(&sha).replace("]}", ",") + &entry(&sha)[entry(&sha).find("{\"id\"").unwrap()..];
         assert!(RegistryIndex::parse(&dup).is_err(), "duplicate ids");
     }
 
@@ -165,10 +219,16 @@ mod tests {
         assert!(!is_newer("0.9.0", "1.0.0"));
         assert!(!is_newer("x", "1.0.0"));
         let idx = RegistryIndex::parse(&entry(&sha256_hex(b"hello"))).unwrap();
-        let installed = vec![("dev.example.demo".to_string(), "1.0.0".to_string()), ("other".to_string(), "9.9.9".to_string())];
+        let installed = vec![
+            ("dev.example.demo".to_string(), "1.0.0".to_string()),
+            ("other".to_string(), "9.9.9".to_string()),
+        ];
         let up = idx.updates(&installed);
         assert_eq!(up.len(), 1);
         assert_eq!(up[0].1, "1.0.0");
-        assert!(idx.updates(&[("dev.example.demo".into(), "1.2.0".into())]).is_empty());
+        assert!(
+            idx.updates(&[("dev.example.demo".into(), "1.2.0".into())])
+                .is_empty()
+        );
     }
 }

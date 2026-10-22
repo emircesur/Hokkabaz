@@ -84,6 +84,10 @@ impl Tool for McpTool {
             })?;
         // A server we do not control: its text is data, not instructions.
         let source = format!("mcp:{}", self.qualified);
-        Ok(if is_error { ToolOutput::untrusted_error(&source, &text) } else { ToolOutput::untrusted(&source, &text) })
+        Ok(if is_error {
+            ToolOutput::untrusted_error(&source, &text)
+        } else {
+            ToolOutput::untrusted(&source, &text)
+        })
     }
 }

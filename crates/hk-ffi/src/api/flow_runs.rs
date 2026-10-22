@@ -20,7 +20,15 @@ pub async fn run_workflow(
     input_items_json: Option<String>,
     pin_data_json: Option<String>,
 ) -> Result<String, HkError> {
-    core()?.run_workflow(workflow_json, mode, trigger_node, input_items_json, pin_data_json).await
+    core()?
+        .run_workflow(
+            workflow_json,
+            mode,
+            trigger_node,
+            input_items_json,
+            pin_data_json,
+        )
+        .await
 }
 
 /// Events of one run from its start until `RunFinished` / `RunError`. Safe to attach after
@@ -28,13 +36,17 @@ pub async fn run_workflow(
 pub async fn run_events(run_id: String, sink: StreamSink<FlowRunEventDto>) -> Result<(), HkError> {
     let mut feed = core()?.run_events(&run_id)?;
     while let Some(ev) = feed.next().await {
-        sink.add(ev).map_err(|e| HkError::new(HkErrorKind::Closed, e.to_string()))?;
+        sink.add(ev)
+            .map_err(|e| HkError::new(HkErrorKind::Closed, e.to_string()))?;
     }
     Ok(())
 }
 
 /// Past runs, newest first. `workflow_id` `None` = all workflows.
-pub async fn list_runs(workflow_id: Option<String>, limit: u32) -> Result<Vec<FlowRunSummaryDto>, HkError> {
+pub async fn list_runs(
+    workflow_id: Option<String>,
+    limit: u32,
+) -> Result<Vec<FlowRunSummaryDto>, HkError> {
     core()?.list_runs(workflow_id, limit).await
 }
 

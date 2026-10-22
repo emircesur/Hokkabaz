@@ -27,8 +27,14 @@ pub fn credential_type() -> CredentialType {
                 .placeholder("https://<name>.app.n8n.cloud/api/v1")
                 .description("The API base of the instance, including /api/v1"),
         )
-        .authenticate(Authenticate::header("X-N8N-API-KEY", "={{$credentials.apiKey}}"))
-        .test(CredentialTest::get("={{$credentials.baseUrl}}", "/workflows?limit=1"))
+        .authenticate(Authenticate::header(
+            "X-N8N-API-KEY",
+            "={{$credentials.apiKey}}",
+        ))
+        .test(CredentialTest::get(
+            "={{$credentials.baseUrl}}",
+            "/workflows?limit=1",
+        ))
 }
 
 fn cursor() -> Pagination {
@@ -48,16 +54,27 @@ fn description() -> hk_flow::description::NodeTypeDescription {
             .routing(Routing::request("POST", "/workflows/{workflowId}/activate")),
         Choice::new("Deactivate", "deactivate")
             .action("Deactivate a workflow")
-            .routing(Routing::request("POST", "/workflows/{workflowId}/deactivate")),
-        Choice::new("Get", "get").action("Get a workflow").routing(Routing::request("GET", "/workflows/{workflowId}")),
-        Choice::new("Get Many", "getAll").action("Get many workflows").routing(list(Routing::request("GET", "/workflows"))),
+            .routing(Routing::request(
+                "POST",
+                "/workflows/{workflowId}/deactivate",
+            )),
+        Choice::new("Get", "get")
+            .action("Get a workflow")
+            .routing(Routing::request("GET", "/workflows/{workflowId}")),
+        Choice::new("Get Many", "getAll")
+            .action("Get many workflows")
+            .routing(list(Routing::request("GET", "/workflows"))),
     ];
     let ex_ops = vec![
         Choice::new("Delete", "delete")
             .action("Delete an execution")
             .routing(Routing::request("DELETE", "/executions/{executionId}")),
-        Choice::new("Get", "get").action("Get an execution").routing(Routing::request("GET", "/executions/{executionId}")),
-        Choice::new("Get Many", "getAll").action("Get many executions").routing(list(Routing::request("GET", "/executions"))),
+        Choice::new("Get", "get")
+            .action("Get an execution")
+            .routing(Routing::request("GET", "/executions/{executionId}")),
+        Choice::new("Get Many", "getAll")
+            .action("Get many executions")
+            .routing(list(Routing::request("GET", "/executions"))),
     ];
     NodeBuilder::new(NODE_TYPE, "n8n")
         .description("Handle events and perform actions on another n8n instance")
@@ -66,11 +83,26 @@ fn description() -> hk_flow::description::NodeTypeDescription {
         .color("#ff6d5a")
         .credential(CREDENTIAL, true)
         .property(
-            Prop::options("resource", "Resource", vec![Choice::new("Workflow", "workflow"), Choice::new("Execution", "execution")])
-                .default("workflow"),
+            Prop::options(
+                "resource",
+                "Resource",
+                vec![
+                    Choice::new("Workflow", "workflow"),
+                    Choice::new("Execution", "execution"),
+                ],
+            )
+            .default("workflow"),
         )
-        .property(Prop::options("operation", "Operation", wf_ops).default("getAll").show("resource", &["workflow"]))
-        .property(Prop::options("operation", "Operation", ex_ops).default("getAll").show("resource", &["execution"]))
+        .property(
+            Prop::options("operation", "Operation", wf_ops)
+                .default("getAll")
+                .show("resource", &["workflow"]),
+        )
+        .property(
+            Prop::options("operation", "Operation", ex_ops)
+                .default("getAll")
+                .show("resource", &["execution"]),
+        )
         .property(
             Prop::string("workflowId", "Workflow ID")
                 .required()
@@ -105,7 +137,11 @@ fn description() -> hk_flow::description::NodeTypeDescription {
                     Prop::options(
                         "status",
                         "Status",
-                        vec![Choice::new("Error", "error"), Choice::new("Success", "success"), Choice::new("Waiting", "waiting")],
+                        vec![
+                            Choice::new("Error", "error"),
+                            Choice::new("Success", "success"),
+                            Choice::new("Waiting", "waiting"),
+                        ],
                     ),
                     Prop::string("workflowId", "Workflow ID"),
                     Prop::boolean("includeData", "Include Data").default(false),
@@ -115,24 +151,37 @@ fn description() -> hk_flow::description::NodeTypeDescription {
             .show("operation", &["getAll"]),
         )
         .property(
-            Prop::collection("options", "Options", vec![Prop::boolean("includeData", "Include Execution Data").default(false)])
-                .show("resource", &["execution"])
-                .show("operation", &["get"]),
+            Prop::collection(
+                "options",
+                "Options",
+                vec![Prop::boolean("includeData", "Include Execution Data").default(false)],
+            )
+            .show("resource", &["execution"])
+            .show("operation", &["get"]),
         )
         .build()
 }
 
 fn route_hook(
     defaults: Map<String, Value>,
-) -> impl Fn(&mut RestRequest, &NodeContext, usize) -> Result<(), FlowError> + Send + Sync + 'static {
+) -> impl Fn(&mut RestRequest, &NodeContext, usize) -> Result<(), FlowError> + Send + Sync + 'static
+{
     move |req, ctx, i| {
         let d = &defaults;
         let resource = req_str(ctx, d, "resource", i)?;
         let op = req_str(ctx, d, "operation", i)?;
         expand(req, ctx, d, i)?;
         match (resource.as_str(), op.as_str()) {
-            ("workflow", "getAll") => query_from(ctx, i, "filters", &["active", "name", "tags"], req)?,
-            ("execution", "getAll") => query_from(ctx, i, "filters", &["status", "workflowId", "includeData"], req)?,
+            ("workflow", "getAll") => {
+                query_from(ctx, i, "filters", &["active", "name", "tags"], req)?
+            }
+            ("execution", "getAll") => query_from(
+                ctx,
+                i,
+                "filters",
+                &["status", "workflowId", "includeData"],
+                req,
+            )?,
             ("execution", "get") => query_from(ctx, i, "options", &["includeData"], req)?,
             _ => {}
         }

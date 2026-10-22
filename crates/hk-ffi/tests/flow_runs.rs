@@ -34,7 +34,11 @@ async fn open(dir: &tempfile::TempDir) -> Arc<LocalCore> {
     LocalCore::open(
         dir.path().join("data"),
         CoreProfile::Mobile,
-        CoreOptions { secrets: Some(Arc::new(MemorySecretStore::default())), extra_providers: Vec::new(), refresh_catalog: false },
+        CoreOptions {
+            secrets: Some(Arc::new(MemorySecretStore::default())),
+            extra_providers: Vec::new(),
+            refresh_catalog: false,
+        },
     )
     .await
     .unwrap()
@@ -42,7 +46,9 @@ async fn open(dir: &tempfile::TempDir) -> Arc<LocalCore> {
 
 async fn collect(core: &LocalCore, id: &str) -> Vec<FlowRunEventDto> {
     let feed = core.run_events(id).unwrap();
-    tokio::time::timeout(Duration::from_secs(20), feed.collect::<Vec<_>>()).await.expect("run did not finish")
+    tokio::time::timeout(Duration::from_secs(20), feed.collect::<Vec<_>>())
+        .await
+        .expect("run did not finish")
 }
 
 fn output(ev: &FlowRunEventDto) -> Value {
@@ -53,17 +59,28 @@ fn output(ev: &FlowRunEventDto) -> Value {
 async fn set_workflow_streams_node_events_and_persists() {
     let dir = tempfile::tempdir().unwrap();
     let core = open(&dir).await;
-    let id = core.run_workflow(workflow(), FlowRunModeDto::Test, None, None, None).await.unwrap();
+    let id = core
+        .run_workflow(workflow(), FlowRunModeDto::Test, None, None, None)
+        .await
+        .unwrap();
 
     let evs = collect(&core, &id).await;
     let kinds: Vec<K> = evs.iter().map(|e| e.kind).collect();
     assert_eq!(kinds.first(), Some(&K::RunStarted));
     assert_eq!(kinds.last(), Some(&K::RunFinished));
-    assert_eq!(kinds.iter().filter(|k| **k == K::NodeStarted).count(), kinds.iter().filter(|k| **k == K::NodeFinished).count());
+    assert_eq!(
+        kinds.iter().filter(|k| **k == K::NodeStarted).count(),
+        kinds.iter().filter(|k| **k == K::NodeFinished).count()
+    );
 
-    let finished: Vec<&FlowRunEventDto> = evs.iter().filter(|e| e.kind == K::NodeFinished).collect();
+    let finished: Vec<&FlowRunEventDto> =
+        evs.iter().filter(|e| e.kind == K::NodeFinished).collect();
     let names: Vec<&str> = finished.iter().filter_map(|e| e.node.as_deref()).collect();
-    assert_eq!(names, ["Trigger", "Set", "After"], "nodes arrive in execution order, the trigger first");
+    assert_eq!(
+        names,
+        ["Trigger", "Set", "After"],
+        "nodes arrive in execution order, the trigger first"
+    );
     let set = finished[1];
     assert_eq!(set.item_count, 1);
     assert_eq!(set.status.as_deref(), Some("success"));
@@ -74,9 +91,21 @@ async fn set_workflow_streams_node_events_and_persists() {
 
     let runs = core.list_runs(Some("wf-1".into()), 10).await.unwrap();
     assert_eq!(runs.len(), 1);
-    assert_eq!((runs[0].id.as_str(), runs[0].status.as_str(), runs[0].mode.as_str()), (id.as_str(), "success", "test"));
+    assert_eq!(
+        (
+            runs[0].id.as_str(),
+            runs[0].status.as_str(),
+            runs[0].mode.as_str()
+        ),
+        (id.as_str(), "success", "test")
+    );
     assert_eq!(runs[0].workflow_name, "Set flow");
-    assert!(core.list_runs(Some("other".into()), 10).await.unwrap().is_empty());
+    assert!(
+        core.list_runs(Some("other".into()), 10)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 
     let d = core.get_run(&id).await.unwrap();
     let rd: Value = serde_json::from_str(&d.run_data_json).unwrap();
@@ -87,7 +116,10 @@ async fn set_workflow_streams_node_events_and_persists() {
     core.shutdown().await;
     let again = open(&dir).await;
     assert_eq!(again.list_runs(None, 10).await.unwrap().len(), 1);
-    assert_eq!(collect(&again, &id).await.last().map(|e| e.kind), Some(K::RunFinished));
+    assert_eq!(
+        collect(&again, &id).await.last().map(|e| e.kind),
+        Some(K::RunFinished)
+    );
 }
 
 #[tokio::test]
@@ -96,14 +128,32 @@ async fn pin_data_is_honoured_in_test_mode_and_ignored_in_manual() {
     let core = open(&dir).await;
     let pin = json!({"Set": [{"json": {"pinned": true}}]}).to_string();
 
-    let id = core.run_workflow(workflow(), FlowRunModeDto::Test, None, None, Some(pin.clone())).await.unwrap();
+    let id = core
+        .run_workflow(
+            workflow(),
+            FlowRunModeDto::Test,
+            None,
+            None,
+            Some(pin.clone()),
+        )
+        .await
+        .unwrap();
     let evs = collect(&core, &id).await;
-    let set = evs.iter().find(|e| e.kind == K::NodeFinished && e.node.as_deref() == Some("Set")).unwrap();
+    let set = evs
+        .iter()
+        .find(|e| e.kind == K::NodeFinished && e.node.as_deref() == Some("Set"))
+        .unwrap();
     assert_eq!(output(set)[0][0]["json"], json!({"pinned": true}));
 
-    let id = core.run_workflow(workflow(), FlowRunModeDto::Manual, None, None, Some(pin)).await.unwrap();
+    let id = core
+        .run_workflow(workflow(), FlowRunModeDto::Manual, None, None, Some(pin))
+        .await
+        .unwrap();
     let evs = collect(&core, &id).await;
-    let set = evs.iter().find(|e| e.kind == K::NodeFinished && e.node.as_deref() == Some("Set")).unwrap();
+    let set = evs
+        .iter()
+        .find(|e| e.kind == K::NodeFinished && e.node.as_deref() == Some("Set"))
+        .unwrap();
     assert_eq!(output(set)[0][0]["json"], json!({"a": 1}));
 }
 
@@ -113,7 +163,10 @@ async fn failing_node_ends_the_run_with_an_error_event() {
     let core = open(&dir).await;
     let mut wf: Value = serde_json::from_str(&workflow()).unwrap();
     wf["nodes"][1]["parameters"]["jsonOutput"] = json!("{not json");
-    let id = core.run_workflow(wf.to_string(), FlowRunModeDto::Manual, None, None, None).await.unwrap();
+    let id = core
+        .run_workflow(wf.to_string(), FlowRunModeDto::Manual, None, None, None)
+        .await
+        .unwrap();
     let evs = collect(&core, &id).await;
     let last = evs.last().unwrap();
     assert_eq!(last.kind, K::RunError);
@@ -125,13 +178,46 @@ async fn failing_node_ends_the_run_with_an_error_event() {
 async fn bad_input_fails_before_a_run_exists() {
     let dir = tempfile::tempdir().unwrap();
     let core = open(&dir).await;
-    let e = core.run_workflow("{".into(), FlowRunModeDto::Test, None, None, None).await.unwrap_err();
+    let e = core
+        .run_workflow("{".into(), FlowRunModeDto::Test, None, None, None)
+        .await
+        .unwrap_err();
     assert_eq!(e.kind, HkErrorKind::InvalidArgument);
-    let e = core.run_workflow(workflow(), FlowRunModeDto::Test, Some("Nope".into()), None, None).await.unwrap_err();
+    let e = core
+        .run_workflow(
+            workflow(),
+            FlowRunModeDto::Test,
+            Some("Nope".into()),
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
     assert_eq!(e.kind, HkErrorKind::InvalidArgument);
-    let e = core.run_workflow(workflow(), FlowRunModeDto::Test, None, Some("{}".into()), None).await.unwrap_err();
+    let e = core
+        .run_workflow(
+            workflow(),
+            FlowRunModeDto::Test,
+            None,
+            Some("{}".into()),
+            None,
+        )
+        .await
+        .unwrap_err();
     assert_eq!(e.kind, HkErrorKind::InvalidArgument);
-    assert_eq!(core.run_events("run-0-0").err().map(|e| e.kind), Some(HkErrorKind::NotFound));
-    assert_eq!(core.get_run("../hk.db").await.unwrap_err().kind, HkErrorKind::NotFound);
-    assert_eq!(core.set_workflow_active(workflow(), true).await.unwrap_err().kind, HkErrorKind::Unsupported);
+    assert_eq!(
+        core.run_events("run-0-0").err().map(|e| e.kind),
+        Some(HkErrorKind::NotFound)
+    );
+    assert_eq!(
+        core.get_run("../hk.db").await.unwrap_err().kind,
+        HkErrorKind::NotFound
+    );
+    assert_eq!(
+        core.set_workflow_active(workflow(), true)
+            .await
+            .unwrap_err()
+            .kind,
+        HkErrorKind::Unsupported
+    );
 }

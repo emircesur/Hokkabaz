@@ -42,8 +42,15 @@ pub fn credential_type() -> CredentialType {
         .property(Prop::string("database", "Database").default("postgres"))
         .property(Prop::string("user", "User").default("postgres"))
         .property(Prop::string("password", "Password").password())
-        .property(Prop::number("maxConnections", "Max Connections").default(100).description("Unused: the node opens one connection per execution"))
-        .property(Prop::boolean("allowUnauthorizedCerts", "Ignore SSL Issues (Insecure)").description("Accept self-signed or otherwise invalid server certificates"))
+        .property(
+            Prop::number("maxConnections", "Max Connections")
+                .default(100)
+                .description("Unused: the node opens one connection per execution"),
+        )
+        .property(
+            Prop::boolean("allowUnauthorizedCerts", "Ignore SSL Issues (Insecure)")
+                .description("Accept self-signed or otherwise invalid server certificates"),
+        )
         .property(Prop::options(
             "ssl",
             "SSL",
@@ -79,7 +86,9 @@ struct Param<'a>(&'a Value);
 
 fn int_of(v: &Value) -> Result<i64, BoxErr> {
     match v {
-        Value::Number(n) => n.as_i64().or_else(|| n.as_f64().filter(|f| f.fract() == 0.0).map(|f| f as i64)),
+        Value::Number(n) => n
+            .as_i64()
+            .or_else(|| n.as_f64().filter(|f| f.fract() == 0.0).map(|f| f as i64)),
         Value::String(s) => s.trim().parse().ok(),
         Value::Bool(b) => Some(i64::from(*b)),
         _ => None,
@@ -153,16 +162,28 @@ async fn run_stmt(client: &Client, stmt: &Stmt) -> Result<Vec<Value>, String> {
     // EXPLAIN, SHOW, ...) cannot sit in a CTE: those fall through to the plain path.
     let wrapped = format!("WITH q AS ({sql}) SELECT to_jsonb(q) AS row FROM q");
     if let Ok(prepared) = client.prepare(&wrapped).await {
-        let rows = client.query(&prepared, &refs).await.map_err(|e| db_err(&e))?;
-        return rows.iter().map(|r| r.try_get::<_, Value>(0).map_err(|e| db_err(&e))).collect();
+        let rows = client
+            .query(&prepared, &refs)
+            .await
+            .map_err(|e| db_err(&e))?;
+        return rows
+            .iter()
+            .map(|r| r.try_get::<_, Value>(0).map_err(|e| db_err(&e)))
+            .collect();
     }
 
     let prepared = client.prepare(sql).await.map_err(|e| db_err(&e))?;
     if prepared.columns().is_empty() {
-        let n = client.execute(&prepared, &refs).await.map_err(|e| db_err(&e))?;
+        let n = client
+            .execute(&prepared, &refs)
+            .await
+            .map_err(|e| db_err(&e))?;
         return Ok(vec![json!({ "success": true, "rowCount": n })]);
     }
-    let rows = client.query(&prepared, &refs).await.map_err(|e| db_err(&e))?;
+    let rows = client
+        .query(&prepared, &refs)
+        .await
+        .map_err(|e| db_err(&e))?;
     let mut out = Vec::with_capacity(rows.len());
     for r in &rows {
         let mut obj = serde_json::Map::new();
@@ -178,7 +199,12 @@ async fn run_stmt(client: &Client, stmt: &Stmt) -> Result<Vec<Value>, String> {
                 Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME => {
                     r.try_get::<_, Option<String>>(idx).map(|v| json!(v))
                 }
-                ref other => return Err(format!("column `{}` has unsupported type `{other}`", col.name())),
+                ref other => {
+                    return Err(format!(
+                        "column `{}` has unsupported type `{other}`",
+                        col.name()
+                    ));
+                }
             }
             .map_err(|e| db_err(&e))?;
             obj.insert(col.name().to_owned(), v);
@@ -209,7 +235,11 @@ fn settings(cred: &serde_json::Map<String, Value>) -> Settings {
     config.connect_timeout(CONNECT_TIMEOUT);
     config.application_name("hokkabaz");
     let tls = !matches!(mode.as_str(), "" | "disable" | "allow");
-    config.ssl_mode(if tls { SslMode::Require } else { SslMode::Disable });
+    config.ssl_mode(if tls {
+        SslMode::Require
+    } else {
+        SslMode::Disable
+    });
     Settings {
         config,
         tls,
@@ -226,7 +256,10 @@ async fn connect_plain(config: &Config) -> Result<Client, String> {
 
 async fn connect_tls(config: &Config, insecure: bool) -> Result<Client, String> {
     let cfg = crate::tls::client_config(insecure)?;
-    let (client, conn) = config.connect(MakeRustlsConnect::new((*cfg).clone())).await.map_err(|e| db_err(&e))?;
+    let (client, conn) = config
+        .connect(MakeRustlsConnect::new((*cfg).clone()))
+        .await
+        .map_err(|e| db_err(&e))?;
     tokio::spawn(conn);
     Ok(client)
 }
@@ -239,7 +272,9 @@ async fn connect(s: &Settings) -> Result<Client, String> {
         Err(e) if s.fallback_tls => {
             let mut c = s.config.clone();
             c.ssl_mode(SslMode::Require);
-            connect_tls(&c, s.insecure).await.map_err(|e2| format!("{e}; TLS: {e2}"))
+            connect_tls(&c, s.insecure)
+                .await
+                .map_err(|e2| format!("{e}; TLS: {e2}"))
         }
         other => other,
     }
@@ -273,7 +308,9 @@ impl FlowNode for PostgresNode {
         }
         let name = &ctx.node.name;
         let cred = kit::credential(ctx, &self.creds, CREDENTIAL).await?;
-        let client = connect(&settings(&cred)).await.map_err(|m| kit::err(name, format!("Could not connect: {m}")))?;
+        let client = connect(&settings(&cred))
+            .await
+            .map_err(|m| kit::err(name, format!("Could not connect: {m}")))?;
         let mut out = Vec::new();
         for i in 0..input_len {
             let res = match self.plan(ctx, i) {
@@ -292,7 +329,10 @@ impl FlowNode for PostgresNode {
 /// Node and credential type into the shared registries. Features: `int-postgres`.
 pub fn register(nodes: &mut NodeRegistry, creds: &CredentialTypes) -> Result<(), FlowError> {
     creds.register_if_absent(credential_type());
-    nodes.register(Arc::new(PostgresNode { desc: description(), creds: creds.clone() }))
+    nodes.register(Arc::new(PostgresNode {
+        desc: description(),
+        creds: creds.clone(),
+    }))
 }
 
 #[cfg(test)]
@@ -314,11 +354,19 @@ mod tests {
     #[test]
     fn params_convert_by_server_type() {
         let mut buf = BytesMut::new();
-        assert!(matches!(Param(&json!("42")).to_sql(&Type::INT4, &mut buf), Ok(IsNull::No)));
+        assert!(matches!(
+            Param(&json!("42")).to_sql(&Type::INT4, &mut buf),
+            Ok(IsNull::No)
+        ));
         assert!(Param(&json!("x")).to_sql(&Type::INT4, &mut buf).is_err());
         assert!(Param(&json!(70000)).to_sql(&Type::INT2, &mut buf).is_err());
-        assert!(matches!(Param(&Value::Null).to_sql(&Type::UUID, &mut buf), Ok(IsNull::Yes)));
-        let Err(e) = Param(&json!("1.5")).to_sql(&Type::NUMERIC, &mut buf) else { panic!("numeric must be rejected") };
+        assert!(matches!(
+            Param(&Value::Null).to_sql(&Type::UUID, &mut buf),
+            Ok(IsNull::Yes)
+        ));
+        let Err(e) = Param(&json!("1.5")).to_sql(&Type::NUMERIC, &mut buf) else {
+            panic!("numeric must be rejected")
+        };
         let e = e.to_string();
         assert!(e.contains("::text::numeric"), "{e}");
     }

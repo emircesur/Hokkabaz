@@ -15,7 +15,9 @@ pub struct FileSecretStore {
 
 impl fmt::Debug for FileSecretStore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FileSecretStore").field("path", &self.path).finish()
+        f.debug_struct("FileSecretStore")
+            .field("path", &self.path)
+            .finish()
     }
 }
 
@@ -25,7 +27,10 @@ fn be(e: impl fmt::Display) -> SecretError {
 
 impl FileSecretStore {
     pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into(), lock: Mutex::new(()) }
+        Self {
+            path: path.into(),
+            lock: Mutex::new(()),
+        }
     }
 
     fn load(&self) -> Result<BTreeMap<String, String>, SecretError> {
@@ -46,11 +51,14 @@ impl FileSecretStore {
             opts.mode(0o600);
         }
         let mut f = opts.open(&self.path).map_err(be)?;
-        f.write_all(&serde_json::to_vec(map).map_err(be)?).map_err(be)
+        f.write_all(&serde_json::to_vec(map).map_err(be)?)
+            .map_err(be)
     }
 
     fn guard(&self) -> std::sync::MutexGuard<'_, ()> {
-        self.lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 
@@ -93,7 +101,10 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(dir.path().join("secrets.json")).unwrap().permissions().mode();
+            let mode = std::fs::metadata(dir.path().join("secrets.json"))
+                .unwrap()
+                .permissions()
+                .mode();
             assert_eq!(mode & 0o077, 0);
         }
     }

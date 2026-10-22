@@ -53,7 +53,15 @@ pub struct HighlightOpts {
 
 impl Default for HighlightOpts {
     fn default() -> Self {
-        Self { min_secs: 15.0, max_secs: 75.0, count: 8, window_secs: 600.0, overlap_secs: 60.0, hints: Vec::new(), brief: None }
+        Self {
+            min_secs: 15.0,
+            max_secs: 75.0,
+            count: 8,
+            window_secs: 600.0,
+            overlap_secs: 60.0,
+            hints: Vec::new(),
+            brief: None,
+        }
     }
 }
 
@@ -97,7 +105,11 @@ fn sentences(tr: &Transcript) -> Sentences {
     if t.segments.is_empty() {
         t.regroup_segments(&SegmentOpts::default());
     }
-    let mut s = Sentences { starts: Vec::new(), ends: Vec::new(), lines: Vec::new() };
+    let mut s = Sentences {
+        starts: Vec::new(),
+        ends: Vec::new(),
+        lines: Vec::new(),
+    };
     for seg in &t.segments {
         s.starts.push(seg.start);
         s.ends.push(seg.end);
@@ -107,7 +119,11 @@ fn sentences(tr: &Transcript) -> Sentences {
 }
 
 fn nearest(points: &[f64], t: f64) -> f64 {
-    points.iter().copied().min_by(|a, b| (a - t).abs().total_cmp(&(b - t).abs())).unwrap_or(t)
+    points
+        .iter()
+        .copied()
+        .min_by(|a, b| (a - t).abs().total_cmp(&(b - t).abs()))
+        .unwrap_or(t)
 }
 
 fn overlap(a: &Candidate, b: &Candidate) -> f64 {
@@ -116,7 +132,11 @@ fn overlap(a: &Candidate, b: &Candidate) -> f64 {
 }
 
 /// Find candidate clips, best first.
-pub async fn find_highlights(llm: &dyn Llm, tr: &Transcript, opts: &HighlightOpts) -> Result<Vec<Candidate>> {
+pub async fn find_highlights(
+    llm: &dyn Llm,
+    tr: &Transcript,
+    opts: &HighlightOpts,
+) -> Result<Vec<Candidate>> {
     if tr.words.is_empty() {
         return Err(StudioError::Invalid("empty transcript".into()));
     }
@@ -127,7 +147,12 @@ pub async fn find_highlights(llm: &dyn Llm, tr: &Transcript, opts: &HighlightOpt
     let mut w0 = 0.0;
     loop {
         let w1 = (w0 + opts.window_secs).min(total + 1.0);
-        let lines: Vec<String> = sent.lines.iter().filter(|(t, _)| *t >= w0 && *t < w1).map(|(t, s)| format!("[{t:.1}] {s}")).collect();
+        let lines: Vec<String> = sent
+            .lines
+            .iter()
+            .filter(|(t, _)| *t >= w0 && *t < w1)
+            .map(|(t, s)| format!("[{t:.1}] {s}"))
+            .collect();
         if !lines.is_empty() {
             let mut user = format!(
                 "Video length {total:.0}s. Window {w0:.0}s-{w1:.0}s. Return up to {} clips of {:.0}-{:.0} seconds each, only inside this window.\n",
@@ -138,7 +163,12 @@ pub async fn find_highlights(llm: &dyn Llm, tr: &Transcript, opts: &HighlightOpt
             if let Some(b) = &opts.brief {
                 user.push_str(&format!("Editor's brief: {b}\n"));
             }
-            let hints: Vec<String> = opts.hints.iter().filter(|h| h.t >= w0 && h.t < w1).map(|h| format!("{:.1}s {}", h.t, h.label)).collect();
+            let hints: Vec<String> = opts
+                .hints
+                .iter()
+                .filter(|h| h.t >= w0 && h.t < w1)
+                .map(|h| format!("{:.1}s {}", h.t, h.label))
+                .collect();
             if !hints.is_empty() {
                 user.push_str(&format!("Audio signals (hints): {}\n", hints.join(", ")));
             }
@@ -159,7 +189,13 @@ pub async fn find_highlights(llm: &dyn Llm, tr: &Transcript, opts: &HighlightOpt
     Ok(select(cands, opts.count))
 }
 
-fn clean(c: RawClip, sent: &Sentences, opts: &HighlightOpts, w0: f64, w1: f64) -> Option<Candidate> {
+fn clean(
+    c: RawClip,
+    sent: &Sentences,
+    opts: &HighlightOpts,
+    w0: f64,
+    w1: f64,
+) -> Option<Candidate> {
     if !(c.start.is_finite() && c.end.is_finite()) || c.end <= c.start {
         return None;
     }
@@ -167,7 +203,12 @@ fn clean(c: RawClip, sent: &Sentences, opts: &HighlightOpts, w0: f64, w1: f64) -
     let mut end = nearest(&sent.ends, c.end.min(w1));
     if end - start > opts.max_secs {
         // Pull the end back to the last sentence end inside the limit.
-        end = sent.ends.iter().copied().filter(|e| *e > start && *e - start <= opts.max_secs).fold(f64::NEG_INFINITY, f64::max);
+        end = sent
+            .ends
+            .iter()
+            .copied()
+            .filter(|e| *e > start && *e - start <= opts.max_secs)
+            .fold(f64::NEG_INFINITY, f64::max);
         if !end.is_finite() {
             return None;
         }
@@ -185,7 +226,11 @@ fn clean(c: RawClip, sent: &Sentences, opts: &HighlightOpts, w0: f64, w1: f64) -
         title: c.title.trim().to_string(),
         hook: c.hook.trim().to_string(),
         reason: c.reason.trim().to_string(),
-        kind: if c.kind.is_empty() { "highlight".into() } else { c.kind.to_lowercase() },
+        kind: if c.kind.is_empty() {
+            "highlight".into()
+        } else {
+            c.kind.to_lowercase()
+        },
         rank: c.rank.clamp(0.0, 100.0),
     })
 }
@@ -266,11 +311,22 @@ pub fn score_key(text: &str, rubric: Option<&str>) -> String {
 }
 
 fn clamp100(v: f64) -> u32 {
-    if v.is_finite() { v.round().clamp(0.0, 100.0) as u32 } else { 0 }
+    if v.is_finite() {
+        v.round().clamp(0.0, 100.0) as u32
+    } else {
+        0
+    }
 }
 
 /// Score the transcript text of `start..end`. `existing` short-circuits when the key matches.
-pub async fn score_clip(llm: &dyn Llm, tr: &Transcript, start: f64, end: f64, rubric: Option<&str>, existing: Option<&ViralScore>) -> Result<ViralScore> {
+pub async fn score_clip(
+    llm: &dyn Llm,
+    tr: &Transcript,
+    start: f64,
+    end: f64,
+    rubric: Option<&str>,
+    existing: Option<&ViralScore>,
+) -> Result<ViralScore> {
     let text = tr.text_in_range(start, end);
     if text.trim().is_empty() {
         return Err(StudioError::Invalid("clip has no speech to score".into()));
@@ -285,8 +341,20 @@ pub async fn score_clip(llm: &dyn Llm, tr: &Transcript, start: f64, end: f64, ru
     }
     let user = format!("Clip length {:.0}s.\nTranscript:\n{text}", end - start);
     let o: ScoreOut = complete_json(llm, &system, &user).await?;
-    let parts = [o.hook, o.emotion, o.novelty, o.clarity, o.pacing, o.shareability, o.platform_fit];
-    let total = parts.iter().zip(WEIGHTS).map(|(p, w)| p.clamp(0.0, 100.0) * w).sum::<f64>();
+    let parts = [
+        o.hook,
+        o.emotion,
+        o.novelty,
+        o.clarity,
+        o.pacing,
+        o.shareability,
+        o.platform_fit,
+    ];
+    let total = parts
+        .iter()
+        .zip(WEIGHTS)
+        .map(|(p, w)| p.clamp(0.0, 100.0) * w)
+        .sum::<f64>();
     Ok(ViralScore {
         total: clamp100(total),
         hook: clamp100(o.hook),
@@ -316,11 +384,20 @@ mod tests {
         for s in 0..sentences {
             for k in 0..20 {
                 let t = (s * 20 + k) as f64;
-                let text = if k == 19 { format!("w{s}.") } else { format!("w{s}") };
+                let text = if k == 19 {
+                    format!("w{s}.")
+                } else {
+                    format!("w{s}")
+                };
                 words.push(Word::new(text, t, t + 0.9));
             }
         }
-        Transcript { language: Some("en".into()), duration: (sentences * 20) as f64, words, segments: Vec::new() }
+        Transcript {
+            language: Some("en".into()),
+            duration: (sentences * 20) as f64,
+            words,
+            segments: Vec::new(),
+        }
     }
 
     #[tokio::test]
@@ -333,21 +410,34 @@ mod tests {
             {"start":140.0,"end":190.0,"title":"B","hook":"","reason":"","kind":"tip","rank":70}
         ]}"#;
         let llm = ScriptedLlm::new([reply]);
-        let opts = HighlightOpts { window_secs: 600.0, ..HighlightOpts::default() };
+        let opts = HighlightOpts {
+            window_secs: 600.0,
+            ..HighlightOpts::default()
+        };
         let out = find_highlights(&llm, &tr, &opts).await.unwrap();
         assert_eq!(out.len(), 2);
         assert_eq!(out[0].title, "A");
         assert_eq!(out[0].kind, "funny");
-        assert!((out[0].start - 20.0).abs() < 1e-6 && (out[0].end - 80.0).abs() < 0.2, "{:?}", out[0]);
+        assert!(
+            (out[0].start - 20.0).abs() < 1e-6 && (out[0].end - 80.0).abs() < 0.2,
+            "{:?}",
+            out[0]
+        );
         assert_eq!(out[1].title, "B");
-        assert!(out.iter().all(|c| c.duration() >= 15.0 && c.duration() <= 75.0 + 0.2));
+        assert!(
+            out.iter()
+                .all(|c| c.duration() >= 15.0 && c.duration() <= 75.0 + 0.2)
+        );
     }
 
     #[tokio::test]
     async fn long_clips_are_trimmed_to_max() {
         let tr = long_transcript(10);
-        let llm = ScriptedLlm::new([r#"{"clips":[{"start":0,"end":200,"title":"all","rank":50}]}"#]);
-        let out = find_highlights(&llm, &tr, &HighlightOpts::default()).await.unwrap();
+        let llm =
+            ScriptedLlm::new([r#"{"clips":[{"start":0,"end":200,"title":"all","rank":50}]}"#]);
+        let out = find_highlights(&llm, &tr, &HighlightOpts::default())
+            .await
+            .unwrap();
         assert_eq!(out.len(), 1);
         assert!(out[0].duration() <= 75.0, "{}", out[0].duration());
     }
@@ -356,7 +446,9 @@ mod tests {
     async fn windows_cover_long_video() {
         let tr = long_transcript(60); // 1200s
         let llm = ScriptedLlm::new([r#"{"clips":[]}"#, r#"{"clips":[]}"#, r#"{"clips":[]}"#]);
-        find_highlights(&llm, &tr, &HighlightOpts::default()).await.unwrap();
+        find_highlights(&llm, &tr, &HighlightOpts::default())
+            .await
+            .unwrap();
         assert!(llm.prompts.lock().unwrap().len() >= 2);
         assert!(llm.prompts.lock().unwrap()[1].1.contains("Window 540s"));
     }
@@ -370,7 +462,9 @@ mod tests {
         // 80*.25+60*.15+40*.1+100*.1+50*.1+70*.2+90*.1 = 20+9+4+10+5+14+9 = 71
         assert_eq!(s.total, 71);
         // Same text -> no second LLM call (llm has no replies left).
-        let again = score_clip(&llm, &tr, 0.0, 40.0, None, Some(&s)).await.unwrap();
+        let again = score_clip(&llm, &tr, 0.0, 40.0, None, Some(&s))
+            .await
+            .unwrap();
         assert_eq!(again, s);
         // Different rubric -> different key.
         assert_ne!(score_key("x", None), score_key("x", Some("funny only")));
@@ -379,8 +473,21 @@ mod tests {
     #[tokio::test]
     async fn empty_inputs_error() {
         let llm = ScriptedLlm::new(Vec::<String>::new());
-        let empty = Transcript { language: None, duration: 0.0, words: vec![], segments: vec![] };
-        assert!(find_highlights(&llm, &empty, &HighlightOpts::default()).await.is_err());
-        assert!(score_clip(&llm, &empty, 0.0, 10.0, None, None).await.is_err());
+        let empty = Transcript {
+            language: None,
+            duration: 0.0,
+            words: vec![],
+            segments: vec![],
+        };
+        assert!(
+            find_highlights(&llm, &empty, &HighlightOpts::default())
+                .await
+                .is_err()
+        );
+        assert!(
+            score_clip(&llm, &empty, 0.0, 10.0, None, None)
+                .await
+                .is_err()
+        );
     }
 }

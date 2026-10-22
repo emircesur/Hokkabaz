@@ -46,12 +46,15 @@ pub struct StudioSettings {
 
 impl StudioSettings {
     pub fn load(raw: Option<&str>) -> Self {
-        raw.and_then(|r| serde_json::from_str(r).ok()).unwrap_or_default()
+        raw.and_then(|r| serde_json::from_str(r).ok())
+            .unwrap_or_default()
     }
 
     pub fn validate(&self) -> Result<(), HkError> {
         if let Some(m) = &self.llm_model {
-            Route::parse(m).map_err(|_| HkError::invalid(format!("model must be `provider/model`, got `{m}`")))?;
+            Route::parse(m).map_err(|_| {
+                HkError::invalid(format!("model must be `provider/model`, got `{m}`"))
+            })?;
         }
         match self.stt_provider.as_deref() {
             None | Some("openai_compat" | "whisper_local") => {}
@@ -59,7 +62,9 @@ impl StudioSettings {
         }
         if let Some(u) = &self.stt_base_url {
             if !(u.starts_with("http://") || u.starts_with("https://")) {
-                return Err(HkError::invalid("stt_base_url must start with http:// or https://"));
+                return Err(HkError::invalid(
+                    "stt_base_url must start with http:// or https://",
+                ));
             }
         }
         Ok(())
@@ -77,31 +82,44 @@ pub struct FfiBackends {
 
 impl std::fmt::Debug for FfiBackends {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("FfiBackends").field("data_dir", &self.data_dir).finish_non_exhaustive()
+        f.debug_struct("FfiBackends")
+            .field("data_dir", &self.data_dir)
+            .finish_non_exhaustive()
     }
 }
 
 impl FfiBackends {
     fn snapshot(&self) -> StudioSettings {
-        self.settings.read().unwrap_or_else(PoisonError::into_inner).clone()
+        self.settings
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     fn secret(&self, name: &str) -> Option<String> {
-        self.secrets.get(name).ok().flatten().map(|s| s.expose().to_owned())
+        self.secrets
+            .get(name)
+            .ok()
+            .flatten()
+            .map(|s| s.expose().to_owned())
     }
 }
 
 #[async_trait]
 impl Backends for FfiBackends {
     async fn llm(&self) -> hk_studio::Result<Arc<dyn Llm>> {
-        let model = self
-            .snapshot()
-            .llm_model
-            .ok_or_else(|| StudioError::Invalid("choose the Studio model first (Studio settings, `provider/model`)".into()))?;
+        let model = self.snapshot().llm_model.ok_or_else(|| {
+            StudioError::Invalid(
+                "choose the Studio model first (Studio settings, `provider/model`)".into(),
+            )
+        })?;
         Ok(Arc::new(ProviderLlm::new(self.provider.clone(), model)))
     }
 
-    async fn transcriber(&self, splitter: Arc<dyn AudioSplitter>) -> hk_studio::Result<(Arc<dyn Transcriber>, TranscribeOpts)> {
+    async fn transcriber(
+        &self,
+        splitter: Arc<dyn AudioSplitter>,
+    ) -> hk_studio::Result<(Arc<dyn Transcriber>, TranscribeOpts)> {
         let s = self.snapshot();
         let mut cfg = SttConfig {
             provider: match s.stt_provider.as_deref() {
@@ -117,14 +135,30 @@ impl Backends for FfiBackends {
             cfg.model = m;
         }
         cfg.language = s.stt_language.clone().filter(|l| !l.is_empty());
-        cfg.model_path = s.whisper_model_path.filter(|p| !p.is_empty()).map(PathBuf::from);
+        cfg.model_path = s
+            .whisper_model_path
+            .filter(|p| !p.is_empty())
+            .map(PathBuf::from);
         if self.secret(KEY_STT).is_some() {
             cfg.key_ref = Some(KeyRef::new(KEY_STT));
         }
         let secrets = self.secrets.clone();
-        let keys = move |r: &KeyRef| secrets.get(&r.0).ok().flatten().map(|s| s.expose().to_owned());
+        let keys = move |r: &KeyRef| {
+            secrets
+                .get(&r.0)
+                .ok()
+                .flatten()
+                .map(|s| s.expose().to_owned())
+        };
         let t = hk_stt::build_chunked_transcriber(&cfg, &keys, splitter)?;
-        Ok((t, TranscribeOpts { language: cfg.language, prompt: None, word_timestamps: true }))
+        Ok((
+            t,
+            TranscribeOpts {
+                language: cfg.language,
+                prompt: None,
+                word_timestamps: true,
+            },
+        ))
     }
 
     fn stock(&self) -> Vec<Arc<dyn StockProvider>> {
@@ -143,7 +177,10 @@ impl Backends for FfiBackends {
 
     fn youtube(&self) -> Option<hk_studio::publish::YoutubeCreds> {
         Some(hk_studio::publish::YoutubeCreds {
-            client_id: self.snapshot().youtube_client_id.filter(|c| !c.is_empty())?,
+            client_id: self
+                .snapshot()
+                .youtube_client_id
+                .filter(|c| !c.is_empty())?,
             client_secret: self.secret(KEY_YT_SECRET)?,
             refresh_token: self.secret(KEY_YT_REFRESH)?,
         })
@@ -178,7 +215,12 @@ pub fn ctx() -> Result<Arc<Ctx>, HkError> {
     CTX.read()
         .unwrap_or_else(PoisonError::into_inner)
         .clone()
-        .ok_or_else(|| HkError::new(HkErrorKind::NotInitialized, "Studio needs the in-process core (core_init)"))
+        .ok_or_else(|| {
+            HkError::new(
+                HkErrorKind::NotInitialized,
+                "Studio needs the in-process core (core_init)",
+            )
+        })
 }
 
 pub fn service() -> Result<Arc<StudioService>, HkError> {
@@ -196,7 +238,11 @@ pub fn studio_err(e: StudioError) -> HkError {
 
 pub fn put_secret(store: &dyn SecretStore, name: &str, value: Option<&str>) -> Result<(), HkError> {
     match value.map(str::trim).filter(|v| !v.is_empty()) {
-        Some(v) => store.set(name, &Secret::new(v)).map_err(|e| HkError::internal(format!("secret store: {e}"))),
-        None => store.delete(name).map_err(|e| HkError::internal(format!("secret store: {e}"))),
+        Some(v) => store
+            .set(name, &Secret::new(v))
+            .map_err(|e| HkError::internal(format!("secret store: {e}"))),
+        None => store
+            .delete(name)
+            .map_err(|e| HkError::internal(format!("secret store: {e}"))),
     }
 }

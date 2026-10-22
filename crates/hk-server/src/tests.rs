@@ -7,10 +7,10 @@ use std::time::Duration;
 
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode, header};
-use http_body_util::BodyExt;
 use hk_llm::{
     CancellationToken, ChatRequest, EventStream, FinishReason, ModelInfo, Provider, StreamEvent,
 };
+use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use tokio::sync::broadcast;
 use tower::ServiceExt;
@@ -78,8 +78,14 @@ impl AgentRuntime for Fake {
     }
     async fn submit(&self, id: &str, req: TurnRequest) -> Result<TurnAccepted, ApiError> {
         self.find(id)?;
-        self.call(format!("submit {id} {} {:?} {:?}", req.prompt, req.mode, req.model));
-        Ok(TurnAccepted { session_id: id.into(), queued: false })
+        self.call(format!(
+            "submit {id} {} {:?} {:?}",
+            req.prompt, req.mode, req.model
+        ));
+        Ok(TurnAccepted {
+            session_id: id.into(),
+            queued: false,
+        })
     }
     async fn inject(&self, id: &str, text: String) -> Result<(), ApiError> {
         self.find(id)?;
@@ -138,14 +144,19 @@ async fn call(
         b = b.header(header::AUTHORIZATION, format!("Bearer {t}"));
     }
     let req = match body {
-        Some(v) => b.header(header::CONTENT_TYPE, "application/json").body(Body::from(v.to_string())),
+        Some(v) => b
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(v.to_string())),
         None => b.body(Body::empty()),
     }
     .unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     let status = res.status();
     let bytes = res.into_body().collect().await.unwrap().to_bytes();
-    (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
 }
 
 #[tokio::test]
@@ -182,24 +193,47 @@ async fn scopes_gate_mutations() {
     let (app, fake) = app();
     let mutating = [
         (Method::POST, "/api/v1/sessions", json!({})),
-        (Method::POST, "/api/v1/sessions/s1/turns", json!({"prompt": "x"})),
-        (Method::POST, "/api/v1/sessions/s1/inject", json!({"text": "x"})),
+        (
+            Method::POST,
+            "/api/v1/sessions/s1/turns",
+            json!({"prompt": "x"}),
+        ),
+        (
+            Method::POST,
+            "/api/v1/sessions/s1/inject",
+            json!({"text": "x"}),
+        ),
         (Method::POST, "/api/v1/sessions/s1/cancel", json!({})),
-        (Method::POST, "/api/v1/approvals/appr_0", json!({"approved": true})),
+        (
+            Method::POST,
+            "/api/v1/approvals/appr_0",
+            json!({"approved": true}),
+        ),
     ];
     for (m, uri, body) in mutating {
         let (st, b) = call(&app, m, uri, Some(READ), Some(body)).await;
         assert_eq!(st, StatusCode::FORBIDDEN, "{uri}");
         assert_eq!(b["error"]["code"], "forbidden");
     }
-    assert!(fake.calls().is_empty(), "read token must not reach the runtime");
+    assert!(
+        fake.calls().is_empty(),
+        "read token must not reach the runtime"
+    );
 
     for t in [READ, RUN, ADMIN] {
         for uri in ["/api/v1/sessions", "/api/v1/models"] {
-            assert_eq!(call(&app, Method::GET, uri, Some(t), None).await.0, StatusCode::OK);
+            assert_eq!(
+                call(&app, Method::GET, uri, Some(t), None).await.0,
+                StatusCode::OK
+            );
         }
     }
-    assert_eq!(call(&app, Method::POST, "/api/v1/sessions", Some(ADMIN), None).await.0, StatusCode::CREATED);
+    assert_eq!(
+        call(&app, Method::POST, "/api/v1/sessions", Some(ADMIN), None)
+            .await
+            .0,
+        StatusCode::CREATED
+    );
 }
 
 #[tokio::test]
@@ -218,15 +252,34 @@ async fn session_create_list_get() {
     assert_eq!(created["title"], "t");
 
     // Empty body also creates.
-    assert_eq!(call(&app, Method::POST, "/api/v1/sessions", Some(RUN), None).await.0, StatusCode::CREATED);
+    assert_eq!(
+        call(&app, Method::POST, "/api/v1/sessions", Some(RUN), None)
+            .await
+            .0,
+        StatusCode::CREATED
+    );
 
-    let (st, list) = call(&app, Method::GET, "/api/v1/sessions?limit=9999&offset=3", Some(READ), None).await;
+    let (st, list) = call(
+        &app,
+        Method::GET,
+        "/api/v1/sessions?limit=9999&offset=3",
+        Some(READ),
+        None,
+    )
+    .await;
     assert_eq!(st, StatusCode::OK);
     assert_eq!(list["sessions"].as_array().unwrap().len(), 2);
     // Limit is clamped before it reaches the runtime.
     assert!(fake.calls().contains(&"list 200 3".to_owned()));
 
-    let (st, d) = call(&app, Method::GET, "/api/v1/sessions/s1?after_seq=4", Some(READ), None).await;
+    let (st, d) = call(
+        &app,
+        Method::GET,
+        "/api/v1/sessions/s1?after_seq=4",
+        Some(READ),
+        None,
+    )
+    .await;
     assert_eq!(st, StatusCode::OK);
     assert_eq!(d["session"]["id"], "s1");
     assert_eq!(d["pending_approvals"][0], "appr_0");
@@ -260,20 +313,48 @@ async fn turn_inject_cancel_approve_routing() {
         json!({"prompt": "x", "bogus": 1}),
     ];
     for body in bad {
-        let (st, _) = call(&app, Method::POST, "/api/v1/sessions/s1/turns", Some(RUN), Some(body)).await;
-        assert!(st == StatusCode::BAD_REQUEST || st == StatusCode::UNPROCESSABLE_ENTITY, "{st}");
+        let (st, _) = call(
+            &app,
+            Method::POST,
+            "/api/v1/sessions/s1/turns",
+            Some(RUN),
+            Some(body),
+        )
+        .await;
+        assert!(
+            st == StatusCode::BAD_REQUEST || st == StatusCode::UNPROCESSABLE_ENTITY,
+            "{st}"
+        );
     }
 
     let post = |uri: &'static str, body: Value| {
         let app = app.clone();
         async move { call(&app, Method::POST, uri, Some(RUN), Some(body)).await.0 }
     };
-    assert_eq!(post("/api/v1/sessions/s1/inject", json!({"text": "steer"})).await, StatusCode::ACCEPTED);
-    assert_eq!(post("/api/v1/sessions/s1/inject", json!({"text": ""})).await, StatusCode::BAD_REQUEST);
-    assert_eq!(post("/api/v1/sessions/s1/cancel", json!({})).await, StatusCode::ACCEPTED);
-    assert_eq!(post("/api/v1/sessions/zzz/cancel", json!({})).await, StatusCode::NOT_FOUND);
-    assert_eq!(post("/api/v1/approvals/appr_0", json!({"approved": false})).await, StatusCode::OK);
-    assert_eq!(post("/api/v1/approvals/appr_9", json!({"approved": true})).await, StatusCode::NOT_FOUND);
+    assert_eq!(
+        post("/api/v1/sessions/s1/inject", json!({"text": "steer"})).await,
+        StatusCode::ACCEPTED
+    );
+    assert_eq!(
+        post("/api/v1/sessions/s1/inject", json!({"text": ""})).await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        post("/api/v1/sessions/s1/cancel", json!({})).await,
+        StatusCode::ACCEPTED
+    );
+    assert_eq!(
+        post("/api/v1/sessions/zzz/cancel", json!({})).await,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        post("/api/v1/approvals/appr_0", json!({"approved": false})).await,
+        StatusCode::OK
+    );
+    assert_eq!(
+        post("/api/v1/approvals/appr_9", json!({"approved": true})).await,
+        StatusCode::NOT_FOUND
+    );
 
     let calls = fake.calls();
     for want in [
@@ -282,25 +363,49 @@ async fn turn_inject_cancel_approve_routing() {
         "cancel s1",
         "approve appr_0 false",
     ] {
-        assert!(calls.contains(&want.to_owned()), "missing {want}: {calls:?}");
+        assert!(
+            calls.contains(&want.to_owned()),
+            "missing {want}: {calls:?}"
+        );
     }
 }
 
 #[tokio::test]
 async fn unknown_route_and_method() {
     let (app, _) = app();
-    assert_eq!(call(&app, Method::GET, "/api/v1/nope", Some(RUN), None).await.0, StatusCode::NOT_FOUND);
-    assert_eq!(call(&app, Method::DELETE, "/api/v1/sessions", Some(RUN), None).await.0, StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(
+        call(&app, Method::GET, "/api/v1/nope", Some(RUN), None)
+            .await
+            .0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        call(&app, Method::DELETE, "/api/v1/sessions", Some(RUN), None)
+            .await
+            .0,
+        StatusCode::METHOD_NOT_ALLOWED
+    );
     // Non-/api/v1 paths (webhooks etc.) aren't ours yet.
-    assert_eq!(call(&app, Method::GET, "/webhook/x", None, None).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(
+        call(&app, Method::GET, "/webhook/x", None, None).await.0,
+        StatusCode::NOT_FOUND
+    );
 }
 
 #[tokio::test]
 async fn ws_requires_auth_before_upgrade() {
     let (app, _) = app();
     // Plain GET without upgrade headers: auth failure wins over the upgrade error.
-    assert_eq!(call(&app, Method::GET, "/api/v1/ws", None, None).await.0, StatusCode::UNAUTHORIZED);
-    assert_eq!(call(&app, Method::GET, "/api/v1/ws?access_token=bad", None, None).await.0, StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        call(&app, Method::GET, "/api/v1/ws", None, None).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        call(&app, Method::GET, "/api/v1/ws?access_token=bad", None, None)
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
 }
 
 #[tokio::test]
@@ -321,17 +426,35 @@ async fn ws_commands_respect_scope_and_filter() {
     assert_eq!(v["event"], "command/ack");
     assert_eq!(v["id"], 7);
 
-    let Outcome(v) = handle(&s, Principal::of(Scope::Run), &mut filter, r#"{"cmd":"approve","approval_id":"appr_0","approved":true}"#).await;
+    let Outcome(v) = handle(
+        &s,
+        Principal::of(Scope::Run),
+        &mut filter,
+        r#"{"cmd":"approve","approval_id":"appr_0","approved":true}"#,
+    )
+    .await;
     assert_eq!(v["event"], "command/ack");
 
     // Subscribing is allowed for read tokens.
-    let Outcome(v) = handle(&s, Principal::of(Scope::Read), &mut filter, r#"{"cmd":"subscribe","session_id":"s1"}"#).await;
+    let Outcome(v) = handle(
+        &s,
+        Principal::of(Scope::Read),
+        &mut filter,
+        r#"{"cmd":"subscribe","session_id":"s1"}"#,
+    )
+    .await;
     assert_eq!(v["event"], "command/ack");
     assert!(filter.contains("s1"));
 
     let Outcome(v) = handle(&s, Principal::of(Scope::Run), &mut filter, "not json").await;
     assert_eq!(v["data"]["code"], "bad_request");
-    let Outcome(v) = handle(&s, Principal::of(Scope::Run), &mut filter, r#"{"cmd":"explode"}"#).await;
+    let Outcome(v) = handle(
+        &s,
+        Principal::of(Scope::Run),
+        &mut filter,
+        r#"{"cmd":"explode"}"#,
+    )
+    .await;
     assert_eq!(v["data"]["code"], "bad_request");
 
     let calls = fake.calls();
@@ -351,9 +474,15 @@ impl Provider for Echo {
     async fn models(&self) -> hk_llm::Result<Vec<ModelInfo>> {
         Ok(Vec::new())
     }
-    async fn stream(&self, _req: ChatRequest, _c: CancellationToken) -> hk_llm::Result<EventStream> {
+    async fn stream(
+        &self,
+        _req: ChatRequest,
+        _c: CancellationToken,
+    ) -> hk_llm::Result<EventStream> {
         let evs = vec![
-            Ok(StreamEvent::TextDelta { text: "pong".into() }),
+            Ok(StreamEvent::TextDelta {
+                text: "pong".into(),
+            }),
             Ok(StreamEvent::Finish(FinishReason::Stop)),
         ];
         Ok(Box::pin(futures::stream::iter(evs)))
@@ -377,12 +506,33 @@ async fn local_runtime_runs_a_turn_and_feeds_events() {
     let s = rt.create_session(CreateSession::default()).await.unwrap();
     assert_eq!(s.model.as_deref(), Some("echo-1"));
     assert_eq!(rt.list_sessions(10, 0).await.unwrap().len(), 1);
-    assert!(matches!(rt.session("missing", None).await, Err(ApiError::NotFound(_))));
-    assert!(matches!(rt.submit("missing", TurnRequest { prompt: "x".into(), mode: None, model: None }).await, Err(ApiError::NotFound(_))));
+    assert!(matches!(
+        rt.session("missing", None).await,
+        Err(ApiError::NotFound(_))
+    ));
+    assert!(matches!(
+        rt.submit(
+            "missing",
+            TurnRequest {
+                prompt: "x".into(),
+                mode: None,
+                model: None
+            }
+        )
+        .await,
+        Err(ApiError::NotFound(_))
+    ));
 
-    rt.submit(&s.id, TurnRequest { prompt: "ping".into(), mode: Some(TurnMode::Plan), model: None })
-        .await
-        .unwrap();
+    rt.submit(
+        &s.id,
+        TurnRequest {
+            prompt: "ping".into(),
+            mode: Some(TurnMode::Plan),
+            model: None,
+        },
+    )
+    .await
+    .unwrap();
 
     let mut names = Vec::new();
     let end = tokio::time::timeout(Duration::from_secs(10), async {
@@ -400,14 +550,31 @@ async fn local_runtime_runs_a_turn_and_feeds_events() {
     assert_eq!(end.data["type"], "turn/end");
     assert!(names.iter().any(|n| n == "user/message"), "{names:?}");
     assert!(names.iter().any(|n| n == "assistant/message"), "{names:?}");
-    assert!(names.iter().any(|n| n == "agent/assistant-stream"), "{names:?}");
+    assert!(
+        names.iter().any(|n| n == "agent/assistant-stream"),
+        "{names:?}"
+    );
 
     let d = rt.session(&s.id, None).await.unwrap();
     assert!(d.messages.iter().any(|m| format!("{m:?}").contains("pong")));
     let last = d.events.last().unwrap().seq;
-    assert!(rt.session(&s.id, Some(last)).await.unwrap().events.is_empty());
+    assert!(
+        rt.session(&s.id, Some(last))
+            .await
+            .unwrap()
+            .events
+            .is_empty()
+    );
     assert!(matches!(
-        rt.respond_approval("appr_0", ApprovalDecision { approved: true, reason: None, session_id: None }).await,
+        rt.respond_approval(
+            "appr_0",
+            ApprovalDecision {
+                approved: true,
+                reason: None,
+                session_id: None
+            }
+        )
+        .await,
         Err(ApiError::NotFound(_))
     ));
 }

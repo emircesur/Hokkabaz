@@ -84,7 +84,11 @@ mod tests {
         let d = data();
         assert_eq!(render("={{$credentials.token}}", &d).unwrap(), "s3");
         assert_eq!(
-            render("=Bearer {{ $credentials.oauthTokenData.access_token }}!", &d).unwrap(),
+            render(
+                "=Bearer {{ $credentials.oauthTokenData.access_token }}!",
+                &d
+            )
+            .unwrap(),
             "Bearer at!"
         );
         assert_eq!(render("plain", &d).unwrap(), "plain");
@@ -104,7 +108,9 @@ mod tests {
         ));
         assert!(render("={{ $credentials.token", &d).is_err());
         // no value leak in the error
-        let e = render("={{ $credentials.token + 1 }}", &d).unwrap_err().to_string();
+        let e = render("={{ $credentials.token + 1 }}", &d)
+            .unwrap_err()
+            .to_string();
         assert!(!e.contains("s3"));
     }
 }

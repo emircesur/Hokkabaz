@@ -134,7 +134,12 @@ impl Modify for Security {
         let c = openapi.components.get_or_insert_with(Default::default);
         c.add_security_scheme(
             "bearer",
-            SecurityScheme::Http(HttpBuilder::new().scheme(HttpAuthScheme::Bearer).description(Some("Instance token")).build()),
+            SecurityScheme::Http(
+                HttpBuilder::new()
+                    .scheme(HttpAuthScheme::Bearer)
+                    .description(Some("Instance token"))
+                    .build(),
+            ),
         );
         c.add_security_scheme(
             "n8nApiKey",

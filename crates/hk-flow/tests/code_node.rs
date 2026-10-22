@@ -189,7 +189,10 @@ async fn python_is_off_unless_opted_in() {
     .await
     .unwrap_err();
     let m = msg(e);
-    assert!(m.contains("off by default") || m.contains("not available"), "{m}");
+    assert!(
+        m.contains("off by default") || m.contains("not available"),
+        "{m}"
+    );
 }
 
 #[tokio::test]

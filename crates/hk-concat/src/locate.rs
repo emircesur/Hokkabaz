@@ -49,21 +49,33 @@ fn explicit(p: &Path, what: &str) -> Result<PathBuf, ConcatError> {
     if is_executable(p) {
         Ok(p.to_owned())
     } else {
-        Err(ConcatError::Spawn(format!("{what} points at {}, which is not an executable file", p.display())))
+        Err(ConcatError::Spawn(format!(
+            "{what} points at {}, which is not an executable file",
+            p.display()
+        )))
     }
 }
 
 /// `PATH` entries first, then well-known install dirs. Order is the search order.
 pub fn candidates(env: &dyn Env) -> Vec<PathBuf> {
-    let exe = if cfg!(windows) { "concat.exe" } else { "concat" };
+    let exe = if cfg!(windows) {
+        "concat.exe"
+    } else {
+        "concat"
+    };
     let mut out = Vec::new();
     if let Some(path) = env.var("PATH") {
         out.extend(std::env::split_paths(&path).map(|d| d.join(exe)));
     }
-    let home = env.var("HOME").or_else(|| env.var("USERPROFILE")).map(PathBuf::from);
+    let home = env
+        .var("HOME")
+        .or_else(|| env.var("USERPROFILE"))
+        .map(PathBuf::from);
 
     // macOS app bundle.
-    out.push(PathBuf::from("/Applications/Concat.app/Contents/MacOS/concat"));
+    out.push(PathBuf::from(
+        "/Applications/Concat.app/Contents/MacOS/concat",
+    ));
     if let Some(h) = &home {
         out.push(h.join("Applications/Concat.app/Contents/MacOS/concat"));
     }
@@ -94,7 +106,9 @@ pub fn candidates(env: &dyn Env) -> Vec<PathBuf> {
 }
 
 fn appimages(dir: &Path) -> Vec<PathBuf> {
-    let Ok(rd) = std::fs::read_dir(dir) else { return Vec::new() };
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
     let mut v: Vec<PathBuf> = rd
         .flatten()
         .map(|e| e.path())
@@ -110,7 +124,9 @@ fn appimages(dir: &Path) -> Vec<PathBuf> {
 }
 
 fn is_executable(p: &Path) -> bool {
-    let Ok(md) = std::fs::metadata(p) else { return false };
+    let Ok(md) = std::fs::metadata(p) else {
+        return false;
+    };
     if !md.is_file() {
         return false;
     }
@@ -150,8 +166,12 @@ mod tests {
     #[test]
     fn precedence_config_then_env_then_path_then_known_dirs() {
         let t = tempfile::tempdir().unwrap();
-        let (cfg, envp, pathd, home) =
-            (t.path().join("cfg/concat"), t.path().join("env/concat"), t.path().join("bin"), t.path().join("home"));
+        let (cfg, envp, pathd, home) = (
+            t.path().join("cfg/concat"),
+            t.path().join("env/concat"),
+            t.path().join("bin"),
+            t.path().join("home"),
+        );
         let on_path = pathd.join("concat");
         let local = home.join(".local/bin/concat");
         for p in [&cfg, &envp, &on_path, &local] {
@@ -190,13 +210,21 @@ mod tests {
         let env = MapEnv(HashMap::new());
         let e = locate_with(&env, Some(Path::new("/definitely/not/concat"))).unwrap_err();
         assert!(matches!(e, ConcatError::Spawn(m) if m.contains("[concat] path")));
-        let env = MapEnv(HashMap::from([("HK_CONCAT", OsString::from("/nope/concat"))]));
-        assert!(matches!(locate_with(&env, None), Err(ConcatError::Spawn(m)) if m.contains("HK_CONCAT")));
+        let env = MapEnv(HashMap::from([(
+            "HK_CONCAT",
+            OsString::from("/nope/concat"),
+        )]));
+        assert!(
+            matches!(locate_with(&env, None), Err(ConcatError::Spawn(m)) if m.contains("HK_CONCAT"))
+        );
     }
 
     #[test]
     fn not_installed_lists_what_was_searched() {
-        let env = MapEnv(HashMap::from([("HOME", OsString::from("/nonexistent-home"))]));
+        let env = MapEnv(HashMap::from([(
+            "HOME",
+            OsString::from("/nonexistent-home"),
+        )]));
         // Hosts that really have /usr/bin/concat would pass; the test only asserts the shape.
         if let Err(ConcatError::NotInstalled { searched }) = locate_with(&env, None) {
             assert!(searched.iter().any(|s| s.contains("/usr/bin")));

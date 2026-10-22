@@ -18,6 +18,10 @@ pub use chunked::{AudioSplitter, ChunkOpts, ChunkResult, ChunkedTranscriber, pla
 pub use config::{SttConfig, SttProvider, build_chunked_transcriber, build_transcriber};
 pub use error::{Result, SttError};
 pub use filler::{FillerSet, language_code};
-pub use openai_compat::{DEFAULT_MAX_UPLOAD_BYTES, OpenAiCompatOptions, OpenAiCompatTranscriber, parse_verbose_json};
+pub use openai_compat::{
+    DEFAULT_MAX_UPLOAD_BYTES, OpenAiCompatOptions, OpenAiCompatTranscriber, parse_verbose_json,
+};
 pub use transcriber::{TranscribeOpts, Transcriber};
-pub use transcript::{MIN_WORD_DURATION, SearchHit, Segment, SegmentOpts, Transcript, Word, WordFlags};
+pub use transcript::{
+    MIN_WORD_DURATION, SearchHit, Segment, SegmentOpts, Transcript, Word, WordFlags,
+};

@@ -17,7 +17,11 @@ fn setup() -> NodeRegistry {
     nodes
 }
 
-async fn run(endpoint: &str, params: Value, input: Vec<Item>) -> Result<Vec<Item>, hk_flow::FlowError> {
+async fn run(
+    endpoint: &str,
+    params: Value,
+    input: Vec<Item>,
+) -> Result<Vec<Item>, hk_flow::FlowError> {
     let nodes = setup();
     let node: Node = serde_json::from_value(json!({
         "name": "S3", "type": "n8n-nodes-base.s3", "typeVersion": 1, "position": [0, 0],
@@ -28,7 +32,12 @@ async fn run(endpoint: &str, params: Value, input: Vec<Item>) -> Result<Vec<Item
     let mut c = NodeContext::new(node, vec![input], 0);
     let cred = json!({"endpoint": endpoint, "accessKeyId": "AKID", "secretAccessKey": "SECRET", "region": "us-east-1"});
     c.hooks.credentials = Some(Arc::new(Creds(cred)));
-    nodes.latest("n8n-nodes-base.s3").unwrap().execute(&c).await.map(|mut o| o.remove(0))
+    nodes
+        .latest("n8n-nodes-base.s3")
+        .unwrap()
+        .execute(&c)
+        .await
+        .map(|mut o| o.remove(0))
 }
 
 fn one() -> Vec<Item> {
@@ -44,7 +53,9 @@ fn header(req: &str, name: &str) -> Option<String> {
 
 #[tokio::test]
 async fn upload_is_signed_and_path_style() {
-    let resp = "HTTP/1.1 200 OK\r\nETag: \"abc123\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_owned();
+    let resp =
+        "HTTP/1.1 200 OK\r\nETag: \"abc123\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            .to_owned();
     let (url, seen) = serve(vec![resp]).await;
     let params = json!({
         "resource": "file", "operation": "upload", "bucketName": "bkt", "fileName": "dir/a b.txt",
@@ -57,11 +68,23 @@ async fn upload_is_signed_and_path_style() {
     let req = seen.lock().unwrap()[0].clone();
     assert!(req.starts_with("PUT /bkt/dir/a%20b.txt HTTP/1.1"), "{req}");
     let auth = header(&req, "authorization").expect("authorization header");
-    assert!(auth.starts_with("AWS4-HMAC-SHA256 Credential=AKID/"), "{auth}");
-    assert!(auth.contains("/us-east-1/s3/aws4_request,SignedHeaders="), "{auth}");
-    assert!(auth.contains("content-type;host;x-amz-acl;x-amz-content-sha256;x-amz-date"), "{auth}");
+    assert!(
+        auth.starts_with("AWS4-HMAC-SHA256 Credential=AKID/"),
+        "{auth}"
+    );
+    assert!(
+        auth.contains("/us-east-1/s3/aws4_request,SignedHeaders="),
+        "{auth}"
+    );
+    assert!(
+        auth.contains("content-type;host;x-amz-acl;x-amz-content-sha256;x-amz-date"),
+        "{auth}"
+    );
     // sha256("hello")
-    assert_eq!(header(&req, "x-amz-content-sha256").unwrap(), "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
+    assert_eq!(
+        header(&req, "x-amz-content-sha256").unwrap(),
+        "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    );
     assert_eq!(header(&req, "x-amz-acl").as_deref(), Some("public-read"));
     assert_eq!(header(&req, "content-type").as_deref(), Some("text/x-test"));
     assert!(header(&req, "x-amz-date").unwrap().ends_with('Z'));
@@ -79,21 +102,43 @@ async fn list_files_follows_continuation_tokens() {
     let (url, seen) = serve(vec![http_resp("200 OK", page1), http_resp("200 OK", page2)]).await;
     let params = json!({"resource": "file", "operation": "getAll", "bucketName": "bkt", "returnAll": true, "additionalFields": {"prefix": "logs/"}});
     let out = run(&url, params, one()).await.unwrap();
-    let keys: Vec<_> = out.iter().map(|i| i.json["Key"].as_str().unwrap().to_owned()).collect();
+    let keys: Vec<_> = out
+        .iter()
+        .map(|i| i.json["Key"].as_str().unwrap().to_owned())
+        .collect();
     assert_eq!(keys, ["a.txt", "b & c.txt"]);
     assert_eq!(out[0].json["ETag"], "e1");
     assert_eq!(out[0].json["Size"], 10);
     let reqs = seen.lock().unwrap().clone();
-    assert!(reqs[0].starts_with("GET /bkt/?list-type=2&max-keys=1000&prefix=logs%2F HTTP/1.1"), "{}", reqs[0]);
-    assert!(reqs[1].contains("continuation-token=tok%2F1"), "{}", reqs[1]);
+    assert!(
+        reqs[0].starts_with("GET /bkt/?list-type=2&max-keys=1000&prefix=logs%2F HTTP/1.1"),
+        "{}",
+        reqs[0]
+    );
+    assert!(
+        reqs[1].contains("continuation-token=tok%2F1"),
+        "{}",
+        reqs[1]
+    );
 }
 
 #[tokio::test]
 async fn buckets_download_and_errors() {
     let buckets = r#"<ListAllMyBucketsResult><Buckets><Bucket><Name>one</Name><CreationDate>2024-01-01T00:00:00.000Z</CreationDate></Bucket><Bucket><Name>two</Name><CreationDate>x</CreationDate></Bucket></Buckets></ListAllMyBucketsResult>"#;
     let (url, seen) = serve(vec![http_resp("200 OK", buckets)]).await;
-    let out = run(&url, json!({"resource": "bucket", "operation": "getAll", "returnAll": true}), one()).await.unwrap();
-    assert_eq!(out.iter().map(|i| i.json["Name"].as_str().unwrap()).collect::<Vec<_>>(), ["one", "two"]);
+    let out = run(
+        &url,
+        json!({"resource": "bucket", "operation": "getAll", "returnAll": true}),
+        one(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        out.iter()
+            .map(|i| i.json["Name"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["one", "two"]
+    );
     assert!(seen.lock().unwrap()[0].starts_with("GET / HTTP/1.1"));
 
     let raw = "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: 3\r\nConnection: close\r\n\r\nabc".to_owned();
@@ -107,8 +152,18 @@ async fn buckets_download_and_errors() {
 
     let denied = r#"<Error><Code>NoSuchBucket</Code><Message>The specified bucket does not exist</Message></Error>"#;
     let (url, _) = serve(vec![http_resp("404 Not Found", denied)]).await;
-    let err = run(&url, json!({"resource": "file", "operation": "delete", "bucketName": "nope", "fileKey": "k"}), one()).await.unwrap_err();
-    assert!(err.to_string().contains("NoSuchBucket: The specified bucket does not exist"), "{err}");
+    let err = run(
+        &url,
+        json!({"resource": "file", "operation": "delete", "bucketName": "nope", "fileKey": "k"}),
+        one(),
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("NoSuchBucket: The specified bucket does not exist"),
+        "{err}"
+    );
 }
 
 #[tokio::test]
@@ -119,5 +174,8 @@ async fn copy_sends_the_encoded_source_header() {
     assert_eq!(out[0].json["etag"], "e");
     let req = seen.lock().unwrap()[0].clone();
     assert!(req.starts_with("PUT /dst/copy.txt HTTP/1.1"), "{req}");
-    assert_eq!(header(&req, "x-amz-copy-source").as_deref(), Some("/src/a%20b.txt"));
+    assert_eq!(
+        header(&req, "x-amz-copy-source").as_deref(),
+        Some("/src/a%20b.txt")
+    );
 }

@@ -153,8 +153,15 @@ fn where_sql(d: Dialect, t: &Table, w: &Where, params: &mut Vec<Value>) -> Strin
             let rhs = match d {
                 Dialect::Sqlite => d.ph(push_param(params, c.value.clone())),
                 Dialect::Postgres => {
-                    let n = push_param(params, Value::Object(Map::from_iter([(c.column.clone(), c.value.clone())])));
-                    format!("(jsonb_populate_record(NULL::{}, {})).{col}", t.sql(), d.ph(n))
+                    let n = push_param(
+                        params,
+                        Value::Object(Map::from_iter([(c.column.clone(), c.value.clone())])),
+                    );
+                    format!(
+                        "(jsonb_populate_record(NULL::{}, {})).{col}",
+                        t.sql(),
+                        d.ph(n)
+                    )
                 }
             };
             format!("{col} {} {rhs}", c.op.sql())
@@ -164,7 +171,9 @@ fn where_sql(d: Dialect, t: &Table, w: &Where, params: &mut Vec<Value>) -> Strin
 }
 
 fn cols_sql(cols: impl Iterator<Item = impl AsRef<str>>) -> String {
-    cols.map(|c| quote_ident(c.as_ref())).collect::<Vec<_>>().join(", ")
+    cols.map(|c| quote_ident(c.as_ref()))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// `INSERT` head shared by insert and upsert: sqlite binds one param per column, postgres one
@@ -176,8 +185,15 @@ fn insert_head(d: Dialect, t: &Table, row: &Map<String, Value>, params: &mut Vec
     let cols = cols_sql(row.keys());
     match d {
         Dialect::Sqlite => {
-            let phs: Vec<String> = row.values().map(|v| d.ph(push_param(params, v.clone()))).collect();
-            format!("INSERT INTO {} ({cols}) VALUES ({})", t.sql(), phs.join(", "))
+            let phs: Vec<String> = row
+                .values()
+                .map(|v| d.ph(push_param(params, v.clone())))
+                .collect();
+            format!(
+                "INSERT INTO {} ({cols}) VALUES ({})",
+                t.sql(),
+                phs.join(", ")
+            )
         }
         Dialect::Postgres => {
             let n = push_param(params, Value::Object(row.clone()));
@@ -198,7 +214,12 @@ pub(crate) fn insert(d: Dialect, t: &Table, row: &Map<String, Value>) -> Stmt {
 }
 
 /// Insert, or update the non-key columns when a row with the same `matching` values exists.
-pub(crate) fn upsert(d: Dialect, t: &Table, row: &Map<String, Value>, matching: &[String]) -> Result<Stmt, String> {
+pub(crate) fn upsert(
+    d: Dialect,
+    t: &Table,
+    row: &Map<String, Value>,
+    matching: &[String],
+) -> Result<Stmt, String> {
     check_matching(row, matching)?;
     let mut params = Vec::new();
     let mut sql = insert_head(d, t, row, &mut params);
@@ -228,7 +249,12 @@ fn check_matching(row: &Map<String, Value>, matching: &[String]) -> Result<(), S
 }
 
 /// `UPDATE` rows whose `matching` columns equal the given values; the other columns are set.
-pub(crate) fn update(d: Dialect, t: &Table, row: &Map<String, Value>, matching: &[String]) -> Result<Stmt, String> {
+pub(crate) fn update(
+    d: Dialect,
+    t: &Table,
+    row: &Map<String, Value>,
+    matching: &[String],
+) -> Result<Stmt, String> {
     check_matching(row, matching)?;
     let set: Vec<&String> = row.keys().filter(|c| !matching.contains(c)).collect();
     if set.is_empty() {
@@ -239,18 +265,41 @@ pub(crate) fn update(d: Dialect, t: &Table, row: &Map<String, Value>, matching: 
         Dialect::Sqlite => {
             let sets: Vec<String> = set
                 .iter()
-                .map(|c| format!("{} = {}", quote_ident(c), d.ph(push_param(&mut params, row[*c].clone()))))
+                .map(|c| {
+                    format!(
+                        "{} = {}",
+                        quote_ident(c),
+                        d.ph(push_param(&mut params, row[*c].clone()))
+                    )
+                })
                 .collect();
             let wh: Vec<String> = matching
                 .iter()
-                .map(|c| format!("{} = {}", quote_ident(c), d.ph(push_param(&mut params, row[c].clone()))))
+                .map(|c| {
+                    format!(
+                        "{} = {}",
+                        quote_ident(c),
+                        d.ph(push_param(&mut params, row[c].clone()))
+                    )
+                })
                 .collect();
-            format!("UPDATE {} SET {} WHERE {} RETURNING *", t.sql(), sets.join(", "), wh.join(" AND "))
+            format!(
+                "UPDATE {} SET {} WHERE {} RETURNING *",
+                t.sql(),
+                sets.join(", "),
+                wh.join(" AND ")
+            )
         }
         Dialect::Postgres => {
             let n = push_param(&mut params, Value::Object(row.clone()));
-            let sets: Vec<String> = set.iter().map(|c| format!("{0} = r.{0}", quote_ident(c))).collect();
-            let wh: Vec<String> = matching.iter().map(|c| format!("t.{0} = r.{0}", quote_ident(c))).collect();
+            let sets: Vec<String> = set
+                .iter()
+                .map(|c| format!("{0} = r.{0}", quote_ident(c)))
+                .collect();
+            let wh: Vec<String> = matching
+                .iter()
+                .map(|c| format!("t.{0} = r.{0}", quote_ident(c)))
+                .collect();
             format!(
                 "UPDATE {tbl} AS t SET {} FROM jsonb_populate_record(NULL::{tbl}, {}) AS r WHERE {} RETURNING t.*",
                 sets.join(", "),
@@ -272,13 +321,23 @@ pub(crate) fn select(
     limit: Option<u64>,
 ) -> Stmt {
     let mut params = Vec::new();
-    let cols = if columns.is_empty() { "*".to_owned() } else { cols_sql(columns.iter()) };
+    let cols = if columns.is_empty() {
+        "*".to_owned()
+    } else {
+        cols_sql(columns.iter())
+    };
     let mut sql = format!("SELECT {cols} FROM {}", t.sql());
     sql.push_str(&where_sql(d, t, w, &mut params));
     if !sort.is_empty() {
         let order: Vec<String> = sort
             .iter()
-            .map(|s| format!("{} {}", quote_ident(&s.column), if s.desc { "DESC" } else { "ASC" }))
+            .map(|s| {
+                format!(
+                    "{} {}",
+                    quote_ident(&s.column),
+                    if s.desc { "DESC" } else { "ASC" }
+                )
+            })
             .collect();
         sql.push_str(&format!(" ORDER BY {}", order.join(", ")));
     }
@@ -311,7 +370,10 @@ pub(crate) fn delete_table(d: Dialect, t: &Table, cmd: TableCommand) -> Stmt {
         // sqlite has no TRUNCATE
         (TableCommand::Truncate, Dialect::Sqlite) => format!("DELETE FROM {}", t.sql()),
     };
-    Stmt { sql, params: Vec::new() }
+    Stmt {
+        sql,
+        params: Vec::new(),
+    }
 }
 
 // ---------------------------------------------------------------- node parameter readers
@@ -336,9 +398,9 @@ pub(crate) fn bind_query(
     while let Some(start) = rest.find("{{") {
         out.push_str(&rest[..start]);
         let after = &rest[start + 2..];
-        let end = after.find("}}").ok_or_else(|| {
-            crate::kit::node_err(ctx, "Unterminated `{{` in the query")
-        })?;
+        let end = after
+            .find("}}")
+            .ok_or_else(|| crate::kit::node_err(ctx, "Unterminated `{{` in the query"))?;
         let expr = after[..end].trim();
         if expr.is_empty() {
             return Err(crate::kit::node_err(ctx, "Empty `{{ }}` in the query"));
@@ -353,22 +415,36 @@ pub(crate) fn bind_query(
 
 /// `queryReplacement`: an array (expression result) or a comma separated string.
 pub(crate) fn replacements(ctx: &NodeContext, i: usize) -> Result<Vec<Value>, FlowError> {
-    Ok(match ctx.eval_param_at("options.queryReplacement", i)?.or(ctx.eval_param_at("queryReplacement", i)?) {
-        Some(Value::Array(a)) => a,
-        Some(Value::String(s)) if s.trim().is_empty() => Vec::new(),
-        Some(Value::String(s)) => s.split(',').map(|p| Value::String(p.trim().to_owned())).collect(),
-        Some(Value::Null) | None => Vec::new(),
-        Some(other) => vec![other],
-    })
+    Ok(
+        match ctx
+            .eval_param_at("options.queryReplacement", i)?
+            .or(ctx.eval_param_at("queryReplacement", i)?)
+        {
+            Some(Value::Array(a)) => a,
+            Some(Value::String(s)) if s.trim().is_empty() => Vec::new(),
+            Some(Value::String(s)) => s
+                .split(',')
+                .map(|p| Value::String(p.trim().to_owned()))
+                .collect(),
+            Some(Value::Null) | None => Vec::new(),
+            Some(other) => vec![other],
+        },
+    )
 }
 
 pub(crate) fn table(ctx: &NodeContext, i: usize, with_schema: bool) -> Result<Table, FlowError> {
-    let name = ctx.eval_param_at("table", i)?.map(|v| rl_value(&v)).unwrap_or_default();
+    let name = ctx
+        .eval_param_at("table", i)?
+        .map(|v| rl_value(&v))
+        .unwrap_or_default();
     if name.trim().is_empty() {
         return Err(crate::kit::node_err(ctx, "Parameter 'Table' is required"));
     }
     let schema = if with_schema {
-        ctx.eval_param_at("schema", i)?.map(|v| rl_value(&v)).filter(|s| !s.is_empty()).or(Some("public".into()))
+        ctx.eval_param_at("schema", i)?
+            .map(|v| rl_value(&v))
+            .filter(|s| !s.is_empty())
+            .or(Some("public".into()))
     } else {
         None
     };
@@ -385,7 +461,11 @@ pub(crate) struct Mapping {
 fn names(v: &Value) -> Vec<String> {
     match v {
         Value::Array(a) => a.iter().map(display).filter(|s| !s.is_empty()).collect(),
-        Value::String(s) => s.split(',').map(|p| p.trim().to_owned()).filter(|p| !p.is_empty()).collect(),
+        Value::String(s) => s
+            .split(',')
+            .map(|p| p.trim().to_owned())
+            .filter(|p| !p.is_empty())
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -393,18 +473,38 @@ fn names(v: &Value) -> Vec<String> {
 /// n8n resource-mapper shape (`{mappingMode, value, matchingColumns}`), or a comma list of
 /// item fields, or nothing (all fields of the input item).
 pub(crate) fn mapping(ctx: &NodeContext, i: usize) -> Result<Mapping, FlowError> {
-    let item = ctx.input.first().and_then(|p| p.get(i)).map(|it| it.json.clone()).unwrap_or_default();
-    let top_matching = ctx.eval_param_at("matchingColumns", i)?.map(|v| names(&v)).unwrap_or_default();
+    let item = ctx
+        .input
+        .first()
+        .and_then(|p| p.get(i))
+        .map(|it| it.json.clone())
+        .unwrap_or_default();
+    let top_matching = ctx
+        .eval_param_at("matchingColumns", i)?
+        .map(|v| names(&v))
+        .unwrap_or_default();
     let Some(cols) = ctx
         .eval_param_at("columns", i)?
         .filter(|v| !v.is_null() && v.as_str().is_none_or(|s| !s.trim().is_empty()))
     else {
-        return Ok(Mapping { row: item, matching: top_matching });
+        return Ok(Mapping {
+            row: item,
+            matching: top_matching,
+        });
     };
     let mut m = match cols {
         Value::String(_) => {
-            let row = names(&cols).into_iter().map(|c| { let v = item.get(&c).cloned().unwrap_or(Value::Null); (c, v) }).collect();
-            Mapping { row, matching: Vec::new() }
+            let row = names(&cols)
+                .into_iter()
+                .map(|c| {
+                    let v = item.get(&c).cloned().unwrap_or(Value::Null);
+                    (c, v)
+                })
+                .collect();
+            Mapping {
+                row,
+                matching: Vec::new(),
+            }
         }
         Value::Object(m) => {
             let matching = m.get("matchingColumns").map(names).unwrap_or_default();
@@ -415,7 +515,10 @@ pub(crate) fn mapping(ctx: &NodeContext, i: usize) -> Result<Mapping, FlowError>
             };
             Mapping { row, matching }
         }
-        _ => Mapping { row: item, matching: Vec::new() },
+        _ => Mapping {
+            row: item,
+            matching: Vec::new(),
+        },
     };
     if m.matching.is_empty() {
         m.matching = top_matching;
@@ -433,16 +536,26 @@ fn json_param(ctx: &NodeContext, path: &str, i: usize) -> Result<Option<Value>, 
 
 pub(crate) fn conditions(ctx: &NodeContext, i: usize) -> Result<Where, FlowError> {
     let mut w = Where::default();
-    if let Some(Value::Array(vals)) = json_param(ctx, "where", i)?.and_then(|w| w.get("values").cloned()) {
+    if let Some(Value::Array(vals)) =
+        json_param(ctx, "where", i)?.and_then(|w| w.get("values").cloned())
+    {
         for v in vals {
             let column = v.get("column").map(rl_value).unwrap_or_default();
             if column.is_empty() {
                 continue;
             }
-            let cond = v.get("condition").and_then(Value::as_str).unwrap_or("equal");
-            let op = Op::parse(cond)
-                .ok_or_else(|| crate::kit::node_err(ctx, format!("Unsupported condition `{cond}`")))?;
-            w.conds.push(Cond { column, op, value: v.get("value").cloned().unwrap_or(Value::Null) });
+            let cond = v
+                .get("condition")
+                .and_then(Value::as_str)
+                .unwrap_or("equal");
+            let op = Op::parse(cond).ok_or_else(|| {
+                crate::kit::node_err(ctx, format!("Unsupported condition `{cond}`"))
+            })?;
+            w.conds.push(Cond {
+                column,
+                op,
+                value: v.get("value").cloned().unwrap_or(Value::Null),
+            });
         }
     }
     w.or = ctx
@@ -453,11 +566,15 @@ pub(crate) fn conditions(ctx: &NodeContext, i: usize) -> Result<Where, FlowError
 
 pub(crate) fn sorting(ctx: &NodeContext, i: usize) -> Result<Vec<Sort>, FlowError> {
     let mut out = Vec::new();
-    if let Some(Value::Array(vals)) = json_param(ctx, "sort", i)?.and_then(|w| w.get("values").cloned()) {
+    if let Some(Value::Array(vals)) =
+        json_param(ctx, "sort", i)?.and_then(|w| w.get("values").cloned())
+    {
         for v in vals {
             let column = v.get("column").map(rl_value).unwrap_or_default();
             if !column.is_empty() {
-                let desc = v.get("direction").is_some_and(|d| display(d).eq_ignore_ascii_case("desc"));
+                let desc = v
+                    .get("direction")
+                    .is_some_and(|d| display(d).eq_ignore_ascii_case("desc"));
                 out.push(Sort { column, desc });
             }
         }
@@ -466,8 +583,15 @@ pub(crate) fn sorting(ctx: &NodeContext, i: usize) -> Result<Vec<Sort>, FlowErro
 }
 
 pub(crate) fn output_columns(ctx: &NodeContext, i: usize) -> Result<Vec<String>, FlowError> {
-    let cols = ctx.eval_param_at("options.outputColumns", i)?.map(|v| names(&v)).unwrap_or_default();
-    Ok(if cols.iter().any(|c| c == "*") { Vec::new() } else { cols })
+    let cols = ctx
+        .eval_param_at("options.outputColumns", i)?
+        .map(|v| names(&v))
+        .unwrap_or_default();
+    Ok(if cols.iter().any(|c| c == "*") {
+        Vec::new()
+    } else {
+        cols
+    })
 }
 
 /// Row limit for select: `None` when returning all.
@@ -485,24 +609,33 @@ pub(crate) fn limit(ctx: &NodeContext, i: usize) -> Result<Option<u64>, FlowErro
 
 /// Operation and parameter set shared by the two SQL nodes. `schema` is Postgres only.
 pub(crate) fn properties(d: Dialect) -> Vec<Prop> {
-    const TABLE_OPS: &[&str] = &["insert", "update", "upsert", "select", "delete", "deleteTable"];
-    let mut ps = vec![
-        Prop::options(
-            "operation",
-            "Operation",
-            vec![
-                Choice::new("Execute Query", "executeQuery").action("Execute a SQL query"),
-                Choice::new("Insert", "insert").action("Insert rows in a table"),
-                Choice::new("Insert or Update", "upsert").action("Insert or update rows in a table"),
-                Choice::new("Select", "select").action("Select rows from a table"),
-                Choice::new("Update", "update").action("Update rows in a table"),
-                Choice::new("Delete", "delete").action("Delete rows from a table"),
-                Choice::new("Delete Table", "deleteTable").action("Truncate or drop a table"),
-            ],
-        ),
+    const TABLE_OPS: &[&str] = &[
+        "insert",
+        "update",
+        "upsert",
+        "select",
+        "delete",
+        "deleteTable",
     ];
+    let mut ps = vec![Prop::options(
+        "operation",
+        "Operation",
+        vec![
+            Choice::new("Execute Query", "executeQuery").action("Execute a SQL query"),
+            Choice::new("Insert", "insert").action("Insert rows in a table"),
+            Choice::new("Insert or Update", "upsert").action("Insert or update rows in a table"),
+            Choice::new("Select", "select").action("Select rows from a table"),
+            Choice::new("Update", "update").action("Update rows in a table"),
+            Choice::new("Delete", "delete").action("Delete rows from a table"),
+            Choice::new("Delete Table", "deleteTable").action("Truncate or drop a table"),
+        ],
+    )];
     if d == Dialect::Postgres {
-        ps.push(Prop::string("schema", "Schema").default("public").show("operation", TABLE_OPS));
+        ps.push(
+            Prop::string("schema", "Schema")
+                .default("public")
+                .show("operation", TABLE_OPS),
+        );
     }
     ps.extend([
         Prop::string("table", "Table").required().show("operation", TABLE_OPS),
@@ -549,7 +682,12 @@ pub(crate) fn properties(d: Dialect) -> Vec<Prop> {
 }
 
 /// Statement for one input item, for every operation but `executeQuery`.
-pub(crate) fn plan_structured(ctx: &NodeContext, op: &str, d: Dialect, i: usize) -> Result<Stmt, FlowError> {
+pub(crate) fn plan_structured(
+    ctx: &NodeContext,
+    op: &str,
+    d: Dialect,
+    i: usize,
+) -> Result<Stmt, FlowError> {
     let bad = |m: String| crate::kit::node_err(ctx, m);
     let t = table(ctx, i, d == Dialect::Postgres)?;
     match op {
@@ -562,10 +700,21 @@ pub(crate) fn plan_structured(ctx: &NodeContext, op: &str, d: Dialect, i: usize)
             let m = mapping(ctx, i)?;
             upsert(d, &t, &m.row, &m.matching).map_err(bad)
         }
-        "select" => Ok(select(d, &t, &output_columns(ctx, i)?, &conditions(ctx, i)?, &sorting(ctx, i)?, limit(ctx, i)?)),
+        "select" => Ok(select(
+            d,
+            &t,
+            &output_columns(ctx, i)?,
+            &conditions(ctx, i)?,
+            &sorting(ctx, i)?,
+            limit(ctx, i)?,
+        )),
         "delete" => delete(d, &t, &conditions(ctx, i)?).map_err(bad),
         "deleteTable" => {
-            let cmd = match ctx.eval_param_at("deleteCommand", i)?.map(|v| display(&v)).as_deref() {
+            let cmd = match ctx
+                .eval_param_at("deleteCommand", i)?
+                .map(|v| display(&v))
+                .as_deref()
+            {
                 Some("drop") => TableCommand::Drop,
                 _ => TableCommand::Truncate,
             };
@@ -578,7 +727,12 @@ pub(crate) fn plan_structured(ctx: &NodeContext, op: &str, d: Dialect, i: usize)
 /// `executeQuery` statement: `{{ }}` bound after any `queryReplacement` values.
 pub(crate) fn plan_query(ctx: &NodeContext, d: Dialect, i: usize) -> Result<Stmt, FlowError> {
     let mut params = replacements(ctx, i)?;
-    let raw = ctx.node.parameters.get("query").cloned().unwrap_or(Value::Null);
+    let raw = ctx
+        .node
+        .parameters
+        .get("query")
+        .cloned()
+        .unwrap_or(Value::Null);
     let sql = bind_query(ctx, &raw, i, d, &mut params)?;
     if sql.trim().is_empty() {
         return Err(crate::kit::node_err(ctx, "Parameter 'Query' is required"));
@@ -593,7 +747,10 @@ mod tests {
     use super::*;
 
     fn t() -> Table {
-        Table { schema: Some("public".into()), name: "us\"ers".into() }
+        Table {
+            schema: Some("public".into()),
+            name: "us\"ers".into(),
+        }
     }
 
     fn row() -> Map<String, Value> {
@@ -603,7 +760,14 @@ mod tests {
     #[test]
     fn identifiers_are_quoted() {
         assert_eq!(t().sql(), "\"public\".\"us\"\"ers\"");
-        assert_eq!(Table { schema: None, name: "a".into() }.sql(), "\"a\"");
+        assert_eq!(
+            Table {
+                schema: None,
+                name: "a".into()
+            }
+            .sql(),
+            "\"a\""
+        );
     }
 
     #[test]
@@ -619,20 +783,49 @@ mod tests {
 
     #[test]
     fn insert_sqlite_binds_each_value() {
-        let s = insert(Dialect::Sqlite, &Table { schema: None, name: "u".into() }, &row());
-        assert_eq!(s.sql, "INSERT INTO \"u\" (\"id\", \"name\") VALUES (?1, ?2) RETURNING *");
+        let s = insert(
+            Dialect::Sqlite,
+            &Table {
+                schema: None,
+                name: "u".into(),
+            },
+            &row(),
+        );
+        assert_eq!(
+            s.sql,
+            "INSERT INTO \"u\" (\"id\", \"name\") VALUES (?1, ?2) RETURNING *"
+        );
         assert_eq!(s.params, vec![json!(1), json!("ann")]);
         // a hostile value stays a parameter
         let mut r = Map::new();
         r.insert("name".into(), json!("x'); DROP TABLE u;--"));
-        assert!(!insert(Dialect::Sqlite, &Table { schema: None, name: "u".into() }, &r).sql.contains("DROP"));
+        assert!(
+            !insert(
+                Dialect::Sqlite,
+                &Table {
+                    schema: None,
+                    name: "u".into()
+                },
+                &r
+            )
+            .sql
+            .contains("DROP")
+        );
     }
 
     #[test]
     fn update_and_upsert_need_matching_columns() {
         assert!(update(Dialect::Postgres, &t(), &row(), &[]).is_err());
         assert!(update(Dialect::Postgres, &t(), &row(), &["nope".into()]).is_err());
-        assert!(update(Dialect::Postgres, &t(), &row(), &["id".into(), "name".into()]).is_err());
+        assert!(
+            update(
+                Dialect::Postgres,
+                &t(),
+                &row(),
+                &["id".into(), "name".into()]
+            )
+            .is_err()
+        );
         let s = update(Dialect::Postgres, &t(), &row(), &["id".into()]).unwrap();
         assert_eq!(
             s.sql,
@@ -640,22 +833,44 @@ mod tests {
              jsonb_populate_record(NULL::\"public\".\"us\"\"ers\", $1) AS r WHERE t.\"id\" = r.\"id\" RETURNING t.*"
         );
         let s = update(Dialect::Sqlite, &t(), &row(), &["id".into()]).unwrap();
-        assert!(s.sql.ends_with("SET \"name\" = ?1 WHERE \"id\" = ?2 RETURNING *"), "{}", s.sql);
+        assert!(
+            s.sql
+                .ends_with("SET \"name\" = ?1 WHERE \"id\" = ?2 RETURNING *"),
+            "{}",
+            s.sql
+        );
         assert_eq!(s.params, vec![json!("ann"), json!(1)]);
         let s = upsert(Dialect::Postgres, &t(), &row(), &["id".into()]).unwrap();
-        assert!(s.sql.ends_with("ON CONFLICT (\"id\") DO UPDATE SET \"name\" = EXCLUDED.\"name\" RETURNING *"), "{}", s.sql);
+        assert!(
+            s.sql.ends_with(
+                "ON CONFLICT (\"id\") DO UPDATE SET \"name\" = EXCLUDED.\"name\" RETURNING *"
+            ),
+            "{}",
+            s.sql
+        );
     }
 
     #[test]
     fn select_builds_where_sort_limit() {
         let w = Where {
             conds: vec![
-                Cond { column: "age".into(), op: Op::Ge, value: json!(18) },
-                Cond { column: "name".into(), op: Op::IsNotNull, value: Value::Null },
+                Cond {
+                    column: "age".into(),
+                    op: Op::Ge,
+                    value: json!(18),
+                },
+                Cond {
+                    column: "name".into(),
+                    op: Op::IsNotNull,
+                    value: Value::Null,
+                },
             ],
             or: false,
         };
-        let sort = [Sort { column: "age".into(), desc: true }];
+        let sort = [Sort {
+            column: "age".into(),
+            desc: true,
+        }];
         let s = select(Dialect::Postgres, &t(), &["id".into()], &w, &sort, Some(10));
         assert_eq!(
             s.sql,
@@ -664,16 +879,54 @@ mod tests {
              ORDER BY \"age\" DESC LIMIT 10"
         );
         assert_eq!(s.params, vec![json!({"age": 18})]);
-        let s = select(Dialect::Sqlite, &Table { schema: None, name: "u".into() }, &[], &w, &[], None);
-        assert_eq!(s.sql, "SELECT * FROM \"u\" WHERE \"age\" >= ?1 AND \"name\" IS NOT NULL");
+        let s = select(
+            Dialect::Sqlite,
+            &Table {
+                schema: None,
+                name: "u".into(),
+            },
+            &[],
+            &w,
+            &[],
+            None,
+        );
+        assert_eq!(
+            s.sql,
+            "SELECT * FROM \"u\" WHERE \"age\" >= ?1 AND \"name\" IS NOT NULL"
+        );
     }
 
     #[test]
     fn delete_refuses_to_wipe() {
         assert!(delete(Dialect::Sqlite, &t(), &Where::default()).is_err());
-        let w = Where { conds: vec![Cond { column: "id".into(), op: Op::Eq, value: json!(3) }], or: true };
-        assert_eq!(delete(Dialect::Sqlite, &Table { schema: None, name: "u".into() }, &w).unwrap().sql, "DELETE FROM \"u\" WHERE \"id\" = ?1");
-        assert_eq!(delete_table(Dialect::Sqlite, &t(), TableCommand::Truncate).sql, "DELETE FROM \"public\".\"us\"\"ers\"");
-        assert_eq!(delete_table(Dialect::Postgres, &t(), TableCommand::Truncate).sql, "TRUNCATE TABLE \"public\".\"us\"\"ers\"");
+        let w = Where {
+            conds: vec![Cond {
+                column: "id".into(),
+                op: Op::Eq,
+                value: json!(3),
+            }],
+            or: true,
+        };
+        assert_eq!(
+            delete(
+                Dialect::Sqlite,
+                &Table {
+                    schema: None,
+                    name: "u".into()
+                },
+                &w
+            )
+            .unwrap()
+            .sql,
+            "DELETE FROM \"u\" WHERE \"id\" = ?1"
+        );
+        assert_eq!(
+            delete_table(Dialect::Sqlite, &t(), TableCommand::Truncate).sql,
+            "DELETE FROM \"public\".\"us\"\"ers\""
+        );
+        assert_eq!(
+            delete_table(Dialect::Postgres, &t(), TableCommand::Truncate).sql,
+            "TRUNCATE TABLE \"public\".\"us\"\"ers\""
+        );
     }
 }

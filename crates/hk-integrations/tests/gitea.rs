@@ -20,7 +20,9 @@ fn ctx(url: &str, params: Value) -> NodeContext {
     .unwrap();
     let mut c = NodeContext::new(node, vec![vec![Item::from_json(json!({}))]], 0);
     // a server URL that already ends in /api/v1 is tolerated
-    c.hooks.credentials = Some(Arc::new(Creds(json!({"server": format!("{url}/api/v1/"), "accessToken": "gt_SECRET"}))));
+    c.hooks.credentials = Some(Arc::new(Creds(
+        json!({"server": format!("{url}/api/v1/"), "accessToken": "gt_SECRET"}),
+    )));
     c
 }
 
@@ -44,9 +46,18 @@ async fn issue_create_file_create_and_edit() {
     let out = gitea.execute(&ctx(&url, params)).await.unwrap();
     assert_eq!(out[0][0].json["number"], 3);
     let req = seen.lock().unwrap()[0].clone();
-    assert!(req.starts_with("POST /api/v1/repos/o/r/issues HTTP/1.1"), "{req}");
-    assert!(req.to_lowercase().contains("authorization: token gt_secret"));
-    assert_eq!(body_of(&req), json!({"title": "Bug", "labels": [4, 5], "assignees": ["bob"]}));
+    assert!(
+        req.starts_with("POST /api/v1/repos/o/r/issues HTTP/1.1"),
+        "{req}"
+    );
+    assert!(
+        req.to_lowercase()
+            .contains("authorization: token gt_secret")
+    );
+    assert_eq!(
+        body_of(&req),
+        json!({"title": "Bug", "labels": [4, 5], "assignees": ["bob"]})
+    );
 
     // create = POST without sha
     let (url, seen) = serve(vec![http_resp("201 Created", r#"{"content":{}}"#)]).await;
@@ -56,18 +67,29 @@ async fn issue_create_file_create_and_edit() {
     });
     gitea.execute(&ctx(&url, params)).await.unwrap();
     let req = seen.lock().unwrap()[0].clone();
-    assert!(req.starts_with("POST /api/v1/repos/o/r/contents/a/b.md HTTP/1.1"), "{req}");
+    assert!(
+        req.starts_with("POST /api/v1/repos/o/r/contents/a/b.md HTTP/1.1"),
+        "{req}"
+    );
     assert_eq!(body_of(&req), json!({"message": "add", "content": "aGk="}));
 
     // edit = GET sha, then PUT with it
-    let (url, seen) = serve(vec![http_resp("200 OK", r#"{"sha":"s1"}"#), http_resp("200 OK", r#"{"content":{}}"#)]).await;
+    let (url, seen) = serve(vec![
+        http_resp("200 OK", r#"{"sha":"s1"}"#),
+        http_resp("200 OK", r#"{"content":{}}"#),
+    ])
+    .await;
     let params = json!({
         "resource": "file", "operation": "edit", "owner": "o", "repository": "r",
         "filePath": "a/b.md", "fileContent": "yo", "commitMessage": "upd"
     });
     gitea.execute(&ctx(&url, params)).await.unwrap();
     let seen = seen.lock().unwrap();
-    assert!(seen[0].starts_with("GET /api/v1/repos/o/r/contents/a/b.md HTTP/1.1"), "{}", seen[0]);
+    assert!(
+        seen[0].starts_with("GET /api/v1/repos/o/r/contents/a/b.md HTTP/1.1"),
+        "{}",
+        seen[0]
+    );
     assert!(seen[1].starts_with("PUT /api/v1/repos/o/r/contents/a/b.md HTTP/1.1"));
     assert_eq!(body_of(&seen[1])["sha"], "s1");
 }

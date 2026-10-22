@@ -61,7 +61,8 @@ mod http {
 
     impl IntoResponse for ApiError {
         fn into_response(self) -> Response {
-            let body = Json(json!({ "error": { "code": self.code(), "message": self.to_string() } }));
+            let body =
+                Json(json!({ "error": { "code": self.code(), "message": self.to_string() } }));
             let mut res = (self.status(), body).into_response();
             if matches!(self, Self::Unauthorized) {
                 res.headers_mut()

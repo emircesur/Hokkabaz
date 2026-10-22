@@ -72,13 +72,15 @@ pub fn parse_body(headers: &HeaderMap, body: &[u8]) -> Result<Value, ApiError> {
         return Ok(empty());
     }
     if mt == "application/json" || mt.ends_with("+json") {
-        return serde_json::from_slice(body).map_err(|e| ApiError::BadRequest(format!("Invalid JSON in request body: {e}")));
+        return serde_json::from_slice(body)
+            .map_err(|e| ApiError::BadRequest(format!("Invalid JSON in request body: {e}")));
     }
     if mt == "application/x-www-form-urlencoded" {
         return Ok(Value::Object(form_pairs(body)));
     }
     if mt == "multipart/form-data" {
-        let boundary = multipart_boundary(headers).ok_or_else(|| ApiError::BadRequest("multipart without boundary".into()))?;
+        let boundary = multipart_boundary(headers)
+            .ok_or_else(|| ApiError::BadRequest("multipart without boundary".into()))?;
         return Ok(Value::Object(multipart_text(body, &boundary)));
     }
     if mt.starts_with("text/") || mt == "application/xml" || mt.ends_with("+xml") {
@@ -88,10 +90,14 @@ pub fn parse_body(headers: &HeaderMap, body: &[u8]) -> Result<Value, ApiError> {
 }
 
 fn multipart_boundary(headers: &HeaderMap) -> Option<String> {
-    let ct = headers.get(axum::http::header::CONTENT_TYPE)?.to_str().ok()?;
+    let ct = headers
+        .get(axum::http::header::CONTENT_TYPE)?
+        .to_str()
+        .ok()?;
     ct.split(';').skip(1).find_map(|p| {
         let (k, v) = p.trim().split_once('=')?;
-        k.eq_ignore_ascii_case("boundary").then(|| v.trim().trim_matches('"').to_owned())
+        k.eq_ignore_ascii_case("boundary")
+            .then(|| v.trim().trim_matches('"').to_owned())
     })
 }
 
@@ -115,10 +121,21 @@ fn multipart_text(body: &[u8], boundary: &str) -> Map<String, Value> {
         if body[pos..].starts_with(b"--") {
             break;
         }
-        let part_start = pos + if body[pos..].starts_with(b"\r\n") { 2 } else { 0 };
-        let Some(next) = find(body, &delim, part_start) else { break };
+        let part_start = pos
+            + if body[pos..].starts_with(b"\r\n") {
+                2
+            } else {
+                0
+            };
+        let Some(next) = find(body, &delim, part_start) else {
+            break;
+        };
         // Part ends at the CRLF that precedes the next delimiter.
-        let part_end = if next >= 2 && &body[next - 2..next] == b"\r\n" { next - 2 } else { next };
+        let part_end = if next >= 2 && &body[next - 2..next] == b"\r\n" {
+            next - 2
+        } else {
+            next
+        };
         if part_end >= part_start {
             handle_part(&body[part_start..part_end], &mut out);
         }
@@ -131,10 +148,17 @@ fn multipart_text(body: &[u8], boundary: &str) -> Map<String, Value> {
 }
 
 fn handle_part(part: &[u8], out: &mut Map<String, Value>) {
-    let Some(split) = find(part, b"\r\n\r\n", 0) else { return };
+    let Some(split) = find(part, b"\r\n\r\n", 0) else {
+        return;
+    };
     let head = String::from_utf8_lossy(&part[..split]);
     let value = &part[split + 4..];
-    let Some(disp) = head.lines().find(|l| l.to_ascii_lowercase().starts_with("content-disposition:")) else { return };
+    let Some(disp) = head
+        .lines()
+        .find(|l| l.to_ascii_lowercase().starts_with("content-disposition:"))
+    else {
+        return;
+    };
     let param = |name: &str| -> Option<String> {
         let needle = format!("{name}=\"");
         let i = disp.find(&needle)? + needle.len();
@@ -145,7 +169,11 @@ fn handle_part(part: &[u8], out: &mut Map<String, Value>) {
         return;
     }
     if let Some(name) = param("name") {
-        push_field(out, name, Value::String(String::from_utf8_lossy(value).into_owned()));
+        push_field(
+            out,
+            name,
+            Value::String(String::from_utf8_lossy(value).into_owned()),
+        );
     }
 }
 
@@ -163,14 +191,23 @@ mod tests {
 
     #[test]
     fn json_form_text_and_raw() {
-        assert_eq!(parse_body(&ct("application/json; charset=utf-8"), br#"{"a":[1]}"#).unwrap(), json!({"a":[1]}));
-        assert!(matches!(parse_body(&ct("application/json"), b"{"), Err(ApiError::BadRequest(_))));
+        assert_eq!(
+            parse_body(&ct("application/json; charset=utf-8"), br#"{"a":[1]}"#).unwrap(),
+            json!({"a":[1]})
+        );
+        assert!(matches!(
+            parse_body(&ct("application/json"), b"{"),
+            Err(ApiError::BadRequest(_))
+        ));
         assert_eq!(
             parse_body(&ct("application/x-www-form-urlencoded"), b"a=1&b=x%20y&a=2").unwrap(),
             json!({"a":["1","2"],"b":"x y"})
         );
         assert_eq!(parse_body(&ct("text/plain"), b"hi").unwrap(), json!("hi"));
-        assert_eq!(parse_body(&ct("application/octet-stream"), b"\x00\x01").unwrap(), json!({}));
+        assert_eq!(
+            parse_body(&ct("application/octet-stream"), b"\x00\x01").unwrap(),
+            json!({})
+        );
         assert_eq!(parse_body(&HeaderMap::new(), b"").unwrap(), json!({}));
     }
 
@@ -181,7 +218,10 @@ mod tests {
                     --XX\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\ntwo\r\n--XX--\r\n";
         let v = parse_body(&ct("multipart/form-data; boundary=XX"), body.as_bytes()).unwrap();
         assert_eq!(v, json!({"a":["one","two"]}));
-        assert!(matches!(parse_body(&ct("multipart/form-data"), b"x"), Err(ApiError::BadRequest(_))));
+        assert!(matches!(
+            parse_body(&ct("multipart/form-data"), b"x"),
+            Err(ApiError::BadRequest(_))
+        ));
     }
 
     #[test]
@@ -190,7 +230,10 @@ mod tests {
         h.append("X-Thing", "a".parse().unwrap());
         h.append("x-thing", "b".parse().unwrap());
         assert_eq!(headers_json(&h)["x-thing"], json!("a, b"));
-        assert_eq!(Value::Object(query_json(Some("k=1&k=2&z=%C3%BC"))), json!({"k":["1","2"],"z":"ü"}));
+        assert_eq!(
+            Value::Object(query_json(Some("k=1&k=2&z=%C3%BC"))),
+            json!({"k":["1","2"],"z":"ü"})
+        );
         assert!(query_json(None).is_empty());
     }
 }

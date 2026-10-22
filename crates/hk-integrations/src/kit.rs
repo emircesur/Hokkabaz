@@ -21,7 +21,10 @@ use crate::describe::{Choice, Prop};
 use crate::template::display;
 
 pub(crate) fn err(node: &str, message: impl Into<String>) -> FlowError {
-    FlowError::Node { node: node.to_owned(), message: message.into() }
+    FlowError::Node {
+        node: node.to_owned(),
+        message: message.into(),
+    }
 }
 
 pub(crate) fn node_err(ctx: &NodeContext, message: impl Into<String>) -> FlowError {
@@ -49,7 +52,9 @@ pub(crate) fn str_param(
     name: &str,
     i: usize,
 ) -> Result<String, FlowError> {
-    Ok(param(ctx, desc, name, i)?.map(|v| display(&v)).unwrap_or_default())
+    Ok(param(ctx, desc, name, i)?
+        .map(|v| display(&v))
+        .unwrap_or_default())
 }
 
 pub(crate) fn bool_param(
@@ -58,7 +63,10 @@ pub(crate) fn bool_param(
     name: &str,
     i: usize,
 ) -> Result<bool, FlowError> {
-    Ok(matches!(param(ctx, desc, name, i)?, Some(Value::Bool(true))))
+    Ok(matches!(
+        param(ctx, desc, name, i)?,
+        Some(Value::Bool(true))
+    ))
 }
 
 /// `additionalFields.<key>`-style member; `None` when the user did not add it.
@@ -66,8 +74,14 @@ pub(crate) fn field(ctx: &NodeContext, path: &str, i: usize) -> Result<Option<Va
     Ok(ctx.eval_param_at(path, i)?.filter(|v| !v.is_null()))
 }
 
-pub(crate) fn field_str(ctx: &NodeContext, path: &str, i: usize) -> Result<Option<String>, FlowError> {
-    Ok(field(ctx, path, i)?.map(|v| display(&v)).filter(|s| !s.is_empty()))
+pub(crate) fn field_str(
+    ctx: &NodeContext,
+    path: &str,
+    i: usize,
+) -> Result<Option<String>, FlowError> {
+    Ok(field(ctx, path, i)?
+        .map(|v| display(&v))
+        .filter(|s| !s.is_empty()))
 }
 
 /// Decrypted credential fields with type defaults applied. Use and drop.
@@ -99,7 +113,12 @@ pub(crate) fn client(node: &str, timeout: Duration) -> Result<reqwest::Client, F
     reqwest::Client::builder()
         .timeout(timeout)
         .build()
-        .map_err(|e| err(node, format!("Could not build HTTP client: {}", e.without_url())))
+        .map_err(|e| {
+            err(
+                node,
+                format!("Could not build HTTP client: {}", e.without_url()),
+            )
+        })
 }
 
 fn dotted<'a>(v: &'a Value, path: &str) -> Option<&'a Value> {
@@ -111,8 +130,13 @@ fn dotted<'a>(v: &'a Value, path: &str) -> Option<&'a Value> {
 }
 
 /// `base` + `segments`, each percent-encoded as one path segment (ids may hold `/`, `:`).
-pub(crate) fn join_url(node: &str, base: &str, segments: &[String]) -> Result<reqwest::Url, FlowError> {
-    let mut u = reqwest::Url::parse(base.trim()).map_err(|_| err(node, "The server URL is not a valid URL"))?;
+pub(crate) fn join_url(
+    node: &str,
+    base: &str,
+    segments: &[String],
+) -> Result<reqwest::Url, FlowError> {
+    let mut u = reqwest::Url::parse(base.trim())
+        .map_err(|_| err(node, "The server URL is not a valid URL"))?;
     if !matches!(u.scheme(), "http" | "https") {
         return Err(err(node, "The server URL must be http or https"));
     }
@@ -125,7 +149,8 @@ pub(crate) fn join_url(node: &str, base: &str, segments: &[String]) -> Result<re
 
 /// JSON body without reqwest's `json` feature (the crate keeps its reqwest feature set minimal).
 pub(crate) fn json_body(rb: reqwest::RequestBuilder, v: &Value) -> reqwest::RequestBuilder {
-    rb.header("content-type", "application/json").body(v.to_string())
+    rb.header("content-type", "application/json")
+        .body(v.to_string())
 }
 
 /// Send `rb`, parse the JSON (or `{data: text}`) body, map failures to node errors.
@@ -140,10 +165,12 @@ pub(crate) async fn call(
         .await
         .map_err(|e| err(node, format!("The request failed: {}", e.without_url())))?;
     let status = res.status();
-    let text = res
-        .text()
-        .await
-        .map_err(|e| err(node, format!("Could not read the response: {}", e.without_url())))?;
+    let text = res.text().await.map_err(|e| {
+        err(
+            node,
+            format!("Could not read the response: {}", e.without_url()),
+        )
+    })?;
     let parsed = if text.trim().is_empty() {
         None
     } else {
@@ -218,7 +245,11 @@ pub struct BinFile {
     pub name: String,
 }
 
-pub(crate) fn binary_file(ctx: &NodeContext, item: &Item, prop: &str) -> Result<BinFile, FlowError> {
+pub(crate) fn binary_file(
+    ctx: &NodeContext,
+    item: &Item,
+    prop: &str,
+) -> Result<BinFile, FlowError> {
     let bin = item
         .binary
         .as_ref()
@@ -229,7 +260,11 @@ pub(crate) fn binary_file(ctx: &NodeContext, item: &Item, prop: &str) -> Result<
         .map_err(|_| node_err(ctx, format!("Binary property `{prop}` is not valid base64")))?;
     Ok(BinFile {
         data,
-        mime: if bin.mime_type.is_empty() { "application/octet-stream".into() } else { bin.mime_type.clone() },
+        mime: if bin.mime_type.is_empty() {
+            "application/octet-stream".into()
+        } else {
+            bin.mime_type.clone()
+        },
         name: bin.file_name.clone().unwrap_or_else(|| prop.to_owned()),
     })
 }
@@ -247,11 +282,16 @@ impl Multipart {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or_default();
-        Self { boundary: format!("hkboundary{n:x}"), body: Vec::new() }
+        Self {
+            boundary: format!("hkboundary{n:x}"),
+            body: Vec::new(),
+        }
     }
 
     fn quoted(s: &str) -> String {
-        s.chars().filter(|c| !matches!(c, '"' | '\r' | '\n')).collect()
+        s.chars()
+            .filter(|c| !matches!(c, '"' | '\r' | '\n'))
+            .collect()
     }
 
     pub fn text(&mut self, name: &str, value: &str) {
@@ -280,8 +320,12 @@ impl Multipart {
 
     /// `(content-type, body)`.
     pub fn finish(mut self) -> (String, Vec<u8>) {
-        self.body.extend_from_slice(format!("--{}--\r\n", self.boundary).as_bytes());
-        (format!("multipart/form-data; boundary={}", self.boundary), self.body)
+        self.body
+            .extend_from_slice(format!("--{}--\r\n", self.boundary).as_bytes());
+        (
+            format!("multipart/form-data; boundary={}", self.boundary),
+            self.body,
+        )
     }
 }
 
@@ -305,7 +349,11 @@ pub(crate) fn multi_options(
 
 /// Insert `prop` before the property called `before` (appends when absent).
 pub(crate) fn insert_before(desc: &mut NodeTypeDescription, before: &str, prop: NodeProperty) {
-    let at = desc.properties.iter().position(|p| p.name == before).unwrap_or(desc.properties.len());
+    let at = desc
+        .properties
+        .iter()
+        .position(|p| p.name == before)
+        .unwrap_or(desc.properties.len());
     desc.properties.insert(at, prop);
 }
 
@@ -327,7 +375,11 @@ mod tests {
         m.text("chat_id", "42");
         m.file(
             "photo",
-            &BinFile { data: b"\x89PNG".to_vec(), mime: "image/png".into(), name: "a\"b.png".into() },
+            &BinFile {
+                data: b"\x89PNG".to_vec(),
+                mime: "image/png".into(),
+                name: "a\"b.png".into(),
+            },
         );
         let (ct, body) = m.finish();
         let b = ct.strip_prefix("multipart/form-data; boundary=").unwrap();

@@ -16,9 +16,9 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
+use crate::ConcatError;
 use crate::client::{CaptionLine, ConcatClient, Framing};
 use crate::types::{MediaView, VideoSettings};
-use crate::ConcatError;
 
 const EPS: f64 = 1e-4;
 /// Text clips placed at or below this vertical offset (frame fractions, positive = down) are read
@@ -250,13 +250,29 @@ pub enum Command {
     /// `media_import`; `key` names the bin item for later commands.
     ImportMedia { key: String, file: String },
     /// Source `[source_start, source_end)` of `media` at output time `at`; becomes clip `range`.
-    PlaceRange { range: usize, media: String, source_start: f64, source_end: f64, at: f64 },
+    PlaceRange {
+        range: usize,
+        media: String,
+        source_start: f64,
+        source_end: f64,
+        at: f64,
+    },
     /// `clip_frame` fit/fill on a placed range.
     Frame { range: usize, framing: PlanFraming },
     /// Reframe keys for one range (fractions of that clip), resolved to scale/offset keyframes.
     CropKeys { range: usize, keys: Vec<RangeKey> },
-    AddCaptions { lines: Vec<CaptionLine>, style: Value, offset_y: f64 },
-    AddTitle { text: String, start: f64, duration: f64, style: Option<Value>, offset_y: Option<f64> },
+    AddCaptions {
+        lines: Vec<CaptionLine>,
+        style: Value,
+        offset_y: f64,
+    },
+    AddTitle {
+        text: String,
+        start: f64,
+        duration: f64,
+        style: Option<Value>,
+        offset_y: Option<f64>,
+    },
     AddMediaOverlay {
         media: String,
         start: f64,
@@ -285,11 +301,16 @@ pub fn normalize_ranges(ranges: &[TimeRange]) -> Result<Vec<TimeRange>, ConcatEr
     let mut out: Vec<TimeRange> = Vec::with_capacity(ranges.len());
     for r in ranges {
         if !(r.start.is_finite() && r.end.is_finite() && r.start >= 0.0 && r.end - r.start > EPS) {
-            return Err(ConcatError::InvalidPlan(format!("bad kept range [{}, {})", r.start, r.end)));
+            return Err(ConcatError::InvalidPlan(format!(
+                "bad kept range [{}, {})",
+                r.start, r.end
+            )));
         }
         match out.last_mut() {
             Some(last) if r.start < last.start => {
-                return Err(ConcatError::InvalidPlan("kept_ranges must be ascending".into()));
+                return Err(ConcatError::InvalidPlan(
+                    "kept_ranges must be ascending".into(),
+                ));
             }
             Some(last) if r.start <= last.end + EPS => last.end = last.end.max(r.end),
             _ => out.push(*r),
@@ -331,7 +352,9 @@ pub fn map_words(words: &[Word], ranges: &[TimeRange]) -> Vec<TimedWord> {
             continue;
         }
         let mid = (w.start + w.end) / 2.0;
-        let Some(i) = ranges.iter().position(|r| mid >= r.start && mid < r.end) else { continue };
+        let Some(i) = ranges.iter().position(|r| mid >= r.start && mid < r.end) else {
+            continue;
+        };
         let r = ranges[i];
         out.push(TimedWord {
             text: text.to_owned(),
@@ -351,7 +374,11 @@ pub fn group_words(words: &[TimedWord], style: &CaptionStyle) -> Vec<CaptionLine
     let max_words = style.max_words_per_line.max(1);
     let max_chars = style.max_chars_per_line.max(1);
     for (i, w) in words.iter().enumerate() {
-        let text = if style.uppercase { w.text.to_uppercase() } else { w.text.clone() };
+        let text = if style.uppercase {
+            w.text.to_uppercase()
+        } else {
+            w.text.clone()
+        };
         let wchars = text.chars().count();
         let breaks = match &cur {
             None => false,
@@ -367,7 +394,16 @@ pub fn group_words(words: &[TimedWord], style: &CaptionStyle) -> Vec<CaptionLine
         }
         match &mut cur {
             None => {
-                cur = Some((CaptionLine { start: w.start, end: w.end, text }, 1, wchars, w.end));
+                cur = Some((
+                    CaptionLine {
+                        start: w.start,
+                        end: w.end,
+                        text,
+                    },
+                    1,
+                    wchars,
+                    w.end,
+                ));
             }
             Some((line, n, chars, last_end)) => {
                 line.text.push(' ');
@@ -417,7 +453,13 @@ pub fn crop_to_transform(
 }
 
 /// Inverse of [`crop_to_transform`]: `(center_x, center_y, zoom)`.
-pub fn transform_to_crop(source: (f64, f64), frame: (f64, f64), scale: f64, ox: f64, oy: f64) -> Option<(f64, f64, f64)> {
+pub fn transform_to_crop(
+    source: (f64, f64),
+    frame: (f64, f64),
+    scale: f64,
+    ox: f64,
+    oy: f64,
+) -> Option<(f64, f64, f64)> {
     let (g, f) = fit_geometry(source, frame)?;
     let (wfrac, hfrac) = (g.fit_w * scale / f.0, g.fit_h * scale / f.1);
     Some((0.5 - ox / wfrac, 0.5 - oy / hfrac, scale / g.fill))
@@ -436,7 +478,14 @@ fn fit_geometry(source: (f64, f64), frame: (f64, f64)) -> Option<(Fit, (f64, f64
     }
     let fit = (fw / sw).min(fh / sh);
     let (w, h) = (sw * fit, sh * fit);
-    Some((Fit { fit_w: w, fit_h: h, fill: (fw / w).max(fh / h) }, (fw, fh)))
+    Some((
+        Fit {
+            fit_w: w,
+            fit_h: h,
+            fill: (fw / w).max(fh / h),
+        },
+        (fw, fh),
+    ))
 }
 
 /// Linear interpolation of the reframe path at output time `t`; held before/after.
@@ -450,9 +499,17 @@ fn sample_path(keys: &[CropKeyframe], t: f64) -> (f64, f64, f64) {
     }
     let i = keys.iter().rposition(|k| k.time <= t).unwrap_or(0);
     let (a, b) = (keys[i], keys[i + 1]);
-    let u = if b.time - a.time > EPS { (t - a.time) / (b.time - a.time) } else { 0.0 };
+    let u = if b.time - a.time > EPS {
+        (t - a.time) / (b.time - a.time)
+    } else {
+        0.0
+    };
     let l = |x: f64, y: f64| x + (y - x) * u;
-    (l(a.center_x, b.center_x), l(a.center_y, b.center_y), l(a.zoom, b.zoom))
+    (
+        l(a.center_x, b.center_x),
+        l(a.center_y, b.center_y),
+        l(a.zoom, b.zoom),
+    )
 }
 
 fn range_keys(path: &[CropKeyframe], out_start: f64, len: f64) -> Vec<RangeKey> {
@@ -460,18 +517,30 @@ fn range_keys(path: &[CropKeyframe], out_start: f64, len: f64) -> Vec<RangeKey> 
     let mut keys: Vec<RangeKey> = Vec::new();
     let mut push = |a: f64, v: (f64, f64, f64)| {
         if !keys.iter().any(|k| (k.at - a).abs() < 0.002) {
-            keys.push(RangeKey { at: a, center_x: v.0, center_y: v.1, zoom: v.2 });
+            keys.push(RangeKey {
+                at: a,
+                center_x: v.0,
+                center_y: v.1,
+                zoom: v.2,
+            });
         }
     };
     push(0.0, sample_path(path, out_start));
-    for k in path.iter().filter(|k| k.time > out_start + EPS && k.time < out_start + len - EPS) {
+    for k in path
+        .iter()
+        .filter(|k| k.time > out_start + EPS && k.time < out_start + len - EPS)
+    {
         push(at(k.time), (k.center_x, k.center_y, k.zoom));
     }
     push(1.0, sample_path(path, out_start + len));
     keys.sort_by(|a, b| a.at.total_cmp(&b.at));
     // Constant path inside this range: one key is enough.
     let c = keys[0];
-    if keys.iter().all(|k| (k.center_x - c.center_x).abs() < 1e-6 && (k.center_y - c.center_y).abs() < 1e-6 && (k.zoom - c.zoom).abs() < 1e-6) {
+    if keys.iter().all(|k| {
+        (k.center_x - c.center_x).abs() < 1e-6
+            && (k.center_y - c.center_y).abs() < 1e-6
+            && (k.zoom - c.zoom).abs() < 1e-6
+    }) {
         keys.truncate(1);
     }
     keys
@@ -491,11 +560,23 @@ pub fn to_concat_commands(plan: &StudioClipPlan) -> Result<Vec<Command>, ConcatE
     let starts = output_starts(&ranges);
     let total: f64 = ranges.iter().map(TimeRange::len).sum();
 
-    let mut cmds = vec![Command::ImportMedia { key: "source".into(), file: plan.source.clone() }];
+    let mut cmds = vec![Command::ImportMedia {
+        key: "source".into(),
+        file: plan.source.clone(),
+    }];
     for (i, o) in plan.overlays.iter().enumerate() {
-        if let Overlay::Media { file, start, duration, .. } = o {
+        if let Overlay::Media {
+            file,
+            start,
+            duration,
+            ..
+        } = o
+        {
             check_span(*start, *duration)?;
-            cmds.push(Command::ImportMedia { key: overlay_key(i), file: file.clone() });
+            cmds.push(Command::ImportMedia {
+                key: overlay_key(i),
+                file: file.clone(),
+            });
         }
     }
     for (i, r) in ranges.iter().enumerate() {
@@ -510,30 +591,53 @@ pub fn to_concat_commands(plan: &StudioClipPlan) -> Result<Vec<Command>, ConcatE
 
     let mut path = plan.crop_keyframes.clone();
     for k in &path {
-        if !(k.time.is_finite() && k.center_x.is_finite() && k.center_y.is_finite() && k.zoom.is_finite() && k.zoom > 0.0) {
-            return Err(ConcatError::InvalidPlan("crop keyframe has a non-finite or non-positive value".into()));
+        if !(k.time.is_finite()
+            && k.center_x.is_finite()
+            && k.center_y.is_finite()
+            && k.zoom.is_finite()
+            && k.zoom > 0.0)
+        {
+            return Err(ConcatError::InvalidPlan(
+                "crop keyframe has a non-finite or non-positive value".into(),
+            ));
         }
     }
     path.sort_by(|a, b| a.time.total_cmp(&b.time));
     if path.is_empty() {
         if plan.framing != PlanFraming::Keep {
-            cmds.extend((0..ranges.len()).map(|range| Command::Frame { range, framing: plan.framing }));
+            cmds.extend((0..ranges.len()).map(|range| Command::Frame {
+                range,
+                framing: plan.framing,
+            }));
         }
     } else {
         for (i, r) in ranges.iter().enumerate() {
-            cmds.push(Command::CropKeys { range: i, keys: range_keys(&path, starts[i], r.len()) });
+            cmds.push(Command::CropKeys {
+                range: i,
+                keys: range_keys(&path, starts[i], r.len()),
+            });
         }
     }
 
     if let Some(track) = &plan.captions {
         let lines = group_words(&map_words(&track.words, &ranges), &track.style);
         if !lines.is_empty() {
-            cmds.push(Command::AddCaptions { lines, style: track.style.text_style(), offset_y: track.style.offset() });
+            cmds.push(Command::AddCaptions {
+                lines,
+                style: track.style.text_style(),
+                offset_y: track.style.offset(),
+            });
         }
     }
     for (i, o) in plan.overlays.iter().enumerate() {
         match o {
-            Overlay::Title { text, start, duration, style, offset_y } => {
+            Overlay::Title {
+                text,
+                start,
+                duration,
+                style,
+                offset_y,
+            } => {
                 check_span(*start, *duration)?;
                 cmds.push(Command::AddTitle {
                     text: text.clone(),
@@ -543,7 +647,15 @@ pub fn to_concat_commands(plan: &StudioClipPlan) -> Result<Vec<Command>, ConcatE
                     offset_y: *offset_y,
                 });
             }
-            Overlay::Media { start, duration, scale, offset_x, offset_y, opacity, .. } => cmds.push(Command::AddMediaOverlay {
+            Overlay::Media {
+                start,
+                duration,
+                scale,
+                offset_x,
+                offset_y,
+                opacity,
+                ..
+            } => cmds.push(Command::AddMediaOverlay {
                 media: overlay_key(i),
                 start: *start,
                 duration: *duration,
@@ -566,7 +678,9 @@ fn check_span(start: f64, duration: f64) -> Result<(), ConcatError> {
     if start.is_finite() && duration.is_finite() && start >= 0.0 && duration > EPS {
         Ok(())
     } else {
-        Err(ConcatError::InvalidPlan(format!("bad overlay span start={start} duration={duration}")))
+        Err(ConcatError::InvalidPlan(format!(
+            "bad overlay span start={start} duration={duration}"
+        )))
     }
 }
 
@@ -588,9 +702,15 @@ struct MediaState {
 }
 
 /// Creates `location/name` (video settings from the plan) and applies the plan. Returns the path.
-pub async fn apply_plan(client: &ConcatClient, location: &str, plan: &StudioClipPlan) -> Result<AppliedPlan, ConcatError> {
+pub async fn apply_plan(
+    client: &ConcatClient,
+    location: &str,
+    plan: &StudioClipPlan,
+) -> Result<AppliedPlan, ConcatError> {
     let cmds = to_concat_commands(plan)?;
-    client.project_create(location, &plan.name, Some(plan.video)).await?;
+    client
+        .project_create(location, &plan.name, Some(plan.video))
+        .await?;
     let project = format!("{}/{}", location.trim_end_matches(['/', '\\']), plan.name);
     apply_commands(client, &project, plan.video, &cmds).await
 }
@@ -613,13 +733,23 @@ pub async fn apply_commands(
         None => client.add_track(project, true).await?,
     };
 
-    let find = |media: &HashMap<String, MediaState>, key: &str| -> Result<(String, Option<f64>), ConcatError> {
+    let find = |media: &HashMap<String, MediaState>,
+                key: &str|
+     -> Result<(String, Option<f64>), ConcatError> {
         media
             .get(key)
             .map(|m| (m.id.clone(), m.duration))
-            .ok_or_else(|| ConcatError::InvalidPlan(format!("command uses media `{key}` before it is imported")))
+            .ok_or_else(|| {
+                ConcatError::InvalidPlan(format!(
+                    "command uses media `{key}` before it is imported"
+                ))
+            })
     };
-    let need_len = |d: Option<f64>, key: &str| d.ok_or_else(|| ConcatError::decode("media_import", format!("media `{key}` has no duration")));
+    let need_len = |d: Option<f64>, key: &str| {
+        d.ok_or_else(|| {
+            ConcatError::decode("media_import", format!("media `{key}` has no duration"))
+        })
+    };
 
     for c in cmds {
         match c {
@@ -636,7 +766,13 @@ pub async fn apply_commands(
                     },
                 );
             }
-            Command::PlaceRange { range, media: key, source_start, source_end, at } => {
+            Command::PlaceRange {
+                range,
+                media: key,
+                source_start,
+                source_end,
+                at,
+            } => {
                 let (mid, dur) = find(&media, key)?;
                 let len = need_len(dur, key)?;
                 if *source_end > len + 0.05 {
@@ -644,7 +780,9 @@ pub async fn apply_commands(
                         "kept range ends at {source_end}s but the source is only {len}s long"
                     )));
                 }
-                let clip = client.add_clip(project, &mid, &main_track, *at, false).await?;
+                let clip = client
+                    .add_clip(project, &mid, &main_track, *at, false)
+                    .await?;
                 let mut ops: Vec<Value> = Vec::new();
                 if *source_start > EPS {
                     ops.push(json!({ "op": "trimClip", "clipId": clip, "edge": "start", "delta": source_start, "ripple": false }));
@@ -658,7 +796,9 @@ pub async fn apply_commands(
                     ops.push(json!({ "op": "moveClips", "moves": [{ "clipId": clip, "start": at, "trackId": main_track }] }));
                 }
                 if !ops.is_empty() {
-                    client.edit_apply(project, json!({ "op": "batch", "commands": ops })).await?;
+                    client
+                        .edit_apply(project, json!({ "op": "batch", "commands": ops }))
+                        .await?;
                 }
                 clips.insert(*range, clip.clone());
                 placed.push((*range, clip));
@@ -674,47 +814,87 @@ pub async fn apply_commands(
             }
             Command::CropKeys { range, keys } => {
                 let clip = range_clip(&clips, *range)?;
-                let size = media
-                    .get("source")
-                    .and_then(|m| m.size)
-                    .ok_or_else(|| ConcatError::decode("media_import", "source media has no frame size, cannot reframe"))?;
+                let size = media.get("source").and_then(|m| m.size).ok_or_else(|| {
+                    ConcatError::decode(
+                        "media_import",
+                        "source media has no frame size, cannot reframe",
+                    )
+                })?;
                 let mut ops = Vec::new();
                 for k in keys {
-                    let (s, ox, oy) = crop_to_transform(size, frame, k.center_x, k.center_y, k.zoom)
-                        .ok_or_else(|| ConcatError::InvalidPlan("cannot compute reframe from zero sizes".into()))?;
+                    let (s, ox, oy) = crop_to_transform(
+                        size, frame, k.center_x, k.center_y, k.zoom,
+                    )
+                    .ok_or_else(|| {
+                        ConcatError::InvalidPlan("cannot compute reframe from zero sizes".into())
+                    })?;
                     for (prop, v) in [("scale", s), ("offsetX", ox), ("offsetY", oy)] {
                         ops.push(json!({ "op": "setClipKey", "clipId": clip, "property": prop, "at": k.at, "value": v }));
                     }
                 }
-                client.edit_apply(project, json!({ "op": "batch", "commands": ops })).await?;
+                client
+                    .edit_apply(project, json!({ "op": "batch", "commands": ops }))
+                    .await?;
             }
-            Command::AddCaptions { lines, style, offset_y } => {
-                client.add_captions(project, lines, Some(style.clone()), Some(*offset_y)).await?;
+            Command::AddCaptions {
+                lines,
+                style,
+                offset_y,
+            } => {
+                client
+                    .add_captions(project, lines, Some(style.clone()), Some(*offset_y))
+                    .await?;
             }
-            Command::AddTitle { text, start, duration, style, offset_y } => {
-                client.add_title(project, text, *start, *duration, style.clone(), *offset_y).await?;
+            Command::AddTitle {
+                text,
+                start,
+                duration,
+                style,
+                offset_y,
+            } => {
+                client
+                    .add_title(project, text, *start, *duration, style.clone(), *offset_y)
+                    .await?;
             }
-            Command::AddMediaOverlay { media: key, start, duration, scale, offset_x, offset_y, opacity } => {
+            Command::AddMediaOverlay {
+                media: key,
+                start,
+                duration,
+                scale,
+                offset_x,
+                offset_y,
+                opacity,
+            } => {
                 let (mid, dur) = find(&media, key)?;
                 let len = need_len(dur, key)?;
                 let track = client.add_track(project, false).await?;
-                let clip = client.add_clip(project, &mid, &track, *start, false).await?;
+                let clip = client
+                    .add_clip(project, &mid, &track, *start, false)
+                    .await?;
                 let mut ops = Vec::new();
                 if len - duration > EPS {
                     ops.push(json!({ "op": "trimClip", "clipId": clip, "edge": "end", "delta": -(len - duration), "ripple": false }));
                 }
-                ops.push(json!({ "op": "updateClip", "clipId": clip, "patch": { "opacity": opacity } }));
+                ops.push(
+                    json!({ "op": "updateClip", "clipId": clip, "patch": { "opacity": opacity } }),
+                );
                 ops.push(json!({
                     "op": "setClipTransform", "clipId": clip,
                     "scale": scale, "offsetX": offset_x, "offsetY": offset_y, "rotation": null,
                 }));
-                client.edit_apply(project, json!({ "op": "batch", "commands": ops })).await?;
+                client
+                    .edit_apply(project, json!({ "op": "batch", "commands": ops }))
+                    .await?;
             }
         }
     }
     let summary = client.timeline_read(project).await?;
     placed.sort_by_key(|(r, _)| *r);
-    Ok(AppliedPlan { project: project.to_owned(), range_clips: placed, summary })
+    Ok(AppliedPlan {
+        project: project.to_owned(),
+        range_clips: placed,
+        summary,
+    })
 }
 
 fn range_clip(clips: &HashMap<usize, String>, range: usize) -> Result<&String, ConcatError> {
@@ -735,7 +915,10 @@ fn range_clip(clips: &HashMap<usize, String>, range: usize) -> Result<&String, C
 pub fn plan_from_view(view: &Value, source: Option<&str>) -> Result<StudioClipPlan, ConcatError> {
     let bad = |why: &str| ConcatError::decode("project_get", why);
     let project = view.get("project").ok_or_else(|| bad("no `project`"))?;
-    let timelines = project.get("timelines").and_then(Value::as_array).ok_or_else(|| bad("no timelines"))?;
+    let timelines = project
+        .get("timelines")
+        .and_then(Value::as_array)
+        .ok_or_else(|| bad("no timelines"))?;
     let active = project.get("activeTimelineId").and_then(Value::as_str);
     let tl = timelines
         .iter()
@@ -750,11 +933,30 @@ pub fn plan_from_view(view: &Value, source: Option<&str>) -> Result<StudioClipPl
         .filter_map(|m| Some((m.get("id")?.as_str()?, m)))
         .collect();
     let num = |v: &Value, k: &str| v.get(k).and_then(Value::as_f64);
-    let mut clips: Vec<&Value> = tl.get("clips").and_then(Value::as_array).into_iter().flatten().collect();
-    clips.sort_by(|a, b| num(a, "start").unwrap_or(0.0).total_cmp(&num(b, "start").unwrap_or(0.0)));
+    let mut clips: Vec<&Value> = tl
+        .get("clips")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .collect();
+    clips.sort_by(|a, b| {
+        num(a, "start")
+            .unwrap_or(0.0)
+            .total_cmp(&num(b, "start").unwrap_or(0.0))
+    });
 
-    let path_of = |c: &Value| -> Option<&str> { media_path.get(c.get("mediaId")?.as_str()?)?.get("path")?.as_str() };
-    let kind = |c: &Value| c.get("kind").and_then(Value::as_str).unwrap_or("").to_owned();
+    let path_of = |c: &Value| -> Option<&str> {
+        media_path
+            .get(c.get("mediaId")?.as_str()?)?
+            .get("path")?
+            .as_str()
+    };
+    let kind = |c: &Value| {
+        c.get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_owned()
+    };
     let source_path: String = match source {
         Some(s) => s.to_owned(),
         None => clips
@@ -774,7 +976,11 @@ pub fn plan_from_view(view: &Value, source: Option<&str>) -> Result<StudioClipPl
     };
     let frame = (f64::from(video.width), f64::from(video.height));
 
-    let mains: Vec<&Value> = clips.iter().copied().filter(|c| kind(c) == "video" && path_of(c) == Some(source_path.as_str())).collect();
+    let mains: Vec<&Value> = clips
+        .iter()
+        .copied()
+        .filter(|c| kind(c) == "video" && path_of(c) == Some(source_path.as_str()))
+        .collect();
     if mains.is_empty() {
         return Err(bad("no clips of the source media"));
     }
@@ -789,16 +995,34 @@ pub fn plan_from_view(view: &Value, source: Option<&str>) -> Result<StudioClipPl
     let mut out_starts: Vec<f64> = Vec::new();
     let mut path: Vec<CropKeyframe> = Vec::new();
     for c in &mains {
-        let (start, dur) = (num(c, "start").unwrap_or(0.0), num(c, "duration").unwrap_or(0.0));
-        let (ss, speed) = (num(c, "sourceStart").unwrap_or(0.0), num(c, "speed").unwrap_or(1.0));
-        let r = TimeRange { start: ss, end: ss + dur * speed };
+        let (start, dur) = (
+            num(c, "start").unwrap_or(0.0),
+            num(c, "duration").unwrap_or(0.0),
+        );
+        let (ss, speed) = (
+            num(c, "sourceStart").unwrap_or(0.0),
+            num(c, "speed").unwrap_or(1.0),
+        );
+        let r = TimeRange {
+            start: ss,
+            end: ss + dur * speed,
+        };
         out_starts.push(start);
         match kept.last_mut() {
             Some(last) if (last.end - r.start).abs() < 1e-3 => last.end = r.end,
             _ => kept.push(r),
         }
         if let (Some(keys), Some(size)) = (c.get("keys").and_then(Value::as_array), src_size) {
-            path.extend(read_path(keys, start, dur, size, frame, num(c, "scale"), num(c, "offsetX"), num(c, "offsetY")));
+            path.extend(read_path(
+                keys,
+                start,
+                dur,
+                size,
+                frame,
+                num(c, "scale"),
+                num(c, "offsetX"),
+                num(c, "offsetY"),
+            ));
         }
     }
     path.sort_by(|a, b| a.time.total_cmp(&b.time));
@@ -809,18 +1033,38 @@ pub fn plan_from_view(view: &Value, source: Option<&str>) -> Result<StudioClipPl
     let mut cap_style = CaptionStyle::default();
     let mut overlays = Vec::new();
     for c in &clips {
-        let (start, dur) = (num(c, "start").unwrap_or(0.0), num(c, "duration").unwrap_or(0.0));
+        let (start, dur) = (
+            num(c, "start").unwrap_or(0.0),
+            num(c, "duration").unwrap_or(0.0),
+        );
         match kind(c).as_str() {
             "text" => {
-                let text = c.pointer("/text/content").and_then(Value::as_str).unwrap_or("").to_owned();
+                let text = c
+                    .pointer("/text/content")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_owned();
                 let oy = num(c, "offsetY").unwrap_or(0.0);
                 if oy >= CAPTION_MIN_OFFSET_Y {
                     if captions.is_empty() {
                         cap_style = style_from_text(c.get("text"), oy);
                     }
-                    captions.push((CaptionLine { start, end: start + dur, text }, oy));
+                    captions.push((
+                        CaptionLine {
+                            start,
+                            end: start + dur,
+                            text,
+                        },
+                        oy,
+                    ));
                 } else {
-                    overlays.push(Overlay::Title { text, start, duration: dur, style: None, offset_y: (oy != 0.0).then_some(oy) });
+                    overlays.push(Overlay::Title {
+                        text,
+                        start,
+                        duration: dur,
+                        style: None,
+                        offset_y: (oy != 0.0).then_some(oy),
+                    });
                 }
             }
             "video" | "image" if path_of(c) != Some(source_path.as_str()) => {
@@ -844,7 +1088,10 @@ pub fn plan_from_view(view: &Value, source: Option<&str>) -> Result<StudioClipPl
         .flat_map(|(l, _)| line_to_words(l, &kept, &ranges_out))
         .collect();
     let mut plan = StudioClipPlan::new(
-        settings.and_then(|s| s.get("name")).and_then(Value::as_str).unwrap_or("clip"),
+        settings
+            .and_then(|s| s.get("name"))
+            .and_then(Value::as_str)
+            .unwrap_or("clip"),
         source_path,
         kept,
     );
@@ -852,7 +1099,10 @@ pub fn plan_from_view(view: &Value, source: Option<&str>) -> Result<StudioClipPl
     plan.crop_keyframes = path;
     plan.overlays = overlays;
     if !words.is_empty() {
-        plan.captions = Some(CaptionTrack { words, style: cap_style });
+        plan.captions = Some(CaptionTrack {
+            words,
+            style: cap_style,
+        });
     }
     Ok(plan)
 }
@@ -903,15 +1153,26 @@ fn read_path(
                 at_value(&x, at, ox0.unwrap_or(0.0)),
                 at_value(&y, at, oy0.unwrap_or(0.0)),
             )?;
-            Some(CropKeyframe { time: clip_start + at * clip_dur, center_x: c, center_y: d, zoom: z })
+            Some(CropKeyframe {
+                time: clip_start + at * clip_dur,
+                center_x: c,
+                center_y: d,
+                zoom: z,
+            })
         })
         .collect()
 }
 
 fn style_from_text(text: Option<&Value>, offset_y: f64) -> CaptionStyle {
-    let mut s = CaptionStyle { offset_y: Some(offset_y), ..CaptionStyle::default() };
+    let mut s = CaptionStyle {
+        offset_y: Some(offset_y),
+        ..CaptionStyle::default()
+    };
     if let Some(t) = text {
-        s.font_family = t.get("fontFamily").and_then(Value::as_str).map(str::to_owned);
+        s.font_family = t
+            .get("fontFamily")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
         s.font_size = t.get("fontSize").and_then(Value::as_f64);
         s.font_weight = t.get("fontWeight").and_then(Value::as_f64);
         s.color = t.get("color").and_then(Value::as_str).map(str::to_owned);
@@ -934,8 +1195,15 @@ fn line_to_words(line: &CaptionLine, kept: &[TimeRange], out_starts: &[f64]) -> 
         .iter()
         .enumerate()
         .map(|(i, p)| {
-            let (a, b) = (line.start + step * i as f64, line.start + step * (i + 1) as f64);
-            Word { text: (*p).to_owned(), start: to_src(a + EPS), end: to_src(b - EPS).max(to_src(a + EPS)) }
+            let (a, b) = (
+                line.start + step * i as f64,
+                line.start + step * (i + 1) as f64,
+            );
+            Word {
+                text: (*p).to_owned(),
+                start: to_src(a + EPS),
+                end: to_src(b - EPS).max(to_src(a + EPS)),
+            }
         })
         .collect()
 }
@@ -949,7 +1217,11 @@ mod tests {
     }
 
     fn w(t: &str, a: f64, b: f64) -> Word {
-        Word { text: t.into(), start: a, end: b }
+        Word {
+            text: t.into(),
+            start: a,
+            end: b,
+        }
     }
 
     #[test]
@@ -966,7 +1238,12 @@ mod tests {
     fn words_in_cut_regions_vanish_and_times_shift() {
         // keep [10,12) and [20,22): output 0..2 and 2..4.
         let ranges = [r(10.0, 12.0), r(20.0, 22.0)];
-        let words = [w("a", 10.2, 10.6), w("cut", 15.0, 15.4), w("b", 20.5, 21.0), w("edge", 11.8, 12.4)];
+        let words = [
+            w("a", 10.2, 10.6),
+            w("cut", 15.0, 15.4),
+            w("b", 20.5, 21.0),
+            w("edge", 11.8, 12.4),
+        ];
         let mapped = map_words(&words, &ranges);
         let texts: Vec<_> = mapped.iter().map(|m| m.text.as_str()).collect();
         // "edge" has its midpoint (12.1) outside [10,12) so it goes with the cut.
@@ -980,17 +1257,34 @@ mod tests {
         let ranges = [r(10.0, 12.0)];
         let mapped = map_words(&[w("edge", 11.6, 12.3)], &ranges);
         assert_eq!(mapped.len(), 1);
-        assert!((mapped[0].end - 2.0).abs() < 1e-9, "clamped to the range end");
+        assert!(
+            (mapped[0].end - 2.0).abs() < 1e-9,
+            "clamped to the range end"
+        );
     }
 
     #[test]
     fn lines_break_on_words_chars_gap_and_cuts() {
         let ranges = [r(0.0, 10.0), r(20.0, 30.0)];
-        let words: Vec<Word> = (0..6).map(|i| w(&format!("w{i}"), f64::from(i) * 0.4, f64::from(i) * 0.4 + 0.3)).collect();
+        let words: Vec<Word> = (0..6)
+            .map(|i| {
+                w(
+                    &format!("w{i}"),
+                    f64::from(i) * 0.4,
+                    f64::from(i) * 0.4 + 0.3,
+                )
+            })
+            .collect();
         let timed = map_words(&words, &ranges);
-        let style = CaptionStyle { max_words_per_line: 4, ..CaptionStyle::default() };
+        let style = CaptionStyle {
+            max_words_per_line: 4,
+            ..CaptionStyle::default()
+        };
         let lines = group_words(&timed, &style);
-        assert_eq!(lines.iter().map(|l| l.text.as_str()).collect::<Vec<_>>(), ["w0 w1 w2 w3", "w4 w5"]);
+        assert_eq!(
+            lines.iter().map(|l| l.text.as_str()).collect::<Vec<_>>(),
+            ["w0 w1 w2 w3", "w4 w5"]
+        );
         // Gap break.
         let gap = map_words(&[w("a", 0.0, 0.3), w("b", 5.0, 5.3)], &ranges);
         assert_eq!(group_words(&gap, &CaptionStyle::default()).len(), 2);
@@ -998,8 +1292,17 @@ mod tests {
         let cut = map_words(&[w("x", 9.5, 9.9), w("y", 20.0, 20.3)], &ranges);
         assert_eq!(group_words(&cut, &CaptionStyle::default()).len(), 2);
         // Uppercase + no overlap + min duration.
-        let up = CaptionStyle { uppercase: true, ..CaptionStyle::default() };
-        let l = group_words(&map_words(&[w("hi", 0.0, 0.01), w("yo", 0.05, 0.4)], &ranges), &CaptionStyle { max_words_per_line: 1, ..up });
+        let up = CaptionStyle {
+            uppercase: true,
+            ..CaptionStyle::default()
+        };
+        let l = group_words(
+            &map_words(&[w("hi", 0.0, 0.01), w("yo", 0.05, 0.4)], &ranges),
+            &CaptionStyle {
+                max_words_per_line: 1,
+                ..up
+            },
+        );
         assert_eq!(l[0].text, "HI");
         assert!(l[0].end <= l[1].start + 1e-9);
     }
@@ -1007,28 +1310,47 @@ mod tests {
     #[test]
     fn crop_math_matches_concat_fill_and_inverts() {
         // 16:9 -> 9:16: fill scale = 1920/607.5... computed: fit=0.5625, fit_w=1080, fit_h=607.5.
-        let (s, ox, oy) = crop_to_transform((1920.0, 1080.0), (1080.0, 1920.0), 0.5, 0.5, 1.0).unwrap();
+        let (s, ox, oy) =
+            crop_to_transform((1920.0, 1080.0), (1080.0, 1920.0), 0.5, 0.5, 1.0).unwrap();
         assert!((s - 1920.0 / 607.5).abs() < 1e-9);
         assert!(ox.abs() < 1e-12 && oy.abs() < 1e-12);
         // Subject at 75% of the source width: picture shifts left (negative).
-        let (s2, ox2, _) = crop_to_transform((1920.0, 1080.0), (1080.0, 1920.0), 0.75, 0.5, 1.0).unwrap();
+        let (s2, ox2, _) =
+            crop_to_transform((1920.0, 1080.0), (1080.0, 1920.0), 0.75, 0.5, 1.0).unwrap();
         assert!(ox2 < 0.0 && (s2 - s).abs() < 1e-12);
-        let (cx, cy, z) = transform_to_crop((1920.0, 1080.0), (1080.0, 1920.0), s2, ox2, 0.0).unwrap();
+        let (cx, cy, z) =
+            transform_to_crop((1920.0, 1080.0), (1080.0, 1920.0), s2, ox2, 0.0).unwrap();
         assert!((cx - 0.75).abs() < 1e-9 && (cy - 0.5).abs() < 1e-9 && (z - 1.0).abs() < 1e-9);
         // Subject at the very edge is clamped so the frame stays covered.
-        let (_, ox3, _) = crop_to_transform((1920.0, 1080.0), (1080.0, 1920.0), 1.0, 0.5, 1.0).unwrap();
+        let (_, ox3, _) =
+            crop_to_transform((1920.0, 1080.0), (1080.0, 1920.0), 1.0, 0.5, 1.0).unwrap();
         let wfrac = s;
         assert!((ox3 + (wfrac - 1.0) / 2.0).abs() < 1e-9);
         // Max scale clamp.
-        assert_eq!(crop_to_transform((1920.0, 1080.0), (1080.0, 1920.0), 0.5, 0.5, 100.0).unwrap().0, 8.0);
+        assert_eq!(
+            crop_to_transform((1920.0, 1080.0), (1080.0, 1920.0), 0.5, 0.5, 100.0)
+                .unwrap()
+                .0,
+            8.0
+        );
         assert!(crop_to_transform((0.0, 1.0), (1.0, 1.0), 0.5, 0.5, 1.0).is_none());
     }
 
     #[test]
     fn range_keys_interpolate_edges_and_collapse_constants() {
         let path = [
-            CropKeyframe { time: 0.0, center_x: 0.2, center_y: 0.5, zoom: 1.0 },
-            CropKeyframe { time: 4.0, center_x: 0.6, center_y: 0.5, zoom: 1.0 },
+            CropKeyframe {
+                time: 0.0,
+                center_x: 0.2,
+                center_y: 0.5,
+                zoom: 1.0,
+            },
+            CropKeyframe {
+                time: 4.0,
+                center_x: 0.6,
+                center_y: 0.5,
+                zoom: 1.0,
+            },
         ];
         // Range covering output 1..3: edges sampled at t=1 (0.3) and t=3 (0.5).
         let k = range_keys(&path, 1.0, 2.0);
@@ -1042,11 +1364,32 @@ mod tests {
 
     #[test]
     fn lowering_orders_commands_and_validates() {
-        let mut plan = StudioClipPlan::new("clip", "/home/u/src.mp4", vec![r(10.0, 12.0), r(20.0, 22.0)]);
-        plan.captions = Some(CaptionTrack { words: vec![w("hello", 10.1, 10.5), w("world", 10.6, 11.0)], style: CaptionStyle::default() });
+        let mut plan = StudioClipPlan::new(
+            "clip",
+            "/home/u/src.mp4",
+            vec![r(10.0, 12.0), r(20.0, 22.0)],
+        );
+        plan.captions = Some(CaptionTrack {
+            words: vec![w("hello", 10.1, 10.5), w("world", 10.6, 11.0)],
+            style: CaptionStyle::default(),
+        });
         plan.overlays = vec![
-            Overlay::Title { text: "Hook".into(), start: 0.0, duration: 1.5, style: None, offset_y: Some(-0.3) },
-            Overlay::Media { file: "/home/u/broll.mp4".into(), start: 1.0, duration: 1.0, scale: 0.5, offset_x: 0.0, offset_y: 0.0, opacity: 1.0 },
+            Overlay::Title {
+                text: "Hook".into(),
+                start: 0.0,
+                duration: 1.5,
+                style: None,
+                offset_y: Some(-0.3),
+            },
+            Overlay::Media {
+                file: "/home/u/broll.mp4".into(),
+                start: 1.0,
+                duration: 1.0,
+                scale: 0.5,
+                offset_x: 0.0,
+                offset_y: 0.0,
+                opacity: 1.0,
+            },
         ];
         let cmds = to_concat_commands(&plan).unwrap();
         let tags: Vec<&str> = cmds
@@ -1061,23 +1404,45 @@ mod tests {
                 Command::AddMediaOverlay { .. } => "overlay",
             })
             .collect();
-        assert_eq!(tags, ["import", "import", "place", "place", "frame", "frame", "captions", "title", "overlay"]);
+        assert_eq!(
+            tags,
+            [
+                "import", "import", "place", "place", "frame", "frame", "captions", "title",
+                "overlay"
+            ]
+        );
         match &cmds[3] {
-            Command::PlaceRange { at, source_start, .. } => assert_eq!((*at, *source_start), (2.0, 20.0)),
+            Command::PlaceRange {
+                at, source_start, ..
+            } => assert_eq!((*at, *source_start), (2.0, 20.0)),
             _ => unreachable!(),
         }
         // Bad inputs.
         plan.source.clear();
-        assert!(matches!(to_concat_commands(&plan), Err(ConcatError::InvalidPlan(_))));
+        assert!(matches!(
+            to_concat_commands(&plan),
+            Err(ConcatError::InvalidPlan(_))
+        ));
         let mut p2 = StudioClipPlan::new("c", "/s.mp4", vec![r(0.0, 1.0)]);
-        p2.overlays = vec![Overlay::Title { text: "x".into(), start: 0.0, duration: 0.0, style: None, offset_y: None }];
+        p2.overlays = vec![Overlay::Title {
+            text: "x".into(),
+            start: 0.0,
+            duration: 0.0,
+            style: None,
+            offset_y: None,
+        }];
         assert!(to_concat_commands(&p2).is_err());
     }
 
     #[test]
     fn plan_json_roundtrips() {
         let mut plan = StudioClipPlan::new("c", "/s.mp4", vec![r(1.0, 2.0)]);
-        plan.crop_keyframes = vec![CropKeyframe { time: 0.0, center_x: 0.4, center_y: 0.5, zoom: 1.2 }];
+        plan.crop_keyframes = vec![CropKeyframe {
+            time: 0.0,
+            center_x: 0.4,
+            center_y: 0.5,
+            zoom: 1.2,
+        }];
         let v = serde_json::to_value(&plan).unwrap();
         let back: StudioClipPlan = serde_json::from_value(v).unwrap();
         assert_eq!(back, plan);

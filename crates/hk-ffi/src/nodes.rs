@@ -24,16 +24,22 @@ static ENV: RwLock<Option<Arc<NodeEnv>>> = RwLock::new(None);
 static CRED_TYPES: std::sync::OnceLock<CredentialTypes> = std::sync::OnceLock::new();
 
 fn cred_types() -> CredentialTypes {
-    CRED_TYPES.get_or_init(CredentialTypes::with_builtins).clone()
+    CRED_TYPES
+        .get_or_init(CredentialTypes::with_builtins)
+        .clone()
 }
 
 fn build(extra: impl FnOnce(&mut NodeRegistry)) -> Result<NodeEnv, HkError> {
     let mut reg = NodeRegistry::new();
     register_core_nodes(&mut reg).map_err(|e| HkError::internal(format!("flow registry: {e}")))?;
     let types = cred_types();
-    hk_integrations::register_integrations(&mut reg, &types).map_err(|e| HkError::internal(format!("integrations: {e}")))?;
+    hk_integrations::register_integrations(&mut reg, &types)
+        .map_err(|e| HkError::internal(format!("integrations: {e}")))?;
     extra(&mut reg);
-    Ok(NodeEnv { registry: Arc::new(reg), cred_types: types })
+    Ok(NodeEnv {
+        registry: Arc::new(reg),
+        cred_types: types,
+    })
 }
 
 /// Current environment (built on first use).
@@ -50,7 +56,10 @@ pub fn env() -> Arc<NodeEnv> {
         tracing::error!(error = %e, "node registry build failed; falling back to core nodes");
         let mut reg = NodeRegistry::new();
         let _ = register_core_nodes(&mut reg);
-        NodeEnv { registry: Arc::new(reg), cred_types: cred_types() }
+        NodeEnv {
+            registry: Arc::new(reg),
+            cred_types: cred_types(),
+        }
     }));
     *w = Some(e.clone());
     e
@@ -72,7 +81,11 @@ mod tests {
     #[test]
     fn core_and_integration_nodes_register_together() {
         let reg = super::registry();
-        for ty in ["n8n-nodes-base.set", "n8n-nodes-base.httpRequest", "hokkabaz.ntfy"] {
+        for ty in [
+            "n8n-nodes-base.set",
+            "n8n-nodes-base.httpRequest",
+            "hokkabaz.ntfy",
+        ] {
             assert!(reg.latest(ty).is_some(), "{ty} missing");
         }
         assert!(super::env().cred_types.get("ntfyApi").is_some());

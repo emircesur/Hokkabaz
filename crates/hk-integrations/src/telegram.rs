@@ -80,9 +80,26 @@ fn is_media(op: &str) -> Option<&'static str> {
 
 fn description() -> NodeTypeDescription {
     let msg = |p: Prop| p.show("resource", &["message"]);
-    let ops_with_chat = ["deleteMessage", "editMessageText", "sendMessage", "sendPhoto", "sendDocument", "sendVideo", "sendAudio", "sendAnimation"];
+    let ops_with_chat = [
+        "deleteMessage",
+        "editMessageText",
+        "sendMessage",
+        "sendPhoto",
+        "sendDocument",
+        "sendVideo",
+        "sendAudio",
+        "sendAnimation",
+    ];
     let media_ops: Vec<&str> = MEDIA.iter().map(|(o, _)| *o).collect();
-    let markup_ops = ["sendMessage", "editMessageText", "sendPhoto", "sendDocument", "sendVideo", "sendAudio", "sendAnimation"];
+    let markup_ops = [
+        "sendMessage",
+        "editMessageText",
+        "sendPhoto",
+        "sendDocument",
+        "sendVideo",
+        "sendAudio",
+        "sendAnimation",
+    ];
 
     let mut d = NodeBuilder::new(NODE_TYPE, "Telegram")
         .description("Send and edit messages and files through a Telegram bot")
@@ -104,8 +121,12 @@ fn description() -> NodeTypeDescription {
             .default("message"),
         )
         .property(
-            Prop::options("operation", "Operation", vec![Choice::new("Answer Query", "answerQuery")])
-                .show("resource", &["callback"]),
+            Prop::options(
+                "operation",
+                "Operation",
+                vec![Choice::new("Answer Query", "answerQuery")],
+            )
+            .show("resource", &["callback"]),
         )
         .property(
             Prop::options("operation", "Operation", vec![Choice::new("Get", "get")])
@@ -142,7 +163,9 @@ fn description() -> NodeTypeDescription {
         .property(
             Prop::string("chatId", "Chat ID")
                 .required()
-                .description("Unique identifier for the target chat or username of the target channel")
+                .description(
+                    "Unique identifier for the target chat or username of the target channel",
+                )
                 .show("resource", &["chat", "message"]),
         )
         .property(
@@ -161,7 +184,10 @@ fn description() -> NodeTypeDescription {
             Prop::options(
                 "messageType",
                 "Message Type",
-                vec![Choice::new("Message", "message"), Choice::new("Inline Message", "inlineMessage")],
+                vec![
+                    Choice::new("Message", "message"),
+                    Choice::new("Inline Message", "inlineMessage"),
+                ],
             )
             .show("resource", &["message"])
             .show("operation", &["editMessageText"]),
@@ -287,15 +313,20 @@ fn trigger_description() -> NodeTypeDescription {
         .color("#0088cc")
         .polling_trigger()
         .credential(CREDENTIAL, true)
-        .property(poll_times_prop().default(json!({"item": [{"mode": "everyX", "value": 10, "unit": "seconds"}]})))
+        .property(
+            poll_times_prop()
+                .default(json!({"item": [{"mode": "everyX", "value": 10, "unit": "seconds"}]})),
+        )
         .property(Prop::collection(
             "additionalFields",
             "Additional Fields",
             vec![
-                Prop::string("chatIds", "Restrict to Chat IDs")
-                    .description("Comma-separated chat IDs; only updates from these chats start the workflow"),
-                Prop::string("userIds", "Restrict to User IDs")
-                    .description("Comma-separated user IDs; only updates from these users start the workflow"),
+                Prop::string("chatIds", "Restrict to Chat IDs").description(
+                    "Comma-separated chat IDs; only updates from these chats start the workflow",
+                ),
+                Prop::string("userIds", "Restrict to User IDs").description(
+                    "Comma-separated user IDs; only updates from these users start the workflow",
+                ),
                 Prop::number("timeout", "Long Poll Seconds")
                     .description("How long Telegram holds each getUpdates call open when idle")
                     .min(0.0)
@@ -369,7 +400,11 @@ fn keyboard_rows(v: &Value) -> Vec<Value> {
     if let Value::Array(a) = &v {
         return a.clone();
     }
-    let rows = v.get("rows").and_then(Value::as_array).cloned().unwrap_or_default();
+    let rows = v
+        .get("rows")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     rows.iter()
         .map(|r| {
             let buttons = r
@@ -386,7 +421,12 @@ fn keyboard_rows(v: &Value) -> Vec<Value> {
                             out.insert("text".into(), t.clone());
                         }
                         if let Some(Value::Object(extra)) = b.get("additionalFields") {
-                            out.extend(extra.iter().filter(|(_, v)| !empty(v)).map(|(k, v)| (k.clone(), v.clone())));
+                            out.extend(
+                                extra
+                                    .iter()
+                                    .filter(|(_, v)| !empty(v))
+                                    .map(|(k, v)| (k.clone(), v.clone())),
+                            );
                         }
                         Value::Object(out)
                     })
@@ -433,7 +473,12 @@ impl TelegramNode {
         })
     }
 
-    fn additional(&self, ctx: &NodeContext, i: usize, fields: &mut Map<String, Value>) -> Result<(), FlowError> {
+    fn additional(
+        &self,
+        ctx: &NodeContext,
+        i: usize,
+        fields: &mut Map<String, Value>,
+    ) -> Result<(), FlowError> {
         if let Some(Value::Object(extra)) = kit::field(ctx, "additionalFields", i)? {
             for (k, v) in extra {
                 // n8n-only knob, not a Bot API parameter
@@ -467,7 +512,10 @@ impl TelegramNode {
             }
             ("message", "deleteMessage") => {
                 fields.insert("chat_id".into(), s("chatId")?.into());
-                fields.insert("message_id".into(), int_if_numeric("message_id", s("messageId")?.into()));
+                fields.insert(
+                    "message_id".into(),
+                    int_if_numeric("message_id", s("messageId")?.into()),
+                );
                 "deleteMessage"
             }
             ("message", "editMessageText") => {
@@ -475,7 +523,10 @@ impl TelegramNode {
                     fields.insert("inline_message_id".into(), s("inlineMessageId")?.into());
                 } else {
                     fields.insert("chat_id".into(), s("chatId")?.into());
-                    fields.insert("message_id".into(), int_if_numeric("message_id", s("messageId")?.into()));
+                    fields.insert(
+                        "message_id".into(),
+                        int_if_numeric("message_id", s("messageId")?.into()),
+                    );
                 }
                 fields.insert("text".into(), s("text")?.into());
                 self.additional(ctx, i, &mut fields)?;
@@ -503,7 +554,10 @@ impl TelegramNode {
                 if let Some(m) = self.reply_markup(ctx, i)? {
                     fields.insert("reply_markup".into(), m);
                 }
-                let method = MEDIA.iter().find(|(o, _)| *o == op).map_or("sendDocument", |(o, _)| *o);
+                let method = MEDIA
+                    .iter()
+                    .find(|(o, _)| *o == op)
+                    .map_or("sendDocument", |(o, _)| *o);
                 let mut upload = None;
                 if kit::bool_param(ctx, &self.desc, "binaryData", i)? {
                     let prop = s("binaryPropertyName")?;
@@ -516,11 +570,19 @@ impl TelegramNode {
                 } else {
                     fields.insert(field.into(), s("file")?.into());
                 }
-                return Ok(Call { method, fields, upload });
+                return Ok(Call {
+                    method,
+                    fields,
+                    upload,
+                });
             }
             (r, o) => return Err(node_err(ctx, format!("Unsupported operation `{r}`/`{o}`"))),
         };
-        Ok(Call { method, fields, upload: None })
+        Ok(Call {
+            method,
+            fields,
+            upload: None,
+        })
     }
 
     async fn send(
@@ -572,13 +634,15 @@ impl TelegramNode {
                 kit::cred_str(cred, "baseUrl").trim_end_matches('/'),
                 kit::cred_str(cred, "accessToken")
             );
-            let res = http
-                .get(url)
-                .send()
-                .await
-                .map_err(|e| node_err(ctx, format!("The download failed: {}", e.without_url())))?;
+            let res =
+                http.get(url).send().await.map_err(|e| {
+                    node_err(ctx, format!("The download failed: {}", e.without_url()))
+                })?;
             if !res.status().is_success() {
-                return Err(node_err(ctx, format!("The download failed: {}", res.status().as_u16())));
+                return Err(node_err(
+                    ctx,
+                    format!("The download failed: {}", res.status().as_u16()),
+                ));
             }
             let mime = res
                 .headers()
@@ -638,7 +702,11 @@ struct TelegramTrigger {
 }
 
 fn id_list(s: &str) -> Vec<String> {
-    s.split(',').map(str::trim).filter(|x| !x.is_empty()).map(str::to_owned).collect()
+    s.split(',')
+        .map(str::trim)
+        .filter(|x| !x.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 /// The update's payload object (`message`, `callback_query`, ...), and its type key.
@@ -651,11 +719,19 @@ fn payload(update: &Value) -> Option<(&str, &Value)> {
 }
 
 fn update_passes(update: &Value, types: &[String], chats: &[String], users: &[String]) -> bool {
-    let Some((kind, body)) = payload(update) else { return false };
+    let Some((kind, body)) = payload(update) else {
+        return false;
+    };
     if !types.is_empty() && !types.iter().any(|t| t == "*" || t == kind) {
         return false;
     }
-    let ids = |v: Option<&Value>| v.and_then(|x| x.as_i64().map(|n| n.to_string()).or_else(|| x.as_str().map(str::to_owned)));
+    let ids = |v: Option<&Value>| {
+        v.and_then(|x| {
+            x.as_i64()
+                .map(|n| n.to_string())
+                .or_else(|| x.as_str().map(str::to_owned))
+        })
+    };
     if !chats.is_empty() {
         let chat = ids(body.pointer("/chat/id")).or_else(|| ids(body.pointer("/message/chat/id")));
         if !chat.is_some_and(|c| chats.contains(&c)) {
@@ -704,11 +780,23 @@ impl PollingTrigger for TelegramTrigger {
             body["allowed_updates"] = json!(types);
         }
         let http = kit::client(&node, Duration::from_secs(timeout + 20))?;
-        let res = kit::call(&node, kit::json_body(http.post(api_url(&cred, "getUpdates")), &body), ERROR_PATHS).await?;
+        let res = kit::call(
+            &node,
+            kit::json_body(http.post(api_url(&cred, "getUpdates")), &body),
+            ERROR_PATHS,
+        )
+        .await?;
         let res = check_ok(&node, res)?;
-        let updates = res.get("result").and_then(Value::as_array).cloned().unwrap_or_default();
+        let updates = res
+            .get("result")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
 
-        let next = updates.iter().filter_map(|u| u.get("update_id").and_then(Value::as_i64)).max();
+        let next = updates
+            .iter()
+            .filter_map(|u| u.get("update_id").and_then(Value::as_i64))
+            .max();
         let items = updates
             .into_iter()
             .filter(|u| update_passes(u, &types, &chats, &users))
@@ -718,7 +806,10 @@ impl PollingTrigger for TelegramTrigger {
             })
             .collect();
         // filtered-out updates are still confirmed, or Telegram would resend them forever
-        Ok(PollBatch { items, cursor: next.map(|n| json!(n + 1)) })
+        Ok(PollBatch {
+            items,
+            cursor: next.map(|n| json!(n + 1)),
+        })
     }
 }
 
@@ -729,8 +820,17 @@ pub fn register(
     polls: &mut PollRegistry,
 ) -> Result<(), FlowError> {
     creds.register_if_absent(credential_type());
-    nodes.register(Arc::new(TelegramNode { desc: description(), creds: creds.clone() }))?;
-    polls.register(nodes, Arc::new(TelegramTrigger { desc: trigger_description(), creds: creds.clone() }))
+    nodes.register(Arc::new(TelegramNode {
+        desc: description(),
+        creds: creds.clone(),
+    }))?;
+    polls.register(
+        nodes,
+        Arc::new(TelegramTrigger {
+            desc: trigger_description(),
+            creds: creds.clone(),
+        }),
+    )
 }
 
 #[cfg(test)]
@@ -741,10 +841,16 @@ mod tests {
     fn keyboard_shapes() {
         let tg = json!([[{"text": "a", "callback_data": "x"}]]);
         assert_eq!(keyboard_rows(&tg), tg.as_array().unwrap().clone());
-        assert_eq!(keyboard_rows(&json!(tg.to_string())), tg.as_array().unwrap().clone());
+        assert_eq!(
+            keyboard_rows(&json!(tg.to_string())),
+            tg.as_array().unwrap().clone()
+        );
         let n8n = json!({"rows": [{"row": {"buttons": [
             {"text": "go", "additionalFields": {"callback_data": "g", "url": ""}}]}}]});
-        assert_eq!(keyboard_rows(&n8n), vec![json!([{"text": "go", "callback_data": "g"}])]);
+        assert_eq!(
+            keyboard_rows(&n8n),
+            vec![json!([{"text": "go", "callback_data": "g"}])]
+        );
     }
 
     #[test]
@@ -754,10 +860,20 @@ mod tests {
         assert!(update_passes(&u, &t(&["message"]), &[], &[]));
         assert!(update_passes(&u, &t(&["*"]), &[], &[]));
         assert!(!update_passes(&u, &t(&["edited_message"]), &[], &[]));
-        assert!(update_passes(&u, &t(&["message"]), &t(&["-100"]), &t(&["7"])));
+        assert!(update_passes(
+            &u,
+            &t(&["message"]),
+            &t(&["-100"]),
+            &t(&["7"])
+        ));
         assert!(!update_passes(&u, &t(&["message"]), &t(&["5"]), &[]));
         assert!(!update_passes(&u, &t(&["message"]), &[], &t(&["8"])));
         let cb = json!({"update_id": 2, "callback_query": {"from": {"id": 7}, "message": {"chat": {"id": 3}}}});
-        assert!(update_passes(&cb, &t(&["callback_query"]), &t(&["3"]), &t(&["7"])));
+        assert!(update_passes(
+            &cb,
+            &t(&["callback_query"]),
+            &t(&["3"]),
+            &t(&["7"])
+        ));
     }
 }

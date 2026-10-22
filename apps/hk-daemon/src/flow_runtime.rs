@@ -20,10 +20,12 @@ use std::sync::{Arc, Mutex, PoisonError, Weak};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use hk_flow::triggers::{self as ft, ChannelSink, LocalTriggerHost, TriggerEvent, TriggerHost, TriggerKind, WebhookKind};
+use hk_flow::triggers::{
+    self as ft, ChannelSink, LocalTriggerHost, TriggerEvent, TriggerHost, TriggerKind, WebhookKind,
+};
 use hk_flow::{
-    CredentialRef, CredentialResolver, ExecuteInput, ExecutionResult, Executor, ExecutorConfig, FlowError, Item,
-    NodeRegistry, ResponseSink, RunStatus, Workflow, register_core_nodes,
+    CredentialRef, CredentialResolver, ExecuteInput, ExecutionResult, Executor, ExecutorConfig,
+    FlowError, Item, NodeRegistry, ResponseSink, RunStatus, Workflow, register_core_nodes,
 };
 use hk_server as hs;
 use hk_server::{ApiError, FlowApi, WebhookCall, WebhookMode, WebhookResult, WebhookRun};
@@ -49,7 +51,12 @@ pub struct FlowConfig {
 
 impl Default for FlowConfig {
     fn default() -> Self {
-        Self { env_allowlist: Vec::new(), webhook_base_url: None, tick: Duration::from_secs(1), agent_runner: None }
+        Self {
+            env_allowlist: Vec::new(),
+            webhook_base_url: None,
+            tick: Duration::from_secs(1),
+            agent_runner: None,
+        }
     }
 }
 
@@ -66,7 +73,9 @@ pub struct FlowRuntime {
 
 impl fmt::Debug for FlowRuntime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FlowRuntime").field("host", &self.host).finish_non_exhaustive()
+        f.debug_struct("FlowRuntime")
+            .field("host", &self.host)
+            .finish_non_exhaustive()
     }
 }
 
@@ -85,13 +94,19 @@ impl FlowRuntime {
         let mut nodes = NodeRegistry::new();
         register_core_nodes(&mut nodes)?;
         #[cfg(feature = "integrations")]
-        hk_integrations::register_integrations(&mut nodes, &hk_integrations::CredentialTypes::with_builtins())?;
+        hk_integrations::register_integrations(
+            &mut nodes,
+            &hk_integrations::CredentialTypes::with_builtins(),
+        )?;
         let exec_cfg = ExecutorConfig {
             mode: "trigger".into(),
             env_allowlist: cfg.env_allowlist,
             webhook_base_url: cfg.webhook_base_url.clone(),
             hooks: hk_flow::NodeHooks {
-                credentials: Some(Arc::new(StoredCredentials { store: api.store.clone(), secrets: api.secrets.clone() })),
+                credentials: Some(Arc::new(StoredCredentials {
+                    store: api.store.clone(),
+                    secrets: api.secrets.clone(),
+                })),
                 agent_runner: cfg.agent_runner,
                 ..hk_flow::NodeHooks::default()
             },
@@ -112,7 +127,9 @@ impl FlowRuntime {
             nodes,
             host: host.clone(),
             registry,
-            base_url: cfg.webhook_base_url.map(|b| b.trim_end_matches('/').to_owned()),
+            base_url: cfg
+                .webhook_base_url
+                .map(|b| b.trim_end_matches('/').to_owned()),
             tasks: Mutex::new(Vec::new()),
         });
 
@@ -130,7 +147,10 @@ impl FlowRuntime {
                 tokio::spawn(async move { rt.finalize_resumed(res).await });
             }
         });
-        rt.tasks.lock().unwrap_or_else(PoisonError::into_inner).extend([drain, ticker]);
+        rt.tasks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend([drain, ticker]);
         Ok(rt)
     }
 
@@ -148,7 +168,12 @@ impl FlowRuntime {
 
     /// Stop the background loops. In-flight runs are not awaited.
     pub fn shutdown(&self) {
-        for t in self.tasks.lock().unwrap_or_else(PoisonError::into_inner).drain(..) {
+        for t in self
+            .tasks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .drain(..)
+        {
             t.abort();
         }
     }
@@ -159,7 +184,11 @@ impl FlowRuntime {
     pub async fn activate_stored(&self) -> Result<usize, ApiError> {
         let (mut ok, mut offset) = (0, 0u32);
         loop {
-            let rows = self.api.store.list_workflows(Some(true), None, 200, offset).await?;
+            let rows = self
+                .api
+                .store
+                .list_workflows(Some(true), None, 200, offset)
+                .await?;
             if rows.is_empty() {
                 return Ok(ok);
             }
@@ -172,9 +201,13 @@ impl FlowRuntime {
                             ok += 1;
                             tracing::info!(workflow = %row.id, webhooks = a.webhooks.len(), schedules = a.schedules, "workflow activated");
                         }
-                        Err(e) => tracing::warn!(workflow = %row.id, error = %e, "cannot activate stored workflow"),
+                        Err(e) => {
+                            tracing::warn!(workflow = %row.id, error = %e, "cannot activate stored workflow")
+                        }
                     },
-                    Err(e) => tracing::warn!(workflow = %row.id, error = %e, "stored workflow is invalid"),
+                    Err(e) => {
+                        tracing::warn!(workflow = %row.id, error = %e, "stored workflow is invalid")
+                    }
                 }
             }
         }
@@ -202,7 +235,10 @@ impl FlowRuntime {
         let json = hs::workflow_json(&row);
         let wf = Workflow::from_json_value(json.clone())
             .map_err(|e| ApiError::Internal(format!("stored workflow is invalid: {e}")))?;
-        let exec_id = self.api.start_execution(workflow_id, mode, Some(&json)).await?;
+        let exec_id = self
+            .api
+            .start_execution(workflow_id, mode, Some(&json))
+            .await?;
         Ok(Started { wf, exec_id })
     }
 
@@ -230,10 +266,17 @@ impl FlowRuntime {
         }
         let mut input = ExecuteInput::new(start, items);
         input.execution_id = Some(exec_id.to_string());
-        match self.executor.clone().with_config(cfg).execute(&wf, &input).await {
+        match self
+            .executor
+            .clone()
+            .with_config(cfg)
+            .execute(&wf, &input)
+            .await
+        {
             Ok(res) => {
                 self.finalize(exec_id, &res).await;
-                self.host.on_execution_finished(&wf, &res, self.base_url.as_deref());
+                self.host
+                    .on_execution_finished(&wf, &res, self.base_url.as_deref());
                 if res.status == RunStatus::Error {
                     return Err(res.error.map(|e| e.message).unwrap_or_default());
                 }
@@ -246,7 +289,11 @@ impl FlowRuntime {
     async fn fail(&self, exec_id: i64, e: &FlowError) -> WebhookResult {
         let msg = e.to_string();
         let data = json!({ "resultData": { "runData": {}, "error": { "message": msg } } });
-        if let Err(e) = self.api.finish_execution(exec_id, "error", Some(&data)).await {
+        if let Err(e) = self
+            .api
+            .finish_execution(exec_id, "error", Some(&data))
+            .await
+        {
             tracing::error!(error = %e, execution = exec_id, "cannot record failed execution");
         }
         Err(msg)
@@ -273,11 +320,18 @@ impl FlowRuntime {
             result.insert("lastNodeExecuted".into(), json!(n));
         }
         if let Some(e) = &res.error {
-            result.insert("error".into(), json!({ "message": e.message, "node": e.node }));
+            result.insert(
+                "error".into(),
+                json!({ "message": e.message, "node": e.node }),
+            );
         }
         let mut data = json!({ "resultData": Value::Object(result) });
         scrub_headers(&mut data);
-        if let Err(e) = self.api.finish_execution(exec_id, status, Some(&data)).await {
+        if let Err(e) = self
+            .api
+            .finish_execution(exec_id, status, Some(&data))
+            .await
+        {
             tracing::error!(error = %e, execution = exec_id, "cannot record execution");
         }
         if let Some(sd) = &res.static_data
@@ -289,10 +343,22 @@ impl FlowRuntime {
 
     async fn save_static_data(&self, workflow_id: &str, sd: &Value) {
         let store = &self.api.store;
-        let Ok(Some(row)) = store.get_workflow(workflow_id).await else { return };
-        let Ok(Value::Object(mut data)) = serde_json::from_str::<Value>(&row.data) else { return };
+        let Ok(Some(row)) = store.get_workflow(workflow_id).await else {
+            return;
+        };
+        let Ok(Value::Object(mut data)) = serde_json::from_str::<Value>(&row.data) else {
+            return;
+        };
         data.insert("staticData".into(), sd.clone());
-        if let Err(e) = store.update_workflow(&row.id, &row.name, &row.version_id, &Value::Object(data).to_string()).await {
+        if let Err(e) = store
+            .update_workflow(
+                &row.id,
+                &row.name,
+                &row.version_id,
+                &Value::Object(data).to_string(),
+            )
+            .await
+        {
             tracing::warn!(error = %e, workflow = %row.id, "cannot persist static data");
         }
     }
@@ -303,7 +369,9 @@ impl FlowRuntime {
         match res {
             Ok(res) => match res.execution_id.parse::<i64>() {
                 Ok(id) => self.finalize(id, &res).await,
-                Err(_) => tracing::warn!(execution = %res.execution_id, "resumed execution has a foreign id"),
+                Err(_) => {
+                    tracing::warn!(execution = %res.execution_id, "resumed execution has a foreign id")
+                }
             },
             Err(e) => tracing::error!(error = %e, "cannot resume waiting execution"),
         }
@@ -315,7 +383,9 @@ impl FlowRuntime {
             Ok(s) => {
                 let _ = self.run(s, ev.node_name, ev.items, mode, None).await;
             }
-            Err(e) => tracing::warn!(workflow = %ev.workflow_id, error = %e, "trigger fired for an unrunnable workflow"),
+            Err(e) => {
+                tracing::warn!(workflow = %ev.workflow_id, error = %e, "trigger fired for an unrunnable workflow")
+            }
         }
     }
 }
@@ -337,7 +407,9 @@ struct Bridge {
 
 impl fmt::Debug for Bridge {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("WebhookBridge").field("routes", &self.rt.registry.routes().len()).finish()
+        f.debug_struct("WebhookBridge")
+            .field("routes", &self.rt.registry.routes().len())
+            .finish()
     }
 }
 
@@ -365,7 +437,11 @@ fn server_spec(r: &ft::WebhookRoute) -> hs::WebhookSpec {
         _ => hs::LastNodeData::FirstEntryJson,
     };
     s.response_code = r.spec.response_code;
-    s.auth = if r.spec.authentication == "none" { hs::WebhookAuth::None } else { hs::WebhookAuth::Bearer };
+    s.auth = if r.spec.authentication == "none" {
+        hs::WebhookAuth::None
+    } else {
+        hs::WebhookAuth::Bearer
+    };
     s
 }
 
@@ -374,16 +450,34 @@ impl hs::WebhookHandler for Bridge {
     fn lookup(&self, mode: WebhookMode, method: &str, path: &str) -> Option<hs::WebhookRoute> {
         let m = self.rt.registry.resolve(kind_of(mode), method, path)?;
         let mut h = std::collections::hash_map::DefaultHasher::new();
-        (&m.route.workflow_id, &m.route.node_name, &m.route.spec.route, mode == WebhookMode::Test).hash(&mut h);
-        Some(hs::WebhookRoute { id: h.finish(), spec: Arc::new(server_spec(&m.route)), params: m.params })
+        (
+            &m.route.workflow_id,
+            &m.route.node_name,
+            &m.route.spec.route,
+            mode == WebhookMode::Test,
+        )
+            .hash(&mut h);
+        Some(hs::WebhookRoute {
+            id: h.finish(),
+            spec: Arc::new(server_spec(&m.route)),
+            params: m.params,
+        })
     }
 
     fn unregister_owner(&self, owner: &str) {
-        self.rt.registry.unregister_workflow(owner, WebhookKind::Production);
-        self.rt.registry.unregister_workflow(owner, WebhookKind::Test);
+        self.rt
+            .registry
+            .unregister_workflow(owner, WebhookKind::Production);
+        self.rt
+            .registry
+            .unregister_workflow(owner, WebhookKind::Test);
     }
 
-    async fn handle(&self, _route: &hs::WebhookRoute, call: WebhookCall) -> Result<WebhookRun, ApiError> {
+    async fn handle(
+        &self,
+        _route: &hs::WebhookRoute,
+        call: WebhookCall,
+    ) -> Result<WebhookRun, ApiError> {
         let rt = &self.rt;
         let kind = kind_of(call.mode);
         // Re-resolve: the route id is only a lookup token, the registry is the truth.
@@ -401,22 +495,31 @@ impl hs::WebhookHandler for Bridge {
 
         let mut item = call.item;
         if let Some(base) = &rt.base_url {
-            item.json.insert("webhookUrl".into(), json!(format!("{base}/{}", m.route.url_path())));
+            item.json.insert(
+                "webhookUrl".into(),
+                json!(format!("{base}/{}", m.route.url_path())),
+            );
         }
-        item.json.insert("executionMode".into(), json!(kind.execution_mode()));
+        item.json
+            .insert("executionMode".into(), json!(kind.execution_mode()));
 
         let (tx, done) = oneshot::channel();
         let rt2 = rt.clone();
         let sink = call.sink;
         tokio::spawn(async move {
-            let out = rt2.run(started, Some(node), vec![item], mode, Some(sink)).await;
+            let out = rt2
+                .run(started, Some(node), vec![item], mode, Some(sink))
+                .await;
             let _ = tx.send(out);
         });
         if kind == WebhookKind::Test {
             // test listeners are one-shot
             rt.registry.unregister_workflow(&wf_id, WebhookKind::Test);
         }
-        Ok(WebhookRun { execution_id: Some(exec_id), done })
+        Ok(WebhookRun {
+            execution_id: Some(exec_id),
+            done,
+        })
     }
 }
 
@@ -436,11 +539,20 @@ impl fmt::Debug for Activator {
 impl hs::WorkflowActivator for Activator {
     async fn activate(&self, workflow: &Value) -> Result<(), String> {
         let wf = Workflow::from_json_value(workflow.clone()).map_err(|e| e.to_string())?;
-        self.rt.host.activate(&wf).await.map(|_| ()).map_err(|e| e.to_string())
+        self.rt
+            .host
+            .activate(&wf)
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
     }
 
     async fn deactivate(&self, workflow_id: &str) -> Result<(), String> {
-        self.rt.host.deactivate(workflow_id).await.map_err(|e| e.to_string())
+        self.rt
+            .host
+            .deactivate(workflow_id)
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -462,15 +574,26 @@ impl fmt::Debug for StoredCredentials {
 
 #[async_trait]
 impl CredentialResolver for StoredCredentials {
-    async fn resolve(&self, credential_type: &str, reference: &CredentialRef) -> Result<Map<String, Value>, FlowError> {
-        let id = reference
-            .id
-            .as_deref()
-            .ok_or_else(|| FlowError::Invalid(format!("credential of type {credential_type} has no id")))?;
-        let row = self.store.get_credential(id).await.map_err(|_| FlowError::Store("credential lookup failed".into()))?;
+    async fn resolve(
+        &self,
+        credential_type: &str,
+        reference: &CredentialRef,
+    ) -> Result<Map<String, Value>, FlowError> {
+        let id = reference.id.as_deref().ok_or_else(|| {
+            FlowError::Invalid(format!("credential of type {credential_type} has no id"))
+        })?;
+        let row = self
+            .store
+            .get_credential(id)
+            .await
+            .map_err(|_| FlowError::Store("credential lookup failed".into()))?;
         match row {
             Some(r) if r.kind == credential_type => {}
-            Some(_) => return Err(FlowError::Invalid(format!("credential {id} is not of type {credential_type}"))),
+            Some(_) => {
+                return Err(FlowError::Invalid(format!(
+                    "credential {id} is not of type {credential_type}"
+                )));
+            }
             None => return Err(FlowError::Invalid(format!("credential {id} not found"))),
         }
         let blob = self
@@ -499,7 +622,12 @@ impl hs::FlowToolHost for FlowRuntime {
         let exec_id = match &req.workflow_id {
             Some(id) => {
                 let json = req.workflow.to_json_value().map_err(|e| e.to_string())?;
-                Some(self.api.start_execution(id, "manual", Some(&json)).await.map_err(|e| e.to_string())?)
+                Some(
+                    self.api
+                        .start_execution(id, "manual", Some(&json))
+                        .await
+                        .map_err(|e| e.to_string())?,
+                )
             }
             None => None,
         };
@@ -508,7 +636,13 @@ impl hs::FlowToolHost for FlowRuntime {
         cfg.use_pin_data = true;
         let mut input = ExecuteInput::new(req.start_node, req.items);
         input.execution_id = exec_id.map(|i| i.to_string());
-        match self.executor.clone().with_config(cfg).execute(&req.workflow, &input).await {
+        match self
+            .executor
+            .clone()
+            .with_config(cfg)
+            .execute(&req.workflow, &input)
+            .await
+        {
             Ok(res) => {
                 if let Some(id) = exec_id {
                     self.finalize(id, &res).await;

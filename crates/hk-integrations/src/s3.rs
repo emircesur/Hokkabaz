@@ -31,17 +31,32 @@ const LIST_PAGE: usize = 1000;
 
 pub fn credential_type() -> CredentialType {
     CredentialType::new(CREDENTIAL, "S3")
-        .documentation("https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html")
+        .documentation(
+            "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html",
+        )
         .property(Prop::string("region", "Region").default("us-east-1"))
         .property(Prop::string("accessKeyId", "Access Key ID").required())
-        .property(Prop::string("secretAccessKey", "Secret Access Key").password().required())
-        .property(Prop::string("sessionToken", "Session Token").password().description("Only for temporary credentials"))
+        .property(
+            Prop::string("secretAccessKey", "Secret Access Key")
+                .password()
+                .required(),
+        )
+        .property(
+            Prop::string("sessionToken", "Session Token")
+                .password()
+                .description("Only for temporary credentials"),
+        )
         .property(
             Prop::string("endpoint", "Endpoint")
                 .placeholder("https://minio.example.com")
-                .description("Custom S3-compatible endpoint. Empty: AWS (https://s3.<region>.amazonaws.com)"),
+                .description(
+                    "Custom S3-compatible endpoint. Empty: AWS (https://s3.<region>.amazonaws.com)",
+                ),
         )
-        .property(Prop::boolean("forcePathStyle", "Force Path Style").description("Address buckets as <endpoint>/<bucket> also on AWS"))
+        .property(
+            Prop::boolean("forcePathStyle", "Force Path Style")
+                .description("Address buckets as <endpoint>/<bucket> also on AWS"),
+        )
 }
 
 fn description() -> NodeTypeDescription {
@@ -52,7 +67,14 @@ fn description() -> NodeTypeDescription {
         .icon("fa:hdd")
         .color("#ff9900")
         .credential(CREDENTIAL, true)
-        .property(Prop::options("resource", "Resource", vec![Choice::new("Bucket", "bucket"), Choice::new("File", "file")]).default("file"))
+        .property(
+            Prop::options(
+                "resource",
+                "Resource",
+                vec![Choice::new("Bucket", "bucket"), Choice::new("File", "file")],
+            )
+            .default("file"),
+        )
         .property(
             Prop::options(
                 "operation",
@@ -80,29 +102,73 @@ fn description() -> NodeTypeDescription {
             .default("upload")
             .show("resource", &["file"]),
         )
-        .property(Prop::string("name", "Name").required().description("Bucket name").show("resource", &["bucket"]).show("operation", &["create", "delete"]))
-        .property(Prop::string("sourcePath", "Source Path").required().placeholder("/bucket/path/to/file.ext").show("resource", &["file"]).show("operation", &["copy"]))
-        .property(Prop::string("destinationPath", "Destination Path").required().placeholder("/bucket/path/to/copy.ext").show("resource", &["file"]).show("operation", &["copy"]))
-        .property(bucket(Prop::string("bucketName", "Bucket Name").required()).show("operation", &["delete", "download", "getAll", "upload"]))
-        .property(bucket(Prop::string("fileKey", "File Key").required()).show("operation", &["delete", "download"]))
-        .property(bucket(Prop::string("fileName", "File Name").required().description("Object key to write")).show("operation", &["upload"]))
-        .property(bucket(Prop::boolean("binaryData", "Binary File").default(true)).show("operation", &["upload"]))
-        .property(bucket(Prop::string("fileContent", "File Content")).show("operation", &["upload"]).show_bool("binaryData", false))
+        .property(
+            Prop::string("name", "Name")
+                .required()
+                .description("Bucket name")
+                .show("resource", &["bucket"])
+                .show("operation", &["create", "delete"]),
+        )
+        .property(
+            Prop::string("sourcePath", "Source Path")
+                .required()
+                .placeholder("/bucket/path/to/file.ext")
+                .show("resource", &["file"])
+                .show("operation", &["copy"]),
+        )
+        .property(
+            Prop::string("destinationPath", "Destination Path")
+                .required()
+                .placeholder("/bucket/path/to/copy.ext")
+                .show("resource", &["file"])
+                .show("operation", &["copy"]),
+        )
+        .property(
+            bucket(Prop::string("bucketName", "Bucket Name").required())
+                .show("operation", &["delete", "download", "getAll", "upload"]),
+        )
+        .property(
+            bucket(Prop::string("fileKey", "File Key").required())
+                .show("operation", &["delete", "download"]),
+        )
+        .property(
+            bucket(
+                Prop::string("fileName", "File Name")
+                    .required()
+                    .description("Object key to write"),
+            )
+            .show("operation", &["upload"]),
+        )
+        .property(
+            bucket(Prop::boolean("binaryData", "Binary File").default(true))
+                .show("operation", &["upload"]),
+        )
+        .property(
+            bucket(Prop::string("fileContent", "File Content"))
+                .show("operation", &["upload"])
+                .show_bool("binaryData", false),
+        )
         .property(
             bucket(Prop::string("binaryPropertyName", "Input Binary Field").default("data"))
                 .show("operation", &["upload"])
                 .show_bool("binaryData", true),
         )
-        .property(bucket(Prop::string("binaryPropertyName", "Put Output File in Field").default("data")).show("operation", &["download"]))
+        .property(
+            bucket(Prop::string("binaryPropertyName", "Put Output File in Field").default("data"))
+                .show("operation", &["download"]),
+        )
         .property(Prop::collection(
             "additionalFields",
             "Additional Fields",
             vec![
-                Prop::string("region", "Region").description("Bucket region for Create (default: the credential's)"),
+                Prop::string("region", "Region")
+                    .description("Bucket region for Create (default: the credential's)"),
                 Prop::string("acl", "ACL").description("Canned ACL, e.g. private, public-read"),
                 Prop::string("storageClass", "Storage Class"),
-                Prop::string("contentType", "Content Type").description("Upload only; default: the binary's MIME type"),
-                Prop::string("prefix", "Prefix").description("Get Many Files: only keys starting with this"),
+                Prop::string("contentType", "Content Type")
+                    .description("Upload only; default: the binary's MIME type"),
+                Prop::string("prefix", "Prefix")
+                    .description("Get Many Files: only keys starting with this"),
             ],
         ));
     let all = return_all_and_limit(None, &["getAll"]);
@@ -115,7 +181,11 @@ fn description() -> NodeTypeDescription {
 // ------------------------------------------------------------------------------- XML
 
 fn unescape(s: &str) -> String {
-    s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'").replace("&amp;", "&")
+    s.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&amp;", "&")
 }
 
 /// Inner text of each `<tag>..</tag>` in `xml` (S3 responses carry no attributes on these).
@@ -155,16 +225,28 @@ struct S3 {
 impl S3 {
     fn new(node: &str, cred: &Map<String, Value>) -> Result<Self, FlowError> {
         let get = |k: &str| kit::cred_str(cred, k);
-        let region = if get("region").is_empty() { "us-east-1".to_owned() } else { get("region") };
+        let region = if get("region").is_empty() {
+            "us-east-1".to_owned()
+        } else {
+            get("region")
+        };
         let custom = !get("endpoint").trim().is_empty();
-        let raw = if custom { get("endpoint").trim().to_owned() } else { format!("https://s3.{region}.amazonaws.com") };
-        let endpoint = Url::parse(&raw).map_err(|_| kit::err(node, "The endpoint is not a valid URL"))?;
+        let raw = if custom {
+            get("endpoint").trim().to_owned()
+        } else {
+            format!("https://s3.{region}.amazonaws.com")
+        };
+        let endpoint =
+            Url::parse(&raw).map_err(|_| kit::err(node, "The endpoint is not a valid URL"))?;
         if !matches!(endpoint.scheme(), "http" | "https") || endpoint.host_str().is_none() {
             return Err(kit::err(node, "The endpoint must be an http(s) URL"));
         }
         let (access_key, secret_key) = (get("accessKeyId"), get("secretAccessKey"));
         if access_key.is_empty() || secret_key.is_empty() {
-            return Err(kit::err(node, "The credential needs an access key ID and a secret access key"));
+            return Err(kit::err(
+                node,
+                "The credential needs an access key ID and a secret access key",
+            ));
         }
         Ok(Self {
             http: kit::client(node, Duration::from_secs(300))?,
@@ -182,34 +264,56 @@ impl S3 {
     }
 
     /// Canonical URL for `bucket` / `key` with a (pre-sorted not required) query.
-    fn url(&self, bucket: Option<&str>, key: Option<&str>, query: &[(&str, String)]) -> Result<Url, FlowError> {
+    fn url(
+        &self,
+        bucket: Option<&str>,
+        key: Option<&str>,
+        query: &[(&str, String)],
+    ) -> Result<Url, FlowError> {
         let scheme = self.endpoint.scheme();
         let host = self.endpoint.host_str().unwrap_or_default();
-        let port = self.endpoint.port().map(|p| format!(":{p}")).unwrap_or_default();
+        let port = self
+            .endpoint
+            .port()
+            .map(|p| format!(":{p}"))
+            .unwrap_or_default();
         let prefix = self.endpoint.path().trim_end_matches('/');
-        let virtual_host = bucket.is_some_and(|b| !self.custom && !self.force_path && !b.contains('.'));
+        let virtual_host =
+            bucket.is_some_and(|b| !self.custom && !self.force_path && !b.contains('.'));
         let (host, path) = match bucket {
             Some(b) if virtual_host => (format!("{b}.{host}"), String::new()),
             Some(b) => (host.to_owned(), format!("/{}", uri_encode(b, false))),
             None => (host.to_owned(), String::new()),
         };
-        let key_part = key.map(|k| format!("/{}", uri_encode(k.trim_start_matches('/'), true))).unwrap_or_default();
+        let key_part = key
+            .map(|k| format!("/{}", uri_encode(k.trim_start_matches('/'), true)))
+            .unwrap_or_default();
         let mut full = format!("{scheme}://{host}{port}{prefix}{path}{key_part}");
         if key_part.is_empty() {
             full.push('/');
         }
         if !query.is_empty() {
-            let q: Vec<String> = query.iter().map(|(k, v)| format!("{}={}", uri_encode(k, false), uri_encode(v, false))).collect();
+            let q: Vec<String> = query
+                .iter()
+                .map(|(k, v)| format!("{}={}", uri_encode(k, false), uri_encode(v, false)))
+                .collect();
             full.push('?');
             full.push_str(&q.join("&"));
         }
         Url::parse(&full).map_err(|_| kit::err(&self.node, "Could not build the request URL"))
     }
 
-    async fn send(&self, method: &str, url: Url, extra: Vec<(String, String)>, body: Vec<u8>) -> Result<Reply, FlowError> {
+    async fn send(
+        &self,
+        method: &str,
+        url: Url,
+        extra: Vec<(String, String)>,
+        body: Vec<u8>,
+    ) -> Result<Reply, FlowError> {
         let date = sigv4::amz_date(SystemTime::now());
         let signed = sigv4::sign(&self.keys, method, &url, &extra, &body, &date);
-        let m = reqwest::Method::from_bytes(method.as_bytes()).map_err(|_| kit::err(&self.node, "bad method"))?;
+        let m = reqwest::Method::from_bytes(method.as_bytes())
+            .map_err(|_| kit::err(&self.node, "bad method"))?;
         let mut rb = self.http.request(m, url);
         for (k, v) in extra.iter().chain(signed.iter()) {
             rb = rb.header(k.as_str(), v.as_str());
@@ -217,10 +321,24 @@ impl S3 {
         if !body.is_empty() {
             rb = rb.body(body);
         }
-        let res = rb.send().await.map_err(|e| kit::err(&self.node, format!("The request failed: {}", e.without_url())))?;
+        let res = rb.send().await.map_err(|e| {
+            kit::err(
+                &self.node,
+                format!("The request failed: {}", e.without_url()),
+            )
+        })?;
         let status = res.status();
         let headers = res.headers().clone();
-        let body = res.bytes().await.map_err(|e| kit::err(&self.node, format!("Could not read the response: {}", e.without_url())))?.to_vec();
+        let body = res
+            .bytes()
+            .await
+            .map_err(|e| {
+                kit::err(
+                    &self.node,
+                    format!("Could not read the response: {}", e.without_url()),
+                )
+            })?
+            .to_vec();
         if status.is_success() {
             return Ok(Reply { headers, body });
         }
@@ -254,7 +372,13 @@ struct S3Node {
 }
 
 impl S3Node {
-    fn req(&self, ctx: &NodeContext, name: &str, label: &str, i: usize) -> Result<String, FlowError> {
+    fn req(
+        &self,
+        ctx: &NodeContext,
+        name: &str,
+        label: &str,
+        i: usize,
+    ) -> Result<String, FlowError> {
         let v = kit::str_param(ctx, &self.desc, name, i)?;
         if v.is_empty() {
             return Err(node_err(ctx, format!("Parameter '{label}' is required")));
@@ -279,7 +403,8 @@ impl S3Node {
         match (resource.as_str(), op.as_str()) {
             ("bucket", "create") => {
                 let name = self.req(ctx, "name", "Name", i)?;
-                let region = kit::field_str(ctx, "additionalFields.region", i)?.unwrap_or_else(|| s3.keys.region.clone());
+                let region = kit::field_str(ctx, "additionalFields.region", i)?
+                    .unwrap_or_else(|| s3.keys.region.clone());
                 let body = if region == "us-east-1" {
                     Vec::new()
                 } else {
@@ -289,17 +414,30 @@ impl S3Node {
                     )
                     .into_bytes()
                 };
-                s3.send("PUT", s3.url(Some(&name), None, &[])?, Vec::new(), body).await?;
-                Ok(vec![Item::from_json(json!({ "success": true, "bucket": name }))])
+                s3.send("PUT", s3.url(Some(&name), None, &[])?, Vec::new(), body)
+                    .await?;
+                Ok(vec![Item::from_json(
+                    json!({ "success": true, "bucket": name }),
+                )])
             }
             ("bucket", "delete") => {
                 let name = self.req(ctx, "name", "Name", i)?;
-                s3.send("DELETE", s3.url(Some(&name), None, &[])?, Vec::new(), Vec::new()).await?;
-                Ok(vec![Item::from_json(json!({ "success": true, "bucket": name }))])
+                s3.send(
+                    "DELETE",
+                    s3.url(Some(&name), None, &[])?,
+                    Vec::new(),
+                    Vec::new(),
+                )
+                .await?;
+                Ok(vec![Item::from_json(
+                    json!({ "success": true, "bucket": name }),
+                )])
             }
             ("bucket", "getAll") => {
                 let limit = self.limit(ctx, i)?;
-                let r = s3.send("GET", s3.url(None, None, &[])?, Vec::new(), Vec::new()).await?;
+                let r = s3
+                    .send("GET", s3.url(None, None, &[])?, Vec::new(), Vec::new())
+                    .await?;
                 let xml = String::from_utf8_lossy(&r.body);
                 Ok(blocks(&xml, "Bucket")
                     .into_iter()
@@ -315,11 +453,18 @@ impl S3Node {
             ("file", "copy") => {
                 let src = self.req(ctx, "sourcePath", "Source Path", i)?;
                 let dst = self.req(ctx, "destinationPath", "Destination Path", i)?;
-                let (sb, sk) = split_path(&src).ok_or_else(|| node_err(ctx, "Source Path must look like /bucket/key"))?;
-                let (db, dk) = split_path(&dst).ok_or_else(|| node_err(ctx, "Destination Path must look like /bucket/key"))?;
+                let (sb, sk) = split_path(&src)
+                    .ok_or_else(|| node_err(ctx, "Source Path must look like /bucket/key"))?;
+                let (db, dk) = split_path(&dst)
+                    .ok_or_else(|| node_err(ctx, "Destination Path must look like /bucket/key"))?;
                 let copy_source = format!("/{}/{}", uri_encode(&sb, false), uri_encode(&sk, true));
                 let r = s3
-                    .send("PUT", s3.url(Some(&db), Some(&dk), &[])?, vec![("x-amz-copy-source".into(), copy_source)], Vec::new())
+                    .send(
+                        "PUT",
+                        s3.url(Some(&db), Some(&dk), &[])?,
+                        vec![("x-amz-copy-source".into(), copy_source)],
+                        Vec::new(),
+                    )
                     .await?;
                 let xml = String::from_utf8_lossy(&r.body);
                 Ok(vec![Item::from_json(json!({
@@ -329,18 +474,49 @@ impl S3Node {
                 }))])
             }
             ("file", "delete") => {
-                let (bucket, key) = (self.req(ctx, "bucketName", "Bucket Name", i)?, self.req(ctx, "fileKey", "File Key", i)?);
-                s3.send("DELETE", s3.url(Some(&bucket), Some(&key), &[])?, Vec::new(), Vec::new()).await?;
-                Ok(vec![Item::from_json(json!({ "success": true, "bucket": bucket, "key": key }))])
+                let (bucket, key) = (
+                    self.req(ctx, "bucketName", "Bucket Name", i)?,
+                    self.req(ctx, "fileKey", "File Key", i)?,
+                );
+                s3.send(
+                    "DELETE",
+                    s3.url(Some(&bucket), Some(&key), &[])?,
+                    Vec::new(),
+                    Vec::new(),
+                )
+                .await?;
+                Ok(vec![Item::from_json(
+                    json!({ "success": true, "bucket": bucket, "key": key }),
+                )])
             }
             ("file", "download") => {
-                let (bucket, key) = (self.req(ctx, "bucketName", "Bucket Name", i)?, self.req(ctx, "fileKey", "File Key", i)?);
+                let (bucket, key) = (
+                    self.req(ctx, "bucketName", "Bucket Name", i)?,
+                    self.req(ctx, "fileKey", "File Key", i)?,
+                );
                 let prop = kit::str_param(ctx, &self.desc, "binaryPropertyName", i)?;
-                let prop = if prop.is_empty() { "data".to_owned() } else { prop };
-                let r = s3.send("GET", s3.url(Some(&bucket), Some(&key), &[])?, Vec::new(), Vec::new()).await?;
-                let header = |h: &str| r.headers.get(h).and_then(|v| v.to_str().ok()).map(str::to_owned);
+                let prop = if prop.is_empty() {
+                    "data".to_owned()
+                } else {
+                    prop
+                };
+                let r = s3
+                    .send(
+                        "GET",
+                        s3.url(Some(&bucket), Some(&key), &[])?,
+                        Vec::new(),
+                        Vec::new(),
+                    )
+                    .await?;
+                let header = |h: &str| {
+                    r.headers
+                        .get(h)
+                        .and_then(|v| v.to_str().ok())
+                        .map(str::to_owned)
+                };
                 let name = key.rsplit('/').next().unwrap_or(&key).to_owned();
-                let mime = header("content-type").unwrap_or_else(|| "application/octet-stream".into());
+                let mime =
+                    header("content-type").unwrap_or_else(|| "application/octet-stream".into());
                 let mut item = Item::from_json(json!({
                     "bucket": bucket, "key": key, "size": r.body.len(),
                     "contentType": mime, "etag": header("etag").map(|e| e.trim_matches('"').to_owned()),
@@ -362,14 +538,30 @@ impl S3Node {
                 let mut out: Vec<Item> = Vec::new();
                 let mut token: Option<String> = None;
                 loop {
-                    let mut q: Vec<(&str, String)> = vec![("list-type", "2".into()), ("max-keys", limit.saturating_sub(out.len()).clamp(1, LIST_PAGE).to_string())];
+                    let mut q: Vec<(&str, String)> = vec![
+                        ("list-type", "2".into()),
+                        (
+                            "max-keys",
+                            limit
+                                .saturating_sub(out.len())
+                                .clamp(1, LIST_PAGE)
+                                .to_string(),
+                        ),
+                    ];
                     if let Some(p) = &prefix {
                         q.push(("prefix", p.clone()));
                     }
                     if let Some(t) = &token {
                         q.push(("continuation-token", t.clone()));
                     }
-                    let r = s3.send("GET", s3.url(Some(&bucket), None, &q)?, Vec::new(), Vec::new()).await?;
+                    let r = s3
+                        .send(
+                            "GET",
+                            s3.url(Some(&bucket), None, &q)?,
+                            Vec::new(),
+                            Vec::new(),
+                        )
+                        .await?;
                     let xml = String::from_utf8_lossy(&r.body);
                     for c in blocks(&xml, "Contents") {
                         out.push(Item::from_json(json!({
@@ -381,7 +573,10 @@ impl S3Node {
                         })));
                     }
                     token = text(&xml, "NextContinuationToken");
-                    if out.len() >= limit || text(&xml, "IsTruncated").as_deref() != Some("true") || token.is_none() {
+                    if out.len() >= limit
+                        || text(&xml, "IsTruncated").as_deref() != Some("true")
+                        || token.is_none()
+                    {
                         break;
                     }
                 }
@@ -389,14 +584,26 @@ impl S3Node {
                 Ok(out)
             }
             ("file", "upload") => {
-                let (bucket, key) = (self.req(ctx, "bucketName", "Bucket Name", i)?, self.req(ctx, "fileName", "File Name", i)?);
+                let (bucket, key) = (
+                    self.req(ctx, "bucketName", "Bucket Name", i)?,
+                    self.req(ctx, "fileName", "File Name", i)?,
+                );
                 let (data, mut mime) = if kit::bool_param(ctx, &self.desc, "binaryData", i)? {
                     let prop = kit::str_param(ctx, &self.desc, "binaryPropertyName", i)?;
-                    let item = ctx.input.first().and_then(|p| p.get(i)).cloned().unwrap_or_default();
-                    let f = kit::binary_file(ctx, &item, if prop.is_empty() { "data" } else { &prop })?;
+                    let item = ctx
+                        .input
+                        .first()
+                        .and_then(|p| p.get(i))
+                        .cloned()
+                        .unwrap_or_default();
+                    let f =
+                        kit::binary_file(ctx, &item, if prop.is_empty() { "data" } else { &prop })?;
                     (f.data, f.mime)
                 } else {
-                    (kit::str_param(ctx, &self.desc, "fileContent", i)?.into_bytes(), "text/plain".into())
+                    (
+                        kit::str_param(ctx, &self.desc, "fileContent", i)?.into_bytes(),
+                        "text/plain".into(),
+                    )
                 };
                 if let Some(ct) = kit::field_str(ctx, "additionalFields.contentType", i)? {
                     mime = ct;
@@ -409,11 +616,22 @@ impl S3Node {
                     extra.push(("x-amz-storage-class".into(), sc));
                 }
                 let size = data.len();
-                let r = s3.send("PUT", s3.url(Some(&bucket), Some(&key), &[])?, extra, data).await?;
-                let etag = r.headers.get("etag").and_then(|v| v.to_str().ok()).map(|e| e.trim_matches('"').to_owned());
-                Ok(vec![Item::from_json(json!({ "success": true, "bucket": bucket, "key": key, "size": size, "etag": etag }))])
+                let r = s3
+                    .send("PUT", s3.url(Some(&bucket), Some(&key), &[])?, extra, data)
+                    .await?;
+                let etag = r
+                    .headers
+                    .get("etag")
+                    .and_then(|v| v.to_str().ok())
+                    .map(|e| e.trim_matches('"').to_owned());
+                Ok(vec![Item::from_json(
+                    json!({ "success": true, "bucket": bucket, "key": key, "size": size, "etag": etag }),
+                )])
             }
-            (r, o) => Err(node_err(ctx, format!("Unsupported operation `{o}` for resource `{r}`"))),
+            (r, o) => Err(node_err(
+                ctx,
+                format!("Unsupported operation `{o}` for resource `{r}`"),
+            )),
         }
     }
 }
@@ -443,7 +661,10 @@ impl FlowNode for S3Node {
 /// Node and credential type into the shared registries. Features: `int-s3`.
 pub fn register(nodes: &mut NodeRegistry, creds: &CredentialTypes) -> Result<(), FlowError> {
     creds.register_if_absent(credential_type());
-    nodes.register(Arc::new(S3Node { desc: description(), creds: creds.clone() }))
+    nodes.register(Arc::new(S3Node {
+        desc: description(),
+        creds: creds.clone(),
+    }))
 }
 
 #[cfg(test)]
@@ -456,13 +677,36 @@ mod tests {
 
     #[test]
     fn addressing_styles() {
-        let aws = client(json!({"accessKeyId": "a", "secretAccessKey": "b", "region": "eu-west-1"}));
-        assert_eq!(aws.url(Some("bkt"), Some("a b/c.txt"), &[]).unwrap().as_str(), "https://bkt.s3.eu-west-1.amazonaws.com/a%20b/c.txt");
-        assert_eq!(aws.url(Some("my.bkt"), None, &[]).unwrap().as_str(), "https://s3.eu-west-1.amazonaws.com/my.bkt/");
-        assert_eq!(aws.url(None, None, &[]).unwrap().as_str(), "https://s3.eu-west-1.amazonaws.com/");
-        let minio = client(json!({"accessKeyId": "a", "secretAccessKey": "b", "endpoint": "http://127.0.0.1:9000"}));
-        let u = minio.url(Some("bkt"), Some("k"), &[("list-type", "2".into()), ("prefix", "a/b".into())]).unwrap();
-        assert_eq!(u.as_str(), "http://127.0.0.1:9000/bkt/k?list-type=2&prefix=a%2Fb");
+        let aws =
+            client(json!({"accessKeyId": "a", "secretAccessKey": "b", "region": "eu-west-1"}));
+        assert_eq!(
+            aws.url(Some("bkt"), Some("a b/c.txt"), &[])
+                .unwrap()
+                .as_str(),
+            "https://bkt.s3.eu-west-1.amazonaws.com/a%20b/c.txt"
+        );
+        assert_eq!(
+            aws.url(Some("my.bkt"), None, &[]).unwrap().as_str(),
+            "https://s3.eu-west-1.amazonaws.com/my.bkt/"
+        );
+        assert_eq!(
+            aws.url(None, None, &[]).unwrap().as_str(),
+            "https://s3.eu-west-1.amazonaws.com/"
+        );
+        let minio = client(
+            json!({"accessKeyId": "a", "secretAccessKey": "b", "endpoint": "http://127.0.0.1:9000"}),
+        );
+        let u = minio
+            .url(
+                Some("bkt"),
+                Some("k"),
+                &[("list-type", "2".into()), ("prefix", "a/b".into())],
+            )
+            .unwrap();
+        assert_eq!(
+            u.as_str(),
+            "http://127.0.0.1:9000/bkt/k?list-type=2&prefix=a%2Fb"
+        );
     }
 
     #[test]
@@ -471,7 +715,10 @@ mod tests {
         let b = blocks(xml, "Contents");
         assert_eq!(b.len(), 2);
         assert_eq!(text(b[0], "Key").as_deref(), Some("a&b"));
-        assert_eq!(split_path("/bkt/dir/file.txt"), Some(("bkt".into(), "dir/file.txt".into())));
+        assert_eq!(
+            split_path("/bkt/dir/file.txt"),
+            Some(("bkt".into(), "dir/file.txt".into()))
+        );
         assert_eq!(split_path("/bkt"), None);
     }
 }

@@ -10,7 +10,8 @@ use async_trait::async_trait;
 use futures::stream::BoxStream;
 
 use crate::dto::{
-    CoreProfile, CreateSessionDto, FlowRunDetailDto, FlowRunEventDto, FlowRunModeDto, FlowRunSummaryDto, ModelListDto, PreferencesDto, ProviderInputDto, SessionDetailDto,
+    CoreProfile, CreateSessionDto, FlowRunDetailDto, FlowRunEventDto, FlowRunModeDto,
+    FlowRunSummaryDto, ModelListDto, PreferencesDto, ProviderInputDto, SessionDetailDto,
     SessionEventDto, SessionInfoDto, SettingsDto, TurnAcceptedDto, TurnRequestDto,
 };
 use crate::error::{HkError, HkErrorKind};
@@ -25,7 +26,11 @@ pub trait CoreHandle: Send + Sync + 'static {
     /// Custom providers only; built-ins are disabled via `save_provider`.
     async fn remove_provider(&self, id: String) -> Result<SettingsDto, HkError>;
     /// `None` / empty deletes the key. The key is never returned.
-    async fn set_api_key(&self, provider_id: String, key: Option<String>) -> Result<SettingsDto, HkError>;
+    async fn set_api_key(
+        &self,
+        provider_id: String,
+        key: Option<String>,
+    ) -> Result<SettingsDto, HkError>;
     async fn set_preferences(&self, prefs: PreferencesDto) -> Result<SettingsDto, HkError>;
 
     async fn list_models(&self) -> Result<ModelListDto, HkError>;
@@ -35,7 +40,11 @@ pub trait CoreHandle: Send + Sync + 'static {
     async fn create_session(&self, req: CreateSessionDto) -> Result<SessionInfoDto, HkError>;
     async fn list_sessions(&self, limit: u32, offset: u32) -> Result<Vec<SessionInfoDto>, HkError>;
     async fn get_session(&self, session_id: &str) -> Result<SessionDetailDto, HkError>;
-    async fn submit_turn(&self, session_id: &str, req: TurnRequestDto) -> Result<TurnAcceptedDto, HkError>;
+    async fn submit_turn(
+        &self,
+        session_id: &str,
+        req: TurnRequestDto,
+    ) -> Result<TurnAcceptedDto, HkError>;
     async fn inject(&self, session_id: &str, text: String) -> Result<(), HkError>;
     async fn cancel(&self, session_id: &str) -> Result<(), HkError>;
     async fn respond_approval(
@@ -46,7 +55,10 @@ pub trait CoreHandle: Send + Sync + 'static {
         reason: Option<String>,
     ) -> Result<(), HkError>;
     /// Live feed for one session; ends on `shutdown`.
-    fn session_events(&self, session_id: &str) -> Result<BoxStream<'static, SessionEventDto>, HkError>;
+    fn session_events(
+        &self,
+        session_id: &str,
+    ) -> Result<BoxStream<'static, SessionEventDto>, HkError>;
 
     /// Start a test/manual run of a workflow (n8n JSON) and return its run id. The run continues in
     /// the background; follow it with `run_events`. Pin data in `pin_data_json` replaces the
@@ -62,11 +74,19 @@ pub trait CoreHandle: Send + Sync + 'static {
     /// Replays then follows a run until its terminal event. Unknown id => `NotFound`.
     fn run_events(&self, run_id: &str) -> Result<BoxStream<'static, FlowRunEventDto>, HkError>;
     /// Newest first; `workflow_id` filters.
-    async fn list_runs(&self, workflow_id: Option<String>, limit: u32) -> Result<Vec<FlowRunSummaryDto>, HkError>;
+    async fn list_runs(
+        &self,
+        workflow_id: Option<String>,
+        limit: u32,
+    ) -> Result<Vec<FlowRunSummaryDto>, HkError>;
     async fn get_run(&self, run_id: &str) -> Result<FlowRunDetailDto, HkError>;
     /// Arm / disarm the workflow's triggers on the instance (uploads it first). Local core:
     /// `Unsupported`. Returns the resulting active flag.
-    async fn set_workflow_active(&self, workflow_json: String, active: bool) -> Result<bool, HkError>;
+    async fn set_workflow_active(
+        &self,
+        workflow_json: String,
+        active: bool,
+    ) -> Result<bool, HkError>;
 
     /// Stop background work. Idempotent.
     async fn shutdown(&self);
@@ -80,18 +100,22 @@ fn read(l: &RwLock<Option<Arc<dyn CoreHandle>>>) -> Option<Arc<dyn CoreHandle>> 
     l.read().unwrap_or_else(PoisonError::into_inner).clone()
 }
 
-fn write(l: &RwLock<Option<Arc<dyn CoreHandle>>>) -> std::sync::RwLockWriteGuard<'_, Option<Arc<dyn CoreHandle>>> {
+fn write(
+    l: &RwLock<Option<Arc<dyn CoreHandle>>>,
+) -> std::sync::RwLockWriteGuard<'_, Option<Arc<dyn CoreHandle>>> {
     l.write().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// The active core, or `NotInitialized`.
 pub fn core() -> Result<Arc<dyn CoreHandle>, HkError> {
-    read(&CORE).ok_or_else(|| HkError::new(HkErrorKind::NotInitialized, "core_init has not been called"))
+    read(&CORE)
+        .ok_or_else(|| HkError::new(HkErrorKind::NotInitialized, "core_init has not been called"))
 }
 
 /// The in-process core, or `NotInitialized`.
 pub fn local() -> Result<Arc<dyn CoreHandle>, HkError> {
-    read(&LOCAL).ok_or_else(|| HkError::new(HkErrorKind::NotInitialized, "core_init has not been called"))
+    read(&LOCAL)
+        .ok_or_else(|| HkError::new(HkErrorKind::NotInitialized, "core_init has not been called"))
 }
 
 /// Install `core` as the in-process core and make it active. Returns the handles it displaced

@@ -10,7 +10,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::chunked::{AudioSplitter, ChunkOpts, ChunkedTranscriber};
 use crate::error::{Result, SttError};
-use crate::openai_compat::{DEFAULT_MAX_UPLOAD_BYTES, OpenAiCompatOptions, OpenAiCompatTranscriber};
+use crate::openai_compat::{
+    DEFAULT_MAX_UPLOAD_BYTES, OpenAiCompatOptions, OpenAiCompatTranscriber,
+};
 use crate::transcriber::Transcriber;
 
 /// Which engine to use.
@@ -99,7 +101,10 @@ pub fn build_transcriber(cfg: &SttConfig, keys: &dyn KeyResolver) -> Result<Arc<
     match cfg.provider {
         SttProvider::OpenaiCompat => {
             let key = match &cfg.key_ref {
-                Some(r) => Some(keys.resolve(r).ok_or_else(|| SttError::MissingKey(r.0.clone()))?),
+                Some(r) => Some(
+                    keys.resolve(r)
+                        .ok_or_else(|| SttError::MissingKey(r.0.clone()))?,
+                ),
                 None => None,
             };
             let opts = OpenAiCompatOptions {
@@ -110,7 +115,12 @@ pub fn build_transcriber(cfg: &SttConfig, keys: &dyn KeyResolver) -> Result<Arc<
                 default_language: cfg.language.clone(),
                 ..OpenAiCompatOptions::default()
             };
-            Ok(Arc::new(OpenAiCompatTranscriber::new(&cfg.base_url, cfg.model.clone(), key, opts)?))
+            Ok(Arc::new(OpenAiCompatTranscriber::new(
+                &cfg.base_url,
+                cfg.model.clone(),
+                key,
+                opts,
+            )?))
         }
         SttProvider::WhisperLocal => build_whisper(cfg),
     }
@@ -123,13 +133,19 @@ pub fn build_chunked_transcriber(
     splitter: Arc<dyn AudioSplitter>,
 ) -> Result<Arc<dyn Transcriber>> {
     let inner = build_transcriber(cfg, keys)?;
-    Ok(Arc::new(ChunkedTranscriber::new(inner, splitter, cfg.chunk_opts())))
+    Ok(Arc::new(ChunkedTranscriber::new(
+        inner,
+        splitter,
+        cfg.chunk_opts(),
+    )))
 }
 
 #[cfg(feature = "whisper")]
 fn build_whisper(cfg: &SttConfig) -> Result<Arc<dyn Transcriber>> {
-    let model_path =
-        cfg.model_path.clone().ok_or_else(|| SttError::Config("whisper_local needs model_path".into()))?;
+    let model_path = cfg
+        .model_path
+        .clone()
+        .ok_or_else(|| SttError::Config("whisper_local needs model_path".into()))?;
     let t = crate::whisper::WhisperRsTranscriber::new(crate::whisper::WhisperOptions {
         model_path,
         threads: cfg.threads,
@@ -140,7 +156,9 @@ fn build_whisper(cfg: &SttConfig) -> Result<Arc<dyn Transcriber>> {
 
 #[cfg(not(feature = "whisper"))]
 fn build_whisper(_cfg: &SttConfig) -> Result<Arc<dyn Transcriber>> {
-    Err(SttError::Unsupported("whisper_local needs the `whisper` cargo feature".into()))
+    Err(SttError::Unsupported(
+        "whisper_local needs the `whisper` cargo feature".into(),
+    ))
 }
 
 #[cfg(test)]
@@ -149,7 +167,8 @@ mod tests {
 
     #[test]
     fn serde_names_and_defaults() {
-        let c: SttConfig = serde_json::from_str(r#"{"provider":"whisper_local","model_path":"/m.bin"}"#).unwrap();
+        let c: SttConfig =
+            serde_json::from_str(r#"{"provider":"whisper_local","model_path":"/m.bin"}"#).unwrap();
         assert_eq!(c.provider, SttProvider::WhisperLocal);
         assert_eq!(c.model, "whisper-1");
         let c: SttConfig = serde_json::from_str(r#"{"key_ref":"GROQ_API_KEY"}"#).unwrap();
@@ -163,11 +182,17 @@ mod tests {
         let mut cfg = SttConfig::default();
         assert!(build_transcriber(&cfg, &none).is_ok()); // keyless allowed
         cfg.key_ref = Some(KeyRef::new("K"));
-        assert!(matches!(build_transcriber(&cfg, &none), Err(SttError::MissingKey(_))));
+        assert!(matches!(
+            build_transcriber(&cfg, &none),
+            Err(SttError::MissingKey(_))
+        ));
         let some = |_: &KeyRef| Some("sk".to_string());
         assert!(build_transcriber(&cfg, &some).is_ok());
         cfg.provider = SttProvider::WhisperLocal;
         #[cfg(not(feature = "whisper"))]
-        assert!(matches!(build_transcriber(&cfg, &some), Err(SttError::Unsupported(_))));
+        assert!(matches!(
+            build_transcriber(&cfg, &some),
+            Err(SttError::Unsupported(_))
+        ));
     }
 }

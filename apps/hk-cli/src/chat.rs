@@ -148,7 +148,10 @@ pub async fn run(paths: &Paths, args: ChatArgs) -> Result<()> {
     err(&format!(
         "session {session_id}  model {}  mode {}\n",
         args.model,
-        match args.mode { ModeArg::Build => "build", ModeArg::Plan => "plan" }
+        match args.mode {
+            ModeArg::Build => "build",
+            ModeArg::Plan => "plan",
+        }
     ));
 
     let mut lines = stdin_lines();
@@ -196,7 +199,11 @@ pub async fn run(paths: &Paths, args: ChatArgs) -> Result<()> {
     Ok(())
 }
 
-fn listeners(bus: &EventBus, ui: &Arc<Ui>, appr_tx: UnboundedSender<ApprovalRequest>) -> Vec<Effect> {
+fn listeners(
+    bus: &EventBus,
+    ui: &Arc<Ui>,
+    appr_tx: UnboundedSender<ApprovalRequest>,
+) -> Vec<Effect> {
     let mut v = Vec::new();
 
     let u = ui.clone();
@@ -218,7 +225,11 @@ fn listeners(bus: &EventBus, ui: &Arc<Ui>, appr_tx: UnboundedSender<ApprovalRequ
     v.push(bus.on::<ToolExecute, _, _>(move |e| {
         let u = u.clone();
         async move {
-            u.line(&dim(&format!("> {} {}", e.tool, clip(&e.args.to_string(), 200))));
+            u.line(&dim(&format!(
+                "> {} {}",
+                e.tool,
+                clip(&e.args.to_string(), 200)
+            )));
         }
     }));
 
@@ -271,7 +282,12 @@ async fn drive_turn(
     }
 }
 
-async fn ask(handle: &AgentHandle, lines: &mut UnboundedReceiver<String>, ui: &Ui, req: &ApprovalRequest) {
+async fn ask(
+    handle: &AgentHandle,
+    lines: &mut UnboundedReceiver<String>,
+    ui: &Ui,
+    req: &ApprovalRequest,
+) {
     ui.newline();
     err(&format!(
         "approve {} ({:?}) {}? [y/N] ",

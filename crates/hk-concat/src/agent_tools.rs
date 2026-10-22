@@ -36,17 +36,27 @@ pub struct ConcatSession {
 
 impl std::fmt::Debug for ConcatSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ConcatSession").field("cfg", &self.cfg).finish_non_exhaustive()
+        f.debug_struct("ConcatSession")
+            .field("cfg", &self.cfg)
+            .finish_non_exhaustive()
     }
 }
 
 impl ConcatSession {
     pub fn new(cfg: ConcatConfig) -> Arc<Self> {
-        Arc::new(Self { cfg, client: Mutex::new(None), fixed: false })
+        Arc::new(Self {
+            cfg,
+            client: Mutex::new(None),
+            fixed: false,
+        })
     }
 
     pub fn with_client(client: ConcatClient) -> Arc<Self> {
-        Arc::new(Self { cfg: ConcatConfig::default(), client: Mutex::new(Some(client)), fixed: true })
+        Arc::new(Self {
+            cfg: ConcatConfig::default(),
+            client: Mutex::new(Some(client)),
+            fixed: true,
+        })
     }
 
     pub async fn client(&self) -> Result<ConcatClient, ConcatError> {
@@ -81,7 +91,12 @@ impl ConcatSession {
 pub fn concat_tools(session: Arc<ConcatSession>) -> Vec<Arc<dyn Tool>> {
     Kind::ALL
         .iter()
-        .map(|k| Arc::new(ConcatTool { session: session.clone(), kind: *k }) as Arc<dyn Tool>)
+        .map(|k| {
+            Arc::new(ConcatTool {
+                session: session.clone(),
+                kind: *k,
+            }) as Arc<dyn Tool>
+        })
         .collect()
 }
 
@@ -295,7 +310,11 @@ fn spec_of(kind: Kind) -> (&'static str, Value) {
 impl Tool for ConcatTool {
     fn spec(&self) -> ToolSpec {
         let (description, parameters) = spec_of(self.kind);
-        ToolSpec { name: self.kind.name().into(), description: description.into(), parameters }
+        ToolSpec {
+            name: self.kind.name().into(),
+            description: description.into(),
+            parameters,
+        }
     }
 
     fn risk(&self, args: &Value) -> Risk {
@@ -305,7 +324,11 @@ impl Tool for ConcatTool {
             Kind::Raw => Risk::Ask,
             Kind::Export if act == "start" => Risk::Ask,
             Kind::ApplyPlan => {
-                if args.get("dry_run").and_then(Value::as_bool).unwrap_or(false) {
+                if args
+                    .get("dry_run")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+                {
                     Risk::Safe
                 } else {
                     Risk::Ask
@@ -319,11 +342,14 @@ impl Tool for ConcatTool {
 
     async fn execute(&self, _ctx: ToolCtx, args: Value) -> Result<ToolOutput, ToolError> {
         let name = self.kind.name();
-        let a = args
-            .as_object()
-            .ok_or_else(|| ToolError::InvalidArgs { tool: name.into(), reason: "arguments must be an object".into() })?;
+        let a = args.as_object().ok_or_else(|| ToolError::InvalidArgs {
+            tool: name.into(),
+            reason: "arguments must be an object".into(),
+        })?;
         // dry_run needs no editor at all.
-        let res = if self.kind == Kind::ApplyPlan && a.get("dry_run").and_then(Value::as_bool).unwrap_or(false) {
+        let res = if self.kind == Kind::ApplyPlan
+            && a.get("dry_run").and_then(Value::as_bool).unwrap_or(false)
+        {
             dry_run(a)
         } else {
             match self.session.client().await {
@@ -332,8 +358,13 @@ impl Tool for ConcatTool {
             }
         };
         match res {
-            Ok(v) => Ok(ToolOutput::ok(serde_json::to_string_pretty(&v).unwrap_or_else(|_| v.to_string()))),
-            Err(ConcatError::InvalidArgs(r)) => Err(ToolError::InvalidArgs { tool: name.into(), reason: r }),
+            Ok(v) => Ok(ToolOutput::ok(
+                serde_json::to_string_pretty(&v).unwrap_or_else(|_| v.to_string()),
+            )),
+            Err(ConcatError::InvalidArgs(r)) => Err(ToolError::InvalidArgs {
+                tool: name.into(),
+                reason: r,
+            }),
             Err(e) => {
                 if e.is_connection_lost() {
                     self.session.reset().await;
@@ -352,7 +383,10 @@ fn bad(msg: impl Into<String>) -> ConcatError {
 }
 
 fn s<'a>(a: &'a Map<String, Value>, k: &str) -> Result<&'a str, ConcatError> {
-    a.get(k).and_then(Value::as_str).filter(|v| !v.is_empty()).ok_or_else(|| bad(format!("`{k}` (string) is required")))
+    a.get(k)
+        .and_then(Value::as_str)
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| bad(format!("`{k}` (string) is required")))
 }
 
 fn opt_s<'a>(a: &'a Map<String, Value>, k: &str) -> Option<&'a str> {
@@ -360,7 +394,10 @@ fn opt_s<'a>(a: &'a Map<String, Value>, k: &str) -> Option<&'a str> {
 }
 
 fn n(a: &Map<String, Value>, k: &str) -> Result<f64, ConcatError> {
-    a.get(k).and_then(Value::as_f64).filter(|v| v.is_finite()).ok_or_else(|| bad(format!("`{k}` (number) is required")))
+    a.get(k)
+        .and_then(Value::as_f64)
+        .filter(|v| v.is_finite())
+        .ok_or_else(|| bad(format!("`{k}` (number) is required")))
 }
 
 fn opt_n(a: &Map<String, Value>, k: &str) -> Option<f64> {
@@ -372,9 +409,16 @@ fn flag(a: &Map<String, Value>, k: &str) -> bool {
 }
 
 fn strings(a: &Map<String, Value>, k: &str) -> Result<Vec<String>, ConcatError> {
-    let arr = a.get(k).and_then(Value::as_array).ok_or_else(|| bad(format!("`{k}` (array of strings) is required")))?;
+    let arr = a
+        .get(k)
+        .and_then(Value::as_array)
+        .ok_or_else(|| bad(format!("`{k}` (array of strings) is required")))?;
     arr.iter()
-        .map(|v| v.as_str().map(str::to_owned).ok_or_else(|| bad(format!("`{k}` must contain strings"))))
+        .map(|v| {
+            v.as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| bad(format!("`{k}` must contain strings")))
+        })
         .collect()
 }
 
@@ -384,7 +428,10 @@ fn from<T: serde::de::DeserializeOwned>(a: &Map<String, Value>, k: &str) -> Resu
 }
 
 fn to_json<T: serde::Serialize>(v: &T) -> Result<Value, ConcatError> {
-    serde_json::to_value(v).map_err(|e| ConcatError::Decode { tool: "serialize".into(), reason: e.to_string() })
+    serde_json::to_value(v).map_err(|e| ConcatError::Decode {
+        tool: "serialize".into(),
+        reason: e.to_string(),
+    })
 }
 
 fn video_format(a: &Map<String, Value>) -> VideoSettings {
@@ -403,7 +450,11 @@ fn dry_run(a: &Map<String, Value>) -> Result<Value, ConcatError> {
 
 // ---------------------------------------------------------------------------- dispatch
 
-async fn dispatch(kind: Kind, c: &ConcatClient, a: &Map<String, Value>) -> Result<Value, ConcatError> {
+async fn dispatch(
+    kind: Kind,
+    c: &ConcatClient,
+    a: &Map<String, Value>,
+) -> Result<Value, ConcatError> {
     match kind {
         Kind::Status => {
             let v = c.version().await?;
@@ -434,9 +485,16 @@ async fn dispatch(kind: Kind, c: &ConcatClient, a: &Map<String, Value>) -> Resul
             let time = n(a, "time")?;
             let output = match opt_s(a, "output") {
                 Some(o) => o.to_owned(),
-                None => format!("{}/hk-preview-{}.png", path.trim_end_matches('/'), (time * 1000.0).round() as i64),
+                None => format!(
+                    "{}/hk-preview-{}.png",
+                    path.trim_end_matches('/'),
+                    (time * 1000.0).round() as i64
+                ),
             };
-            let size = match (a.get("width").and_then(Value::as_u64), a.get("height").and_then(Value::as_u64)) {
+            let size = match (
+                a.get("width").and_then(Value::as_u64),
+                a.get("height").and_then(Value::as_u64),
+            ) {
                 (Some(w), Some(h)) => Some((w as u32, h as u32)),
                 _ => None,
             };
@@ -453,7 +511,12 @@ async fn dispatch(kind: Kind, c: &ConcatClient, a: &Map<String, Value>) -> Resul
             }))
         }
         Kind::Raw => {
-            let r = c.call(s(a, "tool")?, a.get("arguments").cloned().unwrap_or_else(|| json!({}))).await?;
+            let r = c
+                .call(
+                    s(a, "tool")?,
+                    a.get("arguments").cloned().unwrap_or_else(|| json!({})),
+                )
+                .await?;
             Ok(r.value)
         }
     }
@@ -463,8 +526,14 @@ async fn project(c: &ConcatClient, a: &Map<String, Value>) -> Result<Value, Conc
     match s(a, "action")? {
         "list" => to_json(&c.project_list().await?),
         "create" => {
-            let sum = c.project_create(s(a, "location")?, s(a, "name")?, Some(video_format(a))).await?;
-            let path = format!("{}/{}", s(a, "location")?.trim_end_matches('/'), s(a, "name")?);
+            let sum = c
+                .project_create(s(a, "location")?, s(a, "name")?, Some(video_format(a)))
+                .await?;
+            let path = format!(
+                "{}/{}",
+                s(a, "location")?.trim_end_matches('/'),
+                s(a, "name")?
+            );
             Ok(json!({ "path": path, "summary": to_json(&sum)? }))
         }
         "open" => to_json(&c.project_open(s(a, "path")?).await?),
@@ -477,7 +546,10 @@ async fn project(c: &ConcatClient, a: &Map<String, Value>) -> Result<Value, Conc
             Ok(json!({ "closed": true }))
         }
         "read" => to_json(&c.timeline_read(s(a, "path")?).await?),
-        "as_plan" => to_json(&plan::plan_from_view(&c.project_get(s(a, "path")?).await?, None)?),
+        "as_plan" => to_json(&plan::plan_from_view(
+            &c.project_get(s(a, "path")?).await?,
+            None,
+        )?),
         o => Err(bad(format!("unknown action `{o}`"))),
     }
 }
@@ -487,7 +559,15 @@ async fn cut(c: &ConcatClient, a: &Map<String, Value>) -> Result<Value, ConcatEr
     let p = s(a, "path")?;
     let sum = match act {
         "add_clip" => {
-            let id = c.add_clip(p, s(a, "media_id")?, s(a, "track_id")?, n(a, "start")?, flag(a, "ripple")).await?;
+            let id = c
+                .add_clip(
+                    p,
+                    s(a, "media_id")?,
+                    s(a, "track_id")?,
+                    n(a, "start")?,
+                    flag(a, "ripple"),
+                )
+                .await?;
             return Ok(json!({ "clip_id": id }));
         }
         "add_track" => {
@@ -501,9 +581,13 @@ async fn cut(c: &ConcatClient, a: &Map<String, Value>) -> Result<Value, ConcatEr
                 "end" => Edge::End,
                 o => return Err(bad(format!("edge must be start|end, got `{o}`"))),
             };
-            c.trim(p, s(a, "clip_id")?, edge, n(a, "delta")?, flag(a, "ripple")).await?
+            c.trim(p, s(a, "clip_id")?, edge, n(a, "delta")?, flag(a, "ripple"))
+                .await?
         }
-        "delete" => c.remove_clips(p, &strings(a, "clip_ids")?, flag(a, "ripple")).await?,
+        "delete" => {
+            c.remove_clips(p, &strings(a, "clip_ids")?, flag(a, "ripple"))
+                .await?
+        }
         "move" => {
             #[derive(serde::Deserialize)]
             struct M {
@@ -512,8 +596,14 @@ async fn cut(c: &ConcatClient, a: &Map<String, Value>) -> Result<Value, ConcatEr
                 track_id: String,
             }
             let ms: Vec<M> = from(a, "moves")?;
-            let moves: Vec<ClipMove> =
-                ms.into_iter().map(|m| ClipMove { clip_id: m.clip_id, start: m.start, track_id: m.track_id }).collect();
+            let moves: Vec<ClipMove> = ms
+                .into_iter()
+                .map(|m| ClipMove {
+                    clip_id: m.clip_id,
+                    start: m.start,
+                    track_id: m.track_id,
+                })
+                .collect();
             c.move_clips(p, &moves).await?
         }
         "cut_range" => c.cut_range(p, n(a, "from")?, n(a, "to")?).await?,
@@ -530,13 +620,22 @@ async fn text(c: &ConcatClient, a: &Map<String, Value>) -> Result<Value, ConcatE
     match s(a, "action")? {
         "title" => {
             let id = c
-                .add_title(p, s(a, "text")?, n(a, "start")?, n(a, "duration")?, a.get("style").cloned(), opt_n(a, "offset_y"))
+                .add_title(
+                    p,
+                    s(a, "text")?,
+                    n(a, "start")?,
+                    n(a, "duration")?,
+                    a.get("style").cloned(),
+                    opt_n(a, "offset_y"),
+                )
                 .await?;
             Ok(json!({ "clip_id": id }))
         }
         "captions" => {
             let lines: Vec<CaptionLine> = from(a, "lines")?;
-            let sum = c.add_captions(p, &lines, a.get("style").cloned(), opt_n(a, "offset_y")).await?;
+            let sum = c
+                .add_captions(p, &lines, a.get("style").cloned(), opt_n(a, "offset_y"))
+                .await?;
             Ok(json!({ "added": lines.len(), "duration": sum.timeline.duration }))
         }
         "captions_from_words" => {
@@ -560,10 +659,17 @@ async fn text(c: &ConcatClient, a: &Map<String, Value>) -> Result<Value, ConcatE
             let timed: Vec<TimedWord> = words
                 .into_iter()
                 .filter(|w| !w.text.trim().is_empty() && w.end >= w.start)
-                .map(|w| TimedWord { text: w.text.trim().to_owned(), start: w.start, end: w.end, range: 0 })
+                .map(|w| TimedWord {
+                    text: w.text.trim().to_owned(),
+                    start: w.start,
+                    end: w.end,
+                    range: 0,
+                })
                 .collect();
             let lines = plan::group_words(&timed, &style);
-            let sum = c.add_captions(p, &lines, Some(style.text_style()), Some(style.offset())).await?;
+            let sum = c
+                .add_captions(p, &lines, Some(style.text_style()), Some(style.offset()))
+                .await?;
             Ok(json!({ "added": lines.len(), "duration": sum.timeline.duration }))
         }
         o => Err(bad(format!("unknown action `{o}`"))),
@@ -580,18 +686,35 @@ async fn keyframe(c: &ConcatClient, a: &Map<String, Value>) -> Result<Value, Con
     let sum = match s(a, "action")? {
         "set" => {
             let ease = match a.get("ease") {
-                Some(v) => Some(serde_json::from_value::<[f64; 4]>(v.clone()).map_err(|e| bad(format!("`ease`: {e}")))?),
+                Some(v) => Some(
+                    serde_json::from_value::<[f64; 4]>(v.clone())
+                        .map_err(|e| bad(format!("`ease`: {e}")))?,
+                ),
                 None => None,
             };
-            c.set_keyframe(p, clip, prop(a)?, n(a, "at")?, n(a, "value")?, ease).await?
+            c.set_keyframe(p, clip, prop(a)?, n(a, "at")?, n(a, "value")?, ease)
+                .await?
         }
         "clear" => c.clear_keyframe(p, clip, prop(a)?, n(a, "at")?).await?,
         "transform" => {
-            c.set_transform(p, clip, opt_n(a, "scale"), opt_n(a, "offset_x"), opt_n(a, "offset_y"), opt_n(a, "rotation")).await?
+            c.set_transform(
+                p,
+                clip,
+                opt_n(a, "scale"),
+                opt_n(a, "offset_x"),
+                opt_n(a, "offset_y"),
+                opt_n(a, "rotation"),
+            )
+            .await?
         }
         "frame" => {
-            let f = if s(a, "framing")? == "fit" { Framing::Fit } else { Framing::Fill };
-            c.frame_clip(p, clip, f, opt_n(a, "at").unwrap_or(0.0)).await?
+            let f = if s(a, "framing")? == "fit" {
+                Framing::Fit
+            } else {
+                Framing::Fill
+            };
+            c.frame_clip(p, clip, f, opt_n(a, "at").unwrap_or(0.0))
+                .await?
         }
         "reframe" => return reframe(c, p, clip, a).await,
         o => return Err(bad(format!("unknown action `{o}`"))),
@@ -599,7 +722,12 @@ async fn keyframe(c: &ConcatClient, a: &Map<String, Value>) -> Result<Value, Con
     to_json(&sum.timeline)
 }
 
-async fn reframe(c: &ConcatClient, p: &str, clip_id: &str, a: &Map<String, Value>) -> Result<Value, ConcatError> {
+async fn reframe(
+    c: &ConcatClient,
+    p: &str,
+    clip_id: &str,
+    a: &Map<String, Value>,
+) -> Result<Value, ConcatError> {
     #[derive(serde::Deserialize)]
     struct P {
         at: f64,
@@ -616,13 +744,20 @@ async fn reframe(c: &ConcatClient, p: &str, clip_id: &str, a: &Map<String, Value
         return Err(bad("`points` is empty"));
     }
     let s0 = c.timeline_read(p).await?;
-    let clip = s0.clip(clip_id).ok_or_else(|| bad(format!("no clip `{clip_id}`; read ids with concat_project read")))?;
+    let clip = s0.clip(clip_id).ok_or_else(|| {
+        bad(format!(
+            "no clip `{clip_id}`; read ids with concat_project read"
+        ))
+    })?;
     let media = clip
         .media
         .as_deref()
         .and_then(|m| s0.media_item(m))
         .ok_or_else(|| bad("clip has no media (only video/image clips can be reframed)"))?;
-    let size = (f64::from(media.width.ok_or_else(|| bad("media size unknown"))?), f64::from(media.height.ok_or_else(|| bad("media size unknown"))?));
+    let size = (
+        f64::from(media.width.ok_or_else(|| bad("media size unknown"))?),
+        f64::from(media.height.ok_or_else(|| bad("media size unknown"))?),
+    );
     let frame = (f64::from(s0.project.width), f64::from(s0.project.height));
     let mut ops = Vec::new();
     for pt in &points {
@@ -632,7 +767,9 @@ async fn reframe(c: &ConcatClient, p: &str, clip_id: &str, a: &Map<String, Value
             ops.push(json!({ "op": "setClipKey", "clipId": clip_id, "property": prop, "at": pt.at.clamp(0.0, 1.0), "value": v }));
         }
     }
-    let sum = c.edit_apply(p, json!({ "op": "batch", "commands": ops })).await?;
+    let sum = c
+        .edit_apply(p, json!({ "op": "batch", "commands": ops }))
+        .await?;
     to_json(&sum.timeline)
 }
 
@@ -640,15 +777,34 @@ async fn effect(c: &ConcatClient, a: &Map<String, Value>) -> Result<Value, Conca
     match s(a, "action")? {
         "list" => c.effects_list(opt_s(a, "kind")).await,
         "set_effects" => {
-            let chain = a.get("chain").cloned().ok_or_else(|| bad("`chain` is required"))?;
-            to_json(&c.set_effects(s(a, "path")?, s(a, "clip_id")?, chain).await?.timeline)
+            let chain = a
+                .get("chain")
+                .cloned()
+                .ok_or_else(|| bad("`chain` is required"))?;
+            to_json(
+                &c.set_effects(s(a, "path")?, s(a, "clip_id")?, chain)
+                    .await?
+                    .timeline,
+            )
         }
         "transition" => {
             let t = opt_s(a, "id").map(|id| (id, opt_n(a, "duration").unwrap_or(0.5)));
-            to_json(&c.set_transition(s(a, "path")?, s(a, "clip_id")?, t).await?.timeline)
+            to_json(
+                &c.set_transition(s(a, "path")?, s(a, "clip_id")?, t)
+                    .await?
+                    .timeline,
+            )
         }
         "layer" => {
-            let id = c.add_effect_layer(s(a, "path")?, s(a, "effect_id")?, s(a, "name")?, n(a, "start")?, n(a, "duration")?).await?;
+            let id = c
+                .add_effect_layer(
+                    s(a, "path")?,
+                    s(a, "effect_id")?,
+                    s(a, "name")?,
+                    n(a, "start")?,
+                    n(a, "duration")?,
+                )
+                .await?;
             Ok(json!({ "clip_id": id }))
         }
         o => Err(bad(format!("unknown action `{o}`"))),
@@ -676,8 +832,20 @@ async fn export(c: &ConcatClient, a: &Map<String, Value>) -> Result<Value, Conca
         }
         "status" => to_json(&c.export_status(s(a, "job")?).await?),
         "wait" => {
-            let secs = a.get("timeout_secs").and_then(Value::as_u64).unwrap_or(DEFAULT_WAIT_SECS).clamp(1, MAX_WAIT_SECS);
-            match c.export_wait(s(a, "job")?, Duration::from_millis(500), Duration::from_secs(secs), |_| {}).await {
+            let secs = a
+                .get("timeout_secs")
+                .and_then(Value::as_u64)
+                .unwrap_or(DEFAULT_WAIT_SECS)
+                .clamp(1, MAX_WAIT_SECS);
+            match c
+                .export_wait(
+                    s(a, "job")?,
+                    Duration::from_millis(500),
+                    Duration::from_secs(secs),
+                    |_| {},
+                )
+                .await
+            {
                 Ok(st) => to_json(&st),
                 // Still running is not a failure: the job lives on, the model just calls again.
                 Err(ConcatError::Timeout(_)) => {

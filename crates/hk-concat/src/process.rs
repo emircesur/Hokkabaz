@@ -25,7 +25,9 @@ pub struct ProcessBackend {
 
 impl fmt::Debug for ProcessBackend {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ProcessBackend").field("server_version", &self.server_version).finish_non_exhaustive()
+        f.debug_struct("ProcessBackend")
+            .field("server_version", &self.server_version)
+            .finish_non_exhaustive()
     }
 }
 
@@ -42,9 +44,24 @@ impl ProcessBackend {
         // Allowlist like hk-mcp, plus the dirs Concat uses to find its `automation.json` (window
         // mode). Host secrets (API keys etc.) are deliberately not inherited.
         for k in [
-            "PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP", "SYSTEMROOT",
-            "USERPROFILE", "APPDATA", "LOCALAPPDATA", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME",
-            "XDG_RUNTIME_DIR", "CONCAT_MCP_ROOTS",
+            "PATH",
+            "HOME",
+            "USER",
+            "LOGNAME",
+            "LANG",
+            "LC_ALL",
+            "TMPDIR",
+            "TEMP",
+            "TMP",
+            "SYSTEMROOT",
+            "USERPROFILE",
+            "APPDATA",
+            "LOCALAPPDATA",
+            "XDG_CONFIG_HOME",
+            "XDG_DATA_HOME",
+            "XDG_CACHE_HOME",
+            "XDG_RUNTIME_DIR",
+            "CONCAT_MCP_ROOTS",
         ] {
             if let Some(v) = std::env::var_os(k) {
                 cmd.env(k, v);
@@ -66,11 +83,16 @@ impl ProcessBackend {
                 ));
             }
         }
-        cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true);
         #[cfg(windows)]
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
 
-        let mut child = cmd.spawn().map_err(|e| ConcatError::Spawn(format!("{}: {e}", bin.display())))?;
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| ConcatError::Spawn(format!("{}: {e}", bin.display())))?;
         let (Some(stdin), Some(stdout), Some(stderr)) =
             (child.stdin.take(), child.stdout.take(), child.stderr.take())
         else {
@@ -95,11 +117,17 @@ impl ProcessBackend {
 
     #[cfg(target_os = "android")]
     pub async fn spawn(_cfg: &ConcatConfig) -> Result<Self, ConcatError> {
-        Err(ConcatError::Unsupported("the Concat process bridge is desktop-only (no `concat` binary on android)"))
+        Err(ConcatError::Unsupported(
+            "the Concat process bridge is desktop-only (no `concat` binary on android)",
+        ))
     }
 
     /// Speaks MCP over caller-provided streams (tests, or a future socket transport).
-    pub async fn from_streams<R, W>(reader: R, writer: W, timeout: Duration) -> Result<Self, ConcatError>
+    pub async fn from_streams<R, W>(
+        reader: R,
+        writer: W,
+        timeout: Duration,
+    ) -> Result<Self, ConcatError>
     where
         R: AsyncRead + Send + Unpin + 'static,
         W: AsyncWrite + Send + Unpin + 'static,
@@ -118,9 +146,14 @@ impl ProcessBackend {
                 }),
             )
             .await?;
-        let proto = init.get("protocolVersion").and_then(Value::as_str).unwrap_or_default();
+        let proto = init
+            .get("protocolVersion")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         if !LEGACY_PROTOCOLS.contains(&proto) {
-            return Err(ConcatError::Protocol(format!("server speaks unsupported MCP version `{proto}`")));
+            return Err(ConcatError::Protocol(format!(
+                "server speaks unsupported MCP version `{proto}`"
+            )));
         }
         rpc.notify("notifications/initialized", json!({})).await?;
         let server_version = init
@@ -128,7 +161,11 @@ impl ProcessBackend {
             .and_then(Value::as_str)
             .unwrap_or("unknown")
             .to_owned();
-        Ok(Self { rpc, child: AsyncMutex::new(None), server_version })
+        Ok(Self {
+            rpc,
+            child: AsyncMutex::new(None),
+            server_version,
+        })
     }
 
     /// Version string from the server's `initialize` reply.
@@ -144,7 +181,10 @@ impl ConcatBackend for ProcessBackend {
     }
 
     async fn call_tool(&self, name: &str, args: Value) -> Result<ToolReply, ConcatError> {
-        let res = self.rpc.request("tools/call", json!({ "name": name, "arguments": args })).await?;
+        let res = self
+            .rpc
+            .request("tools/call", json!({ "name": name, "arguments": args }))
+            .await?;
         let reply = parse_call_result(&res);
         if res.get("isError").and_then(Value::as_bool).unwrap_or(false) {
             return Err(ConcatError::from_tool_text(name, &reply.text));
@@ -156,7 +196,10 @@ impl ConcatBackend for ProcessBackend {
         self.rpc.close().await;
         if let Some(mut child) = self.child.lock().await.take() {
             // EOF on stdin ends `concat --mcp` after the request in flight; do not wait forever.
-            if tokio::time::timeout(Duration::from_secs(3), child.wait()).await.is_err() {
+            if tokio::time::timeout(Duration::from_secs(3), child.wait())
+                .await
+                .is_err()
+            {
                 let _ = child.kill().await;
             }
         }
@@ -167,17 +210,35 @@ impl ConcatBackend for ProcessBackend {
 pub(crate) fn parse_call_result(res: &Value) -> ToolReply {
     let mut text = String::new();
     let mut images = Vec::new();
-    for block in res.get("content").and_then(Value::as_array).into_iter().flatten() {
+    for block in res
+        .get("content")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
         match block.get("type").and_then(Value::as_str) {
             Some("text") => {
                 if !text.is_empty() {
                     text.push('\n');
                 }
-                text.push_str(block.get("text").and_then(Value::as_str).unwrap_or_default());
+                text.push_str(
+                    block
+                        .get("text")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default(),
+                );
             }
             Some("image") => images.push(ReplyImage {
-                mime: block.get("mimeType").and_then(Value::as_str).unwrap_or("image/png").to_owned(),
-                data: block.get("data").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                mime: block
+                    .get("mimeType")
+                    .and_then(Value::as_str)
+                    .unwrap_or("image/png")
+                    .to_owned(),
+                data: block
+                    .get("data")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
             }),
             _ => {}
         }
@@ -188,5 +249,9 @@ pub(crate) fn parse_call_result(res: &Value) -> ToolReply {
         .cloned()
         .or_else(|| serde_json::from_str(&text).ok())
         .unwrap_or_else(|| Value::String(text.clone()));
-    ToolReply { value, text, images }
+    ToolReply {
+        value,
+        text,
+        images,
+    }
 }

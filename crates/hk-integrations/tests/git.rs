@@ -17,7 +17,10 @@ impl Drop for Dir {
 }
 
 fn git_available() -> bool {
-    Command::new("git").arg("--version").output().is_ok_and(|o| o.status.success())
+    Command::new("git")
+        .arg("--version")
+        .output()
+        .is_ok_and(|o| o.status.success())
 }
 
 fn ctx(params: Value) -> NodeContext {
@@ -29,7 +32,11 @@ fn ctx(params: Value) -> NodeContext {
 }
 
 fn bare_git(dir: &Path, args: &[&str]) -> String {
-    let o = Command::new("git").args(args).current_dir(dir).output().unwrap();
+    let o = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .unwrap();
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
     String::from_utf8_lossy(&o.stdout).trim().to_owned()
 }
@@ -52,37 +59,63 @@ async fn clone_commit_push_log_status_tag_roundtrip() {
         async move { git.execute(&ctx(p)).await }
     };
 
-    run(json!({"operation": "clone", "repositoryPath": "work", "sourceRepository": "origin.git"})).await.unwrap();
+    run(json!({"operation": "clone", "repositoryPath": "work", "sourceRepository": "origin.git"}))
+        .await
+        .unwrap();
     run(json!({"operation": "checkout", "repositoryPath": "work", "branch": "main", "createBranch": true})).await.unwrap();
     std::fs::write(root_path.join("work/a.txt"), "hello").unwrap();
 
-    let st = run(json!({"operation": "status", "repositoryPath": "work"})).await.unwrap();
+    let st = run(json!({"operation": "status", "repositoryPath": "work"}))
+        .await
+        .unwrap();
     assert_eq!(st[0][0].json["clean"], false);
     assert_eq!(st[0][0].json["files"][0]["path"], "a.txt");
 
-    run(json!({"operation": "add", "repositoryPath": "work", "pathsToAdd": "a.txt"})).await.unwrap();
+    run(json!({"operation": "add", "repositoryPath": "work", "pathsToAdd": "a.txt"}))
+        .await
+        .unwrap();
     run(json!({
         "operation": "commit", "repositoryPath": "work", "message": "first",
         "options": {"authorName": "T", "authorEmail": "t@x.io"}
     }))
     .await
     .unwrap();
-    run(json!({"operation": "tag", "repositoryPath": "work", "name": "v1"})).await.unwrap();
-    run(json!({"operation": "push", "repositoryPath": "work", "branch": "main"})).await.unwrap();
-    run(json!({"operation": "pushTags", "repositoryPath": "work"})).await.unwrap();
+    run(json!({"operation": "tag", "repositoryPath": "work", "name": "v1"}))
+        .await
+        .unwrap();
+    run(json!({"operation": "push", "repositoryPath": "work", "branch": "main"}))
+        .await
+        .unwrap();
+    run(json!({"operation": "pushTags", "repositoryPath": "work"}))
+        .await
+        .unwrap();
 
-    let log = run(json!({"operation": "log", "repositoryPath": "work", "returnAll": true})).await.unwrap();
+    let log = run(json!({"operation": "log", "repositoryPath": "work", "returnAll": true}))
+        .await
+        .unwrap();
     assert_eq!(log[0].len(), 1);
     assert_eq!(log[0][0].json["message"], "first");
     assert_eq!(log[0][0].json["author_email"], "t@x.io");
 
     // the bare repo really received branch and tag
-    assert_eq!(bare_git(&root_path.join("origin.git"), &["log", "--format=%s", "main"]), "first");
+    assert_eq!(
+        bare_git(
+            &root_path.join("origin.git"),
+            &["log", "--format=%s", "main"]
+        ),
+        "first"
+    );
     assert_eq!(bare_git(&root_path.join("origin.git"), &["tag"]), "v1");
 
-    run(json!({"operation": "fetch", "repositoryPath": "work"})).await.unwrap();
-    run(json!({"operation": "pull", "repositoryPath": "work", "branch": "main"})).await.unwrap();
-    let st = run(json!({"operation": "status", "repositoryPath": "work"})).await.unwrap();
+    run(json!({"operation": "fetch", "repositoryPath": "work"}))
+        .await
+        .unwrap();
+    run(json!({"operation": "pull", "repositoryPath": "work", "branch": "main"}))
+        .await
+        .unwrap();
+    let st = run(json!({"operation": "status", "repositoryPath": "work"}))
+        .await
+        .unwrap();
     assert_eq!(st[0][0].json["clean"], true);
     assert_eq!(st[0][0].json["current"], "main");
 }
@@ -102,10 +135,22 @@ async fn paths_and_arguments_are_confined() {
         async move { git.execute(&ctx(p)).await.unwrap_err().to_string() }
     };
 
-    assert!(err(json!({"operation": "status", "repositoryPath": "../elsewhere"})).await.contains("`..`"));
-    assert!(err(json!({"operation": "status", "repositoryPath": "/etc"})).await.contains("outside"));
+    assert!(
+        err(json!({"operation": "status", "repositoryPath": "../elsewhere"}))
+            .await
+            .contains("`..`")
+    );
+    assert!(
+        err(json!({"operation": "status", "repositoryPath": "/etc"}))
+            .await
+            .contains("outside")
+    );
     // option injection through ref-like values and clone sources
-    assert!(err(json!({"operation": "checkout", "repositoryPath": "plain", "branch": "--orphan"})).await.contains("Invalid branch"));
+    assert!(
+        err(json!({"operation": "checkout", "repositoryPath": "plain", "branch": "--orphan"}))
+            .await
+            .contains("Invalid branch")
+    );
     assert!(
         err(json!({"operation": "clone", "repositoryPath": "c", "sourceRepository": "--upload-pack=touch x"}))
             .await
@@ -117,7 +162,9 @@ async fn paths_and_arguments_are_confined() {
             .contains("Unsupported")
     );
     assert!(
-        err(json!({"operation": "clone", "repositoryPath": "c", "sourceRepository": "/etc"})).await.contains("outside")
+        err(json!({"operation": "clone", "repositoryPath": "c", "sourceRepository": "/etc"}))
+            .await
+            .contains("outside")
     );
     // a folder that is not a repository must not fall through to a repository above it
     let e = err(json!({"operation": "status", "repositoryPath": "plain"})).await;

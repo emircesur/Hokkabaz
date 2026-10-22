@@ -49,7 +49,11 @@ fn trigger_description() -> NodeTypeDescription {
         .color("#b02a2a")
         .polling_trigger()
         .property(poll_times_prop())
-        .property(Prop::string("feedUrl", "Feed URL").required().placeholder("https://example.com/feed.xml"))
+        .property(
+            Prop::string("feedUrl", "Feed URL")
+                .required()
+                .placeholder("https://example.com/feed.xml"),
+        )
         .build();
     kit::serve_versions(&mut d, &[1.0]);
     d
@@ -85,7 +89,8 @@ fn snippet(html: &str) -> String {
 
 /// Parse a feed document into `(guid, item json)` pairs in document order.
 pub fn parse_feed(bytes: &[u8]) -> Result<Vec<(String, Value)>, String> {
-    let feed = feed_rs::parser::parse(bytes).map_err(|e| format!("Could not parse the feed: {e}"))?;
+    let feed =
+        feed_rs::parser::parse(bytes).map_err(|e| format!("Could not parse the feed: {e}"))?;
     Ok(feed
         .entries
         .into_iter()
@@ -127,13 +132,17 @@ pub fn parse_feed(bytes: &[u8]) -> Result<Vec<(String, Value)>, String> {
 }
 
 async fn fetch(node: &str, http: &reqwest::Client, url: &str) -> Result<Vec<u8>, FlowError> {
-    let u = reqwest::Url::parse(url.trim()).map_err(|_| err(node, "The feed URL is not a valid URL"))?;
+    let u = reqwest::Url::parse(url.trim())
+        .map_err(|_| err(node, "The feed URL is not a valid URL"))?;
     if !matches!(u.scheme(), "http" | "https") {
         return Err(err(node, "Only http and https feed URLs are supported"));
     }
     let res = http
         .get(u)
-        .header("accept", "application/rss+xml, application/atom+xml, application/xml, text/xml, */*")
+        .header(
+            "accept",
+            "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+        )
         .header("user-agent", "Hokkabaz")
         .send()
         .await
@@ -142,13 +151,19 @@ async fn fetch(node: &str, http: &reqwest::Client, url: &str) -> Result<Vec<u8>,
     if !status.is_success() {
         return Err(err(
             node,
-            format!("The feed server returned an error: {} {}", status.as_u16(), status.canonical_reason().unwrap_or("")),
+            format!(
+                "The feed server returned an error: {} {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or("")
+            ),
         ));
     }
-    let bytes = res
-        .bytes()
-        .await
-        .map_err(|e| err(node, format!("Could not read the feed: {}", e.without_url())))?;
+    let bytes = res.bytes().await.map_err(|e| {
+        err(
+            node,
+            format!("Could not read the feed: {}", e.without_url()),
+        )
+    })?;
     if bytes.len() > MAX_FEED_BYTES {
         return Err(err(node, "The feed is larger than 10 MB"));
     }
@@ -183,7 +198,10 @@ impl FlowNode for RssRead {
                 }
                 let bytes = fetch(&ctx.node.name, &http, &url).await?;
                 let entries = parse_feed(&bytes).map_err(|m| node_err(ctx, m))?;
-                Ok(entries.into_iter().map(|(_, v)| kit::to_item(v)).collect::<Vec<Item>>())
+                Ok(entries
+                    .into_iter()
+                    .map(|(_, v)| kit::to_item(v))
+                    .collect::<Vec<Item>>())
             }
             .await;
             kit::settle(ctx, i, res, &mut out)?;
@@ -205,7 +223,11 @@ impl PollingTrigger for RssTrigger {
         &self.desc
     }
 
-    async fn poll(&self, cx: &PollContext, _cursor: Option<&Value>) -> Result<PollBatch, FlowError> {
+    async fn poll(
+        &self,
+        cx: &PollContext,
+        _cursor: Option<&Value>,
+    ) -> Result<PollBatch, FlowError> {
         let node = cx.node().name.clone();
         let url = cx.param_str("feedUrl", "")?;
         if url.trim().is_empty() {
@@ -215,7 +237,10 @@ impl PollingTrigger for RssTrigger {
         let bytes = fetch(&node, &http, &url).await?;
         let entries = parse_feed(&bytes).map_err(|m| err(&node, m))?;
         Ok(PollBatch {
-            items: entries.into_iter().map(|(id, v)| PolledItem::new(id, v)).collect(),
+            items: entries
+                .into_iter()
+                .map(|(id, v)| PolledItem::new(id, v))
+                .collect(),
             cursor: None,
         })
     }
@@ -227,8 +252,15 @@ pub fn register(
     _creds: &CredentialTypes,
     polls: &mut PollRegistry,
 ) -> Result<(), FlowError> {
-    nodes.register(Arc::new(RssRead { desc: read_description() }))?;
-    polls.register(nodes, Arc::new(RssTrigger { desc: trigger_description() }))
+    nodes.register(Arc::new(RssRead {
+        desc: read_description(),
+    }))?;
+    polls.register(
+        nodes,
+        Arc::new(RssTrigger {
+            desc: trigger_description(),
+        }),
+    )
 }
 
 #[cfg(test)]
@@ -237,6 +269,9 @@ mod tests {
 
     #[test]
     fn snippet_strips_markup() {
-        assert_eq!(snippet("<p>Fish &amp; <b>chips</b></p>\n<p>more</p>"), "Fish & chips more");
+        assert_eq!(
+            snippet("<p>Fish &amp; <b>chips</b></p>\n<p>more</p>"),
+            "Fish & chips more"
+        );
     }
 }

@@ -4,10 +4,14 @@
 
 use std::sync::{Arc, OnceLock};
 
-use tokio_rustls::rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use tokio_rustls::rustls::client::danger::{
+    HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier,
+};
 use tokio_rustls::rustls::crypto::{CryptoProvider, ring};
 use tokio_rustls::rustls::pki_types::{CertificateDer, ServerName, UnixTime};
-use tokio_rustls::rustls::{ClientConfig, DigitallySignedStruct, Error, RootCertStore, SignatureScheme};
+use tokio_rustls::rustls::{
+    ClientConfig, DigitallySignedStruct, Error, RootCertStore, SignatureScheme,
+};
 
 fn provider() -> Arc<CryptoProvider> {
     Arc::new(ring::default_provider())
@@ -44,11 +48,21 @@ impl ServerCertVerifier for AcceptAny {
         Ok(ServerCertVerified::assertion())
     }
 
-    fn verify_tls12_signature(&self, _m: &[u8], _c: &CertificateDer<'_>, _d: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, Error> {
+    fn verify_tls12_signature(
+        &self,
+        _m: &[u8],
+        _c: &CertificateDer<'_>,
+        _d: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, Error> {
         Ok(HandshakeSignatureValid::assertion())
     }
 
-    fn verify_tls13_signature(&self, _m: &[u8], _c: &CertificateDer<'_>, _d: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, Error> {
+    fn verify_tls13_signature(
+        &self,
+        _m: &[u8],
+        _c: &CertificateDer<'_>,
+        _d: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, Error> {
         Ok(HandshakeSignatureValid::assertion())
     }
 

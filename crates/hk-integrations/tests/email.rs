@@ -63,19 +63,31 @@ async fn send_failures_are_reported_without_the_password() {
     let cred = json!({"host": "127.0.0.1", "port": 1, "secure": false, "disableStartTls": true, "user": "u", "password": "smtp_SECRET"});
     let params = json!({"fromEmail": "a@example.com", "toEmail": "b@example.org", "subject": "s", "emailFormat": "text", "text": "t"});
 
-    let e = n.execute(&send_ctx(cred.clone(), params.clone())).await.unwrap_err().to_string();
+    let e = n
+        .execute(&send_ctx(cred.clone(), params.clone()))
+        .await
+        .unwrap_err()
+        .to_string();
     assert!(e.contains("Sending the email failed"), "{e}");
     assert!(!e.contains("smtp_SECRET"));
 
     // bad recipient never reaches the network
     let mut bad = params.clone();
     bad["toEmail"] = json!("nobody");
-    let e = n.execute(&send_ctx(cred.clone(), bad)).await.unwrap_err().to_string();
+    let e = n
+        .execute(&send_ctx(cred.clone(), bad))
+        .await
+        .unwrap_err()
+        .to_string();
     assert!(e.contains("Invalid To address"), "{e}");
 
     // missing attachment property
     let mut att = params;
     att["options"] = json!({"attachments": "data"});
-    let e = n.execute(&send_ctx(cred, att)).await.unwrap_err().to_string();
+    let e = n
+        .execute(&send_ctx(cred, att))
+        .await
+        .unwrap_err()
+        .to_string();
     assert!(e.contains("no binary property `data`"), "{e}");
 }

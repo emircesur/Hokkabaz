@@ -8,8 +8,11 @@ use futures::StreamExt;
 use hk_ffi::dto::{CoreProfile, FlowRunEventKind as K, FlowRunModeDto};
 use hk_ffi::handle::CoreHandle;
 use hk_ffi::remote::RemoteCore;
-use hk_flow::{ExecuteInput, ExecutorConfig, Executor, NodeRegistry, register_core_nodes};
-use hk_server::{AppState, Auth, FlowApi, FlowToolHost, LocalConfig, LocalRuntime, Scope, TestRun, serve_listener};
+use hk_flow::{ExecuteInput, Executor, ExecutorConfig, NodeRegistry, register_core_nodes};
+use hk_server::{
+    AppState, Auth, FlowApi, FlowToolHost, LocalConfig, LocalRuntime, Scope, TestRun,
+    serve_listener,
+};
 use hk_store::{MemorySecretStore, Secret, Store};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
@@ -32,13 +35,27 @@ impl FlowToolHost for Host {
 
     async fn run_test(&self, req: TestRun) -> Result<hk_flow::ExecutionResult, String> {
         let wid = req.workflow_id.clone().unwrap();
-        let id = self.api.start_execution(&wid, "manual", None).await.map_err(|e| e.to_string())?;
-        let exec = self.exec.clone().with_config(ExecutorConfig { use_pin_data: true, ..ExecutorConfig::default() });
+        let id = self
+            .api
+            .start_execution(&wid, "manual", None)
+            .await
+            .map_err(|e| e.to_string())?;
+        let exec = self.exec.clone().with_config(ExecutorConfig {
+            use_pin_data: true,
+            ..ExecutorConfig::default()
+        });
         let mut input = ExecuteInput::new(req.start_node, req.items);
         input.execution_id = Some(id.to_string());
-        let res = exec.execute(&req.workflow, &input).await.map_err(|e| e.to_string())?;
-        let data = json!({ "resultData": { "runData": serde_json::to_value(&res.run_data).unwrap() } });
-        self.api.finish_execution(id, "success", Some(&data)).await.map_err(|e| e.to_string())?;
+        let res = exec
+            .execute(&req.workflow, &input)
+            .await
+            .map_err(|e| e.to_string())?;
+        let data =
+            json!({ "resultData": { "runData": serde_json::to_value(&res.run_data).unwrap() } });
+        self.api
+            .finish_execution(id, "success", Some(&data))
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(res)
     }
 }
@@ -72,7 +89,11 @@ async fn upload_run_and_read_back() {
         async fn models(&self) -> hk_llm::Result<Vec<hk_llm::ModelInfo>> {
             Ok(Vec::new())
         }
-        async fn stream(&self, _r: hk_llm::ChatRequest, _c: hk_llm::CancellationToken) -> hk_llm::Result<hk_llm::EventStream> {
+        async fn stream(
+            &self,
+            _r: hk_llm::ChatRequest,
+            _c: hk_llm::CancellationToken,
+        ) -> hk_llm::Result<hk_llm::EventStream> {
             Ok(futures::stream::empty().boxed())
         }
     }
@@ -92,26 +113,51 @@ async fn upload_run_and_read_back() {
     let mut reg = NodeRegistry::new();
     register_core_nodes(&mut reg).unwrap();
     let nodes = Arc::new(reg);
-    let host = Arc::new(Host { api: base.clone(), exec: Executor::new(nodes.clone()), nodes });
+    let host = Arc::new(Host {
+        api: base.clone(),
+        exec: Executor::new(nodes.clone()),
+        nodes,
+    });
     let flow = base.with_test_runner(host);
     let auth = Auth::new().with_token(Scope::Admin, ADMIN);
-    tokio::spawn(serve_listener(listener, AppState::new(runtime, auth).with_flow(flow), std::future::pending()));
+    tokio::spawn(serve_listener(
+        listener,
+        AppState::new(runtime, auth).with_flow(flow),
+        std::future::pending(),
+    ));
 
     let core = RemoteCore::new(&url, Secret::new(ADMIN), CoreProfile::Desktop).unwrap();
-    let id = core.run_workflow(workflow(1), FlowRunModeDto::Test, None, None, None).await.unwrap();
-    let evs = tokio::time::timeout(Duration::from_secs(10), core.run_events(&id).unwrap().collect::<Vec<_>>()).await.unwrap();
+    let id = core
+        .run_workflow(workflow(1), FlowRunModeDto::Test, None, None, None)
+        .await
+        .unwrap();
+    let evs = tokio::time::timeout(
+        Duration::from_secs(10),
+        core.run_events(&id).unwrap().collect::<Vec<_>>(),
+    )
+    .await
+    .unwrap();
     assert_eq!(evs.first().map(|e| e.kind), Some(K::RunStarted));
     assert_eq!(evs.last().map(|e| e.kind), Some(K::RunFinished));
-    let set = evs.iter().find(|e| e.kind == K::NodeFinished && e.node.as_deref() == Some("Set")).unwrap();
+    let set = evs
+        .iter()
+        .find(|e| e.kind == K::NodeFinished && e.node.as_deref() == Some("Set"))
+        .unwrap();
     let out: Value = serde_json::from_str(set.output_json.as_deref().unwrap()).unwrap();
     assert_eq!(out[0][0]["json"]["a"], 1);
 
     // Second run of the same app workflow updates the one uploaded copy, not a second one.
-    let id2 = core.run_workflow(workflow(2), FlowRunModeDto::Test, None, None, None).await.unwrap();
+    let id2 = core
+        .run_workflow(workflow(2), FlowRunModeDto::Test, None, None, None)
+        .await
+        .unwrap();
     assert_ne!(id, id2);
     let runs = core.list_runs(Some("local-1".into()), 10).await.unwrap();
     assert_eq!(runs.len(), 2);
-    assert!(runs.iter().all(|r| r.remote && r.workflow_name == "Remote set" && r.status == "success"));
+    assert!(
+        runs.iter()
+            .all(|r| r.remote && r.workflow_name == "Remote set" && r.status == "success")
+    );
     assert_eq!(runs[0].id, id2, "newest first");
 
     let d = core.get_run(&id2).await.unwrap();
@@ -120,10 +166,34 @@ async fn upload_run_and_read_back() {
 
     // Pin override: Manual ignores stored/override pins, Test applies the override.
     let pin = json!({"Set": [{"json": {"pinned": true}}]}).to_string();
-    let id3 = core.run_workflow(workflow(3), FlowRunModeDto::Test, None, None, Some(pin.clone())).await.unwrap();
-    assert!(core.get_run(&id3).await.unwrap().run_data_json.contains("pinned"));
-    let id4 = core.run_workflow(workflow(4), FlowRunModeDto::Manual, None, None, Some(pin)).await.unwrap();
-    assert!(core.get_run(&id4).await.unwrap().run_data_json.contains("\"a\":4"));
+    let id3 = core
+        .run_workflow(
+            workflow(3),
+            FlowRunModeDto::Test,
+            None,
+            None,
+            Some(pin.clone()),
+        )
+        .await
+        .unwrap();
+    assert!(
+        core.get_run(&id3)
+            .await
+            .unwrap()
+            .run_data_json
+            .contains("pinned")
+    );
+    let id4 = core
+        .run_workflow(workflow(4), FlowRunModeDto::Manual, None, None, Some(pin))
+        .await
+        .unwrap();
+    assert!(
+        core.get_run(&id4)
+            .await
+            .unwrap()
+            .run_data_json
+            .contains("\"a\":4")
+    );
 
     // No activator on this instance: the flag flips on the stored row.
     assert!(core.set_workflow_active(workflow(5), true).await.unwrap());

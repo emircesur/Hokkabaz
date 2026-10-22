@@ -95,7 +95,10 @@ const DUP_TOLERANCE: f64 = 0.25;
 /// guard removes the one word that jitter could leave on both sides.
 pub fn stitch(parts: Vec<ChunkResult>, total_duration: f64) -> Transcript {
     let n = parts.len();
-    let mut out = Transcript { duration: total_duration, ..Default::default() };
+    let mut out = Transcript {
+        duration: total_duration,
+        ..Default::default()
+    };
     let mut last_chunk = 0usize;
     for (k, part) in parts.iter().enumerate() {
         let mut t = part.transcript.clone();
@@ -103,8 +106,16 @@ pub fn stitch(parts: Vec<ChunkResult>, total_duration: f64) -> Transcript {
         if out.language.is_none() {
             out.language = t.language.clone();
         }
-        let lo = if k == 0 { f64::NEG_INFINITY } else { (part.start + parts[k - 1].end) / 2.0 };
-        let hi = if k + 1 == n { f64::INFINITY } else { (parts[k + 1].start + part.end) / 2.0 };
+        let lo = if k == 0 {
+            f64::NEG_INFINITY
+        } else {
+            (part.start + parts[k - 1].end) / 2.0
+        };
+        let hi = if k + 1 == n {
+            f64::INFINITY
+        } else {
+            (parts[k + 1].start + part.end) / 2.0
+        };
         for w in t.words {
             let m = w.mid();
             if m < lo || m >= hi {
@@ -125,7 +136,10 @@ pub fn stitch(parts: Vec<ChunkResult>, total_duration: f64) -> Transcript {
                     s.start = s.start.max(prev.end);
                     s.end = s.end.max(s.start);
                 }
-                out.segments.push(Segment { word_range: 0..0, ..s });
+                out.segments.push(Segment {
+                    word_range: 0..0,
+                    ..s
+                });
             }
         }
     }
@@ -136,14 +150,19 @@ pub fn stitch(parts: Vec<ChunkResult>, total_duration: f64) -> Transcript {
     // Engine text may repeat words cut away above; words are the source of truth.
     out.segments.retain(|s| !s.word_range.is_empty());
     for s in &mut out.segments {
-        s.text = out.words[s.word_range.clone()].iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ");
+        s.text = out.words[s.word_range.clone()]
+            .iter()
+            .map(|w| w.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
     }
     out
 }
 
 fn is_dup(prev: Option<&Word>, w: &Word) -> bool {
     prev.is_some_and(|p| {
-        (p.start - w.start).abs() < DUP_TOLERANCE && normalize_token(&p.text) == normalize_token(&w.text)
+        (p.start - w.start).abs() < DUP_TOLERANCE
+            && normalize_token(&p.text) == normalize_token(&w.text)
     })
 }
 
@@ -157,7 +176,9 @@ pub struct ChunkedTranscriber {
 
 impl std::fmt::Debug for ChunkedTranscriber {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ChunkedTranscriber").field("opts", &self.opts).finish_non_exhaustive()
+        f.debug_struct("ChunkedTranscriber")
+            .field("opts", &self.opts)
+            .finish_non_exhaustive()
     }
 }
 
@@ -165,12 +186,22 @@ static DIR_SEQ: AtomicU64 = AtomicU64::new(0);
 
 impl ChunkedTranscriber {
     /// Wrap `inner`.
-    pub fn new(inner: Arc<dyn Transcriber>, splitter: Arc<dyn AudioSplitter>, opts: ChunkOpts) -> Self {
-        Self { inner, splitter, opts }
+    pub fn new(
+        inner: Arc<dyn Transcriber>,
+        splitter: Arc<dyn AudioSplitter>,
+        opts: ChunkOpts,
+    ) -> Self {
+        Self {
+            inner,
+            splitter,
+            opts,
+        }
     }
 
     fn limit(&self) -> Option<u64> {
-        self.opts.max_upload_bytes.or_else(|| self.inner.max_upload_bytes())
+        self.opts
+            .max_upload_bytes
+            .or_else(|| self.inner.max_upload_bytes())
     }
 }
 
@@ -179,12 +210,17 @@ impl Transcriber for ChunkedTranscriber {
     async fn transcribe(&self, audio_path: &Path, opts: &TranscribeOpts) -> Result<Transcript> {
         let o = &self.opts;
         if o.overlap_secs < 0.0 || o.chunk_secs <= 0.0 || o.overlap_secs * 2.0 >= o.chunk_secs {
-            return Err(SttError::Config("chunk_secs must exceed 2 * overlap_secs".into()));
+            return Err(SttError::Config(
+                "chunk_secs must exceed 2 * overlap_secs".into(),
+            ));
         }
         let duration = self.splitter.duration(audio_path).await?;
         let size = tokio::fs::metadata(audio_path)
             .await
-            .map_err(|source| SttError::Io { path: audio_path.to_path_buf(), source })?
+            .map_err(|source| SttError::Io {
+                path: audio_path.to_path_buf(),
+                source,
+            })?
             .len();
         let fits = self.limit().is_none_or(|l| size <= l);
         if duration <= o.chunk_secs && fits {
@@ -193,22 +229,37 @@ impl Transcriber for ChunkedTranscriber {
             return Ok(t);
         }
         let plan = plan_chunks(duration, o.chunk_secs, o.overlap_secs);
-        let dir = o.work_dir.clone().unwrap_or_else(std::env::temp_dir).join(format!(
-            "hk-stt-{}-{}",
-            std::process::id(),
-            DIR_SEQ.fetch_add(1, Ordering::Relaxed)
-        ));
-        tokio::fs::create_dir_all(&dir).await.map_err(|source| SttError::Io { path: dir.clone(), source })?;
+        let dir = o
+            .work_dir
+            .clone()
+            .unwrap_or_else(std::env::temp_dir)
+            .join(format!(
+                "hk-stt-{}-{}",
+                std::process::id(),
+                DIR_SEQ.fetch_add(1, Ordering::Relaxed)
+            ));
+        tokio::fs::create_dir_all(&dir)
+            .await
+            .map_err(|source| SttError::Io {
+                path: dir.clone(),
+                source,
+            })?;
         tracing::debug!(chunks = plan.len(), duration, "chunked transcription");
 
         let res: Result<Vec<ChunkResult>> = stream::iter(plan.into_iter().enumerate())
             .map(|(i, span)| {
                 let out = dir.join(format!("chunk-{i:04}.{}", o.chunk_ext));
                 async move {
-                    self.splitter.extract(audio_path, span.start, span.end, &out).await?;
+                    self.splitter
+                        .extract(audio_path, span.start, span.end, &out)
+                        .await?;
                     let transcript = self.inner.transcribe(&out, opts).await;
                     let _ = tokio::fs::remove_file(&out).await;
-                    Ok(ChunkResult { start: span.start, end: span.end, transcript: transcript? })
+                    Ok(ChunkResult {
+                        start: span.start,
+                        end: span.end,
+                        transcript: transcript?,
+                    })
                 }
             })
             .buffered(o.concurrency.max(1))

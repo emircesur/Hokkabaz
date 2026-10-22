@@ -252,7 +252,9 @@ impl LoadOptions {
 
     /// Use the current process environment (`HK_*` vars only).
     pub fn with_process_env(mut self) -> Self {
-        self.env = std::env::vars().filter(|(k, _)| k.starts_with(ENV_PREFIX)).collect();
+        self.env = std::env::vars()
+            .filter(|(k, _)| k.starts_with(ENV_PREFIX))
+            .collect();
         self
     }
 }
@@ -402,7 +404,11 @@ fn merge_table(base: &mut Table, patch: Table) {
 fn merge_id_array(base: &mut Vec<Value>, patch: Vec<Value>) {
     for pv in patch {
         let Value::Table(mut pt) = pv else { continue };
-        let id = pt.get("id").and_then(Value::as_str).unwrap_or_default().to_string();
+        let id = pt
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
         let remove = pt.remove("remove").and_then(|v| v.as_bool()) == Some(true);
         let pos = base.iter().position(|b| entry_id(b) == Some(id.as_str()));
         match (pos, remove) {
@@ -492,7 +498,13 @@ mod tests {
         assert_eq!(a.len(), 2); // c disabled
         assert_eq!(a[0]["model"].as_str(), Some("m9"));
         assert_eq!(a[0]["enabled"].as_bool(), Some(true)); // untouched field survives
-        assert!(c.tree()["p"].as_array().unwrap().iter().all(|v| v.get("remove").is_none()));
+        assert!(
+            c.tree()["p"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|v| v.get("remove").is_none())
+        );
     }
 
     #[test]
@@ -528,7 +540,10 @@ mod tests {
         // user layer can still override a profile default
         let mut o = LoadOptions::new(Profile::Mobile);
         o.env = vec![("HK_SANDBOX__BACKEND".into(), "auto".into())];
-        assert_eq!(Config::load(&o).unwrap().get_str("sandbox.backend"), Some("auto"));
+        assert_eq!(
+            Config::load(&o).unwrap().get_str("sandbox.backend"),
+            Some("auto")
+        );
         assert_eq!("Mobile".parse::<Profile>().unwrap(), Profile::Mobile);
         assert!("nope".parse::<Profile>().is_err());
     }

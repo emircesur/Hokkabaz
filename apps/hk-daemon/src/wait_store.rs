@@ -36,24 +36,53 @@ impl WaitStore for SqliteWaitStore {
         let mut v = serde_json::to_value(record)?;
         scrub_headers(&mut v);
         self.store
-            .put_wait(&record.execution_id, record.workflow_id.as_deref(), record.request.resume_at, &v.to_string())
+            .put_wait(
+                &record.execution_id,
+                record.workflow_id.as_deref(),
+                record.request.resume_at,
+                &v.to_string(),
+            )
             .await
             .map_err(db)
     }
 
     async fn get(&self, execution_id: &str) -> Result<Option<WaitRecord>, FlowError> {
-        self.store.get_wait(execution_id).await.map_err(db)?.as_deref().map(parse).transpose()
+        self.store
+            .get_wait(execution_id)
+            .await
+            .map_err(db)?
+            .as_deref()
+            .map(parse)
+            .transpose()
     }
 
     async fn take(&self, execution_id: &str) -> Result<Option<WaitRecord>, FlowError> {
-        self.store.take_wait(execution_id).await.map_err(db)?.as_deref().map(parse).transpose()
+        self.store
+            .take_wait(execution_id)
+            .await
+            .map_err(db)?
+            .as_deref()
+            .map(parse)
+            .transpose()
     }
 
     async fn due(&self, now_ms: i64) -> Result<Vec<WaitRecord>, FlowError> {
-        self.store.due_waits(now_ms).await.map_err(db)?.iter().map(|s| parse(s)).collect()
+        self.store
+            .due_waits(now_ms)
+            .await
+            .map_err(db)?
+            .iter()
+            .map(|s| parse(s))
+            .collect()
     }
 
     async fn list(&self) -> Result<Vec<WaitRecord>, FlowError> {
-        self.store.list_waits().await.map_err(db)?.iter().map(|s| parse(s)).collect()
+        self.store
+            .list_waits()
+            .await
+            .map_err(db)?
+            .iter()
+            .map(|s| parse(s))
+            .collect()
     }
 }

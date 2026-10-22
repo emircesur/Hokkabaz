@@ -39,14 +39,20 @@ impl Store {
             .create_if_missing(true)
             .journal_mode(SqliteJournalMode::Wal)
             .foreign_keys(true);
-        let pool = SqlitePoolOptions::new().max_connections(4).connect_with(opts).await?;
+        let pool = SqlitePoolOptions::new()
+            .max_connections(4)
+            .connect_with(opts)
+            .await?;
         Self::from_pool(pool).await
     }
 
     /// In-memory DB. Single connection: each `:memory:` connection is its own DB.
     pub async fn open_in_memory() -> Result<Self, StoreError> {
         let opts = SqliteConnectOptions::from_str("sqlite::memory:")?.foreign_keys(true);
-        let pool = SqlitePoolOptions::new().max_connections(1).connect_with(opts).await?;
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(opts)
+            .await?;
         Self::from_pool(pool).await
     }
 
@@ -61,10 +67,12 @@ impl Store {
 
     /// Raw JSON text setting, or `None`.
     pub async fn get_setting(&self, key: &str) -> Result<Option<String>, StoreError> {
-        Ok(sqlx::query_scalar("SELECT value FROM settings WHERE key = ?")
-            .bind(key)
-            .fetch_optional(&self.pool)
-            .await?)
+        Ok(
+            sqlx::query_scalar("SELECT value FROM settings WHERE key = ?")
+                .bind(key)
+                .fetch_optional(&self.pool)
+                .await?,
+        )
     }
 
     pub async fn set_setting(&self, key: &str, value: &str) -> Result<(), StoreError> {
@@ -80,7 +88,10 @@ impl Store {
     }
 
     pub async fn delete_setting(&self, key: &str) -> Result<bool, StoreError> {
-        let r = sqlx::query("DELETE FROM settings WHERE key = ?").bind(key).execute(&self.pool).await?;
+        let r = sqlx::query("DELETE FROM settings WHERE key = ?")
+            .bind(key)
+            .execute(&self.pool)
+            .await?;
         Ok(r.rows_affected() > 0)
     }
 
@@ -99,19 +110,34 @@ impl Store {
         Ok(())
     }
 
-    pub fn get_secret(&self, backend: &dyn SecretStore, name: &str) -> Result<Option<Secret>, StoreError> {
+    pub fn get_secret(
+        &self,
+        backend: &dyn SecretStore,
+        name: &str,
+    ) -> Result<Option<Secret>, StoreError> {
         Ok(backend.get(name)?)
     }
 
-    pub async fn delete_secret(&self, backend: &dyn SecretStore, name: &str) -> Result<(), StoreError> {
+    pub async fn delete_secret(
+        &self,
+        backend: &dyn SecretStore,
+        name: &str,
+    ) -> Result<(), StoreError> {
         backend.delete(name)?;
-        sqlx::query("DELETE FROM secret_refs WHERE name = ?").bind(name).execute(&self.pool).await?;
+        sqlx::query("DELETE FROM secret_refs WHERE name = ?")
+            .bind(name)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
     /// Names only; values stay in the backend.
     pub async fn list_secret_names(&self) -> Result<Vec<String>, StoreError> {
-        Ok(sqlx::query_scalar("SELECT name FROM secret_refs ORDER BY name").fetch_all(&self.pool).await?)
+        Ok(
+            sqlx::query_scalar("SELECT name FROM secret_refs ORDER BY name")
+                .fetch_all(&self.pool)
+                .await?,
+        )
     }
 }
 
@@ -125,7 +151,10 @@ mod tests {
         assert_eq!(s.get_setting("theme").await.unwrap(), None);
         s.set_setting("theme", "\"dark\"").await.unwrap();
         s.set_setting("theme", "\"light\"").await.unwrap();
-        assert_eq!(s.get_setting("theme").await.unwrap().as_deref(), Some("\"light\""));
+        assert_eq!(
+            s.get_setting("theme").await.unwrap().as_deref(),
+            Some("\"light\"")
+        );
         assert!(s.delete_setting("theme").await.unwrap());
         assert!(!s.delete_setting("theme").await.unwrap());
     }
@@ -148,7 +177,9 @@ mod tests {
     async fn secrets_roundtrip_via_memory_backend() {
         let s = Store::open_in_memory().await.unwrap();
         let be = MemorySecretStore::default();
-        s.put_secret(&be, "deepseek", Secret::new("sk-abc")).await.unwrap();
+        s.put_secret(&be, "deepseek", Secret::new("sk-abc"))
+            .await
+            .unwrap();
         let got = s.get_secret(&be, "deepseek").unwrap().unwrap();
         assert_eq!(got.expose(), "sk-abc");
         assert_eq!(s.list_secret_names().await.unwrap(), vec!["deepseek"]);

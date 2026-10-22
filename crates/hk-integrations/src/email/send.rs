@@ -67,7 +67,12 @@ pub fn build_message(m: &Outgoing) -> Result<Message, String> {
     for mb in mailboxes("From", &m.from)? {
         b = b.from(mb);
     }
-    for (label, list, kind) in [("To", &m.to, 0), ("Cc", &m.cc, 1), ("Bcc", &m.bcc, 2), ("Reply-To", &m.reply_to, 3)] {
+    for (label, list, kind) in [
+        ("To", &m.to, 0),
+        ("Cc", &m.cc, 1),
+        ("Bcc", &m.bcc, 2),
+        ("Reply-To", &m.reply_to, 3),
+    ] {
         if list.trim().is_empty() {
             continue;
         }
@@ -80,7 +85,9 @@ pub fn build_message(m: &Outgoing) -> Result<Message, String> {
             };
         }
     }
-    b = b.subject(m.subject.clone()).message_id(Some(message_id(&m.from)));
+    b = b
+        .subject(m.subject.clone())
+        .message_id(Some(message_id(&m.from)));
 
     let result = match (&m.text, &m.html, m.attachments.is_empty()) {
         // a lone body needs no multipart wrapper
@@ -92,7 +99,9 @@ pub fn build_message(m: &Outgoing) -> Result<Message, String> {
                     .singlepart(SinglePart::plain(t.clone()))
                     .singlepart(SinglePart::html(h.clone())),
                 (None, Some(h)) => MultiPart::mixed().singlepart(SinglePart::html(h.clone())),
-                (t, None) => MultiPart::mixed().singlepart(SinglePart::plain(t.clone().unwrap_or_default())),
+                (t, None) => {
+                    MultiPart::mixed().singlepart(SinglePart::plain(t.clone().unwrap_or_default()))
+                }
             };
             let mut mixed = MultiPart::mixed().multipart(body);
             for a in &m.attachments {
@@ -115,7 +124,10 @@ pub fn transport(cred: &Map<String, Value>) -> Result<AsyncSmtpTransport<Tokio1E
         return Err("The SMTP credential has no host".into());
     }
     let secure = !matches!(cred.get("secure"), Some(Value::Bool(false)));
-    let port: u16 = get("port").trim().parse().unwrap_or(if secure { 465 } else { 587 });
+    let port: u16 = get("port")
+        .trim()
+        .parse()
+        .unwrap_or(if secure { 465 } else { 587 });
     let tls_err = |e: lettre::transport::smtp::Error| format!("Could not set up TLS: {e}");
 
     let mut b = if secure {
@@ -124,7 +136,8 @@ pub fn transport(cred: &Map<String, Value>) -> Result<AsyncSmtpTransport<Tokio1E
         AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&host)
     } else {
         let params = TlsParameters::new(host.clone()).map_err(tls_err)?;
-        AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&host).tls(Tls::Opportunistic(params))
+        AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&host)
+            .tls(Tls::Opportunistic(params))
     };
     b = b.port(port).timeout(Some(Duration::from_secs(60)));
     let user = get("user");
@@ -141,15 +154,27 @@ fn description() -> NodeTypeDescription {
         .icon("fa:envelope")
         .color("#00bb88")
         .credential(SMTP_CREDENTIAL, true)
-        .property(Prop::string("fromEmail", "From Email").required().placeholder("admin@example.com"))
-        .property(Prop::string("toEmail", "To Email").required().placeholder("info@example.com"))
+        .property(
+            Prop::string("fromEmail", "From Email")
+                .required()
+                .placeholder("admin@example.com"),
+        )
+        .property(
+            Prop::string("toEmail", "To Email")
+                .required()
+                .placeholder("info@example.com"),
+        )
         .property(Prop::string("ccEmail", "CC Email"))
         .property(Prop::string("bccEmail", "BCC Email"))
         .property(Prop::string("subject", "Subject"))
         .property(Prop::options(
             "emailFormat",
             "Email Format",
-            vec![Choice::new("HTML", "html"), Choice::new("Text", "text"), Choice::new("Both", "both")],
+            vec![
+                Choice::new("HTML", "html"),
+                Choice::new("Text", "text"),
+                Choice::new("Both", "both"),
+            ],
         ))
         .property(
             Prop::string("text", "Text")
@@ -211,9 +236,17 @@ impl EmailSend {
             Some("text") => (Some(text), None),
             Some("html") => (None, Some(html)),
             Some("both") => (Some(text), Some(html)),
-            _ => (Some(text).filter(|t| !t.is_empty()), Some(html).filter(|h| !h.is_empty())),
+            _ => (
+                Some(text).filter(|t| !t.is_empty()),
+                Some(html).filter(|h| !h.is_empty()),
+            ),
         };
-        let item = ctx.input.first().and_then(|v| v.get(i)).cloned().unwrap_or_default();
+        let item = ctx
+            .input
+            .first()
+            .and_then(|v| v.get(i))
+            .cloned()
+            .unwrap_or_default();
         let attachments = attachment_names(ctx, i)?
             .iter()
             .map(|n| kit::binary_file(ctx, &item, n))
@@ -260,7 +293,11 @@ impl FlowNode for EmailSend {
                     .await
                     .map_err(|e| node_err(ctx, format!("Sending the email failed: {e}")))?;
                 let accepted: Vec<String> = env.to().iter().map(ToString::to_string).collect();
-                let response = format!("{} {}", resp.code(), resp.message().collect::<Vec<_>>().join(" "));
+                let response = format!(
+                    "{} {}",
+                    resp.code(),
+                    resp.message().collect::<Vec<_>>().join(" ")
+                );
                 Ok(vec![Item::from_json(json!({
                     "messageId": id,
                     "accepted": accepted,
@@ -280,7 +317,10 @@ impl FlowNode for EmailSend {
 }
 
 pub fn register(nodes: &mut NodeRegistry, creds: &CredentialTypes) -> Result<(), FlowError> {
-    nodes.register(Arc::new(EmailSend { desc: description(), creds: creds.clone() }))
+    nodes.register(Arc::new(EmailSend {
+        desc: description(),
+        creds: creds.clone(),
+    }))
 }
 
 #[cfg(test)]
@@ -302,12 +342,23 @@ mod tests {
 
     #[test]
     fn plain_message_headers_and_envelope() {
-        let m = build_message(&Outgoing { text: Some("hi".into()), cc: "c@example.org".into(), ..base() }).unwrap();
+        let m = build_message(&Outgoing {
+            text: Some("hi".into()),
+            cc: "c@example.org".into(),
+            ..base()
+        })
+        .unwrap();
         let t = text(&m);
         assert!(t.contains("From: Robot <robot@example.com>"), "{t}");
-        assert!(t.contains("To: a@example.org, Bob <bob@example.org>"), "{t}");
+        assert!(
+            t.contains("To: a@example.org, Bob <bob@example.org>"),
+            "{t}"
+        );
         assert!(t.contains("Cc: c@example.org"));
-        assert!(t.contains("Subject: =?utf-8?"), "non-ascii subject is encoded: {t}");
+        assert!(
+            t.contains("Subject: =?utf-8?"),
+            "non-ascii subject is encoded: {t}"
+        );
         assert!(t.contains("Message-ID: <") && t.contains("@example.com>"));
         assert!(t.contains("text/plain") && !t.contains("multipart"));
         let rcpt: Vec<String> = m.envelope().to().iter().map(ToString::to_string).collect();
@@ -316,9 +367,19 @@ mod tests {
 
     #[test]
     fn bcc_is_enveloped_not_headed() {
-        let m = build_message(&Outgoing { text: Some("x".into()), bcc: "hidden@example.net".into(), ..base() }).unwrap();
+        let m = build_message(&Outgoing {
+            text: Some("x".into()),
+            bcc: "hidden@example.net".into(),
+            ..base()
+        })
+        .unwrap();
         assert!(!text(&m).contains("hidden@example.net"));
-        assert!(m.envelope().to().iter().any(|a| a.to_string() == "hidden@example.net"));
+        assert!(
+            m.envelope()
+                .to()
+                .iter()
+                .any(|a| a.to_string() == "hidden@example.net")
+        );
     }
 
     #[test]
@@ -326,7 +387,11 @@ mod tests {
         let m = build_message(&Outgoing {
             text: Some("plain body".into()),
             html: Some("<b>rich</b>".into()),
-            attachments: vec![BinFile { data: b"%PDF-1.4".to_vec(), mime: "application/pdf".into(), name: "r.pdf".into() }],
+            attachments: vec![BinFile {
+                data: b"%PDF-1.4".to_vec(),
+                mime: "application/pdf".into(),
+                name: "r.pdf".into(),
+            }],
             reply_to: "help@example.com".into(),
             ..base()
         })
@@ -336,23 +401,40 @@ mod tests {
         let alt = t.find("multipart/alternative").expect("alternative");
         assert!(mixed < alt, "alternative nests inside mixed");
         assert!(t.contains("text/plain") && t.contains("text/html"));
-        assert!(t.contains("Content-Disposition: attachment; filename=\"r.pdf\""), "{t}");
+        assert!(
+            t.contains("Content-Disposition: attachment; filename=\"r.pdf\""),
+            "{t}"
+        );
         assert!(t.contains("application/pdf"));
         assert!(t.contains("Reply-To: help@example.com"));
     }
 
     #[test]
     fn html_only_has_no_alternative() {
-        let m = build_message(&Outgoing { html: Some("<p>x</p>".into()), ..base() }).unwrap();
+        let m = build_message(&Outgoing {
+            html: Some("<p>x</p>".into()),
+            ..base()
+        })
+        .unwrap();
         let t = text(&m);
         assert!(t.contains("text/html") && !t.contains("multipart"));
     }
 
     #[test]
     fn bad_address_is_reported() {
-        let e = build_message(&Outgoing { to: "not an address".into(), ..base() }).unwrap_err();
+        let e = build_message(&Outgoing {
+            to: "not an address".into(),
+            ..base()
+        })
+        .unwrap_err();
         assert!(e.contains("Invalid To address"), "{e}");
-        assert!(build_message(&Outgoing { from: String::new(), ..base() }).is_err());
+        assert!(
+            build_message(&Outgoing {
+                from: String::new(),
+                ..base()
+            })
+            .is_err()
+        );
     }
 
     #[test]
@@ -362,8 +444,18 @@ mod tests {
             _ => Map::new(),
         };
         assert!(transport(&c(json!({"host": "smtp.example.com", "port": 465, "secure": true, "user": "u", "password": "p"}))).is_ok());
-        assert!(transport(&c(json!({"host": "smtp.example.com", "port": "587", "secure": false}))).is_ok());
-        assert!(transport(&c(json!({"host": "127.0.0.1", "port": 25, "secure": false, "disableStartTls": true}))).is_ok());
+        assert!(
+            transport(&c(
+                json!({"host": "smtp.example.com", "port": "587", "secure": false})
+            ))
+            .is_ok()
+        );
+        assert!(
+            transport(&c(
+                json!({"host": "127.0.0.1", "port": 25, "secure": false, "disableStartTls": true})
+            ))
+            .is_ok()
+        );
         assert!(transport(&c(json!({"port": 25}))).is_err());
     }
 }

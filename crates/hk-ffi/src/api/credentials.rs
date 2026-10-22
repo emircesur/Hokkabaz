@@ -58,13 +58,21 @@ pub async fn credential_list(kind: Option<String>) -> Result<String, HkError> {
 }
 
 /// `data_json` is an object of field name -> value. Returns the new credential as JSON.
-pub async fn credential_create(name: String, kind: String, data_json: String) -> Result<String, HkError> {
+pub async fn credential_create(
+    name: String,
+    kind: String,
+    data_json: String,
+) -> Result<String, HkError> {
     let info = global()?.create(&name, &kind, fields(&data_json)?).await?;
     to_json(&serde_json::to_value(info).map_err(|e| HkError::internal(e.to_string()))?)
 }
 
 /// Rename and/or replace the values (`data_json` replaces the whole object).
-pub async fn credential_update(id: String, name: Option<String>, data_json: Option<String>) -> Result<(), HkError> {
+pub async fn credential_update(
+    id: String,
+    name: Option<String>,
+    data_json: Option<String>,
+) -> Result<(), HkError> {
     let data = data_json.as_deref().map(fields).transpose()?;
     global()?.update(&id, name.as_deref(), data).await
 }

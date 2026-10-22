@@ -17,11 +17,23 @@ pub struct FillerSet {
 fn lists(lang: &str) -> Option<(&'static [&'static str], &'static [&'static str])> {
     Some(match lang {
         "en" => (
-            &["um", "uh", "uhm", "umm", "uhh", "er", "erm", "ah", "hmm", "mm", "mhm", "you know", "i mean"],
-            &["like", "basically", "literally", "actually", "sort of", "kind of"],
+            &[
+                "um", "uh", "uhm", "umm", "uhh", "er", "erm", "ah", "hmm", "mm", "mhm", "you know",
+                "i mean",
+            ],
+            &[
+                "like",
+                "basically",
+                "literally",
+                "actually",
+                "sort of",
+                "kind of",
+            ],
         ),
         "tr" => (
-            &["ee", "eee", "eeee", "ıı", "ııı", "hımm", "hmm", "yani", "şey", "işte"],
+            &[
+                "ee", "eee", "eeee", "ıı", "ııı", "hımm", "hmm", "yani", "şey", "işte",
+            ],
             &["ya", "falan", "filan", "böyle", "hani"],
         ),
         "de" => (
@@ -34,7 +46,9 @@ fn lists(lang: &str) -> Option<(&'static [&'static str], &'static [&'static str]
         ),
         "fr" => (
             &["euh", "heu", "euhh", "hum", "hmm", "bah", "mmh"],
-            &["ben", "genre", "quoi", "voilà", "en fait", "tu vois", "tu sais"],
+            &[
+                "ben", "genre", "quoi", "voilà", "en fait", "tu vois", "tu sais",
+            ],
         ),
         _ => return None,
     })
@@ -80,11 +94,16 @@ impl FillerSet {
 
     /// Add a word or space-separated phrase.
     pub fn add(&mut self, entry: &str) {
-        let toks: Vec<String> = entry.split_whitespace().map(normalize_token).filter(|t| !t.is_empty()).collect();
+        let toks: Vec<String> = entry
+            .split_whitespace()
+            .map(normalize_token)
+            .filter(|t| !t.is_empty())
+            .collect();
         match toks.len() {
             0 => {}
             1 => {
-                self.words.insert(toks.into_iter().next().unwrap_or_default());
+                self.words
+                    .insert(toks.into_iter().next().unwrap_or_default());
             }
             _ => {
                 if !self.phrases.contains(&toks) {
@@ -171,17 +190,27 @@ mod tests {
         Transcript {
             language: Some(lang.into()),
             duration: 10.0,
-            words: words.iter().enumerate().map(|(i, w)| Word::new(*w, i as f64, i as f64 + 0.5)).collect(),
+            words: words
+                .iter()
+                .enumerate()
+                .map(|(i, w)| Word::new(*w, i as f64, i as f64 + 0.5))
+                .collect(),
             segments: vec![],
         }
     }
 
     #[test]
     fn english_strict_and_aggressive() {
-        let mut tr = t("english", &["So,", "um,", "I", "mean", "it's", "like", "Uh...", "good"]);
+        let mut tr = t(
+            "english",
+            &["So,", "um,", "I", "mean", "it's", "like", "Uh...", "good"],
+        );
         let strict = FillerSet::for_transcript(&tr, false);
         assert_eq!(strict.mark(&mut tr), 4); // um, "I mean" (2 words), Uh
-        assert_eq!(tr.filler_indices().into_iter().collect::<Vec<_>>(), vec![1, 2, 3, 6]);
+        assert_eq!(
+            tr.filler_indices().into_iter().collect::<Vec<_>>(),
+            vec![1, 2, 3, 6]
+        );
     }
 
     #[test]

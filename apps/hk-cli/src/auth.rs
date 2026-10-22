@@ -33,7 +33,11 @@ pub async fn set(paths: &Paths) -> Result<()> {
     std::fs::create_dir_all(&paths.data).context("create data dir")?;
     let store = Store::open(paths.db()).await?;
     store
-        .put_secret(&KeyringSecretStore::default(), SECRET_NAME, Secret::new(key))
+        .put_secret(
+            &KeyringSecretStore::default(),
+            SECRET_NAME,
+            Secret::new(key),
+        )
         .await?;
     term::err("stored in keyring\n");
     Ok(())

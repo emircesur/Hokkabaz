@@ -6,7 +6,6 @@ use std::collections::HashMap;
 use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
-
 /// Bucket shape: `burst` requests at once, refilled at `per_sec`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RateLimit {
@@ -16,7 +15,10 @@ pub struct RateLimit {
 
 impl Default for RateLimit {
     fn default() -> Self {
-        Self { burst: 120, per_sec: 30.0 }
+        Self {
+            burst: 120,
+            per_sec: 30.0,
+        }
     }
 }
 
@@ -39,7 +41,10 @@ impl Default for RateLimiter {
 impl RateLimiter {
     /// `None` disables limiting.
     pub fn new(cfg: Option<RateLimit>) -> Self {
-        Self { cfg, buckets: Mutex::default() }
+        Self {
+            cfg,
+            buckets: Mutex::default(),
+        }
     }
 
     pub fn check(&self, key: usize) -> Result<(), Throttled> {
@@ -73,7 +78,10 @@ mod tests {
 
     #[test]
     fn burst_then_429_then_refill() {
-        let l = RateLimiter::new(Some(RateLimit { burst: 2, per_sec: 1.0 }));
+        let l = RateLimiter::new(Some(RateLimit {
+            burst: 2,
+            per_sec: 1.0,
+        }));
         let t0 = Instant::now();
         assert!(l.check_at(1, t0).is_ok());
         assert!(l.check_at(1, t0).is_ok());

@@ -84,13 +84,18 @@ pub async fn run(paths: &Paths, cmd: PluginCmd) -> Result<()> {
             Ok(())
         }
         PluginCmd::VerifyIndex { index, download } => {
-            let idx = RegistryIndex::parse(&std::fs::read_to_string(&index).with_context(|| index.display().to_string())?)?;
+            let idx = RegistryIndex::parse(
+                &std::fs::read_to_string(&index).with_context(|| index.display().to_string())?,
+            )?;
             for e in &idx.plugins {
                 if download {
                     let bytes = registry::download(e).await?;
                     let m = archive_manifest(&bytes)?;
                     if m.id != e.id || m.version != e.version || m.capabilities != e.capabilities {
-                        bail!("{}: index entry does not match the archive's plugin.toml (id, version, capabilities)", e.id);
+                        bail!(
+                            "{}: index entry does not match the archive's plugin.toml (id, version, capabilities)",
+                            e.id
+                        );
                     }
                 }
                 out(&format!("ok {} v{}\n", e.id, e.version));
@@ -104,9 +109,14 @@ pub async fn run(paths: &Paths, cmd: PluginCmd) -> Result<()> {
             let p = if path.is_dir() {
                 s.install_dir(&path)
             } else {
-                s.install_archive(&std::fs::read(&path).with_context(|| path.display().to_string())?)
+                s.install_archive(
+                    &std::fs::read(&path).with_context(|| path.display().to_string())?,
+                )
             }?;
-            out(&format!("installed {} v{}\n", p.manifest.id, p.manifest.version));
+            out(&format!(
+                "installed {} v{}\n",
+                p.manifest.id, p.manifest.version
+            ));
             let caps = p.manifest.capability_summary();
             if caps.is_empty() {
                 out("  access: none\n");
@@ -118,7 +128,13 @@ pub async fn run(paths: &Paths, cmd: PluginCmd) -> Result<()> {
         }
         PluginCmd::Ls => {
             for p in store(paths).list()? {
-                out(&format!("{}\t{}\t{}\t{}\n", p.manifest.id, p.manifest.version, if p.enabled { "enabled" } else { "disabled" }, p.manifest.name));
+                out(&format!(
+                    "{}\t{}\t{}\t{}\n",
+                    p.manifest.id,
+                    p.manifest.version,
+                    if p.enabled { "enabled" } else { "disabled" },
+                    p.manifest.name
+                ));
             }
             Ok(())
         }
@@ -129,7 +145,16 @@ pub async fn run(paths: &Paths, cmd: PluginCmd) -> Result<()> {
 }
 
 fn snake(s: &str) -> String {
-    let mut out: String = s.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '_' }).collect();
+    let mut out: String = s
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect();
     if out.chars().next().is_none_or(|c| c.is_ascii_digit()) {
         out.insert(0, 'p');
     }
@@ -140,11 +165,25 @@ fn new(dir: &Path, id: Option<String>, sdk_path: Option<PathBuf>) -> Result<()> 
     if dir.exists() {
         bail!("{} already exists", dir.display());
     }
-    let base = dir.file_name().and_then(|n| n.to_str()).context("directory needs a name")?;
+    let base = dir
+        .file_name()
+        .and_then(|n| n.to_str())
+        .context("directory needs a name")?;
     let crate_name = snake(base);
-    let id = id.unwrap_or_else(|| format!("dev.example.{}", base.to_ascii_lowercase().replace(['_', ' '], "-")));
+    let id = id.unwrap_or_else(|| {
+        format!(
+            "dev.example.{}",
+            base.to_ascii_lowercase().replace(['_', ' '], "-")
+        )
+    });
     let sdk = match sdk_path {
-        Some(p) => format!("{{ path = {:?} }}", p.canonicalize().with_context(|| p.display().to_string())?.display().to_string()),
+        Some(p) => format!(
+            "{{ path = {:?} }}",
+            p.canonicalize()
+                .with_context(|| p.display().to_string())?
+                .display()
+                .to_string()
+        ),
         None => format!("{{ git = \"{SDK_GIT}\" }}"),
     };
     std::fs::create_dir_all(dir.join("src"))?;
@@ -192,7 +231,11 @@ export_plugin!(MyPlugin);
 "#,
     )?;
     std::fs::write(dir.join(".gitignore"), "/target\n/dist\n")?;
-    out(&format!("created {}\n  next: cd {} && hk plugin build && hk plugin install dist\n", dir.display(), dir.display()));
+    out(&format!(
+        "created {}\n  next: cd {} && hk plugin build && hk plugin install dist\n",
+        dir.display(),
+        dir.display()
+    ));
     Ok(())
 }
 
@@ -206,14 +249,26 @@ fn build(dir: &Path) -> Result<()> {
     if !status.success() {
         bail!("cargo build failed; if the target is missing: rustup target add {TARGET}");
     }
-    let meta = Command::new("cargo").args(["metadata", "--no-deps", "--format-version", "1"]).current_dir(dir).output()?;
+    let meta = Command::new("cargo")
+        .args(["metadata", "--no-deps", "--format-version", "1"])
+        .current_dir(dir)
+        .output()?;
     let meta: serde_json::Value = serde_json::from_slice(&meta.stdout).context("cargo metadata")?;
-    let target_dir = meta["target_directory"].as_str().context("target_directory")?;
-    let lib = meta["packages"][0]["name"].as_str().context("package name")?.replace('-', "_");
-    let built = Path::new(target_dir).join(TARGET).join("release").join(format!("{lib}.wasm"));
+    let target_dir = meta["target_directory"]
+        .as_str()
+        .context("target_directory")?;
+    let lib = meta["packages"][0]["name"]
+        .as_str()
+        .context("package name")?
+        .replace('-', "_");
+    let built = Path::new(target_dir)
+        .join(TARGET)
+        .join("release")
+        .join(format!("{lib}.wasm"));
     let dist = dir.join("dist");
     std::fs::create_dir_all(&dist)?;
-    std::fs::copy(&built, dist.join(&manifest.wasm)).with_context(|| format!("copy {}", built.display()))?;
+    std::fs::copy(&built, dist.join(&manifest.wasm))
+        .with_context(|| format!("copy {}", built.display()))?;
     std::fs::copy(dir.join("plugin.toml"), dist.join("plugin.toml"))?;
     let archive = dist.join(format!("{}-{}.tar.gz", manifest.id, manifest.version));
     std::fs::write(&archive, pack_dir(&dist)?)?;

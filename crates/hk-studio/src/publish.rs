@@ -41,7 +41,12 @@ pub struct Published {
 #[async_trait]
 pub trait Publisher: Send + Sync {
     fn platform(&self) -> &'static str;
-    async fn publish(&self, video: &Path, post: &PlatformPost, privacy: Privacy) -> Result<Published>;
+    async fn publish(
+        &self,
+        video: &Path,
+        post: &PlatformPost,
+        privacy: Privacy,
+    ) -> Result<Published>;
 }
 
 /// Google OAuth client + the user's refresh token (create them in Google Cloud Console).
@@ -54,7 +59,9 @@ pub struct YoutubeCreds {
 
 impl std::fmt::Debug for YoutubeCreds {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("YoutubeCreds").field("client_id", &self.client_id).finish_non_exhaustive()
+        f.debug_struct("YoutubeCreds")
+            .field("client_id", &self.client_id)
+            .finish_non_exhaustive()
     }
 }
 
@@ -73,7 +80,10 @@ impl Youtube {
     pub fn new(creds: YoutubeCreds) -> Self {
         Self {
             creds,
-            client: reqwest::Client::builder().timeout(Duration::from_secs(1800)).build().unwrap_or_default(),
+            client: reqwest::Client::builder()
+                .timeout(Duration::from_secs(1800))
+                .build()
+                .unwrap_or_default(),
             token_url: "https://oauth2.googleapis.com/token".into(),
             upload_base: "https://www.googleapis.com".into(),
             cached: Mutex::new(None),
@@ -81,14 +91,23 @@ impl Youtube {
     }
 
     /// Point at other endpoints (tests).
-    pub fn with_endpoints(mut self, token_url: impl Into<String>, upload_base: impl Into<String>) -> Self {
+    pub fn with_endpoints(
+        mut self,
+        token_url: impl Into<String>,
+        upload_base: impl Into<String>,
+    ) -> Self {
         self.token_url = token_url.into();
         self.upload_base = upload_base.into().trim_end_matches('/').to_string();
         self
     }
 
     async fn access_token(&self) -> Result<String> {
-        if let Some((t, exp)) = self.cached.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone() {
+        if let Some((t, exp)) = self
+            .cached
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+        {
             if exp > Instant::now() {
                 return Ok(t);
             }
@@ -106,12 +125,25 @@ impl Youtube {
             .await
             .map_err(|e| StudioError::Http(format!("youtube auth: {e}")))?;
         let status = resp.status();
-        let v: serde_json::Value = resp.json().await.map_err(|e| StudioError::Http(format!("youtube auth: {e}")))?;
+        let v: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| StudioError::Http(format!("youtube auth: {e}")))?;
         let token = v["access_token"].as_str().ok_or_else(|| {
-            StudioError::Http(format!("youtube auth failed ({status}): {}", v["error_description"].as_str().or(v["error"].as_str()).unwrap_or("no access_token")))
+            StudioError::Http(format!(
+                "youtube auth failed ({status}): {}",
+                v["error_description"]
+                    .as_str()
+                    .or(v["error"].as_str())
+                    .unwrap_or("no access_token")
+            ))
         })?;
         let ttl = v["expires_in"].as_u64().unwrap_or(3000).saturating_sub(60);
-        *self.cached.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some((token.to_string(), Instant::now() + Duration::from_secs(ttl)));
+        *self
+            .cached
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) =
+            Some((token.to_string(), Instant::now() + Duration::from_secs(ttl)));
         Ok(token.to_string())
     }
 }
@@ -123,8 +155,14 @@ pub fn youtube_snippet(post: &PlatformPost) -> serde_json::Value {
         title = "Untitled".into();
     }
     let mut description = post.description.trim().to_string();
-    let tags: Vec<String> = post.hashtags.iter().map(|t| t.trim_start_matches('#').to_string()).filter(|t| !t.is_empty()).collect();
-    if !description.to_lowercase().contains("#shorts") && !title.to_lowercase().contains("#shorts") {
+    let tags: Vec<String> = post
+        .hashtags
+        .iter()
+        .map(|t| t.trim_start_matches('#').to_string())
+        .filter(|t| !t.is_empty())
+        .collect();
+    if !description.to_lowercase().contains("#shorts") && !title.to_lowercase().contains("#shorts")
+    {
         if !description.is_empty() {
             description.push_str("\n\n");
         }
@@ -148,10 +186,17 @@ impl Publisher for Youtube {
         "youtube_shorts"
     }
 
-    async fn publish(&self, video: &Path, post: &PlatformPost, privacy: Privacy) -> Result<Published> {
+    async fn publish(
+        &self,
+        video: &Path,
+        post: &PlatformPost,
+        privacy: Privacy,
+    ) -> Result<Published> {
         let len = tokio::fs::metadata(video).await?.len();
         if len == 0 || len > MAX_UPLOAD {
-            return Err(StudioError::Invalid(format!("video size {len} bytes is not uploadable")));
+            return Err(StudioError::Invalid(format!(
+                "video size {len} bytes is not uploadable"
+            )));
         }
         let token = self.access_token().await?;
         let meta = serde_json::json!({
@@ -160,7 +205,10 @@ impl Publisher for Youtube {
         });
         let init = self
             .client
-            .post(format!("{}/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", self.upload_base))
+            .post(format!(
+                "{}/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+                self.upload_base
+            ))
             .bearer_auth(&token)
             .header("X-Upload-Content-Type", "video/mp4")
             .header("X-Upload-Content-Length", len.to_string())
@@ -171,7 +219,10 @@ impl Publisher for Youtube {
         if !init.status().is_success() {
             let s = init.status();
             let body = init.text().await.unwrap_or_default();
-            return Err(StudioError::Http(format!("youtube upload init {s}: {}", body.chars().take(300).collect::<String>())));
+            return Err(StudioError::Http(format!(
+                "youtube upload init {s}: {}",
+                body.chars().take(300).collect::<String>()
+            )));
         }
         let location = init
             .headers()
@@ -192,10 +243,19 @@ impl Publisher for Youtube {
         let s = up.status();
         let v: serde_json::Value = up.json().await.unwrap_or_default();
         if !s.is_success() {
-            return Err(StudioError::Http(format!("youtube upload {s}: {}", v["error"]["message"].as_str().unwrap_or("failed"))));
+            return Err(StudioError::Http(format!(
+                "youtube upload {s}: {}",
+                v["error"]["message"].as_str().unwrap_or("failed")
+            )));
         }
-        let id = v["id"].as_str().ok_or_else(|| StudioError::Http("youtube returned no video id".into()))?.to_string();
-        Ok(Published { url: format!("https://www.youtube.com/shorts/{id}"), id })
+        let id = v["id"]
+            .as_str()
+            .ok_or_else(|| StudioError::Http("youtube returned no video id".into()))?
+            .to_string();
+        Ok(Published {
+            url: format!("https://www.youtube.com/shorts/{id}"),
+            id,
+        })
     }
 }
 
@@ -207,7 +267,11 @@ mod tests {
     use super::*;
 
     fn post() -> PlatformPost {
-        PlatformPost { title: "Big reveal".into(), description: "Watch till the end".into(), hashtags: vec!["#podcast".into(), "#fun".into()] }
+        PlatformPost {
+            title: "Big reveal".into(),
+            description: "Watch till the end".into(),
+            hashtags: vec!["#podcast".into(), "#fun".into()],
+        }
     }
 
     #[test]
@@ -220,9 +284,21 @@ mod tests {
         let mut p = post();
         p.title = "x #shorts".into();
         p.description = String::new();
-        assert!(!youtube_snippet(&p)["description"].as_str().unwrap().contains("#Shorts"));
+        assert!(
+            !youtube_snippet(&p)["description"]
+                .as_str()
+                .unwrap()
+                .contains("#Shorts")
+        );
         p.title = "t".repeat(300);
-        assert_eq!(youtube_snippet(&p)["title"].as_str().unwrap().chars().count(), 100);
+        assert_eq!(
+            youtube_snippet(&p)["title"]
+                .as_str()
+                .unwrap()
+                .chars()
+                .count(),
+            100
+        );
     }
 
     /// Reads one HTTP request (headers + body); returns (head, body).
@@ -237,7 +313,14 @@ mod tests {
             got.extend_from_slice(&buf[..n]);
             if let Some(h) = got.windows(4).position(|w| w == b"\r\n\r\n") {
                 let head = String::from_utf8_lossy(&got[..h]).to_string();
-                let len: usize = head.to_lowercase().lines().find_map(|l| l.strip_prefix("content-length: ").and_then(|v| v.trim().parse().ok())).unwrap_or(0);
+                let len: usize = head
+                    .to_lowercase()
+                    .lines()
+                    .find_map(|l| {
+                        l.strip_prefix("content-length: ")
+                            .and_then(|v| v.trim().parse().ok())
+                    })
+                    .unwrap_or(0);
                 if got.len() >= h + 4 + len {
                     return (head, got[h + 4..h + 4 + len].to_vec());
                 }
@@ -255,23 +338,45 @@ mod tests {
         let base2 = base.clone();
         tokio::spawn(async move {
             loop {
-                let Ok((mut s, _)) = l.accept().await else { return };
+                let Ok((mut s, _)) = l.accept().await else {
+                    return;
+                };
                 let (head, body) = read_req(&mut s).await;
                 let first = head.lines().next().unwrap_or("").to_string();
-                seen2.lock().unwrap().push(format!("{first} | {}", String::from_utf8_lossy(&body).chars().take(200).collect::<String>().replace('\n', " ")));
+                seen2.lock().unwrap().push(format!(
+                    "{first} | {}",
+                    String::from_utf8_lossy(&body)
+                        .chars()
+                        .take(200)
+                        .collect::<String>()
+                        .replace('\n', " ")
+                ));
                 let (status, extra, payload) = if first.starts_with("POST /token") {
-                    ("200 OK", String::new(), r#"{"access_token":"at-1","expires_in":3600}"#.to_string())
+                    (
+                        "200 OK",
+                        String::new(),
+                        r#"{"access_token":"at-1","expires_in":3600}"#.to_string(),
+                    )
                 } else if first.starts_with("POST /upload/youtube/v3/videos") {
                     assert!(head.to_lowercase().contains("authorization: bearer at-1"));
-                    assert!(String::from_utf8_lossy(&body).contains("\"privacyStatus\":\"private\""));
-                    ("200 OK", format!("location: {base2}/put/123\r\n"), String::new())
+                    assert!(
+                        String::from_utf8_lossy(&body).contains("\"privacyStatus\":\"private\"")
+                    );
+                    (
+                        "200 OK",
+                        format!("location: {base2}/put/123\r\n"),
+                        String::new(),
+                    )
                 } else if first.starts_with("PUT /put/123") {
                     assert_eq!(body, b"FAKEVIDEO");
                     ("200 OK", String::new(), r#"{"id":"vid42"}"#.to_string())
                 } else {
                     ("404 Not Found", String::new(), String::new())
                 };
-                let resp = format!("HTTP/1.1 {status}\r\ncontent-type: application/json\r\n{extra}content-length: {}\r\nconnection: close\r\n\r\n{payload}", payload.len());
+                let resp = format!(
+                    "HTTP/1.1 {status}\r\ncontent-type: application/json\r\n{extra}content-length: {}\r\nconnection: close\r\n\r\n{payload}",
+                    payload.len()
+                );
                 let _ = s.write_all(resp.as_bytes()).await;
             }
         });
@@ -279,14 +384,23 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("c.mp4");
         std::fs::write(&file, b"FAKEVIDEO").unwrap();
-        let yt = Youtube::new(YoutubeCreds { client_id: "id".into(), client_secret: "sec".into(), refresh_token: "rt".into() }).with_endpoints(format!("{base}/token"), base.clone());
+        let yt = Youtube::new(YoutubeCreds {
+            client_id: "id".into(),
+            client_secret: "sec".into(),
+            refresh_token: "rt".into(),
+        })
+        .with_endpoints(format!("{base}/token"), base.clone());
         let out = yt.publish(&file, &post(), Privacy::Private).await.unwrap();
         assert_eq!(out.id, "vid42");
         assert_eq!(out.url, "https://www.youtube.com/shorts/vid42");
         // Token cached: a second upload does not hit /token again.
         yt.publish(&file, &post(), Privacy::Private).await.unwrap();
         let log = seen.lock().unwrap().clone();
-        assert_eq!(log.iter().filter(|l| l.starts_with("POST /token")).count(), 1, "{log:?}");
+        assert_eq!(
+            log.iter().filter(|l| l.starts_with("POST /token")).count(),
+            1,
+            "{log:?}"
+        );
         assert!(log[0].contains("grant_type=refresh_token"));
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -296,7 +410,9 @@ mod tests {
         let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let base = format!("http://{}", l.local_addr().unwrap());
         tokio::spawn(async move {
-            let Ok((mut s, _)) = l.accept().await else { return };
+            let Ok((mut s, _)) = l.accept().await else {
+                return;
+            };
             let _ = read_req(&mut s).await;
             let p = r#"{"error":"invalid_grant","error_description":"Token has been revoked"}"#;
             let _ = s.write_all(format!("HTTP/1.1 400 Bad Request\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{p}", p.len()).as_bytes()).await;
@@ -305,10 +421,23 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("c.mp4");
         std::fs::write(&file, b"x").unwrap();
-        let yt = Youtube::new(YoutubeCreds { client_id: "i".into(), client_secret: "s".into(), refresh_token: "r".into() }).with_endpoints(format!("{base}/token"), base);
-        let err = yt.publish(&file, &post(), Privacy::Private).await.unwrap_err().to_string();
+        let yt = Youtube::new(YoutubeCreds {
+            client_id: "i".into(),
+            client_secret: "s".into(),
+            refresh_token: "r".into(),
+        })
+        .with_endpoints(format!("{base}/token"), base);
+        let err = yt
+            .publish(&file, &post(), Privacy::Private)
+            .await
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("revoked"), "{err}");
-        assert!(yt.publish(&dir.join("missing.mp4"), &post(), Privacy::Private).await.is_err());
+        assert!(
+            yt.publish(&dir.join("missing.mp4"), &post(), Privacy::Private)
+                .await
+                .is_err()
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 }

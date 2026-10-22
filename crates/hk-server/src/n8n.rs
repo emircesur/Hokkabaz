@@ -4,12 +4,12 @@
 //! timestamps). Credentials are write-only: values go straight into the `SecretStore` under
 //! `credential.<id>` and no route returns them.
 
-use axum::extract::{Path, Query, State};
 use axum::Json;
+use axum::extract::{Path, Query, State};
 use hk_store::{CredentialRow, ExecutionFilter, ExecutionRow, Secret, WorkflowRow};
 use serde::Deserialize;
-use std::time::Duration;
 use serde_json::{Map, Value, json};
+use std::time::Duration;
 use utoipa::IntoParams;
 
 use crate::api::AppState;
@@ -22,7 +22,9 @@ const MAX_LIMIT: u32 = 250;
 const MAX_NAME: usize = 128;
 
 pub(crate) fn flow(s: &AppState) -> Result<&FlowApi, ApiError> {
-    s.flow.as_ref().ok_or_else(|| ApiError::NotFound("flow API not enabled".into()))
+    s.flow
+        .as_ref()
+        .ok_or_else(|| ApiError::NotFound("flow API not enabled".into()))
 }
 
 /// Unix ms -> `2026-01-02T03:04:05.678Z` (civil-from-days, no chrono dependency).
@@ -56,19 +58,36 @@ fn random_bytes<const N: usize>() -> Result<[u8; N], ApiError> {
 /// 16 chars like n8n's workflow ids.
 pub(crate) fn new_id() -> Result<String, ApiError> {
     const A: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    Ok(random_bytes::<16>()?.iter().map(|b| A[*b as usize % A.len()] as char).collect())
+    Ok(random_bytes::<16>()?
+        .iter()
+        .map(|b| A[*b as usize % A.len()] as char)
+        .collect())
 }
 
 pub(crate) fn new_version_id() -> Result<String, ApiError> {
     let b = random_bytes::<16>()?;
     let h: String = b.iter().map(|x| format!("{x:02x}")).collect();
-    Ok(format!("{}-{}-{}-{}-{}", &h[..8], &h[8..12], &h[12..16], &h[16..20], &h[20..]))
+    Ok(format!(
+        "{}-{}-{}-{}-{}",
+        &h[..8],
+        &h[8..12],
+        &h[12..16],
+        &h[16..20],
+        &h[20..]
+    ))
 }
 
 // ------------------------------------------------------------------ workflows
 
 /// Fields owned by the server; clients can't set them.
-const RESERVED: [&str; 6] = ["id", "name", "active", "createdAt", "updatedAt", "versionId"];
+const RESERVED: [&str; 6] = [
+    "id",
+    "name",
+    "active",
+    "createdAt",
+    "updatedAt",
+    "versionId",
+];
 
 pub(crate) struct Prepared {
     pub(crate) name: String,
@@ -77,19 +96,31 @@ pub(crate) struct Prepared {
 
 pub(crate) fn prepare_workflow(body: Value) -> Result<Prepared, ApiError> {
     let Value::Object(mut m) = body else {
-        return Err(ApiError::BadRequest("request body must be a JSON object".into()));
+        return Err(ApiError::BadRequest(
+            "request body must be a JSON object".into(),
+        ));
     };
     let name = match m.get("name") {
-        Some(Value::String(n)) if !n.trim().is_empty() && n.chars().count() <= MAX_NAME => n.clone(),
-        _ => return Err(ApiError::BadRequest(format!("`name` must be a non-empty string up to {MAX_NAME} chars"))),
+        Some(Value::String(n)) if !n.trim().is_empty() && n.chars().count() <= MAX_NAME => {
+            n.clone()
+        }
+        _ => {
+            return Err(ApiError::BadRequest(format!(
+                "`name` must be a non-empty string up to {MAX_NAME} chars"
+            )));
+        }
     };
     if !m.get("nodes").is_some_and(Value::is_array) {
         return Err(ApiError::BadRequest("`nodes` must be an array".into()));
     }
     if !m.get("connections").is_some_and(Value::is_object) {
-        return Err(ApiError::BadRequest("`connections` must be an object".into()));
+        return Err(ApiError::BadRequest(
+            "`connections` must be an object".into(),
+        ));
     }
-    if m.get("settings").is_some_and(|s| !s.is_object() && !s.is_null()) {
+    if m.get("settings")
+        .is_some_and(|s| !s.is_object() && !s.is_null())
+    {
         return Err(ApiError::BadRequest("`settings` must be an object".into()));
     }
     // Structural validation with the engine's own parser; the stored JSON stays the client's.
@@ -161,10 +192,15 @@ pub(crate) async fn list_workflows(
         None => 0,
         Some(c) => c.parse().map_err(|_| bad_cursor())?,
     };
-    let mut rows = flow(&s)?.store.list_workflows(q.active, q.name.as_deref(), limit + 1, offset).await?;
+    let mut rows = flow(&s)?
+        .store
+        .list_workflows(q.active, q.name.as_deref(), limit + 1, offset)
+        .await?;
     let next = (rows.len() > limit as usize).then(|| (offset + limit).to_string());
     rows.truncate(limit as usize);
-    Ok(Json(json!({ "data": rows.iter().map(workflow_json).collect::<Vec<_>>(), "nextCursor": next })))
+    Ok(Json(
+        json!({ "data": rows.iter().map(workflow_json).collect::<Vec<_>>(), "nextCursor": next }),
+    ))
 }
 
 #[utoipa::path(
@@ -184,13 +220,21 @@ pub(crate) async fn create_workflow(
     let w = prepare_workflow(body)?;
     let row = f
         .store
-        .insert_workflow(&new_id()?, &w.name, &new_version_id()?, &Value::Object(w.data).to_string())
+        .insert_workflow(
+            &new_id()?,
+            &w.name,
+            &new_version_id()?,
+            &Value::Object(w.data).to_string(),
+        )
         .await?;
     Ok(Json(workflow_json(&row)))
 }
 
 async fn find_workflow(f: &FlowApi, id: &str) -> Result<WorkflowRow, ApiError> {
-    f.store.get_workflow(id).await?.ok_or_else(|| ApiError::NotFound(format!("workflow `{id}` not found")))
+    f.store
+        .get_workflow(id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("workflow `{id}` not found")))
 }
 
 #[utoipa::path(
@@ -227,7 +271,12 @@ pub(crate) async fn update_workflow(
     let w = prepare_workflow(body)?;
     let row = f
         .store
-        .update_workflow(&id, &w.name, &new_version_id()?, &Value::Object(w.data).to_string())
+        .update_workflow(
+            &id,
+            &w.name,
+            &new_version_id()?,
+            &Value::Object(w.data).to_string(),
+        )
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("workflow `{id}` not found")))?;
     if old.active {
@@ -237,7 +286,9 @@ pub(crate) async fn update_workflow(
             if let Err(e) = a.activate(&workflow_json(&row)).await {
                 f.store.set_workflow_active(&id, false).await?;
                 f.webhooks.unregister_owner(&id);
-                return Err(ApiError::BadRequest(format!("Workflow could not be activated: {e}")));
+                return Err(ApiError::BadRequest(format!(
+                    "Workflow could not be activated: {e}"
+                )));
             }
         }
     }
@@ -314,7 +365,11 @@ pub(crate) async fn deactivate_workflow(
             .map_err(|e| ApiError::BadRequest(format!("Workflow could not be deactivated: {e}")))?;
     }
     f.webhooks.unregister_owner(&id);
-    let row = f.store.set_workflow_active(&id, false).await?.unwrap_or(row);
+    let row = f
+        .store
+        .set_workflow_active(&id, false)
+        .await?
+        .unwrap_or(row);
     Ok(Json(workflow_json(&row)))
 }
 
@@ -360,26 +415,48 @@ pub(crate) async fn run_workflow(
     if let (Some(pin), Value::Object(m)) = (body.pin_data, &mut json) {
         m.insert("pinData".into(), pin);
     }
-    let wf = hk_flow::Workflow::from_json_value(json).map_err(|e| ApiError::BadRequest(format!("invalid workflow: {e}")))?;
+    let wf = hk_flow::Workflow::from_json_value(json)
+        .map_err(|e| ApiError::BadRequest(format!("invalid workflow: {e}")))?;
     let start = match body.trigger_node {
         Some(n) => match wf.node(&n) {
             Some(node) if !node.is_disabled() => node.name.clone(),
-            _ => return Err(ApiError::BadRequest(format!("triggerNode `{n}` is not an enabled node"))),
+            _ => {
+                return Err(ApiError::BadRequest(format!(
+                    "triggerNode `{n}` is not an enabled node"
+                )));
+            }
         },
         None => find_trigger(&wf, TriggerKind::Manual)
             .map(|t| t.name.clone())
-            .ok_or_else(|| ApiError::BadRequest("workflow has no Manual Trigger; pass triggerNode".into()))?,
+            .ok_or_else(|| {
+                ApiError::BadRequest("workflow has no Manual Trigger; pass triggerNode".into())
+            })?,
     };
     let items = match body.items {
         None => vec![hk_flow::Item::default()],
-        Some(v) if v.len() <= MAX_RUN_ITEMS && v.iter().all(Value::is_object) => v.into_iter().map(hk_flow::Item::from_json).collect(),
-        Some(_) => return Err(ApiError::BadRequest(format!("`items` must be an array of up to {MAX_RUN_ITEMS} objects"))),
+        Some(v) if v.len() <= MAX_RUN_ITEMS && v.iter().all(Value::is_object) => {
+            v.into_iter().map(hk_flow::Item::from_json).collect()
+        }
+        Some(_) => {
+            return Err(ApiError::BadRequest(format!(
+                "`items` must be an array of up to {MAX_RUN_ITEMS} objects"
+            )));
+        }
     };
-    let run = host.run_test(crate::flow_tools::TestRun { workflow: wf, workflow_id: Some(id), start_node: start, items });
+    let run = host.run_test(crate::flow_tools::TestRun {
+        workflow: wf,
+        workflow_id: Some(id),
+        start_node: start,
+        items,
+    });
     let res = match tokio::time::timeout(RUN_TIMEOUT, run).await {
         Ok(Ok(r)) => r,
         Ok(Err(e)) => return Err(ApiError::BadRequest(format!("run failed: {e}"))),
-        Err(_) => return Err(ApiError::Internal("run exceeded 120s and was abandoned".into())),
+        Err(_) => {
+            return Err(ApiError::Internal(
+                "run exceeded 120s and was abandoned".into(),
+            ));
+        }
     };
     Ok(Json(json!({
         "executionId": res.execution_id,
@@ -400,12 +477,19 @@ fn execution_json(r: &ExecutionRow, include_data: bool) -> Value {
     m.insert("retryOf".into(), Value::Null);
     m.insert("retrySuccessId".into(), Value::Null);
     m.insert("startedAt".into(), json!(iso(r.started_ms)));
-    m.insert("stoppedAt".into(), r.stopped_ms.map_or(Value::Null, |t| json!(iso(t))));
+    m.insert(
+        "stoppedAt".into(),
+        r.stopped_ms.map_or(Value::Null, |t| json!(iso(t))),
+    );
     m.insert("workflowId".into(), json!(r.workflow_id));
     m.insert("waitTill".into(), Value::Null);
     m.insert("status".into(), json!(r.status));
     if include_data {
-        let data = r.data.as_deref().and_then(|d| serde_json::from_str::<Value>(d).ok()).unwrap_or(Value::Null);
+        let data = r
+            .data
+            .as_deref()
+            .and_then(|d| serde_json::from_str::<Value>(d).ok())
+            .unwrap_or(Value::Null);
         m.insert("data".into(), data);
     }
     Value::Object(m)
@@ -438,7 +522,10 @@ pub(crate) async fn list_executions(
     p.require(Scope::ExecutionRead)?;
     if let Some(st) = &q.status {
         if !STATUSES.contains(&st.as_str()) {
-            return Err(ApiError::BadRequest(format!("status must be one of {}", STATUSES.join(", "))));
+            return Err(ApiError::BadRequest(format!(
+                "status must be one of {}",
+                STATUSES.join(", ")
+            )));
         }
     }
     let limit = page_size(q.limit);
@@ -446,12 +533,20 @@ pub(crate) async fn list_executions(
         None => None,
         Some(c) => Some(c.parse().map_err(|_| bad_cursor())?),
     };
-    let filter = ExecutionFilter { workflow_id: q.workflow_id, status: q.status };
-    let mut rows = flow(&s)?.store.list_executions(&filter, before, limit + 1).await?;
+    let filter = ExecutionFilter {
+        workflow_id: q.workflow_id,
+        status: q.status,
+    };
+    let mut rows = flow(&s)?
+        .store
+        .list_executions(&filter, before, limit + 1)
+        .await?;
     let next = (rows.len() > limit as usize).then(|| rows[limit as usize - 1].id.to_string());
     rows.truncate(limit as usize);
     let inc = q.include_data.unwrap_or(false);
-    Ok(Json(json!({ "data": rows.iter().map(|r| execution_json(r, inc)).collect::<Vec<_>>(), "nextCursor": next })))
+    Ok(Json(
+        json!({ "data": rows.iter().map(|r| execution_json(r, inc)).collect::<Vec<_>>(), "nextCursor": next }),
+    ))
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -462,7 +557,10 @@ pub(crate) struct IncludeData {
 }
 
 async fn find_execution(f: &FlowApi, id: i64) -> Result<ExecutionRow, ApiError> {
-    f.store.get_execution(id).await?.ok_or_else(|| ApiError::NotFound(format!("execution {id} not found")))
+    f.store
+        .get_execution(id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("execution {id} not found")))
 }
 
 #[utoipa::path(
@@ -517,15 +615,25 @@ fn validate_credential(schema: &Value, data: &Map<String, Value>) -> Result<(), 
     let props = schema.get("properties").and_then(Value::as_object);
     for (k, v) in data {
         let Some(def) = props.and_then(|p| p.get(k)) else {
-            return Err(ApiError::BadRequest(format!("`data` has unknown property `{k}`")));
+            return Err(ApiError::BadRequest(format!(
+                "`data` has unknown property `{k}`"
+            )));
         };
         if def.get("type").and_then(Value::as_str) == Some("string") && !v.is_string() {
             return Err(ApiError::BadRequest(format!("`data.{k}` must be a string")));
         }
     }
-    for r in schema.get("required").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str) {
+    for r in schema
+        .get("required")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+    {
         if !data.contains_key(r) {
-            return Err(ApiError::BadRequest(format!("`data` is missing required property `{r}`")));
+            return Err(ApiError::BadRequest(format!(
+                "`data` is missing required property `{r}`"
+            )));
         }
     }
     Ok(())
@@ -545,10 +653,19 @@ pub(crate) async fn create_credential(
 ) -> Result<Json<Value>, ApiError> {
     p.require(Scope::CredentialWrite)?;
     let f = flow(&s)?;
-    let name = body.get("name").and_then(Value::as_str).map(str::trim).filter(|n| !n.is_empty() && n.chars().count() <= MAX_NAME);
-    let kind = body.get("type").and_then(Value::as_str).filter(|t| !t.is_empty());
+    let name = body
+        .get("name")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|n| !n.is_empty() && n.chars().count() <= MAX_NAME);
+    let kind = body
+        .get("type")
+        .and_then(Value::as_str)
+        .filter(|t| !t.is_empty());
     let (Some(name), Some(kind)) = (name, kind) else {
-        return Err(ApiError::BadRequest("`name` and `type` must be non-empty strings".into()));
+        return Err(ApiError::BadRequest(
+            "`name` and `type` must be non-empty strings".into(),
+        ));
     };
     let Some(Value::Object(data)) = body.get("data") else {
         return Err(ApiError::BadRequest("`data` must be an object".into()));
@@ -561,7 +678,13 @@ pub(crate) async fn create_credential(
 
     let id = new_id()?;
     let sname = credential_secret_name(&id);
-    f.store.put_secret(f.secrets.as_ref(), &sname, Secret::new(Value::Object(data.clone()).to_string())).await?;
+    f.store
+        .put_secret(
+            f.secrets.as_ref(),
+            &sname,
+            Secret::new(Value::Object(data.clone()).to_string()),
+        )
+        .await?;
     match f.store.insert_credential(&id, name, kind).await {
         Ok(row) => Ok(Json(credential_json(&row))),
         Err(e) => {
@@ -589,7 +712,9 @@ pub(crate) async fn delete_credential(
         .get_credential(&id)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("credential `{id}` not found")))?;
-    f.store.delete_secret(f.secrets.as_ref(), &credential_secret_name(&id)).await?;
+    f.store
+        .delete_secret(f.secrets.as_ref(), &credential_secret_name(&id))
+        .await?;
     f.store.delete_credential(&id).await?;
     Ok(Json(credential_json(&row)))
 }
@@ -630,22 +755,34 @@ mod unit {
         assert!(prepare_workflow(json!({"name":"","nodes":[],"connections":{}})).is_err());
         assert!(prepare_workflow(json!({"name":"a","nodes":{},"connections":{}})).is_err());
         assert!(prepare_workflow(json!({"name":"a","nodes":[],"connections":[]})).is_err());
-        let w = prepare_workflow(json!({"name":"a","id":"x","active":true,"nodes":[],"connections":{}})).unwrap();
+        let w = prepare_workflow(
+            json!({"name":"a","id":"x","active":true,"nodes":[],"connections":{}}),
+        )
+        .unwrap();
         assert!(!w.data.contains_key("id") && !w.data.contains_key("active"));
         assert_eq!(w.data["settings"], json!({}));
     }
 
     #[test]
     fn credential_validation_names_fields_not_values() {
-        let schema = crate::flow::CredentialSchemas::schema(&crate::flow::BuiltinCredentialSchemas, "httpBasicAuth").unwrap();
-        let ok: Map<String, Value> = serde_json::from_value(json!({"user":"u","password":"p"})).unwrap();
+        let schema = crate::flow::CredentialSchemas::schema(
+            &crate::flow::BuiltinCredentialSchemas,
+            "httpBasicAuth",
+        )
+        .unwrap();
+        let ok: Map<String, Value> =
+            serde_json::from_value(json!({"user":"u","password":"p"})).unwrap();
         assert!(validate_credential(&schema, &ok).is_ok());
-        let extra: Map<String, Value> = serde_json::from_value(json!({"user":"u","password":"p","x":"hunter2"})).unwrap();
-        let e = validate_credential(&schema, &extra).unwrap_err().to_string();
+        let extra: Map<String, Value> =
+            serde_json::from_value(json!({"user":"u","password":"p","x":"hunter2"})).unwrap();
+        let e = validate_credential(&schema, &extra)
+            .unwrap_err()
+            .to_string();
         assert!(e.contains("`x`") && !e.contains("hunter2"));
         let missing: Map<String, Value> = serde_json::from_value(json!({"user":"u"})).unwrap();
         assert!(validate_credential(&schema, &missing).is_err());
-        let wrong: Map<String, Value> = serde_json::from_value(json!({"user":1,"password":"p"})).unwrap();
+        let wrong: Map<String, Value> =
+            serde_json::from_value(json!({"user":1,"password":"p"})).unwrap();
         assert!(validate_credential(&schema, &wrong).is_err());
     }
 }

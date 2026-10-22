@@ -127,7 +127,10 @@ impl Store {
     }
 
     pub async fn get_workflow(&self, id: &str) -> Result<Option<WorkflowRow>, StoreError> {
-        let r = sqlx::query("SELECT * FROM workflows WHERE id = ?").bind(id).fetch_optional(&self.pool).await?;
+        let r = sqlx::query("SELECT * FROM workflows WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
         Ok(r.as_ref().map(workflow_row))
     }
 
@@ -179,7 +182,11 @@ impl Store {
         self.get_workflow(id).await
     }
 
-    pub async fn set_workflow_active(&self, id: &str, active: bool) -> Result<Option<WorkflowRow>, StoreError> {
+    pub async fn set_workflow_active(
+        &self,
+        id: &str,
+        active: bool,
+    ) -> Result<Option<WorkflowRow>, StoreError> {
         let r = sqlx::query("UPDATE workflows SET active = ?, updated_ms = ? WHERE id = ?")
             .bind(i64::from(active))
             .bind(now_ms())
@@ -194,7 +201,10 @@ impl Store {
 
     /// Executions go with it (FK cascade).
     pub async fn delete_workflow(&self, id: &str) -> Result<bool, StoreError> {
-        let r = sqlx::query("DELETE FROM workflows WHERE id = ?").bind(id).execute(&self.pool).await?;
+        let r = sqlx::query("DELETE FROM workflows WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         Ok(r.rows_affected() > 0)
     }
 
@@ -240,19 +250,24 @@ impl Store {
         finished: bool,
         data: Option<&str>,
     ) -> Result<bool, StoreError> {
-        let r = sqlx::query("UPDATE executions SET status = ?, finished = ?, stopped_ms = ?, data = ? WHERE id = ?")
-            .bind(status)
-            .bind(i64::from(finished))
-            .bind(now_ms())
-            .bind(data)
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
+        let r = sqlx::query(
+            "UPDATE executions SET status = ?, finished = ?, stopped_ms = ?, data = ? WHERE id = ?",
+        )
+        .bind(status)
+        .bind(i64::from(finished))
+        .bind(now_ms())
+        .bind(data)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
         Ok(r.rows_affected() > 0)
     }
 
     pub async fn get_execution(&self, id: i64) -> Result<Option<ExecutionRow>, StoreError> {
-        let r = sqlx::query("SELECT * FROM executions WHERE id = ?").bind(id).fetch_optional(&self.pool).await?;
+        let r = sqlx::query("SELECT * FROM executions WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
         Ok(r.as_ref().map(execution_row))
     }
 
@@ -281,13 +296,21 @@ impl Store {
     }
 
     pub async fn delete_execution(&self, id: i64) -> Result<bool, StoreError> {
-        let r = sqlx::query("DELETE FROM executions WHERE id = ?").bind(id).execute(&self.pool).await?;
+        let r = sqlx::query("DELETE FROM executions WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         Ok(r.rows_affected() > 0)
     }
 
     // ----------------------------------------------------------- credentials
 
-    pub async fn insert_credential(&self, id: &str, name: &str, kind: &str) -> Result<CredentialRow, StoreError> {
+    pub async fn insert_credential(
+        &self,
+        id: &str,
+        name: &str,
+        kind: &str,
+    ) -> Result<CredentialRow, StoreError> {
         let now = now_ms();
         sqlx::query("INSERT INTO credentials (id, name, type, created_ms, updated_ms) VALUES (?, ?, ?, ?, ?)")
             .bind(id)
@@ -297,31 +320,60 @@ impl Store {
             .bind(now)
             .execute(&self.pool)
             .await?;
-        Ok(CredentialRow { id: id.into(), name: name.into(), kind: kind.into(), created_ms: now, updated_ms: now })
+        Ok(CredentialRow {
+            id: id.into(),
+            name: name.into(),
+            kind: kind.into(),
+            created_ms: now,
+            updated_ms: now,
+        })
     }
 
     pub async fn get_credential(&self, id: &str) -> Result<Option<CredentialRow>, StoreError> {
-        let r = sqlx::query("SELECT * FROM credentials WHERE id = ?").bind(id).fetch_optional(&self.pool).await?;
+        let r = sqlx::query("SELECT * FROM credentials WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
         Ok(r.as_ref().map(credential_row))
     }
 
     /// Credential metadata (never values), newest first; `kind` filters by credential type.
-    pub async fn list_credentials(&self, kind: Option<&str>) -> Result<Vec<CredentialRow>, StoreError> {
+    pub async fn list_credentials(
+        &self,
+        kind: Option<&str>,
+    ) -> Result<Vec<CredentialRow>, StoreError> {
         let rows = match kind {
-            Some(k) => sqlx::query("SELECT * FROM credentials WHERE type = ? ORDER BY updated_ms DESC").bind(k).fetch_all(&self.pool).await?,
-            None => sqlx::query("SELECT * FROM credentials ORDER BY updated_ms DESC").fetch_all(&self.pool).await?,
+            Some(k) => {
+                sqlx::query("SELECT * FROM credentials WHERE type = ? ORDER BY updated_ms DESC")
+                    .bind(k)
+                    .fetch_all(&self.pool)
+                    .await?
+            }
+            None => {
+                sqlx::query("SELECT * FROM credentials ORDER BY updated_ms DESC")
+                    .fetch_all(&self.pool)
+                    .await?
+            }
         };
         Ok(rows.iter().map(credential_row).collect())
     }
 
     /// Rename and touch.
     pub async fn rename_credential(&self, id: &str, name: &str) -> Result<bool, StoreError> {
-        let r = sqlx::query("UPDATE credentials SET name = ?, updated_ms = ? WHERE id = ?").bind(name).bind(now_ms()).bind(id).execute(&self.pool).await?;
+        let r = sqlx::query("UPDATE credentials SET name = ?, updated_ms = ? WHERE id = ?")
+            .bind(name)
+            .bind(now_ms())
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         Ok(r.rows_affected() > 0)
     }
 
     pub async fn delete_credential(&self, id: &str) -> Result<bool, StoreError> {
-        let r = sqlx::query("DELETE FROM credentials WHERE id = ?").bind(id).execute(&self.pool).await?;
+        let r = sqlx::query("DELETE FROM credentials WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         Ok(r.rows_affected() > 0)
     }
 }
@@ -333,18 +385,54 @@ mod tests {
     #[tokio::test]
     async fn workflow_execution_credential_roundtrip() {
         let s = Store::open_in_memory().await.unwrap();
-        let w = s.insert_workflow("w1", "Alpha", "v1", "{\"nodes\":[]}").await.unwrap();
+        let w = s
+            .insert_workflow("w1", "Alpha", "v1", "{\"nodes\":[]}")
+            .await
+            .unwrap();
         assert!(!w.active);
-        assert!(s.set_workflow_active("w1", true).await.unwrap().unwrap().active);
-        assert_eq!(s.list_workflows(Some(true), Some("alp"), 10, 0).await.unwrap().len(), 1);
-        assert!(s.list_workflows(Some(false), None, 10, 0).await.unwrap().is_empty());
+        assert!(
+            s.set_workflow_active("w1", true)
+                .await
+                .unwrap()
+                .unwrap()
+                .active
+        );
+        assert_eq!(
+            s.list_workflows(Some(true), Some("alp"), 10, 0)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            s.list_workflows(Some(false), None, 10, 0)
+                .await
+                .unwrap()
+                .is_empty()
+        );
 
-        let e1 = s.insert_execution("w1", "webhook", "running", None).await.unwrap();
-        let e2 = s.insert_execution("w1", "webhook", "running", None).await.unwrap();
-        assert!(s.finish_execution(e1.id, "success", true, Some("{}")).await.unwrap());
-        let page = s.list_executions(&ExecutionFilter::default(), None, 1).await.unwrap();
+        let e1 = s
+            .insert_execution("w1", "webhook", "running", None)
+            .await
+            .unwrap();
+        let e2 = s
+            .insert_execution("w1", "webhook", "running", None)
+            .await
+            .unwrap();
+        assert!(
+            s.finish_execution(e1.id, "success", true, Some("{}"))
+                .await
+                .unwrap()
+        );
+        let page = s
+            .list_executions(&ExecutionFilter::default(), None, 1)
+            .await
+            .unwrap();
         assert_eq!(page[0].id, e2.id);
-        let ok = ExecutionFilter { status: Some("success".into()), ..Default::default() };
+        let ok = ExecutionFilter {
+            status: Some("success".into()),
+            ..Default::default()
+        };
         assert_eq!(s.list_executions(&ok, None, 10).await.unwrap().len(), 1);
 
         // cascade

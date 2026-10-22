@@ -11,7 +11,11 @@ pub async fn list_instances() -> Result<Vec<InstanceDto>, HkError> {
 }
 
 /// Store a remote by URL + API token. Does not connect; see `connect_instance`.
-pub async fn add_instance(name: String, base_url: String, token: String) -> Result<InstanceDto, HkError> {
+pub async fn add_instance(
+    name: String,
+    base_url: String,
+    token: String,
+) -> Result<InstanceDto, HkError> {
     manager()?.add(&name, &base_url, &token)
 }
 

@@ -10,7 +10,8 @@ use serde_json::{Value, json};
 use crate::backend::{ConcatBackend, ToolReply};
 use crate::config::RootsPolicy;
 use crate::types::{
-    ExportJob, ExportSpec, ExportState, ExportStatus, FrameFile, ProjectInfo, Summary, VersionInfo, VideoSettings,
+    ExportJob, ExportSpec, ExportState, ExportStatus, FrameFile, ProjectInfo, Summary, VersionInfo,
+    VideoSettings,
 };
 use crate::{ConcatConfig, ConcatError};
 
@@ -92,7 +93,10 @@ fn path_str(p: &str) -> Value {
 
 impl ConcatClient {
     pub fn new(backend: Arc<dyn ConcatBackend>) -> Self {
-        Self { backend, roots: None }
+        Self {
+            backend,
+            roots: None,
+        }
     }
 
     /// Checks write targets (project folder, export file, frame file) against Concat's confinement
@@ -108,10 +112,14 @@ impl ConcatClient {
         let backend: Arc<dyn ConcatBackend> = match cfg.backend {
             crate::BackendKind::Process => Arc::new(crate::ProcessBackend::spawn(cfg).await?),
             #[cfg(feature = "engine")]
-            crate::BackendKind::Engine => Arc::new(crate::engine::EngineBackend::start_with_roots(cfg.roots.clone())?),
+            crate::BackendKind::Engine => Arc::new(crate::engine::EngineBackend::start_with_roots(
+                cfg.roots.clone(),
+            )?),
             #[cfg(not(feature = "engine"))]
             crate::BackendKind::Engine => {
-                return Err(ConcatError::Unsupported("built without the `engine` cargo feature of hk-concat"));
+                return Err(ConcatError::Unsupported(
+                    "built without the `engine` cargo feature of hk-concat",
+                ));
             }
         };
         Ok(Self::new(backend).with_roots(cfg.effective_roots()))
@@ -173,7 +181,11 @@ impl ConcatClient {
         video: Option<VideoSettings>,
     ) -> Result<Summary, ConcatError> {
         self.check_write(location)?;
-        self.summary("project_create", json!({ "location": location, "name": name, "video": video })).await
+        self.summary(
+            "project_create",
+            json!({ "location": location, "name": name, "video": video }),
+        )
+        .await
     }
 
     pub async fn project_open(&self, path: &str) -> Result<Summary, ConcatError> {
@@ -181,15 +193,26 @@ impl ConcatClient {
     }
 
     pub async fn project_save(&self, path: &str, rename: Option<&str>) -> Result<(), ConcatError> {
-        self.backend.call_tool("project_save", json!({ "path": path, "name": rename })).await.map(drop)
+        self.backend
+            .call_tool("project_save", json!({ "path": path, "name": rename }))
+            .await
+            .map(drop)
     }
 
     pub async fn project_close(&self, path: &str, save: bool) -> Result<(), ConcatError> {
-        self.backend.call_tool("project_close", json!({ "path": path, "save": save })).await.map(drop)
+        self.backend
+            .call_tool("project_close", json!({ "path": path, "save": save }))
+            .await
+            .map(drop)
     }
 
-    pub async fn project_set_video(&self, path: &str, video: VideoSettings) -> Result<Summary, ConcatError> {
-        self.summary("project_set_video", json!({ "path": path, "video": video })).await
+    pub async fn project_set_video(
+        &self,
+        path: &str,
+        video: VideoSettings,
+    ) -> Result<Summary, ConcatError> {
+        self.summary("project_set_video", json!({ "path": path, "video": video }))
+            .await
     }
 
     /// Compact reading: lanes, clips in time order, media bin, ids.
@@ -199,19 +222,29 @@ impl ConcatClient {
 
     /// Full project document view (`project.get`); needed for keyframe values.
     pub async fn project_get(&self, path: &str) -> Result<Value, ConcatError> {
-        Ok(self.backend.call_tool("project_get", json!({ "path": path })).await?.value)
+        Ok(self
+            .backend
+            .call_tool("project_get", json!({ "path": path }))
+            .await?
+            .value)
     }
 
     // ------------------------------------------------------------------- media
 
     pub async fn media_probe(&self, file: &str) -> Result<Value, ConcatError> {
-        Ok(self.backend.call_tool("media_probe", json!({ "path": file })).await?.value)
+        Ok(self
+            .backend
+            .call_tool("media_probe", json!({ "path": file }))
+            .await?
+            .value)
     }
 
     /// Adds `file` (absolute path) to the bin. Returns the new media id (`createdId`); importing a
     /// path already in the bin changes nothing, so the existing id is looked up by path instead.
     pub async fn import_media(&self, project: &str, file: &str) -> Result<String, ConcatError> {
-        let s = self.summary("media_import", json!({ "path": project, "file": file })).await?;
+        let s = self
+            .summary("media_import", json!({ "path": project, "file": file }))
+            .await?;
         if let Some(id) = s.created_id.as_deref() {
             return Ok(id.to_owned());
         }
@@ -219,7 +252,9 @@ impl ConcatClient {
             .iter()
             .find(|m| m.path == file)
             .map(|m| m.id.clone())
-            .ok_or_else(|| ConcatError::decode("media_import", "no createdId and file not in media bin"))
+            .ok_or_else(|| {
+                ConcatError::decode("media_import", "no createdId and file not in media bin")
+            })
     }
 
     // ---------------------------------------------------------- cut / arrange
@@ -243,8 +278,17 @@ impl ConcatClient {
     }
 
     /// Cuts each clip in two at timeline `time`; the tail gets a new id (read it from the timeline).
-    pub async fn split(&self, project: &str, clip_ids: &[String], time: f64) -> Result<Summary, ConcatError> {
-        self.summary("clips_split", json!({ "path": project, "clipIds": clip_ids, "time": time })).await
+    pub async fn split(
+        &self,
+        project: &str,
+        clip_ids: &[String],
+        time: f64,
+    ) -> Result<Summary, ConcatError> {
+        self.summary(
+            "clips_split",
+            json!({ "path": project, "clipIds": clip_ids, "time": time }),
+        )
+        .await
     }
 
     /// Moves a clip edge by `delta` timeline seconds (`Start` + positive = shorten from the head).
@@ -267,31 +311,54 @@ impl ConcatClient {
         .await
     }
 
-    pub async fn remove_clips(&self, project: &str, clip_ids: &[String], ripple: bool) -> Result<Summary, ConcatError> {
-        self.summary("clips_remove", json!({ "path": project, "clipIds": clip_ids, "ripple": ripple })).await
+    pub async fn remove_clips(
+        &self,
+        project: &str,
+        clip_ids: &[String],
+        ripple: bool,
+    ) -> Result<Summary, ConcatError> {
+        self.summary(
+            "clips_remove",
+            json!({ "path": project, "clipIds": clip_ids, "ripple": ripple }),
+        )
+        .await
     }
 
-    pub async fn move_clips(&self, project: &str, moves: &[ClipMove]) -> Result<Summary, ConcatError> {
+    pub async fn move_clips(
+        &self,
+        project: &str,
+        moves: &[ClipMove],
+    ) -> Result<Summary, ConcatError> {
         let moves: Vec<Value> = moves
             .iter()
             .map(|m| json!({ "clipId": m.clip_id, "start": m.start, "trackId": m.track_id }))
             .collect();
-        self.summary("clips_move", json!({ "path": project, "moves": moves })).await
+        self.summary("clips_move", json!({ "path": project, "moves": moves }))
+            .await
     }
 
     /// Adds a lane (top, or bottom). Returns its id.
     pub async fn add_track(&self, project: &str, bottom: bool) -> Result<String, ConcatError> {
-        let s = self.summary("track_add", json!({ "path": project, "bottom": bottom })).await?;
+        let s = self
+            .summary("track_add", json!({ "path": project, "bottom": bottom }))
+            .await?;
         Ok(s.created("track_add")?.to_owned())
     }
 
     /// Deletes the timeline range `[from, to)` on every lane and closes the gap (ripple): split
     /// everything at `to` then `from`, delete the pieces inside. A lane with no piece inside the
     /// range does not shift, so run this before adding captions/overlays, not after.
-    pub async fn cut_range(&self, project: &str, from: f64, to: f64) -> Result<Summary, ConcatError> {
+    pub async fn cut_range(
+        &self,
+        project: &str,
+        from: f64,
+        to: f64,
+    ) -> Result<Summary, ConcatError> {
         const EPS: f64 = 1e-3;
         if !(to > from && from >= 0.0) {
-            return Err(ConcatError::InvalidArgs(format!("cut range [{from}, {to}) is empty or negative")));
+            return Err(ConcatError::InvalidArgs(format!(
+                "cut range [{from}, {to}) is empty or negative"
+            )));
         }
         for t in [to, from] {
             let s = self.timeline_read(project).await?;
@@ -314,8 +381,17 @@ impl ConcatClient {
         self.remove_clips(project, &inside, true).await
     }
 
-    pub async fn clip_speed(&self, project: &str, clip_id: &str, speed: f64) -> Result<Summary, ConcatError> {
-        self.summary("clip_speed", json!({ "path": project, "clipId": clip_id, "speed": speed })).await
+    pub async fn clip_speed(
+        &self,
+        project: &str,
+        clip_id: &str,
+        speed: f64,
+    ) -> Result<Summary, ConcatError> {
+        self.summary(
+            "clip_speed",
+            json!({ "path": project, "clipId": clip_id, "speed": speed }),
+        )
+        .await
     }
 
     // ------------------------------------------------------- titles / captions
@@ -420,24 +496,44 @@ impl ConcatClient {
         .await
     }
 
-    pub async fn frame_clip(&self, project: &str, clip_id: &str, framing: Framing, at: f64) -> Result<Summary, ConcatError> {
+    pub async fn frame_clip(
+        &self,
+        project: &str,
+        clip_id: &str,
+        framing: Framing,
+        at: f64,
+    ) -> Result<Summary, ConcatError> {
         let framing = match framing {
             Framing::Fit => "fit",
             Framing::Fill => "fill",
         };
-        self.summary("clip_frame", json!({ "path": project, "clipId": clip_id, "framing": framing, "at": at })).await
+        self.summary(
+            "clip_frame",
+            json!({ "path": project, "clipId": clip_id, "framing": framing, "at": at }),
+        )
+        .await
     }
 
     // -------------------------------------------------------- effects / looks
 
     /// Effect packages (id, kind, params). `kind`: effect|filter|audio|transition|generator.
     pub async fn effects_list(&self, kind: Option<&str>) -> Result<Value, ConcatError> {
-        Ok(self.backend.call_tool("effects_list", json!({ "kind": kind })).await?.value)
+        Ok(self
+            .backend
+            .call_tool("effects_list", json!({ "kind": kind }))
+            .await?
+            .value)
     }
 
     /// Replaces the clip's whole video-effect chain: `[{ "id": "concat.warm", "params": {...} }]`.
-    pub async fn set_effects(&self, project: &str, clip_id: &str, chain: Value) -> Result<Summary, ConcatError> {
-        self.clip_update(project, clip_id, json!({ "videoEffects": chain })).await
+    pub async fn set_effects(
+        &self,
+        project: &str,
+        clip_id: &str,
+        chain: Value,
+    ) -> Result<Summary, ConcatError> {
+        self.clip_update(project, clip_id, json!({ "videoEffects": chain }))
+            .await
     }
 
     /// Transition into the clip (on the cut before it); `None` removes it.
@@ -448,7 +544,8 @@ impl ConcatClient {
         transition: Option<(&str, f64)>,
     ) -> Result<Summary, ConcatError> {
         let v = transition.map_or(Value::Null, |(id, d)| json!({ "id": id, "duration": d }));
-        self.clip_update(project, clip_id, json!({ "transitionIn": v })).await
+        self.clip_update(project, clip_id, json!({ "transitionIn": v }))
+            .await
     }
 
     /// An effect/look as a layer over the timeline from `start` for `duration` seconds.
@@ -473,13 +570,23 @@ impl ConcatClient {
     }
 
     /// Field-wise clip patch (`volume`, `opacity`, `crop`, `videoEffects`, `transitionIn`, ...).
-    pub async fn clip_update(&self, project: &str, clip_id: &str, patch: Value) -> Result<Summary, ConcatError> {
-        self.summary("clip_update", json!({ "path": project, "clipId": clip_id, "patch": patch })).await
+    pub async fn clip_update(
+        &self,
+        project: &str,
+        clip_id: &str,
+        patch: Value,
+    ) -> Result<Summary, ConcatError> {
+        self.summary(
+            "clip_update",
+            json!({ "path": project, "clipId": clip_id, "patch": patch }),
+        )
+        .await
     }
 
     /// Any edit command (`{"op": "...", ...}`) or `{"op":"batch","commands":[...]}` as one undo step.
     pub async fn edit_apply(&self, project: &str, command: Value) -> Result<Summary, ConcatError> {
-        self.summary("edit_apply", json!({ "path": project, "command": command })).await
+        self.summary("edit_apply", json!({ "path": project, "command": command }))
+            .await
     }
 
     pub async fn undo(&self, project: &str) -> Result<Summary, ConcatError> {
@@ -512,9 +619,14 @@ impl ConcatClient {
 
     // ------------------------------------------------------------------ export
 
-    pub async fn export_start(&self, project: &str, spec: &ExportSpec) -> Result<ExportJob, ConcatError> {
+    pub async fn export_start(
+        &self,
+        project: &str,
+        spec: &ExportSpec,
+    ) -> Result<ExportJob, ConcatError> {
         self.check_write(&spec.output)?;
-        let mut args = serde_json::to_value(spec).map_err(|e| ConcatError::InvalidArgs(e.to_string()))?;
+        let mut args =
+            serde_json::to_value(spec).map_err(|e| ConcatError::InvalidArgs(e.to_string()))?;
         args["path"] = path_str(project);
         self.typed("export_start", args).await
     }
@@ -524,7 +636,10 @@ impl ConcatClient {
     }
 
     pub async fn export_cancel(&self, job: &str) -> Result<(), ConcatError> {
-        self.backend.call_tool("export_cancel", json!({ "job": job })).await.map(drop)
+        self.backend
+            .call_tool("export_cancel", json!({ "job": job }))
+            .await
+            .map(drop)
     }
 
     /// Polls `export_status` until the job leaves `running` (any terminal state is returned as

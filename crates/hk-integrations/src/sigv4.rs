@@ -11,10 +11,12 @@ const ALGORITHM: &str = "AWS4-HMAC-SHA256";
 
 pub(crate) fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write;
-    bytes.iter().fold(String::with_capacity(bytes.len() * 2), |mut s, b| {
-        let _ = write!(s, "{b:02x}");
-        s
-    })
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut s, b| {
+            let _ = write!(s, "{b:02x}");
+            s
+        })
 }
 
 pub(crate) fn sha256_hex(data: &[u8]) -> String {
@@ -33,7 +35,9 @@ pub(crate) fn uri_encode(s: &str, keep_slash: bool) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(char::from(b)),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(char::from(b))
+            }
             b'/' if keep_slash => out.push('/'),
             _ => out.push_str(&format!("%{b:02X}")),
         }
@@ -43,7 +47,9 @@ pub(crate) fn uri_encode(s: &str, keep_slash: bool) -> String {
 
 /// `YYYYMMDDTHHMMSSZ` in UTC.
 pub(crate) fn amz_date(now: SystemTime) -> String {
-    let secs = now.duration_since(SystemTime::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    let secs = now
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
     let days = i64::try_from(secs / 86_400).unwrap_or(0);
     let rem = secs % 86_400;
     // days since 1970-01-01 -> civil date (Howard Hinnant's algorithm)
@@ -56,7 +62,12 @@ pub(crate) fn amz_date(now: SystemTime) -> String {
     let day = doy - (153 * mp + 2) / 5 + 1;
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = yoe + era * 400 + i64::from(month <= 2);
-    format!("{year:04}{month:02}{day:02}T{:02}{:02}{:02}Z", rem / 3600, rem % 3600 / 60, rem % 60)
+    format!(
+        "{year:04}{month:02}{day:02}T{:02}{:02}{:02}Z",
+        rem / 3600,
+        rem % 3600 / 60,
+        rem % 60
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -94,18 +105,32 @@ pub(crate) fn sign(
     if let Some(t) = &keys.session_token {
         headers.push(("x-amz-security-token".into(), t.clone()));
     }
-    headers.extend(extra.iter().map(|(k, v)| (k.to_ascii_lowercase(), v.trim().to_owned())));
+    headers.extend(
+        extra
+            .iter()
+            .map(|(k, v)| (k.to_ascii_lowercase(), v.trim().to_owned())),
+    );
     headers.sort();
 
     let canonical_headers: String = headers.iter().map(|(k, v)| format!("{k}:{v}\n")).collect();
-    let signed_headers = headers.iter().map(|(k, _)| k.as_str()).collect::<Vec<_>>().join(";");
+    let signed_headers = headers
+        .iter()
+        .map(|(k, _)| k.as_str())
+        .collect::<Vec<_>>()
+        .join(";");
 
     let mut query: Vec<String> = url
         .query()
         .unwrap_or("")
         .split('&')
         .filter(|p| !p.is_empty())
-        .map(|p| if p.contains('=') { p.to_owned() } else { format!("{p}=") })
+        .map(|p| {
+            if p.contains('=') {
+                p.to_owned()
+            } else {
+                format!("{p}=")
+            }
+        })
         .collect();
     query.sort();
 
@@ -117,8 +142,14 @@ pub(crate) fn sign(
 
     let day = &date[..8];
     let scope = format!("{day}/{}/s3/aws4_request", keys.region);
-    let to_sign = format!("{ALGORITHM}\n{date}\n{scope}\n{}", sha256_hex(canonical.as_bytes()));
-    let k_date = hmac(format!("AWS4{}", keys.secret_key).as_bytes(), day.as_bytes());
+    let to_sign = format!(
+        "{ALGORITHM}\n{date}\n{scope}\n{}",
+        sha256_hex(canonical.as_bytes())
+    );
+    let k_date = hmac(
+        format!("AWS4{}", keys.secret_key).as_bytes(),
+        day.as_bytes(),
+    );
     let k_region = hmac(&k_date, keys.region.as_bytes());
     let k_service = hmac(&k_region, b"s3");
     let k_signing = hmac(&k_service, b"aws4_request");
@@ -155,27 +186,42 @@ mod tests {
     }
 
     fn header<'a>(h: &'a [(String, String)], name: &str) -> &'a str {
-        h.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str()).unwrap()
+        h.iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.as_str())
+            .unwrap()
     }
 
     /// "GET Object" example from the AWS SigV4 S3 documentation.
     #[test]
     fn aws_get_object_vector() {
         let url = reqwest::Url::parse("https://examplebucket.s3.amazonaws.com/test.txt").unwrap();
-        let h = sign(&keys(), "GET", &url, &[("range".into(), "bytes=0-9".into())], b"", "20130524T000000Z");
+        let h = sign(
+            &keys(),
+            "GET",
+            &url,
+            &[("range".into(), "bytes=0-9".into())],
+            b"",
+            "20130524T000000Z",
+        );
         assert_eq!(
             header(&h, "authorization"),
             "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,\
              SignedHeaders=host;range;x-amz-content-sha256;x-amz-date,\
              Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41"
         );
-        assert_eq!(header(&h, "x-amz-content-sha256"), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        assert_eq!(
+            header(&h, "x-amz-content-sha256"),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
     }
 
     /// "GET Bucket (List Objects)" example: query string canonicalisation.
     #[test]
     fn aws_list_objects_vector() {
-        let url = reqwest::Url::parse("https://examplebucket.s3.amazonaws.com/?max-keys=2&prefix=J").unwrap();
+        let url =
+            reqwest::Url::parse("https://examplebucket.s3.amazonaws.com/?max-keys=2&prefix=J")
+                .unwrap();
         let h = sign(&keys(), "GET", &url, &[], b"", "20130524T000000Z");
         assert!(header(&h, "authorization").ends_with(
             "Signature=34b48302e7b5fa45bde8084f4b7868a86f0a534bc59db6670ed5711ef69dc6f7"

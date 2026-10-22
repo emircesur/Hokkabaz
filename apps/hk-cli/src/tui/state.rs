@@ -50,10 +50,16 @@ pub struct ToolCard {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Block {
     User(String),
-    Assistant { text: String, reasoning: String },
+    Assistant {
+        text: String,
+        reasoning: String,
+    },
     Tool(ToolCard),
     /// Errors, turn markers.
-    Note { text: String, error: bool },
+    Note {
+        text: String,
+        error: bool,
+    },
 }
 
 /// Streaming text of the step in flight.
@@ -99,11 +105,17 @@ impl Input {
     }
 
     fn prev(&self) -> Option<usize> {
-        self.text[..self.cursor].char_indices().next_back().map(|(i, _)| i)
+        self.text[..self.cursor]
+            .char_indices()
+            .next_back()
+            .map(|(i, _)| i)
     }
 
     fn next(&self) -> Option<usize> {
-        self.text[self.cursor..].chars().next().map(|c| self.cursor + c.len_utf8())
+        self.text[self.cursor..]
+            .chars()
+            .next()
+            .map(|c| self.cursor + c.len_utf8())
     }
 
     pub fn left(&mut self) {
@@ -123,7 +135,9 @@ impl Input {
     }
 
     fn line_end(&self) -> usize {
-        self.text[self.cursor..].find('\n').map_or(self.text.len(), |i| self.cursor + i)
+        self.text[self.cursor..]
+            .find('\n')
+            .map_or(self.text.len(), |i| self.cursor + i)
     }
 
     pub fn home(&mut self) {
@@ -149,7 +163,9 @@ impl Input {
             }
             self.text[..start - 1].rfind('\n').map_or(0, |i| i + 1)
         };
-        let line_end = self.text[target_start..].find('\n').map_or(self.text.len(), |i| target_start + i);
+        let line_end = self.text[target_start..]
+            .find('\n')
+            .map_or(self.text.len(), |i| target_start + i);
         let line = &self.text[target_start..line_end];
         let off = line.char_indices().nth(col).map_or(line.len(), |(i, _)| i);
         self.cursor = target_start + off;
@@ -167,8 +183,14 @@ pub enum Msg {
     Key(KeyEvent),
     Paste(String),
     /// Terminal rows; used for the PgUp/PgDn step.
-    Resize { height: u16 },
-    Stream { turn_id: String, step: u32, event: StreamEvent },
+    Resize {
+        height: u16,
+    },
+    Stream {
+        turn_id: String,
+        step: u32,
+        event: StreamEvent,
+    },
     Log(Box<SessionEvent>),
     /// Runtime-reported failure for the session.
     SessionError(String),
@@ -177,17 +199,31 @@ pub enum Msg {
     Sessions(Vec<SessionInfo>),
     Models(Vec<ModelInfo>),
     Created(Box<SessionInfo>),
-    Loaded { session_id: String, events: Vec<SessionEvent>, pending: Vec<String> },
+    Loaded {
+        session_id: String,
+        events: Vec<SessionEvent>,
+        pending: Vec<String>,
+    },
     Conn(Conn),
 }
 
 /// Side effects the driver must run.
 #[derive(Debug)]
 pub enum Cmd {
-    Submit { session_id: String, req: TurnRequest },
+    Submit {
+        session_id: String,
+        req: TurnRequest,
+    },
     Cancel(String),
-    Respond { approval_id: String, session_id: String, approved: bool, reason: Option<String> },
-    CreateSession { model: String },
+    Respond {
+        approval_id: String,
+        session_id: String,
+        approved: bool,
+        reason: Option<String>,
+    },
+    CreateSession {
+        model: String,
+    },
     Load(String),
     RefreshSessions,
     Quit,
@@ -201,12 +237,22 @@ impl Msg {
                 let turn_id = ev.data.get("turn_id")?.as_str()?.to_owned();
                 let step = u32::try_from(ev.data.get("step")?.as_u64()?).ok()?;
                 let event = serde_json::from_value(ev.data.get("event")?.clone()).ok()?;
-                Some(Msg::Stream { turn_id, step, event })
+                Some(Msg::Stream {
+                    turn_id,
+                    step,
+                    event,
+                })
             }
-            "session/error" => {
-                Some(Msg::SessionError(ev.data.get("message").and_then(Value::as_str).unwrap_or("error").to_owned()))
-            }
-            _ => serde_json::from_value::<SessionEvent>(ev.data.clone()).ok().map(|e| Msg::Log(Box::new(e))),
+            "session/error" => Some(Msg::SessionError(
+                ev.data
+                    .get("message")
+                    .and_then(Value::as_str)
+                    .unwrap_or("error")
+                    .to_owned(),
+            )),
+            _ => serde_json::from_value::<SessionEvent>(ev.data.clone())
+                .ok()
+                .map(|e| Msg::Log(Box::new(e))),
         }
     }
 }
@@ -320,7 +366,11 @@ impl TuiState {
                 self.page = usize::from(height.saturating_sub(8)).max(3);
                 Vec::new()
             }
-            Msg::Stream { turn_id, step, event } => {
+            Msg::Stream {
+                turn_id,
+                step,
+                event,
+            } => {
                 self.stream(turn_id, step, event);
                 Vec::new()
             }
@@ -333,7 +383,10 @@ impl TuiState {
                 }
             }
             Msg::SessionError(m) => {
-                self.blocks.push(Block::Note { text: format!("error: {m}"), error: true });
+                self.blocks.push(Block::Note {
+                    text: format!("error: {m}"),
+                    error: true,
+                });
                 self.running = false;
                 self.live = None;
                 Vec::new()
@@ -365,7 +418,11 @@ impl TuiState {
                     None => Vec::new(),
                 }
             }
-            Msg::Loaded { session_id, events, pending } => {
+            Msg::Loaded {
+                session_id,
+                events,
+                pending,
+            } => {
                 if self.current.as_deref() != Some(&session_id) {
                     return Vec::new();
                 }
@@ -419,9 +476,17 @@ impl TuiState {
         };
         let live = match &mut self.live {
             Some(l) if l.key == key => l,
-            slot => slot.insert(Live { key, ..Live::default() }),
+            slot => slot.insert(Live {
+                key,
+                ..Live::default()
+            }),
         };
-        if is_text { &mut live.text } else { &mut live.reasoning }.push_str(&s);
+        if is_text {
+            &mut live.text
+        } else {
+            &mut live.reasoning
+        }
+        .push_str(&s);
     }
 
     fn log(&mut self, ev: SessionEvent) -> Vec<Cmd> {
@@ -432,7 +497,11 @@ impl TuiState {
         let mut cmds = Vec::new();
         match ev.kind {
             EventKind::SessionTitle { title } => {
-                if let Some(s) = self.sessions.iter_mut().find(|s| Some(&s.id) == self.current.as_ref()) {
+                if let Some(s) = self
+                    .sessions
+                    .iter_mut()
+                    .find(|s| Some(&s.id) == self.current.as_ref())
+                {
                     s.title = Some(title);
                 }
             }
@@ -454,42 +523,89 @@ impl TuiState {
                 if let Some(u) = usage {
                     self.usage.accumulate(&u);
                 }
-                if self.live.as_ref().is_some_and(|l| Some(&l.key) == self.log_step.as_ref()) {
+                if self
+                    .live
+                    .as_ref()
+                    .is_some_and(|l| Some(&l.key) == self.log_step.as_ref())
+                {
                     self.live = None;
                 }
             }
             EventKind::UserMessage { content } => self.blocks.push(Block::User(content)),
             EventKind::AssistantMessage { content, reasoning } => {
-                if self.live.as_ref().is_some_and(|l| Some(&l.key) == self.log_step.as_ref()) {
+                if self
+                    .live
+                    .as_ref()
+                    .is_some_and(|l| Some(&l.key) == self.log_step.as_ref())
+                {
                     self.live = None;
                 }
                 let reasoning = reasoning.unwrap_or_default();
                 if !content.is_empty() || !reasoning.is_empty() {
-                    self.blocks.push(Block::Assistant { text: content, reasoning });
+                    self.blocks.push(Block::Assistant {
+                        text: content,
+                        reasoning,
+                    });
                 }
             }
-            EventKind::AssistantAttempt { attempt, error: Some(e), .. } => {
-                self.blocks.push(Block::Note { text: format!("attempt {attempt} failed: {e}"), error: true });
+            EventKind::AssistantAttempt {
+                attempt,
+                error: Some(e),
+                ..
+            } => {
+                self.blocks.push(Block::Note {
+                    text: format!("attempt {attempt} failed: {e}"),
+                    error: true,
+                });
             }
             EventKind::CompactionSummary { .. } => {
-                self.blocks.push(Block::Note { text: "context compacted".into(), error: false });
+                self.blocks.push(Block::Note {
+                    text: "context compacted".into(),
+                    error: false,
+                });
             }
-            EventKind::ToolCall { call_id, name, arguments } => {
-                self.blocks.push(Block::Tool(ToolCard { call_id, name, args: arguments, result: None }));
+            EventKind::ToolCall {
+                call_id,
+                name,
+                arguments,
+            } => {
+                self.blocks.push(Block::Tool(ToolCard {
+                    call_id,
+                    name,
+                    args: arguments,
+                    result: None,
+                }));
             }
-            EventKind::ToolResult { call_id, content, is_error } => {
+            EventKind::ToolResult {
+                call_id,
+                content,
+                is_error,
+            } => {
                 let card = self.blocks.iter_mut().rev().find_map(|b| match b {
                     Block::Tool(c) if c.call_id == call_id => Some(c),
                     _ => None,
                 });
                 match card {
                     Some(c) => c.result = Some((content, is_error)),
-                    None => self.blocks.push(Block::Note { text: content, error: is_error }),
+                    None => self.blocks.push(Block::Note {
+                        text: content,
+                        error: is_error,
+                    }),
                 }
             }
-            EventKind::ApprovalRequest { approval_id, call_id, tool, detail } => {
+            EventKind::ApprovalRequest {
+                approval_id,
+                call_id,
+                tool,
+                detail,
+            } => {
                 if !self.approvals.iter().any(|a| a.id == approval_id) {
-                    self.approvals.push_back(Approval { id: approval_id, call_id, tool, detail });
+                    self.approvals.push_back(Approval {
+                        id: approval_id,
+                        call_id,
+                        tool,
+                        detail,
+                    });
                 }
             }
             EventKind::ApprovalResponse { approval_id, .. } => {
@@ -564,7 +680,11 @@ impl TuiState {
             match ch {
                 // Ctrl+M is Enter on legacy terminals; Ctrl+O is the reliable twin.
                 Some('m' | 'o') => {
-                    let sel = self.models.iter().position(|m| m.id == self.model).unwrap_or(0);
+                    let sel = self
+                        .models
+                        .iter()
+                        .position(|m| m.id == self.model)
+                        .unwrap_or(0);
                     if self.models.is_empty() {
                         self.flash = Some("no models loaded".into());
                     } else {
@@ -581,7 +701,11 @@ impl TuiState {
                     return Vec::new();
                 }
                 Some('b') => {
-                    self.focus = if self.focus == Focus::Input { Focus::Sessions } else { Focus::Input };
+                    self.focus = if self.focus == Focus::Input {
+                        Focus::Sessions
+                    } else {
+                        Focus::Input
+                    };
                     return Vec::new();
                 }
                 Some('n') => return self.new_session(),
@@ -606,12 +730,18 @@ impl TuiState {
 
     fn new_session(&mut self) -> Vec<Cmd> {
         self.focus = Focus::Input;
-        vec![Cmd::CreateSession { model: self.model.clone() }]
+        vec![Cmd::CreateSession {
+            model: self.model.clone(),
+        }]
     }
 
     fn approval_key(&mut self, code: KeyCode) -> Vec<Cmd> {
-        let Some(front) = self.approvals.front().cloned() else { return Vec::new() };
-        let Some(session_id) = self.current.clone() else { return Vec::new() };
+        let Some(front) = self.approvals.front().cloned() else {
+            return Vec::new();
+        };
+        let Some(session_id) = self.current.clone() else {
+            return Vec::new();
+        };
         let respond = |approved, reason| Cmd::Respond {
             approval_id: front.id.clone(),
             session_id: session_id.clone(),
@@ -628,7 +758,10 @@ impl TuiState {
                     let reason = std::mem::take(r);
                     self.reason = None;
                     self.approvals.pop_front();
-                    vec![respond(false, Some(reason).filter(|r| !r.trim().is_empty()))]
+                    vec![respond(
+                        false,
+                        Some(reason).filter(|r| !r.trim().is_empty()),
+                    )]
                 }
                 KeyCode::Backspace => {
                     r.pop();
@@ -664,10 +797,14 @@ impl TuiState {
         match code {
             KeyCode::Esc | KeyCode::Char('q') => self.overlay = Overlay::None,
             KeyCode::Up | KeyCode::Char('k') => {
-                self.overlay = Overlay::Models { sel: sel.saturating_sub(1) };
+                self.overlay = Overlay::Models {
+                    sel: sel.saturating_sub(1),
+                };
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                self.overlay = Overlay::Models { sel: (sel + 1).min(n.saturating_sub(1)) };
+                self.overlay = Overlay::Models {
+                    sel: (sel + 1).min(n.saturating_sub(1)),
+                };
             }
             KeyCode::Enter => {
                 if let Some(m) = self.models.get(sel) {
@@ -757,7 +894,9 @@ impl TuiState {
             Some(id) => vec![self.submit_cmd(id, prompt)],
             None => {
                 self.pending_prompt = Some(prompt);
-                vec![Cmd::CreateSession { model: self.model.clone() }]
+                vec![Cmd::CreateSession {
+                    model: self.model.clone(),
+                }]
             }
         }
     }
@@ -778,7 +917,11 @@ mod tests {
     }
 
     fn ev(seq: u64, kind: EventKind) -> Msg {
-        Msg::Log(Box::new(SessionEvent { seq, ts_ms: 0, kind }))
+        Msg::Log(Box::new(SessionEvent {
+            seq,
+            ts_ms: 0,
+            kind,
+        }))
     }
 
     fn info(id: &str) -> SessionInfo {
@@ -810,7 +953,13 @@ mod tests {
     #[test]
     fn stream_then_log_replaces_live_buffer() {
         let mut s = state();
-        s.update(ev(1, EventKind::StepStart { turn_id: "t".into(), step: 0 }));
+        s.update(ev(
+            1,
+            EventKind::StepStart {
+                turn_id: "t".into(),
+                step: 0,
+            },
+        ));
         s.update(Msg::Stream {
             turn_id: "t".into(),
             step: 0,
@@ -822,22 +971,48 @@ mod tests {
             event: StreamEvent::TextDelta { text: "lo".into() },
         });
         assert_eq!(s.live.as_ref().unwrap().text, "hello");
-        s.update(ev(2, EventKind::AssistantMessage { content: "hello".into(), reasoning: None }));
+        s.update(ev(
+            2,
+            EventKind::AssistantMessage {
+                content: "hello".into(),
+                reasoning: None,
+            },
+        ));
         assert!(s.live.is_none());
-        assert_eq!(s.blocks, vec![Block::Assistant { text: "hello".into(), reasoning: String::new() }]);
+        assert_eq!(
+            s.blocks,
+            vec![Block::Assistant {
+                text: "hello".into(),
+                reasoning: String::new()
+            }]
+        );
     }
 
     #[test]
     fn late_log_does_not_drop_next_step_live_text() {
         let mut s = state();
-        s.update(ev(1, EventKind::StepStart { turn_id: "t".into(), step: 0 }));
+        s.update(ev(
+            1,
+            EventKind::StepStart {
+                turn_id: "t".into(),
+                step: 0,
+            },
+        ));
         // Step 1 deltas arrive before step 0's assistant message is tailed from the log.
         s.update(Msg::Stream {
             turn_id: "t".into(),
             step: 1,
-            event: StreamEvent::TextDelta { text: "next".into() },
+            event: StreamEvent::TextDelta {
+                text: "next".into(),
+            },
         });
-        s.update(ev(2, EventKind::AssistantMessage { content: "first".into(), reasoning: None }));
+        s.update(ev(
+            2,
+            EventKind::AssistantMessage {
+                content: "first".into(),
+                reasoning: None,
+            },
+        ));
         assert_eq!(s.live.as_ref().unwrap().text, "next");
         assert_eq!(s.blocks.len(), 1);
     }
@@ -852,16 +1027,30 @@ mod tests {
         };
         s.update(ev(3, call.clone()));
         s.update(ev(3, call));
-        s.update(ev(4, EventKind::ToolResult { call_id: "c1".into(), content: "ok".into(), is_error: false }));
+        s.update(ev(
+            4,
+            EventKind::ToolResult {
+                call_id: "c1".into(),
+                content: "ok".into(),
+                is_error: false,
+            },
+        ));
         assert_eq!(s.blocks.len(), 1);
-        let Block::Tool(c) = &s.blocks[0] else { panic!("tool card") };
+        let Block::Tool(c) = &s.blocks[0] else {
+            panic!("tool card")
+        };
         assert_eq!(c.result, Some(("ok".into(), false)));
     }
 
     #[test]
     fn turn_lifecycle_and_usage() {
         let mut s = state();
-        s.update(ev(1, EventKind::TurnStart { turn_id: "t".into() }));
+        s.update(ev(
+            1,
+            EventKind::TurnStart {
+                turn_id: "t".into(),
+            },
+        ));
         assert!(s.running);
         s.update(ev(
             2,
@@ -869,10 +1058,20 @@ mod tests {
                 turn_id: "t".into(),
                 step: 0,
                 finish: None,
-                usage: Some(Usage { input_tokens: 10, output_tokens: 5, ..Usage::default() }),
+                usage: Some(Usage {
+                    input_tokens: 10,
+                    output_tokens: 5,
+                    ..Usage::default()
+                }),
             },
         ));
-        let cmds = s.update(ev(3, EventKind::TurnEnd { turn_id: "t".into(), reason: TurnEndReason::Cancelled }));
+        let cmds = s.update(ev(
+            3,
+            EventKind::TurnEnd {
+                turn_id: "t".into(),
+                reason: TurnEndReason::Cancelled,
+            },
+        ));
         assert!(!s.running);
         assert_eq!(s.usage.total(), 15);
         assert!(matches!(cmds.as_slice(), [Cmd::RefreshSessions]));
@@ -883,12 +1082,15 @@ mod tests {
     fn approval_modal_y_n_reason() {
         let mut s = state();
         let req = |n: u64, id: &str| {
-            ev(n, EventKind::ApprovalRequest {
-                approval_id: id.into(),
-                call_id: "c".into(),
-                tool: "bash".into(),
-                detail: Some("ls".into()),
-            })
+            ev(
+                n,
+                EventKind::ApprovalRequest {
+                    approval_id: id.into(),
+                    call_id: "c".into(),
+                    tool: "bash".into(),
+                    detail: Some("ls".into()),
+                },
+            )
         };
         s.update(req(1, "a1"));
         s.update(req(2, "a2"));
@@ -899,7 +1101,9 @@ mod tests {
         assert!(s.input.text.is_empty());
 
         let cmds = s.update(key(KeyCode::Char('y')));
-        assert!(matches!(&cmds[..], [Cmd::Respond { approval_id, approved: true, reason: None, .. }] if approval_id == "a1"));
+        assert!(
+            matches!(&cmds[..], [Cmd::Respond { approval_id, approved: true, reason: None, .. }] if approval_id == "a1")
+        );
 
         s.update(key(KeyCode::Char('r')));
         typed(&mut s, "no way");
@@ -908,7 +1112,13 @@ mod tests {
             [Cmd::Respond { approval_id, approved: false, reason: Some(r), .. }] if approval_id == "a2" && r == "no way"));
 
         let cmds = s.update(key(KeyCode::Esc));
-        assert!(matches!(&cmds[..], [Cmd::Respond { approved: false, .. }]));
+        assert!(matches!(
+            &cmds[..],
+            [Cmd::Respond {
+                approved: false,
+                ..
+            }]
+        ));
         assert!(s.approvals.is_empty());
     }
 
@@ -917,9 +1127,21 @@ mod tests {
         let mut s = state();
         s.update(ev(
             1,
-            EventKind::ApprovalRequest { approval_id: "a".into(), call_id: "c".into(), tool: "bash".into(), detail: None },
+            EventKind::ApprovalRequest {
+                approval_id: "a".into(),
+                call_id: "c".into(),
+                tool: "bash".into(),
+                detail: None,
+            },
         ));
-        s.update(ev(2, EventKind::ApprovalResponse { approval_id: "a".into(), approved: true, reason: None }));
+        s.update(ev(
+            2,
+            EventKind::ApprovalResponse {
+                approval_id: "a".into(),
+                approved: true,
+                reason: None,
+            },
+        ));
         assert!(s.approvals.is_empty());
     }
 
@@ -944,7 +1166,13 @@ mod tests {
         }
         assert!(s.input.text.is_empty());
         // Empty input sends nothing.
-        assert!(s.update(Msg::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::CONTROL))).is_empty());
+        assert!(
+            s.update(Msg::Key(KeyEvent::new(
+                KeyCode::Enter,
+                KeyModifiers::CONTROL
+            )))
+            .is_empty()
+        );
     }
 
     #[test]
@@ -965,7 +1193,12 @@ mod tests {
         s.update(key(KeyCode::Tab));
         assert_eq!(s.mode, TurnMode::Plan);
         assert!(s.update(key(KeyCode::Esc)).is_empty());
-        s.update(ev(1, EventKind::TurnStart { turn_id: "t".into() }));
+        s.update(ev(
+            1,
+            EventKind::TurnStart {
+                turn_id: "t".into(),
+            },
+        ));
         assert!(matches!(&s.update(key(KeyCode::Esc))[..], [Cmd::Cancel(id)] if id == "s1"));
     }
 
@@ -985,8 +1218,16 @@ mod tests {
     #[test]
     fn running_quit_cancels_first() {
         let mut s = state();
-        s.update(ev(1, EventKind::TurnStart { turn_id: "t".into() }));
-        assert!(matches!(&s.update(ctrl('q'))[..], [Cmd::Cancel(_), Cmd::Quit]));
+        s.update(ev(
+            1,
+            EventKind::TurnStart {
+                turn_id: "t".into(),
+            },
+        ));
+        assert!(matches!(
+            &s.update(ctrl('q'))[..],
+            [Cmd::Cancel(_), Cmd::Quit]
+        ));
     }
 
     #[test]
@@ -1006,7 +1247,13 @@ mod tests {
     #[test]
     fn session_switch_loads_and_replays_backlog_without_dupes() {
         let mut s = state();
-        s.sessions = vec![info("s1"), SessionInfo { model: Some("other".into()), ..info("s2") }];
+        s.sessions = vec![
+            info("s1"),
+            SessionInfo {
+                model: Some("other".into()),
+                ..info("s2")
+            },
+        ];
         s.update(ctrl('b'));
         assert_eq!(s.focus, Focus::Sessions);
         s.update(key(KeyCode::Down));
@@ -1014,14 +1261,33 @@ mod tests {
         assert!(matches!(&cmds[..], [Cmd::Load(id)] if id == "s2"));
         assert_eq!(s.model, "other");
         // Event lands mid-load, also present in the snapshot.
-        s.update(ev(1, EventKind::UserMessage { content: "q".into() }));
-        s.update(ev(2, EventKind::UserMessage { content: "later".into() }));
+        s.update(ev(
+            1,
+            EventKind::UserMessage {
+                content: "q".into(),
+            },
+        ));
+        s.update(ev(
+            2,
+            EventKind::UserMessage {
+                content: "later".into(),
+            },
+        ));
         s.update(Msg::Loaded {
             session_id: "s2".into(),
-            events: vec![SessionEvent { seq: 1, ts_ms: 0, kind: EventKind::UserMessage { content: "q".into() } }],
+            events: vec![SessionEvent {
+                seq: 1,
+                ts_ms: 0,
+                kind: EventKind::UserMessage {
+                    content: "q".into(),
+                },
+            }],
             pending: vec![],
         });
-        assert_eq!(s.blocks, vec![Block::User("q".into()), Block::User("later".into())]);
+        assert_eq!(
+            s.blocks,
+            vec![Block::User("q".into()), Block::User("later".into())]
+        );
     }
 
     #[test]
@@ -1031,9 +1297,18 @@ mod tests {
         let req = |n, id: &str| SessionEvent {
             seq: n,
             ts_ms: 0,
-            kind: EventKind::ApprovalRequest { approval_id: id.into(), call_id: "c".into(), tool: "t".into(), detail: None },
+            kind: EventKind::ApprovalRequest {
+                approval_id: id.into(),
+                call_id: "c".into(),
+                tool: "t".into(),
+                detail: None,
+            },
         };
-        s.update(Msg::Loaded { session_id: "s1".into(), events: vec![req(1, "old"), req(2, "live")], pending: vec!["live".into()] });
+        s.update(Msg::Loaded {
+            session_id: "s1".into(),
+            events: vec![req(1, "old"), req(2, "live")],
+            pending: vec!["live".into()],
+        });
         assert_eq!(s.approvals.len(), 1);
         assert_eq!(s.approvals[0].id, "live");
     }
@@ -1051,7 +1326,10 @@ mod tests {
             cost: None,
         };
         let mut s = state();
-        s.update(Msg::Models(vec![m("deepseek-chat"), m("deepseek-reasoner")]));
+        s.update(Msg::Models(vec![
+            m("deepseek-chat"),
+            m("deepseek-reasoner"),
+        ]));
         s.update(ctrl('o'));
         assert!(matches!(s.overlay, Overlay::Models { sel: 0 }));
         s.update(key(KeyCode::Down));
@@ -1074,8 +1352,17 @@ mod tests {
             session_id: "s".into(),
             data: serde_json::json!({"turn_id":"t","step":2,"event":{"type":"text_delta","text":"x"}}),
         };
-        assert!(matches!(Msg::from_feed(&stream), Some(Msg::Stream { step: 2, .. })));
-        let log = SessionEvent { seq: 7, ts_ms: 1, kind: EventKind::UserMessage { content: "hi".into() } };
+        assert!(matches!(
+            Msg::from_feed(&stream),
+            Some(Msg::Stream { step: 2, .. })
+        ));
+        let log = SessionEvent {
+            seq: 7,
+            ts_ms: 1,
+            kind: EventKind::UserMessage {
+                content: "hi".into(),
+            },
+        };
         let ev = ServerEvent {
             name: "user/message".into(),
             session_id: "s".into(),

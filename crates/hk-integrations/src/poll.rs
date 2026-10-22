@@ -52,7 +52,11 @@ pub struct PolledItem {
 
 impl PolledItem {
     pub fn new(id: impl Into<String>, json: Value) -> Self {
-        Self { id: id.into(), json, binary: None }
+        Self {
+            id: id.into(),
+            json,
+            binary: None,
+        }
     }
 
     pub fn with_binary(mut self, binary: IndexMap<String, BinaryData>) -> Self {
@@ -121,10 +125,15 @@ impl PollContext {
                 node: self.ctx.node.name.clone(),
                 message: format!("No credentials of type `{credential_type}` selected"),
             })?;
-        let resolver = self.ctx.hooks.credentials.as_ref().ok_or_else(|| FlowError::Node {
-            node: self.ctx.node.name.clone(),
-            message: "Credentials are not available in this runtime".into(),
-        })?;
+        let resolver = self
+            .ctx
+            .hooks
+            .credentials
+            .as_ref()
+            .ok_or_else(|| FlowError::Node {
+                node: self.ctx.node.name.clone(),
+                message: "Credentials are not available in this runtime".into(),
+            })?;
         resolver.resolve(credential_type, reference).await
     }
 }
@@ -195,7 +204,10 @@ pub struct StaticDataPollState<S> {
 
 impl<S: StaticDataStore> StaticDataPollState<S> {
     pub fn new(store: S) -> Self {
-        Self { store, lock: tokio::sync::Mutex::new(()) }
+        Self {
+            store,
+            lock: tokio::sync::Mutex::new(()),
+        }
     }
 }
 
@@ -204,7 +216,10 @@ impl<S: StaticDataStore> PollStateStore for StaticDataPollState<S> {
     async fn load(&self, workflow_id: &str, node: &str) -> Result<Option<Value>, FlowError> {
         let raw = self.store.load_static(workflow_id).await?;
         let sd = StaticData::from_value(raw.as_ref());
-        Ok(Some(sd.get(&node_scope(node))).filter(|v| v.as_object().is_some_and(|m| !m.is_empty())))
+        Ok(
+            Some(sd.get(&node_scope(node)))
+                .filter(|v| v.as_object().is_some_and(|m| !m.is_empty())),
+        )
     }
 
     async fn save(&self, workflow_id: &str, node: &str, state: Value) -> Result<(), FlowError> {
@@ -236,12 +251,19 @@ pub async fn run_poll(
     let node = cx.node().name.clone();
     let prev = store.load(workflow_id, &node).await?;
     let baseline = prev.is_none();
-    let cursor = prev.as_ref().and_then(|s| s.get("cursor")).filter(|c| !c.is_null());
+    let cursor = prev
+        .as_ref()
+        .and_then(|s| s.get("cursor"))
+        .filter(|c| !c.is_null());
     let mut seen: VecDeque<String> = prev
         .as_ref()
         .and_then(|s| s.get("seen"))
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect()
+        })
         .unwrap_or_default();
 
     let batch = trigger.poll(cx, cursor).await?;
@@ -261,7 +283,10 @@ pub async fn run_poll(
     while seen.len() > DEDUPE_WINDOW {
         seen.pop_front();
     }
-    let next_cursor = batch.cursor.or_else(|| cursor.cloned()).unwrap_or(Value::Null);
+    let next_cursor = batch
+        .cursor
+        .or_else(|| cursor.cloned())
+        .unwrap_or(Value::Null);
 
     store
         .save(
@@ -272,7 +297,10 @@ pub async fn run_poll(
         .await?;
 
     let silent = baseline && !trigger.emit_on_first_poll();
-    Ok(PollOutcome { items: if silent { Vec::new() } else { fresh }, baseline })
+    Ok(PollOutcome {
+        items: if silent { Vec::new() } else { fresh },
+        baseline,
+    })
 }
 
 /// Poll interval from the node's `pollTimes` parameter (shortest entry); one minute when
@@ -288,7 +316,10 @@ pub fn poll_interval(node: &Node) -> Duration {
             "everyMinute" => Some(Duration::from_secs(60)),
             "everyHour" => Some(Duration::from_secs(3600)),
             "everyX" => {
-                let n = it.get("value").and_then(Value::as_f64).filter(|n| *n > 0.0)?;
+                let n = it
+                    .get("value")
+                    .and_then(Value::as_f64)
+                    .filter(|n| *n > 0.0)?;
                 let unit = match it.get("unit").and_then(Value::as_str).unwrap_or("minutes") {
                     "seconds" => 1.0,
                     "hours" => 3600.0,
@@ -360,7 +391,11 @@ impl FlowNode for PollingNode {
                 item
             })
             .collect();
-        Ok(vec![if items.is_empty() { vec![Item::default()] } else { items }])
+        Ok(vec![if items.is_empty() {
+            vec![Item::default()]
+        } else {
+            items
+        }])
     }
 }
 
@@ -385,7 +420,15 @@ pub struct PollingHost {
 impl fmt::Debug for PollingHost {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PollingHost")
-            .field("polling", &self.tasks.lock().unwrap_or_else(PoisonError::into_inner).keys().collect::<Vec<_>>())
+            .field(
+                "polling",
+                &self
+                    .tasks
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .keys()
+                    .collect::<Vec<_>>(),
+            )
             .finish_non_exhaustive()
     }
 }
@@ -435,7 +478,12 @@ impl PollingHost {
     }
 
     fn stop(&self, workflow_id: &str) {
-        if let Some(ts) = self.tasks.lock().unwrap_or_else(PoisonError::into_inner).remove(workflow_id) {
+        if let Some(ts) = self
+            .tasks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(workflow_id)
+        {
             for t in ts {
                 t.abort();
             }
@@ -444,10 +492,13 @@ impl PollingHost {
 }
 
 async fn poll_and_emit(sh: &Shared, workflow_id: &str, node: &Node) -> Result<usize, FlowError> {
-    let trigger = sh.triggers.get(&node.node_type).ok_or_else(|| FlowError::Node {
-        node: node.name.clone(),
-        message: "not a polling trigger".into(),
-    })?;
+    let trigger = sh
+        .triggers
+        .get(&node.node_type)
+        .ok_or_else(|| FlowError::Node {
+            node: node.name.clone(),
+            message: "not a polling trigger".into(),
+        })?;
     let cx = PollContext::for_node(node, Some(workflow_id), sh.credentials.clone());
     let out = run_poll(trigger.as_ref(), sh.state.as_ref(), &cx, workflow_id).await?;
     let n = out.items.len();
@@ -506,7 +557,10 @@ impl TriggerHost for PollingHost {
                 }
             }));
         }
-        self.tasks.lock().unwrap_or_else(PoisonError::into_inner).insert(id, handles);
+        self.tasks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(id, handles);
         Ok(activation)
     }
 
@@ -522,7 +576,12 @@ impl TriggerHost for PollingHost {
 
 impl Drop for PollingHost {
     fn drop(&mut self) {
-        for ts in self.tasks.get_mut().unwrap_or_else(PoisonError::into_inner).values() {
+        for ts in self
+            .tasks
+            .get_mut()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+        {
             for t in ts {
                 t.abort();
             }
@@ -573,7 +632,11 @@ mod tests {
         fn emit_on_first_poll(&self) -> bool {
             self.first
         }
-        async fn poll(&self, _cx: &PollContext, cursor: Option<&Value>) -> Result<PollBatch, FlowError> {
+        async fn poll(
+            &self,
+            _cx: &PollContext,
+            cursor: Option<&Value>,
+        ) -> Result<PollBatch, FlowError> {
             self.polls.fetch_add(1, Ordering::SeqCst);
             let after = cursor.and_then(Value::as_u64).unwrap_or(0);
             let all = self.remote.lock().unwrap().clone();
@@ -583,13 +646,22 @@ mod tests {
                 .filter(|(id, _)| *id + 1 >= after.max(1))
                 .map(|(id, t)| PolledItem::new(id.to_string(), json!({"id": id, "text": t})))
                 .collect();
-            Ok(PollBatch { cursor: all.last().map(|(id, _)| json!(id)), items })
+            Ok(PollBatch {
+                cursor: all.last().map(|(id, _)| json!(id)),
+                items,
+            })
         }
     }
 
     fn node() -> Node {
-        let mut n = Node::new("Poll", "hokkabaz.fakePoll", serde_json::Number::from(1), [0.into(), 0.into()]);
-        n.parameters = match json!({"pollTimes": {"item": [{"mode": "everyX", "value": 30, "unit": "seconds"}]}}) {
+        let mut n = Node::new(
+            "Poll",
+            "hokkabaz.fakePoll",
+            serde_json::Number::from(1),
+            [0.into(), 0.into()],
+        );
+        n.parameters = match json!({"pollTimes": {"item": [{"mode": "everyX", "value": 30, "unit": "seconds"}]}})
+        {
             Value::Object(m) => m,
             _ => unreachable!(),
         };
@@ -597,7 +669,10 @@ mod tests {
     }
 
     fn ids(items: &[Item]) -> Vec<u64> {
-        items.iter().map(|i| i.json["id"].as_u64().unwrap()).collect()
+        items
+            .iter()
+            .map(|i| i.json["id"].as_u64().unwrap())
+            .collect()
     }
 
     #[tokio::test]
@@ -646,7 +721,8 @@ mod tests {
         let mut n = node();
         n.parameters.clear();
         assert_eq!(poll_interval(&n), Duration::from_secs(60));
-        n.parameters = match json!({"pollTimes": {"item": [{"mode": "everyHour"}, {"mode": "everyX", "value": 2, "unit": "minutes"}]}}) {
+        n.parameters = match json!({"pollTimes": {"item": [{"mode": "everyHour"}, {"mode": "everyX", "value": 2, "unit": "minutes"}]}})
+        {
             Value::Object(m) => m,
             _ => unreachable!(),
         };
@@ -671,7 +747,10 @@ mod tests {
     async fn state_lives_in_workflow_static_data() {
         let mem = Arc::new(MemStatic::default());
         // another node's scope must survive our writes
-        mem.0.lock().unwrap().insert("wf".into(), json!({"global": {"k": 1}}));
+        mem.0
+            .lock()
+            .unwrap()
+            .insert("wf".into(), json!({"global": {"k": 1}}));
         let store = StaticDataPollState::new(Arc::clone(&mem));
         let src = Fake::new(false);
         let cx = PollContext::for_node(&node(), Some("wf"), None);
@@ -687,13 +766,18 @@ mod tests {
     }
 
     fn workflow(with_schedule: bool) -> Workflow {
-        let mut nodes = vec![json!({"name": "Poll", "type": "hokkabaz.fakePoll", "typeVersion": 1, "position": [0, 0],
-            "parameters": {"pollTimes": {"item": [{"mode": "everyX", "value": 1, "unit": "seconds"}]}}})];
+        let mut nodes = vec![
+            json!({"name": "Poll", "type": "hokkabaz.fakePoll", "typeVersion": 1, "position": [0, 0],
+            "parameters": {"pollTimes": {"item": [{"mode": "everyX", "value": 1, "unit": "seconds"}]}}}),
+        ];
         if with_schedule {
             nodes.push(json!({"name": "Sched", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [0, 100],
                 "parameters": {"rule": {"interval": [{"field": "hours", "hoursInterval": 1}]}}}));
         }
-        Workflow::from_json_value(json!({"id": "wf1", "name": "t", "nodes": nodes, "connections": {}})).unwrap()
+        Workflow::from_json_value(
+            json!({"id": "wf1", "name": "t", "nodes": nodes, "connections": {}}),
+        )
+        .unwrap()
     }
 
     #[tokio::test(start_paused = true)]
@@ -706,9 +790,18 @@ mod tests {
 
         let (sink, mut rx) = ChannelSink::channel();
         let sink: Arc<dyn TriggerSink> = Arc::new(sink);
-        let inner = Arc::new(LocalTriggerHost::new(Arc::clone(&sink), Arc::new(WebhookRegistry::new())));
-        let host = PollingHost::new(inner.clone(), polls, Arc::new(MemoryPollState::default()), sink, None)
-            .with_min_interval(Duration::from_secs(1));
+        let inner = Arc::new(LocalTriggerHost::new(
+            Arc::clone(&sink),
+            Arc::new(WebhookRegistry::new()),
+        ));
+        let host = PollingHost::new(
+            inner.clone(),
+            polls,
+            Arc::new(MemoryPollState::default()),
+            sink,
+            None,
+        )
+        .with_min_interval(Duration::from_secs(1));
 
         // poll-only workflow: inner host would refuse it, we still activate
         host.activate(&workflow(false)).await.unwrap();

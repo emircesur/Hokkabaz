@@ -13,16 +13,16 @@
 
 use std::fmt;
 
+use axum::Json;
 use axum::extract::FromRequestParts;
 use axum::http::HeaderMap;
-use axum::Json;
 use axum::http::header::{AUTHORIZATION, RETRY_AFTER};
 use axum::http::request::Parts;
 use axum::http::{HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use hk_store::{Secret, SecretStore, Store};
-use serde_json::json;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use subtle::ConstantTimeEq;
 
 use crate::api::AppState;
@@ -94,7 +94,10 @@ impl Scope {
         use Scope::*;
         match self {
             Admin => true,
-            Run => matches!(need, Read | Run | WorkflowRead | ExecutionRead | WebhookInvoke),
+            Run => matches!(
+                need,
+                Read | Run | WorkflowRead | ExecutionRead | WebhookInvoke
+            ),
             Read => matches!(need, Read | WorkflowRead | ExecutionRead),
             WorkflowWrite => matches!(need, WorkflowWrite | WorkflowRead),
             other => other == need,
@@ -120,7 +123,9 @@ impl Grants {
     }
 
     pub fn allows(self, need: Scope) -> bool {
-        Scope::ALL.iter().any(|s| self.0 & s.bit() != 0 && s.implies(need))
+        Scope::ALL
+            .iter()
+            .any(|s| self.0 & s.bit() != 0 && s.implies(need))
     }
 
     fn union(self, o: Self) -> Self {
@@ -128,7 +133,11 @@ impl Grants {
     }
 
     fn names(self) -> Vec<&'static str> {
-        Scope::ALL.iter().filter(|s| self.0 & s.bit() != 0).map(|s| s.as_str()).collect()
+        Scope::ALL
+            .iter()
+            .filter(|s| self.0 & s.bit() != 0)
+            .map(|s| s.as_str())
+            .collect()
     }
 }
 
@@ -168,7 +177,14 @@ pub struct Auth {
 impl fmt::Debug for Auth {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Auth")
-            .field("scopes", &self.tokens.iter().map(|t| t.grants.names()).collect::<Vec<_>>())
+            .field(
+                "scopes",
+                &self
+                    .tokens
+                    .iter()
+                    .map(|t| t.grants.names())
+                    .collect::<Vec<_>>(),
+            )
             .finish()
     }
 }
@@ -188,13 +204,19 @@ impl Auth {
     /// Add a token holding several scopes.
     #[must_use]
     pub fn with_scoped_token(mut self, scopes: &[Scope], token: impl Into<String>) -> Self {
-        self.tokens.push(Entry { grants: Grants::of(scopes), token: Secret::new(token) });
+        self.tokens.push(Entry {
+            grants: Grants::of(scopes),
+            token: Secret::new(token),
+        });
         self
     }
 
     /// Load one token per tier from `secrets`, creating (and registering in `store`) the
     /// missing ones, then any custom scoped tokens recorded in settings.
-    pub async fn load_or_create(store: &Store, secrets: &dyn SecretStore) -> Result<Self, AuthError> {
+    pub async fn load_or_create(
+        store: &Store,
+        secrets: &dyn SecretStore,
+    ) -> Result<Self, AuthError> {
         let mut auth = Self::new();
         for scope in Scope::TIERS {
             let name = scope.tier_secret_name();
@@ -206,11 +228,17 @@ impl Auth {
                     t
                 }
             };
-            auth.tokens.push(Entry { grants: Grants::of(&[scope]), token });
+            auth.tokens.push(Entry {
+                grants: Grants::of(&[scope]),
+                token,
+            });
         }
         for (name, scopes) in read_custom(store).await? {
             if let Some(token) = store.get_secret(secrets, &custom_secret_name(&name))? {
-                auth.tokens.push(Entry { grants: Grants::of(&scopes), token });
+                auth.tokens.push(Entry {
+                    grants: Grants::of(&scopes),
+                    token,
+                });
             }
         }
         Ok(auth)
@@ -230,7 +258,10 @@ impl Auth {
             return Err(AuthError::WeakToken);
         }
         let name = scope.tier_secret_name();
-        if store.get_secret(secrets, &name)?.is_some_and(|t| t.expose() == token) {
+        if store
+            .get_secret(secrets, &name)?
+            .is_some_and(|t| t.expose() == token)
+        {
             return Ok(false);
         }
         store.put_secret(secrets, &name, Secret::new(token)).await?;
@@ -248,7 +279,9 @@ impl Auth {
     ) -> Result<Secret, AuthError> {
         if name.is_empty()
             || name.len() > 32
-            || !name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-')
+            || !name
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-')
         {
             return Err(AuthError::BadName);
         }
@@ -260,11 +293,16 @@ impl Auth {
             return Err(AuthError::Exists);
         }
         let token = Secret::new(generate_token()?);
-        store.put_secret(secrets, &custom_secret_name(name), token.clone()).await?;
+        store
+            .put_secret(secrets, &custom_secret_name(name), token.clone())
+            .await?;
         table.push((name.to_owned(), scopes.to_vec()));
         let json = serde_json::to_string(&table).map_err(|e| AuthError::Corrupt(e.to_string()))?;
         store.set_setting(CUSTOM_TABLE, &json).await?;
-        self.tokens.push(Entry { grants: Grants::of(scopes), token: token.clone() });
+        self.tokens.push(Entry {
+            grants: Grants::of(scopes),
+            token: token.clone(),
+        });
         Ok(token)
     }
 
@@ -281,8 +319,14 @@ impl Auth {
         for (i, t) in self.tokens.iter().enumerate() {
             if bool::from(t.token.expose().as_bytes().ct_eq(presented.as_bytes())) {
                 hit = Some(match hit {
-                    None => Principal { token_id: i, grants: t.grants },
-                    Some(p) => Principal { token_id: p.token_id, grants: p.grants.union(t.grants) },
+                    None => Principal {
+                        token_id: i,
+                        grants: t.grants,
+                    },
+                    Some(p) => Principal {
+                        token_id: p.token_id,
+                        grants: p.grants.union(t.grants),
+                    },
                 });
             }
         }
@@ -323,7 +367,10 @@ pub struct Principal {
 impl Principal {
     /// A principal holding exactly `scope` (tests, in-process callers).
     pub fn of(scope: Scope) -> Self {
-        Self { token_id: usize::MAX, grants: Grants::of(&[scope]) }
+        Self {
+            token_id: usize::MAX,
+            grants: Grants::of(&[scope]),
+        }
     }
 
     pub fn allows(self, need: Scope) -> bool {
@@ -331,7 +378,11 @@ impl Principal {
     }
 
     pub fn require(self, need: Scope) -> Result<(), ApiError> {
-        if self.allows(need) { Ok(()) } else { Err(ApiError::Forbidden(need.as_str())) }
+        if self.allows(need) {
+            Ok(())
+        } else {
+            Err(ApiError::Forbidden(need.as_str()))
+        }
     }
 }
 
@@ -376,9 +427,12 @@ impl IntoResponse for Reject {
         match self {
             Self::Api(e) => e.into_response(),
             Self::Throttled(Throttled(secs)) => {
-                let body = Json(json!({ "error": { "code": "rate_limited", "message": format!("rate limit exceeded, retry in {secs}s") } }));
+                let body = Json(
+                    json!({ "error": { "code": "rate_limited", "message": format!("rate limit exceeded, retry in {secs}s") } }),
+                );
                 let mut res = (StatusCode::TOO_MANY_REQUESTS, body).into_response();
-                res.headers_mut().insert(RETRY_AFTER, HeaderValue::from(secs));
+                res.headers_mut()
+                    .insert(RETRY_AFTER, HeaderValue::from(secs));
                 res
             }
         }
@@ -387,7 +441,10 @@ impl IntoResponse for Reject {
 
 /// Authenticate `token` and charge it one rate-limit unit.
 pub(crate) fn authorize(state: &AppState, token: Option<&str>) -> Result<Principal, Reject> {
-    let p = state.auth.authenticate(token.ok_or(ApiError::Unauthorized)?).ok_or(ApiError::Unauthorized)?;
+    let p = state
+        .auth
+        .authenticate(token.ok_or(ApiError::Unauthorized)?)
+        .ok_or(ApiError::Unauthorized)?;
     state.limiter.check(p.token_id)?;
     Ok(p)
 }
@@ -412,7 +469,9 @@ mod tests {
 
     #[test]
     fn tiers_are_ordered() {
-        let a = Auth::new().with_token(Scope::Read, "r").with_token(Scope::Admin, "a");
+        let a = Auth::new()
+            .with_token(Scope::Read, "r")
+            .with_token(Scope::Admin, "a");
         assert!(can(&a, "r", Scope::Read));
         assert!(!can(&a, "r", Scope::Run));
         assert!(can(&a, "a", Scope::Run));
@@ -434,7 +493,10 @@ mod tests {
         assert!(!can(&a, "cw", Scope::WorkflowRead));
         assert!(can(&a, "run", Scope::WebhookInvoke));
         assert!(can(&a, "run", Scope::WorkflowRead));
-        assert!(!can(&a, "run", Scope::WorkflowWrite), "run must not write workflows");
+        assert!(
+            !can(&a, "run", Scope::WorkflowWrite),
+            "run must not write workflows"
+        );
         assert!(!can(&a, "run", Scope::CredentialWrite));
         assert!(can(&a, "multi", Scope::ExecutionRead) && can(&a, "multi", Scope::WebhookInvoke));
         assert!(!can(&a, "multi", Scope::WorkflowRead));
@@ -444,7 +506,10 @@ mod tests {
     fn scope_names_roundtrip() {
         for s in Scope::ALL {
             assert_eq!(Scope::parse(s.as_str()), Some(s));
-            assert_eq!(serde_json::to_string(&s).unwrap(), format!("\"{}\"", s.as_str()));
+            assert_eq!(
+                serde_json::to_string(&s).unwrap(),
+                format!("\"{}\"", s.as_str())
+            );
         }
         assert_eq!(Scope::parse("nope"), None);
     }
@@ -483,13 +548,18 @@ mod tests {
         let store = Store::open_in_memory().await.unwrap();
         let be = MemorySecretStore::default();
         let mut a = Auth::load_or_create(&store, &be).await.unwrap();
-        let t = a.create_scoped_token(&store, &be, "ci", &[Scope::WorkflowRead]).await.unwrap();
+        let t = a
+            .create_scoped_token(&store, &be, "ci", &[Scope::WorkflowRead])
+            .await
+            .unwrap();
         assert!(matches!(
-            a.create_scoped_token(&store, &be, "ci", &[Scope::Read]).await,
+            a.create_scoped_token(&store, &be, "ci", &[Scope::Read])
+                .await,
             Err(AuthError::Exists)
         ));
         assert!(matches!(
-            a.create_scoped_token(&store, &be, "Bad Name", &[Scope::Read]).await,
+            a.create_scoped_token(&store, &be, "Bad Name", &[Scope::Read])
+                .await,
             Err(AuthError::BadName)
         ));
         let b = Auth::load_or_create(&store, &be).await.unwrap();

@@ -38,11 +38,11 @@ pub use config::{BackendKind, ConcatConfig, ConcatMode, RootsPolicy};
 pub use error::ConcatError;
 pub use locate::{ENV_VAR as CONCAT_ENV_VAR, locate_binary};
 pub use plan::{
-    Command, CaptionStyle, CaptionTrack, CropKeyframe, Overlay, PlanFraming, StudioClipPlan, TimeRange, Word,
-    apply_plan, plan_from_view, to_concat_commands,
+    CaptionStyle, CaptionTrack, Command, CropKeyframe, Overlay, PlanFraming, StudioClipPlan,
+    TimeRange, Word, apply_plan, plan_from_view, to_concat_commands,
 };
 pub use process::ProcessBackend;
 pub use types::{
-    ClipView, ExportJob, ExportPreset, ExportSpec, ExportState, ExportStatus, FrameFile, MediaView, ProjectInfo,
-    Summary, VersionInfo, VideoSettings,
+    ClipView, ExportJob, ExportPreset, ExportSpec, ExportState, ExportStatus, FrameFile, MediaView,
+    ProjectInfo, Summary, VersionInfo, VideoSettings,
 };

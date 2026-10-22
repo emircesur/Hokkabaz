@@ -17,7 +17,10 @@ pub fn to_i64(v: u64) -> i64 {
 }
 
 fn text_ev(kind: K, text: String) -> Ev {
-    Ev { text: Some(text), ..Ev::new(kind) }
+    Ev {
+        text: Some(text),
+        ..Ev::new(kind)
+    }
 }
 
 /// Zero, one or two DTOs per feed entry. Unknown or uninteresting entries map to nothing.
@@ -25,8 +28,15 @@ pub fn map(ev: ServerEvent) -> Vec<Ev> {
     match ev.name.as_str() {
         STREAM => map_stream(&ev.data),
         LOOP_ERROR => {
-            let message = ev.data.get("message").and_then(Value::as_str).unwrap_or("agent loop failed");
-            vec![Ev { fatal: true, ..text_ev(K::Error, message.to_owned()) }]
+            let message = ev
+                .data
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("agent loop failed");
+            vec![Ev {
+                fatal: true,
+                ..text_ev(K::Error, message.to_owned())
+            }]
         }
         _ => match serde_json::from_value::<SessionEvent>(ev.data) {
             Ok(e) => map_logged(e.kind),
@@ -39,20 +49,37 @@ pub fn map(ev: ServerEvent) -> Vec<Ev> {
 }
 
 fn map_stream(data: &Value) -> Vec<Ev> {
-    let Some(Ok(ev)) = data.get("event").cloned().map(serde_json::from_value::<StreamEvent>) else {
+    let Some(Ok(ev)) = data
+        .get("event")
+        .cloned()
+        .map(serde_json::from_value::<StreamEvent>)
+    else {
         return Vec::new();
     };
     match ev {
         StreamEvent::TextDelta { text } => vec![text_ev(K::TextDelta, text)],
         StreamEvent::ReasoningDelta { text } => vec![text_ev(K::ReasoningDelta, text)],
-        StreamEvent::ToolCallDelta { index, id, name, arguments_delta } => {
+        StreamEvent::ToolCallDelta {
+            index,
+            id,
+            name,
+            arguments_delta,
+        } => {
             let mut out = Vec::new();
             // First delta of a call carries id+name; later ones only append arguments.
             if let (Some(call_id), Some(name)) = (id, name) {
-                out.push(Ev { index: Some(index), call_id: Some(call_id), name: Some(name), ..Ev::new(K::ToolCallStart) });
+                out.push(Ev {
+                    index: Some(index),
+                    call_id: Some(call_id),
+                    name: Some(name),
+                    ..Ev::new(K::ToolCallStart)
+                });
             }
             if !arguments_delta.is_empty() {
-                out.push(Ev { index: Some(index), ..text_ev(K::ToolCallArgs, arguments_delta) });
+                out.push(Ev {
+                    index: Some(index),
+                    ..text_ev(K::ToolCallArgs, arguments_delta)
+                });
             }
             out
         }
@@ -64,7 +91,10 @@ fn map_stream(data: &Value) -> Vec<Ev> {
 fn map_logged(kind: EventKind) -> Vec<Ev> {
     let one = |e| vec![e];
     match kind {
-        EventKind::TurnStart { turn_id } => one(Ev { turn_id: Some(turn_id), ..Ev::new(K::TurnStarted) }),
+        EventKind::TurnStart { turn_id } => one(Ev {
+            turn_id: Some(turn_id),
+            ..Ev::new(K::TurnStarted)
+        }),
         EventKind::TurnEnd { turn_id, reason } => one(Ev {
             turn_id: Some(turn_id),
             end_reason: Some(end_reason(reason)),
@@ -81,27 +111,50 @@ fn map_logged(kind: EventKind) -> Vec<Ev> {
             ..Ev::new(K::Usage)
         }),
         EventKind::UserMessage { content } => one(text_ev(K::UserMessage, content)),
-        EventKind::AssistantMessage { content, reasoning } => {
-            one(Ev { reasoning, ..text_ev(K::AssistantMessage, content) })
-        }
-        EventKind::AssistantAttempt { error: Some(message), .. } => one(text_ev(K::Error, message)),
-        EventKind::ToolCall { call_id, name, arguments } => one(Ev {
+        EventKind::AssistantMessage { content, reasoning } => one(Ev {
+            reasoning,
+            ..text_ev(K::AssistantMessage, content)
+        }),
+        EventKind::AssistantAttempt {
+            error: Some(message),
+            ..
+        } => one(text_ev(K::Error, message)),
+        EventKind::ToolCall {
+            call_id,
+            name,
+            arguments,
+        } => one(Ev {
             call_id: Some(call_id),
             name: Some(name),
             arguments_json: Some(arguments.to_string()),
             ..Ev::new(K::ToolCall)
         }),
-        EventKind::ToolResult { call_id, content, is_error } => {
-            one(Ev { call_id: Some(call_id), is_error, ..text_ev(K::ToolResult, content) })
-        }
-        EventKind::ApprovalRequest { approval_id, call_id, tool, detail } => one(Ev {
+        EventKind::ToolResult {
+            call_id,
+            content,
+            is_error,
+        } => one(Ev {
+            call_id: Some(call_id),
+            is_error,
+            ..text_ev(K::ToolResult, content)
+        }),
+        EventKind::ApprovalRequest {
+            approval_id,
+            call_id,
+            tool,
+            detail,
+        } => one(Ev {
             approval_id: Some(approval_id),
             call_id: Some(call_id),
             tool: Some(tool),
             detail,
             ..Ev::new(K::ApprovalRequest)
         }),
-        EventKind::ApprovalResponse { approval_id, approved, reason } => one(Ev {
+        EventKind::ApprovalResponse {
+            approval_id,
+            approved,
+            reason,
+        } => one(Ev {
             approval_id: Some(approval_id),
             approved,
             reason,

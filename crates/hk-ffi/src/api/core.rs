@@ -47,14 +47,18 @@ pub async fn demo_ticker(
 /// Keychain). With it, the secrets file is encrypted at rest. Call before `core_init`.
 #[frb(sync)]
 pub fn set_secret_master_key(key: Vec<u8>) -> Result<(), HkError> {
-    secrets::set_master_key(&key).map_err(|e| HkError::new(HkErrorKind::InvalidArgument, e.to_string()))
+    secrets::set_master_key(&key)
+        .map_err(|e| HkError::new(HkErrorKind::InvalidArgument, e.to_string()))
 }
 
 /// Start the in-process core rooted at `data_dir` (created if missing). Calling it again replaces
 /// the running core (Flutter hot restart keeps the native lib loaded).
 pub async fn core_init(data_dir: String, profile: CoreProfile) -> Result<(), HkError> {
     if data_dir.trim().is_empty() {
-        return Err(HkError::new(HkErrorKind::InvalidArgument, "data_dir must not be empty"));
+        return Err(HkError::new(
+            HkErrorKind::InvalidArgument,
+            "data_dir must not be empty",
+        ));
     }
     for old in handle::take_all() {
         old.shutdown().await;

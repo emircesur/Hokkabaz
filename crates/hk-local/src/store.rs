@@ -46,20 +46,38 @@ pub struct ModelStore {
 
 impl std::fmt::Debug for ModelStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ModelStore").field("dir", &self.dir).finish_non_exhaustive()
+        f.debug_struct("ModelStore")
+            .field("dir", &self.dir)
+            .finish_non_exhaustive()
     }
 }
 
 fn slug(s: &str) -> String {
-    let mut out: String = s.chars().map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '-') { c.to_ascii_lowercase() } else { '-' }).collect();
+    let mut out: String = s
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '.' | '-') {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect();
     out.truncate(60);
     out.trim_matches('-').to_owned()
 }
 
 impl ModelStore {
     pub fn new(dir: impl Into<PathBuf>) -> Self {
-        let client = reqwest::Client::builder().connect_timeout(std::time::Duration::from_secs(20)).build().unwrap_or_default();
-        Self { dir: dir.into(), client, active: Arc::default() }
+        let client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(20))
+            .build()
+            .unwrap_or_default();
+        Self {
+            dir: dir.into(),
+            client,
+            active: Arc::default(),
+        }
     }
 
     pub fn dir(&self) -> &Path {
@@ -71,12 +89,18 @@ impl ModelStore {
     }
 
     fn read_custom(&self) -> Vec<Custom> {
-        std::fs::read(self.custom_path()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+        std::fs::read(self.custom_path())
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default()
     }
 
     fn write_custom(&self, v: &[Custom]) -> Result<()> {
         std::fs::create_dir_all(&self.dir)?;
-        std::fs::write(self.custom_path(), serde_json::to_vec_pretty(v).map_err(|e| LocalError::Invalid(e.to_string()))?)?;
+        std::fs::write(
+            self.custom_path(),
+            serde_json::to_vec_pretty(v).map_err(|e| LocalError::Invalid(e.to_string()))?,
+        )?;
         Ok(())
     }
 
@@ -87,12 +111,24 @@ impl ModelStore {
             if let Ok(md) = std::fs::metadata(&p)
                 && md.len() == m.size_bytes
             {
-                out.push(InstalledModel { id: m.id, name: m.name, path: p, size_bytes: md.len(), custom: false });
+                out.push(InstalledModel {
+                    id: m.id,
+                    name: m.name,
+                    path: p,
+                    size_bytes: md.len(),
+                    custom: false,
+                });
             }
         }
         for c in self.read_custom() {
             if let Ok(md) = std::fs::metadata(&c.path) {
-                out.push(InstalledModel { id: c.id, name: c.name, path: c.path, size_bytes: md.len(), custom: true });
+                out.push(InstalledModel {
+                    id: c.id,
+                    name: c.name,
+                    path: c.path,
+                    size_bytes: md.len(),
+                    custom: true,
+                });
             }
         }
         out
@@ -104,13 +140,21 @@ impl ModelStore {
 
     /// Ids with a download in flight.
     pub fn downloading(&self) -> Vec<String> {
-        self.active.lock().unwrap_or_else(PoisonError::into_inner).clone()
+        self.active
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// Register a GGUF file already on disk (it is used in place, not copied).
     pub fn add_custom(&self, path: &Path, name: Option<&str>) -> Result<InstalledModel> {
         let md = std::fs::metadata(path)?;
-        if !md.is_file() || path.extension().and_then(|e| e.to_str()).is_none_or(|e| !e.eq_ignore_ascii_case("gguf")) {
+        if !md.is_file()
+            || path
+                .extension()
+                .and_then(|e| e.to_str())
+                .is_none_or(|e| !e.eq_ignore_ascii_case("gguf"))
+        {
             return Err(LocalError::Invalid("choose a .gguf file".into()));
         }
         let mut head = [0u8; 4];
@@ -123,9 +167,19 @@ impl ModelStore {
         let name = name.map(str::to_owned).unwrap_or_else(|| stem.to_owned());
         let mut all = self.read_custom();
         all.retain(|c| c.id != id);
-        all.push(Custom { id: id.clone(), name: name.clone(), path: path.to_owned() });
+        all.push(Custom {
+            id: id.clone(),
+            name: name.clone(),
+            path: path.to_owned(),
+        });
         self.write_custom(&all)?;
-        Ok(InstalledModel { id, name, path: path.to_owned(), size_bytes: md.len(), custom: true })
+        Ok(InstalledModel {
+            id,
+            name,
+            path: path.to_owned(),
+            size_bytes: md.len(),
+            custom: true,
+        })
     }
 
     /// Delete a downloaded model, or forget a custom one (its file is left alone).
@@ -148,7 +202,12 @@ impl ModelStore {
     }
 
     /// Download `entry`, resuming a partial file. `progress` is called at most a few times a second.
-    pub async fn download(&self, entry: &CatalogEntry, progress: impl Fn(DownloadProgress) + Send + Sync, cancel: CancellationToken) -> Result<InstalledModel> {
+    pub async fn download(
+        &self,
+        entry: &CatalogEntry,
+        progress: impl Fn(DownloadProgress) + Send + Sync,
+        cancel: CancellationToken,
+    ) -> Result<InstalledModel> {
         tokio::fs::create_dir_all(&self.dir).await?;
         let final_path = self.dir.join(&entry.file);
         if self.get(&entry.id).is_some() {
@@ -157,19 +216,42 @@ impl ModelStore {
         {
             let mut a = self.active.lock().unwrap_or_else(PoisonError::into_inner);
             if a.contains(&entry.id) {
-                return Err(LocalError::Invalid(format!("{} is already downloading", entry.id)));
+                return Err(LocalError::Invalid(format!(
+                    "{} is already downloading",
+                    entry.id
+                )));
             }
             a.push(entry.id.clone());
         }
-        let result = self.download_inner(entry, &final_path, &progress, &cancel).await;
-        self.active.lock().unwrap_or_else(PoisonError::into_inner).retain(|i| i != &entry.id);
+        let result = self
+            .download_inner(entry, &final_path, &progress, &cancel)
+            .await;
+        self.active
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .retain(|i| i != &entry.id);
         result?;
-        Ok(InstalledModel { id: entry.id.clone(), name: entry.name.clone(), path: final_path, size_bytes: entry.size_bytes, custom: false })
+        Ok(InstalledModel {
+            id: entry.id.clone(),
+            name: entry.name.clone(),
+            path: final_path,
+            size_bytes: entry.size_bytes,
+            custom: false,
+        })
     }
 
-    async fn download_inner(&self, entry: &CatalogEntry, final_path: &Path, progress: &(impl Fn(DownloadProgress) + Send + Sync), cancel: &CancellationToken) -> Result<()> {
+    async fn download_inner(
+        &self,
+        entry: &CatalogEntry,
+        final_path: &Path,
+        progress: &(impl Fn(DownloadProgress) + Send + Sync),
+        cancel: &CancellationToken,
+    ) -> Result<()> {
         let part = self.dir.join(format!("{}.part", entry.file));
-        let mut have = tokio::fs::metadata(&part).await.map(|m| m.len()).unwrap_or(0);
+        let mut have = tokio::fs::metadata(&part)
+            .await
+            .map(|m| m.len())
+            .unwrap_or(0);
         if have > entry.size_bytes {
             tokio::fs::remove_file(&part).await?;
             have = 0;
@@ -179,17 +261,27 @@ impl ModelStore {
             if have > 0 {
                 req = req.header("Range", format!("bytes={have}-"));
             }
-            let resp = req.send().await.map_err(|e| LocalError::Download(format!("cannot reach the model host: {}", e.without_url())))?;
+            let resp = req.send().await.map_err(|e| {
+                LocalError::Download(format!("cannot reach the model host: {}", e.without_url()))
+            })?;
             let status = resp.status();
             if !(status.is_success()) {
-                return Err(LocalError::Download(format!("the model host answered {status}")));
+                return Err(LocalError::Download(format!(
+                    "the model host answered {status}"
+                )));
             }
             // A server that ignores Range sends the whole file again.
             let resumed = status.as_u16() == 206;
             if !resumed {
                 have = 0;
             }
-            let mut file = tokio::fs::OpenOptions::new().create(true).write(true).append(resumed).truncate(!resumed).open(&part).await?;
+            let mut file = tokio::fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .append(resumed)
+                .truncate(!resumed)
+                .open(&part)
+                .await?;
             let mut done = have;
             let mut last = std::time::Instant::now();
             let mut stream = resp.bytes_stream();
@@ -199,18 +291,32 @@ impl ModelStore {
                     n = stream.next() => n,
                 };
                 let Some(chunk) = next else { break };
-                let chunk = chunk.map_err(|e| LocalError::Download(format!("connection lost ({}); run it again to resume", e.without_url())))?;
+                let chunk = chunk.map_err(|e| {
+                    LocalError::Download(format!(
+                        "connection lost ({}); run it again to resume",
+                        e.without_url()
+                    ))
+                })?;
                 file.write_all(&chunk).await?;
                 done += chunk.len() as u64;
                 if last.elapsed() >= std::time::Duration::from_millis(250) {
                     last = std::time::Instant::now();
-                    progress(DownloadProgress { done, total: entry.size_bytes });
+                    progress(DownloadProgress {
+                        done,
+                        total: entry.size_bytes,
+                    });
                 }
             }
             file.flush().await?;
-            progress(DownloadProgress { done, total: entry.size_bytes });
+            progress(DownloadProgress {
+                done,
+                total: entry.size_bytes,
+            });
             if done != entry.size_bytes {
-                return Err(LocalError::Download(format!("incomplete download ({done} of {} bytes); run it again to resume", entry.size_bytes)));
+                return Err(LocalError::Download(format!(
+                    "incomplete download ({done} of {} bytes); run it again to resume",
+                    entry.size_bytes
+                )));
             }
         }
         let actual = sha256_file(&part).await?;
@@ -262,12 +368,18 @@ mod tests {
                     let mut buf = vec![0u8; 4096];
                     let n = s.read(&mut buf).await.unwrap_or(0);
                     let req = String::from_utf8_lossy(&buf[..n]).to_lowercase();
-                    let start = req.lines().find_map(|l| l.strip_prefix("range: bytes=")).and_then(|r| r.trim_end_matches('-').parse::<usize>().ok());
+                    let start = req
+                        .lines()
+                        .find_map(|l| l.strip_prefix("range: bytes="))
+                        .and_then(|r| r.trim_end_matches('-').parse::<usize>().ok());
                     let (status, slice) = match start {
                         Some(s0) => ("206 Partial Content", &body[s0..]),
                         None => ("200 OK", &body[..]),
                     };
-                    let head = format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", slice.len());
+                    let head = format!(
+                        "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        slice.len()
+                    );
                     let _ = s.write_all(head.as_bytes()).await;
                     let _ = s.write_all(slice).await;
                     let _ = s.shutdown().await;
@@ -301,7 +413,10 @@ mod tests {
         // A half-finished earlier attempt.
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join(format!("{}.part", e.file)), &body[..70_000]).unwrap();
-        let m = store.download(&e, |_| {}, CancellationToken::new()).await.unwrap();
+        let m = store
+            .download(&e, |_| {}, CancellationToken::new())
+            .await
+            .unwrap();
         assert_eq!(std::fs::read(&m.path).unwrap(), body);
         // `installed()` checks the catalog's real size, which this fixture does not have.
         store.remove(&e.id).unwrap();
@@ -317,7 +432,10 @@ mod tests {
         e.sha256 = "0".repeat(64);
         let dir = tmp("bad");
         let store = ModelStore::new(&dir);
-        let err = store.download(&e, |_| {}, CancellationToken::new()).await.unwrap_err();
+        let err = store
+            .download(&e, |_| {}, CancellationToken::new())
+            .await
+            .unwrap_err();
         assert!(matches!(err, LocalError::Checksum(_)), "{err}");
         assert!(store.installed().is_empty());
         assert!(!dir.join(format!("{}.part", e.file)).exists());

@@ -49,11 +49,22 @@ pub struct ReframeSpec {
 impl ReframeSpec {
     /// 9:16 at 1080x1920, centred.
     pub fn vertical() -> Self {
-        Self { aspect: (9, 16), size: (1080, 1920), mode: ReframeMode::Center, smoothing: 0.5, zoom: 1.0, focus: Vec::new() }
+        Self {
+            aspect: (9, 16),
+            size: (1080, 1920),
+            mode: ReframeMode::Center,
+            smoothing: 0.5,
+            zoom: 1.0,
+            focus: Vec::new(),
+        }
     }
 
     pub fn square() -> Self {
-        Self { aspect: (1, 1), size: (1080, 1080), ..Self::vertical() }
+        Self {
+            aspect: (1, 1),
+            size: (1080, 1080),
+            ..Self::vertical()
+        }
     }
 }
 
@@ -61,7 +72,13 @@ impl ReframeSpec {
 /// in a later crate), external services, or manual.
 #[async_trait]
 pub trait FocusSource: Send + Sync {
-    async fn detect(&self, video: &Path, start: f64, end: f64, step: f64) -> Result<Vec<FocusPoint>>;
+    async fn detect(
+        &self,
+        video: &Path,
+        start: f64,
+        end: f64,
+        step: f64,
+    ) -> Result<Vec<FocusPoint>>;
 }
 
 /// Always the frame centre (the fallback when no detector is available).
@@ -70,7 +87,13 @@ pub struct CenterFocus;
 
 #[async_trait]
 impl FocusSource for CenterFocus {
-    async fn detect(&self, _video: &Path, start: f64, end: f64, step: f64) -> Result<Vec<FocusPoint>> {
+    async fn detect(
+        &self,
+        _video: &Path,
+        start: f64,
+        end: f64,
+        step: f64,
+    ) -> Result<Vec<FocusPoint>> {
         let step = step.max(0.1);
         let mut out = Vec::new();
         let mut t = start;
@@ -84,7 +107,10 @@ impl FocusSource for CenterFocus {
 
 /// Crop window size in source pixels for `spec` (even numbers).
 pub fn crop_size(src_w: u32, src_h: u32, spec: &ReframeSpec) -> (u32, u32) {
-    let (aw, ah) = (f64::from(spec.aspect.0.max(1)), f64::from(spec.aspect.1.max(1)));
+    let (aw, ah) = (
+        f64::from(spec.aspect.0.max(1)),
+        f64::from(spec.aspect.1.max(1)),
+    );
     let (sw, sh) = (f64::from(src_w), f64::from(src_h));
     let mut h = sh;
     let mut w = h * aw / ah;
@@ -110,24 +136,45 @@ fn focus_at(points: &[FocusPoint], t: f64) -> Option<(f64, f64)> {
         if t <= w[1].t {
             let span = (w[1].t - w[0].t).max(1e-9);
             let f = ((t - w[0].t) / span).clamp(0.0, 1.0);
-            return Some((w[0].x + (w[1].x - w[0].x) * f, w[0].y + (w[1].y - w[0].y) * f));
+            return Some((
+                w[0].x + (w[1].x - w[0].x) * f,
+                w[0].y + (w[1].y - w[0].y) * f,
+            ));
         }
     }
     points.last().map(|p| (p.x, p.y))
 }
 
 /// Plan the crop path. `scene_cuts` are source times where the camera may snap.
-pub fn plan_crop(src_w: u32, src_h: u32, spec: &ReframeSpec, map: &OutputMap, scene_cuts: &[f64]) -> CropPath {
+pub fn plan_crop(
+    src_w: u32,
+    src_h: u32,
+    spec: &ReframeSpec,
+    map: &OutputMap,
+    scene_cuts: &[f64],
+) -> CropPath {
     let (cw, ch) = crop_size(src_w, src_h, spec);
     let (sw, sh) = (f64::from(src_w), f64::from(src_h));
     let (cwf, chf) = (f64::from(cw), f64::from(ch));
     let clamp = |cx: f64, cy: f64| -> (f64, f64) {
-        ((cx - cwf / 2.0).clamp(0.0, (sw - cwf).max(0.0)), (cy - chf / 2.0).clamp(0.0, (sh - chf).max(0.0)))
+        (
+            (cx - cwf / 2.0).clamp(0.0, (sw - cwf).max(0.0)),
+            (cy - chf / 2.0).clamp(0.0, (sh - chf).max(0.0)),
+        )
     };
     let dur = map.duration();
     let centre = clamp(sw / 2.0, sh / 2.0);
     if spec.mode == ReframeMode::Center || spec.focus.is_empty() || dur <= 0.0 {
-        return CropPath { keys: vec![CropKey { t: 0.0, x: centre.0.round(), y: centre.1.round(), w: cwf, h: chf }], interp: Interp::Linear };
+        return CropPath {
+            keys: vec![CropKey {
+                t: 0.0,
+                x: centre.0.round(),
+                y: centre.1.round(),
+                w: cwf,
+                h: chf,
+            }],
+            interp: Interp::Linear,
+        };
     }
 
     let mut focus = spec.focus.clone();
@@ -145,7 +192,8 @@ pub fn plan_crop(src_w: u32, src_h: u32, spec: &ReframeSpec, map: &OutputMap, sc
     let mut t = 0.0;
     while t <= dur + 1e-9 {
         let src_t = map.to_source(t);
-        let (fx, fy) = focus_at(&focus, src_t).map_or((sw / 2.0, sh / 2.0), |(x, y)| (x * sw, y * sh));
+        let (fx, fy) =
+            focus_at(&focus, src_t).map_or((sw / 2.0, sh / 2.0), |(x, y)| (x * sw, y * sh));
         let cut = scene_cuts.iter().any(|&c| c > prev_src && c <= src_t);
         // A cut in the source, or a jump across removed material, resets the camera.
         let jumped = started && (src_t - prev_src) > STEP * 4.0;
@@ -162,7 +210,13 @@ pub fn plan_crop(src_w: u32, src_h: u32, spec: &ReframeSpec, map: &OutputMap, sc
             }
         }
         let (x, y) = clamp(cx, cy);
-        keys.push(CropKey { t, x: x.round(), y: y.round(), w: cwf, h: chf });
+        keys.push(CropKey {
+            t,
+            x: x.round(),
+            y: y.round(),
+            w: cwf,
+            h: chf,
+        });
         prev_src = src_t;
         t += STEP;
     }
@@ -179,7 +233,10 @@ pub fn plan_crop(src_w: u32, src_h: u32, spec: &ReframeSpec, map: &OutputMap, sc
             slim.push(*k);
         }
     }
-    CropPath { keys: slim, interp: Interp::Smooth }
+    CropPath {
+        keys: slim,
+        interp: Interp::Smooth,
+    }
 }
 
 #[cfg(test)]
@@ -196,7 +253,10 @@ mod tests {
         assert_eq!(crop_size(1920, 1080, &s), (608, 1080));
         // Narrow source: width bound.
         assert_eq!(crop_size(500, 1080, &s), (500, 888));
-        let z = ReframeSpec { zoom: 2.0, ..ReframeSpec::vertical() };
+        let z = ReframeSpec {
+            zoom: 2.0,
+            ..ReframeSpec::vertical()
+        };
         assert_eq!(crop_size(1920, 1080, &z), (304, 540));
     }
 
@@ -213,7 +273,28 @@ mod tests {
         let spec = ReframeSpec {
             mode: ReframeMode::Track,
             smoothing: 0.3,
-            focus: vec![FocusPoint { t: 0.0, x: 0.2, y: 0.5 }, FocusPoint { t: 5.0, x: 0.2, y: 0.5 }, FocusPoint { t: 6.0, x: 0.8, y: 0.5 }, FocusPoint { t: 20.0, x: 0.8, y: 0.5 }],
+            focus: vec![
+                FocusPoint {
+                    t: 0.0,
+                    x: 0.2,
+                    y: 0.5,
+                },
+                FocusPoint {
+                    t: 5.0,
+                    x: 0.2,
+                    y: 0.5,
+                },
+                FocusPoint {
+                    t: 6.0,
+                    x: 0.8,
+                    y: 0.5,
+                },
+                FocusPoint {
+                    t: 20.0,
+                    x: 0.8,
+                    y: 0.5,
+                },
+            ],
             ..ReframeSpec::vertical()
         };
         let p = plan_crop(1920, 1080, &spec, &map(20.0), &[]);
@@ -232,7 +313,28 @@ mod tests {
         let spec = ReframeSpec {
             mode: ReframeMode::Track,
             smoothing: 0.95,
-            focus: vec![FocusPoint { t: 0.0, x: 0.2, y: 0.5 }, FocusPoint { t: 4.99, x: 0.2, y: 0.5 }, FocusPoint { t: 5.0, x: 0.8, y: 0.5 }, FocusPoint { t: 10.0, x: 0.8, y: 0.5 }],
+            focus: vec![
+                FocusPoint {
+                    t: 0.0,
+                    x: 0.2,
+                    y: 0.5,
+                },
+                FocusPoint {
+                    t: 4.99,
+                    x: 0.2,
+                    y: 0.5,
+                },
+                FocusPoint {
+                    t: 5.0,
+                    x: 0.8,
+                    y: 0.5,
+                },
+                FocusPoint {
+                    t: 10.0,
+                    x: 0.8,
+                    y: 0.5,
+                },
+            ],
             ..ReframeSpec::vertical()
         };
         let slow = plan_crop(1920, 1080, &spec, &map(10.0), &[]);
@@ -243,7 +345,10 @@ mod tests {
 
     #[tokio::test]
     async fn centre_focus_source_covers_range() {
-        let pts = CenterFocus.detect(Path::new("x"), 0.0, 1.0, 0.5).await.unwrap();
+        let pts = CenterFocus
+            .detect(Path::new("x"), 0.0, 1.0, 0.5)
+            .await
+            .unwrap();
         assert_eq!(pts.len(), 3);
     }
 }

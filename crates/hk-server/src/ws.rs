@@ -94,7 +94,11 @@ struct Envelope {
 async fn session(mut sock: WebSocket, s: AppState, who: Principal) {
     let mut rx = s.runtime.subscribe();
     // Execution events (`execution/started|finished`, keyed by execution id) ride the same socket.
-    let mut exec_rx = s.flow.as_ref().filter(|_| who.allows(Scope::ExecutionRead)).map(|f| f.subscribe());
+    let mut exec_rx = s
+        .flow
+        .as_ref()
+        .filter(|_| who.allows(Scope::ExecutionRead))
+        .map(|f| f.subscribe());
     let agent_events = who.allows(Scope::Read);
     // Empty = everything.
     let mut filter: HashSet<String> = HashSet::new();
@@ -165,10 +169,20 @@ async fn send(sock: &mut WebSocket, ev: &ServerEvent) -> Result<(), axum::Error>
 /// Reply frame for one client command.
 pub(crate) struct Outcome(pub(crate) Value);
 
-pub(crate) async fn handle(s: &AppState, who: Principal, filter: &mut HashSet<String>, text: &str) -> Outcome {
+pub(crate) async fn handle(
+    s: &AppState,
+    who: Principal,
+    filter: &mut HashSet<String>,
+    text: &str,
+) -> Outcome {
     let env: Envelope = match serde_json::from_str(text) {
         Ok(e) => e,
-        Err(e) => return Outcome(error_frame(None, &ApiError::BadRequest(format!("bad command: {e}")))),
+        Err(e) => {
+            return Outcome(error_frame(
+                None,
+                &ApiError::BadRequest(format!("bad command: {e}")),
+            ));
+        }
     };
     let id = env.id;
     Outcome(match run(s, who, filter, env.cmd).await {
@@ -181,10 +195,13 @@ fn error_frame(id: Option<Value>, e: &ApiError) -> Value {
     json!({ "event": "command/error", "id": id, "data": { "code": e.code(), "message": e.to_string() } })
 }
 
-async fn run(s: &AppState, who: Principal, filter: &mut HashSet<String>, cmd: Command) -> Result<(), ApiError> {
-    let need_run = || {
-        who.require(Scope::Run)
-    };
+async fn run(
+    s: &AppState,
+    who: Principal,
+    filter: &mut HashSet<String>,
+    cmd: Command,
+) -> Result<(), ApiError> {
+    let need_run = || who.require(Scope::Run);
     match cmd {
         Command::Subscribe { session_id } => {
             filter.insert(session_id);
@@ -194,12 +211,27 @@ async fn run(s: &AppState, who: Principal, filter: &mut HashSet<String>, cmd: Co
             filter.remove(&session_id);
             Ok(())
         }
-        Command::Submit { session_id, prompt, mode, model } => {
+        Command::Submit {
+            session_id,
+            prompt,
+            mode,
+            model,
+        } => {
             need_run()?;
             if prompt.trim().is_empty() {
                 return Err(ApiError::BadRequest("prompt must not be empty".into()));
             }
-            s.runtime.submit(&session_id, TurnRequest { prompt, mode, model }).await.map(drop)
+            s.runtime
+                .submit(
+                    &session_id,
+                    TurnRequest {
+                        prompt,
+                        mode,
+                        model,
+                    },
+                )
+                .await
+                .map(drop)
         }
         Command::Inject { session_id, text } => {
             need_run()?;
@@ -209,10 +241,22 @@ async fn run(s: &AppState, who: Principal, filter: &mut HashSet<String>, cmd: Co
             need_run()?;
             s.runtime.cancel(&session_id).await
         }
-        Command::Approve { approval_id, approved, reason, session_id } => {
+        Command::Approve {
+            approval_id,
+            approved,
+            reason,
+            session_id,
+        } => {
             need_run()?;
             s.runtime
-                .respond_approval(&approval_id, ApprovalDecision { approved, reason, session_id })
+                .respond_approval(
+                    &approval_id,
+                    ApprovalDecision {
+                        approved,
+                        reason,
+                        session_id,
+                    },
+                )
                 .await
         }
     }

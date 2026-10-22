@@ -17,9 +17,24 @@ pub struct VideoSettings {
 
 impl VideoSettings {
     /// 9:16 short-form, 30 fps.
-    pub const VERTICAL_1080: Self = Self { width: 1080, height: 1920, rate_num: 30, rate_den: 1 };
-    pub const LANDSCAPE_1080: Self = Self { width: 1920, height: 1080, rate_num: 30, rate_den: 1 };
-    pub const SQUARE_1080: Self = Self { width: 1080, height: 1080, rate_num: 30, rate_den: 1 };
+    pub const VERTICAL_1080: Self = Self {
+        width: 1080,
+        height: 1920,
+        rate_num: 30,
+        rate_den: 1,
+    };
+    pub const LANDSCAPE_1080: Self = Self {
+        width: 1920,
+        height: 1080,
+        rate_num: 30,
+        rate_den: 1,
+    };
+    pub const SQUARE_1080: Self = Self {
+        width: 1080,
+        height: 1080,
+        rate_num: 30,
+        rate_den: 1,
+    };
 
     pub fn aspect(&self) -> f64 {
         f64::from(self.width) / f64::from(self.height.max(1))
@@ -58,7 +73,15 @@ pub struct ProjectInfo {
 
 impl Default for ProjectInfo {
     fn default() -> Self {
-        Self { path: String::new(), name: String::new(), width: 0, height: 0, rate_num: 30, rate_den: 1, opened_at: 0 }
+        Self {
+            path: String::new(),
+            name: String::new(),
+            width: 0,
+            height: 0,
+            rate_num: 30,
+            rate_den: 1,
+            opened_at: 0,
+        }
     }
 }
 
@@ -207,7 +230,10 @@ pub enum ExportPreset {
 
 impl ExportPreset {
     pub fn spec(self, output: impl Into<String>) -> ExportSpec {
-        let base = ExportSpec { output: output.into(), ..ExportSpec::default() };
+        let base = ExportSpec {
+            output: output.into(),
+            ..ExportSpec::default()
+        };
         match self {
             Self::Draft => ExportSpec {
                 crf: Some(30),

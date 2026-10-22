@@ -109,7 +109,9 @@ pub fn verify(
             // signature is reported as mismatch rather than leaking the window.
             let ok = sigs.iter().any(|s| {
                 decode(s, SigEncoding::Hex)
-                    .and_then(|sig| check(HmacAlgorithm::Sha256, key, &[prefix.as_bytes(), body], &sig))
+                    .and_then(|sig| {
+                        check(HmacAlgorithm::Sha256, key, &[prefix.as_bytes(), body], &sig)
+                    })
                     .is_ok()
             });
             if !ok {
@@ -120,10 +122,17 @@ pub fn verify(
             }
             Ok(())
         }
-        HmacPreset::Generic { header: name, algorithm, encoding, prefix } => {
+        HmacPreset::Generic {
+            header: name,
+            algorithm,
+            encoding,
+            prefix,
+        } => {
             let v = header(headers, name)?;
             let v = match prefix {
-                Some(p) => v.strip_prefix(p.as_str()).ok_or(SignatureError::Malformed)?,
+                Some(p) => v
+                    .strip_prefix(p.as_str())
+                    .ok_or(SignatureError::Malformed)?,
                 None => v,
             };
             check(*algorithm, key, &[body], &decode(v.trim(), *encoding)?)
@@ -148,7 +157,9 @@ fn decode(s: &str, enc: SigEncoding) -> Result<Vec<u8>, SignatureError> {
             }
             (0..s.len())
                 .step_by(2)
-                .map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(|_| SignatureError::Malformed))
+                .map(|i| {
+                    u8::from_str_radix(&s[i..i + 2], 16).map_err(|_| SignatureError::Malformed)
+                })
                 .collect()
         }
         SigEncoding::Base64 => STANDARD
@@ -159,9 +170,16 @@ fn decode(s: &str, enc: SigEncoding) -> Result<Vec<u8>, SignatureError> {
 }
 
 /// Constant-time compare via `Mac::verify_slice`.
-fn check(alg: HmacAlgorithm, key: &[u8], chunks: &[&[u8]], sig: &[u8]) -> Result<(), SignatureError> {
+fn check(
+    alg: HmacAlgorithm,
+    key: &[u8],
+    chunks: &[&[u8]],
+    sig: &[u8],
+) -> Result<(), SignatureError> {
     fn run<M: Mac + hmac::digest::KeyInit>(key: &[u8], chunks: &[&[u8]], sig: &[u8]) -> bool {
-        let Ok(mut m) = <M as Mac>::new_from_slice(key) else { return false };
+        let Ok(mut m) = <M as Mac>::new_from_slice(key) else {
+            return false;
+        };
         for c in chunks {
             m.update(c);
         }
@@ -171,7 +189,11 @@ fn check(alg: HmacAlgorithm, key: &[u8], chunks: &[&[u8]], sig: &[u8]) -> Result
         HmacAlgorithm::Sha256 => run::<Hmac<Sha256>>(key, chunks, sig),
         HmacAlgorithm::Sha1 => run::<Hmac<Sha1>>(key, chunks, sig),
     };
-    if ok { Ok(()) } else { Err(SignatureError::Mismatch) }
+    if ok {
+        Ok(())
+    } else {
+        Err(SignatureError::Mismatch)
+    }
 }
 
 /// Test/diagnostic helper: hex HMAC-SHA256.
@@ -179,7 +201,11 @@ fn check(alg: HmacAlgorithm, key: &[u8], chunks: &[&[u8]], sig: &[u8]) -> Result
 pub(crate) fn sign_hex(key: &[u8], msg: &[u8]) -> String {
     let mut m = <Hmac<Sha256> as Mac>::new_from_slice(key).unwrap();
     m.update(msg);
-    m.finalize().into_bytes().iter().map(|b| format!("{b:02x}")).collect()
+    m.finalize()
+        .into_bytes()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 #[cfg(test)]
@@ -202,13 +228,28 @@ mod tests {
         let sig = "757107ea0eb2509fc211221cce984b8a37570b6d7586c22c46f4379c8b043e17";
         let ok = h(&[("x-hub-signature-256", format!("sha256={sig}"))]);
         assert_eq!(verify(&HmacPreset::Github, key, &ok, body, 0), Ok(()));
-        assert_eq!(verify(&HmacPreset::Github, key, &ok, b"Hello, World?", 0), Err(SignatureError::Mismatch));
-        assert_eq!(verify(&HmacPreset::Github, b"wrong", &ok, body, 0), Err(SignatureError::Mismatch));
-        assert_eq!(verify(&HmacPreset::Github, key, &HeaderMap::new(), body, 0), Err(SignatureError::Missing));
+        assert_eq!(
+            verify(&HmacPreset::Github, key, &ok, b"Hello, World?", 0),
+            Err(SignatureError::Mismatch)
+        );
+        assert_eq!(
+            verify(&HmacPreset::Github, b"wrong", &ok, body, 0),
+            Err(SignatureError::Mismatch)
+        );
+        assert_eq!(
+            verify(&HmacPreset::Github, key, &HeaderMap::new(), body, 0),
+            Err(SignatureError::Missing)
+        );
         let bare = h(&[("x-hub-signature-256", sig.to_owned())]);
-        assert_eq!(verify(&HmacPreset::Github, key, &bare, body, 0), Err(SignatureError::Malformed));
+        assert_eq!(
+            verify(&HmacPreset::Github, key, &bare, body, 0),
+            Err(SignatureError::Malformed)
+        );
         let odd = h(&[("x-hub-signature-256", "sha256=abc".to_owned())]);
-        assert_eq!(verify(&HmacPreset::Github, key, &odd, body, 0), Err(SignatureError::Malformed));
+        assert_eq!(
+            verify(&HmacPreset::Github, key, &odd, body, 0),
+            Err(SignatureError::Malformed)
+        );
     }
 
     #[test]
@@ -216,17 +257,37 @@ mod tests {
         let key = b"whsec_test";
         let body = br#"{"id":"evt_1"}"#;
         let t = 1_700_000_000u64;
-        let sig = sign_hex(key, format!("{t}.{}", std::str::from_utf8(body).unwrap()).as_bytes());
-        let hdr = h(&[("stripe-signature", format!("t={t},v1=deadbeef,v1={sig},v0=00"))]);
-        let p = HmacPreset::Stripe { tolerance_secs: 300 };
+        let sig = sign_hex(
+            key,
+            format!("{t}.{}", std::str::from_utf8(body).unwrap()).as_bytes(),
+        );
+        let hdr = h(&[(
+            "stripe-signature",
+            format!("t={t},v1=deadbeef,v1={sig},v0=00"),
+        )]);
+        let p = HmacPreset::Stripe {
+            tolerance_secs: 300,
+        };
         assert_eq!(verify(&p, key, &hdr, body, t + 10), Ok(()));
-        assert_eq!(verify(&p, key, &hdr, body, t + 301), Err(SignatureError::Stale));
-        assert_eq!(verify(&p, key, &hdr, b"{}", t), Err(SignatureError::Mismatch));
+        assert_eq!(
+            verify(&p, key, &hdr, body, t + 301),
+            Err(SignatureError::Stale)
+        );
+        assert_eq!(
+            verify(&p, key, &hdr, b"{}", t),
+            Err(SignatureError::Mismatch)
+        );
         // forged timestamp: sig no longer matches
         let forged = h(&[("stripe-signature", format!("t={},v1={sig}", t + 1))]);
-        assert_eq!(verify(&p, key, &forged, body, t + 1), Err(SignatureError::Mismatch));
+        assert_eq!(
+            verify(&p, key, &forged, body, t + 1),
+            Err(SignatureError::Mismatch)
+        );
         let nots = h(&[("stripe-signature", format!("v1={sig}"))]);
-        assert_eq!(verify(&p, key, &nots, body, t), Err(SignatureError::Malformed));
+        assert_eq!(
+            verify(&p, key, &nots, body, t),
+            Err(SignatureError::Malformed)
+        );
     }
 
     #[test]
@@ -244,8 +305,20 @@ mod tests {
             encoding: SigEncoding::Hex,
             prefix: Some("sha256=".into()),
         };
-        assert_eq!(verify(&p_hex, key, &h(&[("x-sig", format!("sha256={hex}"))]), body, 0), Ok(()));
-        assert_eq!(verify(&p_hex, key, &h(&[("x-sig", hex.clone())]), body, 0), Err(SignatureError::Malformed));
+        assert_eq!(
+            verify(
+                &p_hex,
+                key,
+                &h(&[("x-sig", format!("sha256={hex}"))]),
+                body,
+                0
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            verify(&p_hex, key, &h(&[("x-sig", hex.clone())]), body, 0),
+            Err(SignatureError::Malformed)
+        );
 
         let p_b64 = HmacPreset::Generic {
             header: "x-sig".into(),
@@ -254,7 +327,10 @@ mod tests {
             prefix: None,
         };
         assert_eq!(verify(&p_b64, key, &h(&[("x-sig", b64)]), body, 0), Ok(()));
-        assert_eq!(verify(&p_b64, key, &h(&[("x-sig", "AAAA".into())]), body, 0), Err(SignatureError::Mismatch));
+        assert_eq!(
+            verify(&p_b64, key, &h(&[("x-sig", "AAAA".into())]), body, 0),
+            Err(SignatureError::Mismatch)
+        );
     }
 
     #[test]
@@ -262,7 +338,12 @@ mod tests {
         let key = b"k";
         let mut m = <Hmac<Sha1> as Mac>::new_from_slice(key).unwrap();
         m.update(b"x");
-        let hex: String = m.finalize().into_bytes().iter().map(|b| format!("{b:02x}")).collect();
+        let hex: String = m
+            .finalize()
+            .into_bytes()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
         let p = HmacPreset::Generic {
             header: "x-s".into(),
             algorithm: HmacAlgorithm::Sha1,
@@ -276,7 +357,12 @@ mod tests {
     fn spec_roundtrips_as_json_without_secret_value() {
         let j = r#"{"preset":"stripe","secret":"wh.stripe"}"#;
         let s: HmacSpec = serde_json::from_str(j).unwrap();
-        assert_eq!(s.preset, HmacPreset::Stripe { tolerance_secs: 300 });
+        assert_eq!(
+            s.preset,
+            HmacPreset::Stripe {
+                tolerance_secs: 300
+            }
+        );
         assert_eq!(s.secret, "wh.stripe");
     }
 }

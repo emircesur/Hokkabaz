@@ -91,24 +91,46 @@ impl Stored {
     pub fn upsert(&mut self, input: ProviderInputDto) -> Result<(), HkError> {
         validate_id(&input.id)?;
         let builtin = is_builtin(&input.id);
-        if builtin && BUILTIN.iter().any(|(id, k)| *id == input.id && *k != input.kind) {
-            return Err(HkError::invalid(format!("provider `{}` is a built-in of another kind", input.id)));
+        if builtin
+            && BUILTIN
+                .iter()
+                .any(|(id, k)| *id == input.id && *k != input.kind)
+        {
+            return Err(HkError::invalid(format!(
+                "provider `{}` is a built-in of another kind",
+                input.id
+            )));
         }
-        if !builtin && !matches!(input.kind, ProviderKindDto::OpenaiCompat | ProviderKindDto::Ollama) {
+        if !builtin
+            && !matches!(
+                input.kind,
+                ProviderKindDto::OpenaiCompat | ProviderKindDto::Ollama
+            )
+        {
             return Err(HkError::invalid(
                 "custom providers must be `openai_compat` or `ollama` (other kinds have fixed ids)",
             ));
         }
-        let base_url = input.base_url.map(|u| u.trim().trim_end_matches('/').to_owned()).filter(|u| !u.is_empty());
+        let base_url = input
+            .base_url
+            .map(|u| u.trim().trim_end_matches('/').to_owned())
+            .filter(|u| !u.is_empty());
         if let Some(u) = &base_url {
             if !(u.starts_with("http://") || u.starts_with("https://")) {
-                return Err(HkError::invalid("base_url must start with http:// or https://"));
+                return Err(HkError::invalid(
+                    "base_url must start with http:// or https://",
+                ));
             }
         }
         if input.kind == ProviderKindDto::OpenaiCompat && base_url.is_none() {
             return Err(HkError::invalid("openai_compat providers need a base_url"));
         }
-        let models: Vec<String> = input.models.into_iter().map(|m| m.trim().to_owned()).filter(|m| !m.is_empty()).collect();
+        let models: Vec<String> = input
+            .models
+            .into_iter()
+            .map(|m| m.trim().to_owned())
+            .filter(|m| !m.is_empty())
+            .collect();
         let new = StoredProvider {
             id: input.id,
             kind: kind_str(input.kind).to_owned(),
@@ -133,7 +155,10 @@ impl Stored {
         let before = self.providers.len();
         self.providers.retain(|p| p.id != id);
         if self.providers.len() == before {
-            return Err(HkError::new(HkErrorKind::NotFound, format!("no provider `{id}`")));
+            return Err(HkError::new(
+                HkErrorKind::NotFound,
+                format!("no provider `{id}`"),
+            ));
         }
         Ok(())
     }
@@ -150,11 +175,15 @@ pub fn is_builtin(id: &str) -> bool {
 fn validate_id(id: &str) -> Result<(), HkError> {
     let ok = !id.is_empty()
         && id.len() <= 64
-        && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_');
+        && id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_');
     if ok {
         Ok(())
     } else {
-        Err(HkError::invalid("provider id must be 1-64 chars of [a-z0-9_-]"))
+        Err(HkError::invalid(
+            "provider id must be 1-64 chars of [a-z0-9_-]",
+        ))
     }
 }
 
@@ -165,7 +194,9 @@ pub fn key_name(provider_id: &str) -> String {
 
 /// `provider/model` ref check.
 pub fn validate_model_ref(m: &str) -> Result<(), HkError> {
-    Route::parse(m).map(drop).map_err(|_| HkError::invalid(format!("model must be `provider/model`, got `{m}`")))
+    Route::parse(m)
+        .map(drop)
+        .map_err(|_| HkError::invalid(format!("model must be `provider/model`, got `{m}`")))
 }
 
 /// Absolute path, created if missing.
@@ -205,7 +236,11 @@ fn fixed_model(provider: &str, id: &str) -> ModelInfo {
         context_window: 0,
         max_output: None,
         // User-listed models are assumed agent-capable; the catalog corrects this when it knows.
-        capabilities: Capabilities { tools: true, reasoning: false, vision: false },
+        capabilities: Capabilities {
+            tools: true,
+            reasoning: false,
+            vision: false,
+        },
         cost: None,
     }
 }

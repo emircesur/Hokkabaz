@@ -29,7 +29,11 @@ pub fn credential_type() -> CredentialType {
     CredentialType::new(CREDENTIAL, "Ollama")
         .documentation("https://github.com/ollama/ollama/blob/main/docs/api.md")
         .property(Prop::string("baseUrl", "Base URL").default(DEFAULT_URL))
-        .property(Prop::string("apiKey", "API Key").password().description("Optional bearer token, for instances behind an authenticating proxy"))
+        .property(
+            Prop::string("apiKey", "API Key")
+                .password()
+                .description("Optional bearer token, for instances behind an authenticating proxy"),
+        )
 }
 
 fn description() -> NodeTypeDescription {
@@ -50,16 +54,38 @@ fn description() -> NodeTypeDescription {
                 Choice::new("Pull Model", "pullModel").action("Download a model"),
             ],
         ))
-        .property(Prop::string("model", "Model").required().default("llama3.2").show("operation", &["generate", "chat", "embeddings", "pullModel"]))
-        .property(Prop::string("prompt", "Prompt").required().type_option("rows", 4).show("operation", &["generate", "chat"]))
-        .property(Prop::string("system", "System Message").type_option("rows", 2).show("operation", &["generate", "chat"]))
+        .property(
+            Prop::string("model", "Model")
+                .required()
+                .default("llama3.2")
+                .show(
+                    "operation",
+                    &["generate", "chat", "embeddings", "pullModel"],
+                ),
+        )
+        .property(
+            Prop::string("prompt", "Prompt")
+                .required()
+                .type_option("rows", 4)
+                .show("operation", &["generate", "chat"]),
+        )
+        .property(
+            Prop::string("system", "System Message")
+                .type_option("rows", 2)
+                .show("operation", &["generate", "chat"]),
+        )
         .property(
             Prop::json("messages", "History")
                 .default(json!([]))
                 .description("Earlier messages as `[{role, content}]`, placed before the prompt")
                 .show("operation", &["chat"]),
         )
-        .property(Prop::string("input", "Input").required().description("Text to embed").show("operation", &["embeddings"]))
+        .property(
+            Prop::string("input", "Input")
+                .required()
+                .description("Text to embed")
+                .show("operation", &["embeddings"]),
+        )
         .property(Prop::collection(
             "options",
             "Options",
@@ -69,7 +95,8 @@ fn description() -> NodeTypeDescription {
                 Prop::number("num_ctx", "Context Length"),
                 Prop::number("top_p", "Top P"),
                 Prop::number("seed", "Seed"),
-                Prop::boolean("json", "JSON Output").description("Constrain the reply to valid JSON"),
+                Prop::boolean("json", "JSON Output")
+                    .description("Constrain the reply to valid JSON"),
                 Prop::string("keep_alive", "Keep Alive").placeholder("5m"),
             ],
         ))
@@ -91,23 +118,48 @@ struct Api {
 }
 
 impl Api {
-    fn rb(&self, node: &str, method: &str, path: &str) -> Result<reqwest::RequestBuilder, FlowError> {
-        let url = kit::join_url(node, &self.base, &[ "api".into(), path.into()])?;
-        let rb = if method == "GET" { self.http.get(url) } else { self.http.post(url) };
-        Ok(if self.key.is_empty() { rb } else { rb.bearer_auth(&self.key) })
+    fn rb(
+        &self,
+        node: &str,
+        method: &str,
+        path: &str,
+    ) -> Result<reqwest::RequestBuilder, FlowError> {
+        let url = kit::join_url(node, &self.base, &["api".into(), path.into()])?;
+        let rb = if method == "GET" {
+            self.http.get(url)
+        } else {
+            self.http.post(url)
+        };
+        Ok(if self.key.is_empty() {
+            rb
+        } else {
+            rb.bearer_auth(&self.key)
+        })
     }
 }
 
 impl OllamaNode {
     /// Sampling options plus `format`/`keep_alive`, merged into a request body.
-    fn apply_options(&self, ctx: &NodeContext, i: usize, body: &mut Value) -> Result<(), FlowError> {
+    fn apply_options(
+        &self,
+        ctx: &NodeContext,
+        i: usize,
+        body: &mut Value,
+    ) -> Result<(), FlowError> {
         let mut opts = Map::new();
         for k in ["temperature", "num_predict", "num_ctx", "top_p", "seed"] {
             if let Some(v) = kit::field(ctx, &format!("options.{k}"), i)? {
                 let n = v.as_f64().or_else(|| display(&v).parse().ok());
                 if let Some(n) = n {
                     // integral settings must stay integers for the Go side
-                    opts.insert(k.into(), if n.fract() == 0.0 && k != "temperature" && k != "top_p" { json!(n as i64) } else { json!(n) });
+                    opts.insert(
+                        k.into(),
+                        if n.fract() == 0.0 && k != "temperature" && k != "top_p" {
+                            json!(n as i64)
+                        } else {
+                            json!(n)
+                        },
+                    );
                 }
             }
         }
@@ -131,7 +183,12 @@ impl OllamaNode {
         Ok(m)
     }
 
-    async fn run_item(&self, ctx: &NodeContext, api: &Api, i: usize) -> Result<Vec<Item>, FlowError> {
+    async fn run_item(
+        &self,
+        ctx: &NodeContext,
+        api: &Api,
+        i: usize,
+    ) -> Result<Vec<Item>, FlowError> {
         let node = &ctx.node.name;
         match kit::str_param(ctx, &self.desc, "operation", i)?.as_str() {
             "generate" => {
@@ -141,7 +198,12 @@ impl OllamaNode {
                     body["system"] = system.into();
                 }
                 self.apply_options(ctx, i, &mut body)?;
-                let mut res = kit::call(node, kit::json_body(api.rb(node, "POST", "generate")?, &body), ERROR_PATHS).await?;
+                let mut res = kit::call(
+                    node,
+                    kit::json_body(api.rb(node, "POST", "generate")?, &body),
+                    ERROR_PATHS,
+                )
+                .await?;
                 // the token context array is large and useless outside a follow-up request
                 if let Value::Object(o) = &mut res {
                     o.remove("context");
@@ -155,7 +217,8 @@ impl OllamaNode {
                     messages.push(json!({"role": "system", "content": system}));
                 }
                 let history = match kit::param(ctx, &self.desc, "messages", i)? {
-                    Some(Value::String(s)) if !s.trim().is_empty() => serde_json::from_str(&s).map_err(|_| node_err(ctx, "History is not valid JSON"))?,
+                    Some(Value::String(s)) if !s.trim().is_empty() => serde_json::from_str(&s)
+                        .map_err(|_| node_err(ctx, "History is not valid JSON"))?,
                     Some(v) => v,
                     None => Value::Null,
                 };
@@ -163,19 +226,34 @@ impl OllamaNode {
                     messages.extend(h);
                 }
                 messages.push(json!({"role": "user", "content": kit::str_param(ctx, &self.desc, "prompt", i)?}));
-                let mut body = json!({"model": self.model(ctx, i)?, "messages": messages, "stream": false});
+                let mut body =
+                    json!({"model": self.model(ctx, i)?, "messages": messages, "stream": false});
                 self.apply_options(ctx, i, &mut body)?;
-                let res = kit::call(node, kit::json_body(api.rb(node, "POST", "chat")?, &body), ERROR_PATHS).await?;
+                let res = kit::call(
+                    node,
+                    kit::json_body(api.rb(node, "POST", "chat")?, &body),
+                    ERROR_PATHS,
+                )
+                .await?;
                 Ok(vec![kit::to_item(res)])
             }
             "embeddings" => {
                 let body = json!({"model": self.model(ctx, i)?, "input": kit::str_param(ctx, &self.desc, "input", i)?});
-                let res = kit::call(node, kit::json_body(api.rb(node, "POST", "embed")?, &body), ERROR_PATHS).await?;
+                let res = kit::call(
+                    node,
+                    kit::json_body(api.rb(node, "POST", "embed")?, &body),
+                    ERROR_PATHS,
+                )
+                .await?;
                 Ok(vec![kit::to_item(res)])
             }
             "listModels" => {
                 let res = kit::call(node, api.rb(node, "GET", "tags")?, ERROR_PATHS).await?;
-                let models = res.get("models").and_then(Value::as_array).cloned().unwrap_or_default();
+                let models = res
+                    .get("models")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
                 Ok(models.into_iter().map(kit::to_item).collect())
             }
             "pullModel" => {
@@ -187,19 +265,41 @@ impl OllamaNode {
                     .body(body.to_string())
                     .send()
                     .await
-                    .map_err(|e| kit::err(node, format!("The request failed: {}", e.without_url())))?;
+                    .map_err(|e| {
+                        kit::err(node, format!("The request failed: {}", e.without_url()))
+                    })?;
                 let status = res.status();
                 // progress lines are consumed and dropped; only the last status or an error matters
-                let text = res.text().await.map_err(|e| kit::err(node, format!("Could not read the response: {}", e.without_url())))?;
-                let lines: Vec<Value> = text.lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
+                let text = res.text().await.map_err(|e| {
+                    kit::err(
+                        node,
+                        format!("Could not read the response: {}", e.without_url()),
+                    )
+                })?;
+                let lines: Vec<Value> = text
+                    .lines()
+                    .filter_map(|l| serde_json::from_str(l).ok())
+                    .collect();
                 if let Some(err) = lines.iter().find_map(|l| l.get("error").map(display)) {
-                    return Err(kit::err(node, format!("Ollama: {}", err.chars().take(300).collect::<String>())));
+                    return Err(kit::err(
+                        node,
+                        format!("Ollama: {}", err.chars().take(300).collect::<String>()),
+                    ));
                 }
                 if !status.is_success() {
-                    return Err(kit::err(node, format!("Ollama returned {}", status.as_u16())));
+                    return Err(kit::err(
+                        node,
+                        format!("Ollama returned {}", status.as_u16()),
+                    ));
                 }
-                let last = lines.last().and_then(|l| l.get("status")).map(display).unwrap_or_default();
-                Ok(vec![Item::from_json(json!({"success": last == "success", "model": model, "status": last}))])
+                let last = lines
+                    .last()
+                    .and_then(|l| l.get("status"))
+                    .map(display)
+                    .unwrap_or_default();
+                Ok(vec![Item::from_json(
+                    json!({"success": last == "success", "model": model, "status": last}),
+                )])
             }
             other => Err(node_err(ctx, format!("Unsupported operation `{other}`"))),
         }
@@ -221,7 +321,11 @@ impl FlowNode for OllamaNode {
         let base = kit::cred_str(&cred, "baseUrl");
         let api = Api {
             http: kit::client(&ctx.node.name, TIMEOUT)?,
-            base: if base.trim().is_empty() { DEFAULT_URL.to_owned() } else { base },
+            base: if base.trim().is_empty() {
+                DEFAULT_URL.to_owned()
+            } else {
+                base
+            },
             key: kit::cred_str(&cred, "apiKey"),
         };
         let mut out = Vec::new();
@@ -236,5 +340,8 @@ impl FlowNode for OllamaNode {
 /// Node and credential type into the shared registries. Features: `int-ollama`.
 pub fn register(nodes: &mut NodeRegistry, creds: &CredentialTypes) -> Result<(), FlowError> {
     creds.register_if_absent(credential_type());
-    nodes.register(Arc::new(OllamaNode { desc: description(), creds: creds.clone() }))
+    nodes.register(Arc::new(OllamaNode {
+        desc: description(),
+        creds: creds.clone(),
+    }))
 }

@@ -60,11 +60,24 @@ pub struct ParsedMail {
 fn address_json(a: Option<&Address<'_>>) -> Value {
     let Some(a) = a else { return Value::Null };
     let flat: Vec<(Option<String>, Option<String>)> = match a {
-        Address::List(l) => l.iter().map(|x| (x.name.as_ref().map(|s| s.to_string()), x.address.as_ref().map(|s| s.to_string()))).collect(),
+        Address::List(l) => l
+            .iter()
+            .map(|x| {
+                (
+                    x.name.as_ref().map(|s| s.to_string()),
+                    x.address.as_ref().map(|s| s.to_string()),
+                )
+            })
+            .collect(),
         Address::Group(g) => g
             .iter()
             .flat_map(|g| g.addresses.iter())
-            .map(|x| (x.name.as_ref().map(|s| s.to_string()), x.address.as_ref().map(|s| s.to_string())))
+            .map(|x| {
+                (
+                    x.name.as_ref().map(|s| s.to_string()),
+                    x.address.as_ref().map(|s| s.to_string()),
+                )
+            })
             .collect(),
     };
     let text = flat
@@ -86,7 +99,9 @@ fn address_json(a: Option<&Address<'_>>) -> Value {
 
 /// Parse a raw RFC 5322 message into the item json (n8n "simple" shape) and its attachments.
 pub fn parse_message(raw: &[u8], uid: u32) -> Result<ParsedMail, String> {
-    let msg = MessageParser::default().parse(raw).ok_or("Could not parse the email")?;
+    let msg = MessageParser::default()
+        .parse(raw)
+        .ok_or("Could not parse the email")?;
     let mut m = Map::new();
     m.insert("uid".into(), json!(uid));
     if let Some(id) = msg.message_id() {
@@ -134,7 +149,9 @@ pub fn parse_message(raw: &[u8], uid: u32) -> Result<ParsedMail, String> {
             })
             .unwrap_or_else(|| "application/octet-stream".into());
         attachments.push(MailAttachment {
-            name: part.attachment_name().map_or_else(|| format!("attachment_{n}"), str::to_owned),
+            name: part
+                .attachment_name()
+                .map_or_else(|| format!("attachment_{n}"), str::to_owned),
             mime,
             data: part.contents().to_vec(),
         });
@@ -148,7 +165,10 @@ pub fn parse_message(raw: &[u8], uid: u32) -> Result<ParsedMail, String> {
                 .collect(),
         ),
     );
-    Ok(ParsedMail { json: Value::Object(m), attachments })
+    Ok(ParsedMail {
+        json: Value::Object(m),
+        attachments,
+    })
 }
 
 /// Attachments as item binary properties `<prefix>0`, `<prefix>1`, ...
@@ -181,7 +201,8 @@ type Stream = Box<dyn Io>;
 
 async fn upgrade(host: &str, io: Stream) -> Result<Stream, String> {
     let cfg = tls_config().ok_or("TLS is not available")?;
-    let name = ServerName::try_from(host.to_owned()).map_err(|_| format!("`{host}` is not a valid TLS server name"))?;
+    let name = ServerName::try_from(host.to_owned())
+        .map_err(|_| format!("`{host}` is not a valid TLS server name"))?;
     let tls = TlsConnector::from(cfg)
         .connect(name, io)
         .await
@@ -196,7 +217,10 @@ async fn open(cred: &Map<String, Value>) -> Result<Session<Stream>, String> {
         return Err("The IMAP credential has no host".into());
     }
     let secure = !matches!(cred.get("secure"), Some(Value::Bool(false)));
-    let port: u16 = get("port").trim().parse().unwrap_or(if secure { 993 } else { 143 });
+    let port: u16 = get("port")
+        .trim()
+        .parse()
+        .unwrap_or(if secure { 993 } else { 143 });
     let tcp = TcpStream::connect((host.as_str(), port))
         .await
         .map_err(|e| format!("Could not connect to the IMAP server: {e}"))?;
@@ -211,7 +235,12 @@ async fn open(cred: &Map<String, Value>) -> Result<Session<Stream>, String> {
         .await
         .map_err(|e| format!("No IMAP greeting: {e}"))?
         .ok_or("The IMAP server closed the connection")?;
-    if !secure && client.run_command_and_check_ok("STARTTLS", None).await.is_ok() {
+    if !secure
+        && client
+            .run_command_and_check_ok("STARTTLS", None)
+            .await
+            .is_ok()
+    {
         client = Client::new(upgrade(&host, client.into_inner()).await?);
     }
     client
@@ -228,7 +257,10 @@ struct Fetch {
     max: usize,
 }
 
-async fn fetch_unseen(cred: &Map<String, Value>, f: &Fetch) -> Result<Vec<(u32, u32, Vec<u8>)>, String> {
+async fn fetch_unseen(
+    cred: &Map<String, Value>,
+    f: &Fetch,
+) -> Result<Vec<(u32, u32, Vec<u8>)>, String> {
     let mut s = open(cred).await?;
     let e = |what: &str| {
         let what = what.to_owned();
@@ -236,7 +268,12 @@ async fn fetch_unseen(cred: &Map<String, Value>, f: &Fetch) -> Result<Vec<(u32, 
     };
     let mailbox = s.select(&f.mailbox).await.map_err(e("SELECT"))?;
     let validity = mailbox.uid_validity.unwrap_or(0);
-    let mut uids: Vec<u32> = s.uid_search("UNSEEN").await.map_err(e("SEARCH"))?.into_iter().collect();
+    let mut uids: Vec<u32> = s
+        .uid_search("UNSEEN")
+        .await
+        .map_err(e("SEARCH"))?
+        .into_iter()
+        .collect();
     // newest first so a backlog cannot starve fresh mail; emitted oldest first
     uids.sort_unstable_by(|a, b| b.cmp(a));
     uids.truncate(f.max);
@@ -244,7 +281,11 @@ async fn fetch_unseen(cred: &Map<String, Value>, f: &Fetch) -> Result<Vec<(u32, 
 
     let mut out = Vec::new();
     if !uids.is_empty() {
-        let set = uids.iter().map(u32::to_string).collect::<Vec<_>>().join(",");
+        let set = uids
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
         let fetched: Vec<_> = s
             .uid_fetch(&set, "(UID BODY.PEEK[])")
             .await
@@ -286,29 +327,36 @@ fn description() -> NodeTypeDescription {
         .property(Prop::options(
             "postProcessAction",
             "Action",
-            vec![Choice::new("Mark as Read", "read"), Choice::new("Nothing", "nothing")],
+            vec![
+                Choice::new("Mark as Read", "read"),
+                Choice::new("Nothing", "nothing"),
+            ],
         ))
-        .property(
-            Prop::options(
-                "format",
-                "Format",
-                vec![
-                    Choice::new("Simple", "simple").describe("Parsed fields: headers, text, html, addresses"),
-                    Choice::new("Resolved", "resolved").describe("Simple, plus attachments as binary data"),
-                    Choice::new("RAW", "raw").describe("Simple, plus the whole message base64 encoded in `raw`"),
-                ],
-            ),
-        )
+        .property(Prop::options(
+            "format",
+            "Format",
+            vec![
+                Choice::new("Simple", "simple")
+                    .describe("Parsed fields: headers, text, html, addresses"),
+                Choice::new("Resolved", "resolved")
+                    .describe("Simple, plus attachments as binary data"),
+                Choice::new("RAW", "raw")
+                    .describe("Simple, plus the whole message base64 encoded in `raw`"),
+            ],
+        ))
         .property(Prop::collection(
             "options",
             "Options",
             vec![
-                Prop::boolean("downloadAttachments", "Download Attachments")
-                    .description("Whether to add attachments as binary data (always on for format Resolved)"),
+                Prop::boolean("downloadAttachments", "Download Attachments").description(
+                    "Whether to add attachments as binary data (always on for format Resolved)",
+                ),
                 Prop::string("dataPropertyAttachmentsPrefixName", "Attachment Prefix")
                     .default("attachment_")
                     .description("Binary properties are named prefix + index"),
-                Prop::number("maxMessages", "Max Messages Per Poll").default(DEFAULT_MAX_MESSAGES as u64).min(1.0),
+                Prop::number("maxMessages", "Max Messages Per Poll")
+                    .default(DEFAULT_MAX_MESSAGES as u64)
+                    .min(1.0),
             ],
         ))
         .property(poll_times_prop())
@@ -333,7 +381,11 @@ impl PollingTrigger for ImapTrigger {
         true
     }
 
-    async fn poll(&self, cx: &PollContext, _cursor: Option<&Value>) -> Result<PollBatch, FlowError> {
+    async fn poll(
+        &self,
+        cx: &PollContext,
+        _cursor: Option<&Value>,
+    ) -> Result<PollBatch, FlowError> {
         let node = cx.node().name.clone();
         let raw = cx.credential(IMAP_CREDENTIAL).await?;
         let cred = self.creds.with_defaults(IMAP_CREDENTIAL, &raw);
@@ -346,9 +398,17 @@ impl PollingTrigger for ImapTrigger {
             .and_then(|n| usize::try_from(n).ok())
             .filter(|n| *n > 0)
             .unwrap_or(DEFAULT_MAX_MESSAGES);
-        let want_files = format == "resolved" || matches!(cx.param("options.downloadAttachments")?, Some(Value::Bool(true)));
+        let want_files = format == "resolved"
+            || matches!(
+                cx.param("options.downloadAttachments")?,
+                Some(Value::Bool(true))
+            );
         let prefix = cx.param_str("options.dataPropertyAttachmentsPrefixName", "attachment_")?;
-        let f = Fetch { mailbox, mark_read: cx.param_str("postProcessAction", "read")? == "read", max };
+        let f = Fetch {
+            mailbox,
+            mark_read: cx.param_str("postProcessAction", "read")? == "read",
+            max,
+        };
 
         let mails = tokio::time::timeout(SESSION_TIMEOUT, fetch_unseen(&cred, &f))
             .await
@@ -369,7 +429,10 @@ impl PollingTrigger for ImapTrigger {
             if format == "raw"
                 && let Value::Object(o) = &mut json
             {
-                o.insert("raw".into(), json!(base64::engine::general_purpose::STANDARD.encode(&bytes)));
+                o.insert(
+                    "raw".into(),
+                    json!(base64::engine::general_purpose::STANDARD.encode(&bytes)),
+                );
             }
             let mut item = PolledItem::new(format!("{validity}:{uid}"), json);
             if want_files {
@@ -377,7 +440,10 @@ impl PollingTrigger for ImapTrigger {
             }
             items.push(item);
         }
-        Ok(PollBatch { items, cursor: None })
+        Ok(PollBatch {
+            items,
+            cursor: None,
+        })
     }
 }
 
@@ -386,7 +452,13 @@ pub fn register(
     creds: &CredentialTypes,
     polls: &mut PollRegistry,
 ) -> Result<(), FlowError> {
-    polls.register(nodes, Arc::new(ImapTrigger { desc: description(), creds: creds.clone() }))
+    polls.register(
+        nodes,
+        Arc::new(ImapTrigger {
+            desc: description(),
+            creds: creds.clone(),
+        }),
+    )
 }
 
 #[cfg(test)]
@@ -434,11 +506,19 @@ JVBERi0xLjQ=\r\n\
         assert_eq!(j["to"]["value"].as_array().unwrap().len(), 2);
         assert_eq!(j["to"]["text"], "bob@example.com, Carl <carl@example.com>");
         assert_eq!(j["cc"]["value"][0]["address"], "dee@example.com");
-        assert!(j["date"].as_str().unwrap().starts_with("2025-07-01T10:52:37"));
+        assert!(
+            j["date"]
+                .as_str()
+                .unwrap()
+                .starts_with("2025-07-01T10:52:37")
+        );
         assert_eq!(j["text"].as_str().unwrap().trim(), "Plain body");
         assert_eq!(j["html"].as_str().unwrap().trim(), "<p>HTML body</p>");
         assert!(j["headers"]["subject"].as_str().unwrap().contains("Caf"));
-        assert_eq!(j["attachments"], json!([{"filename": "menu.pdf", "contentType": "application/pdf", "size": 8}]));
+        assert_eq!(
+            j["attachments"],
+            json!([{"filename": "menu.pdf", "contentType": "application/pdf", "size": 8}])
+        );
         assert_eq!(p.attachments.len(), 1);
         assert_eq!(p.attachments[0].data, b"%PDF-1.4");
     }
@@ -452,7 +532,9 @@ JVBERi0xLjQ=\r\n\
         assert_eq!(b.file_extension.as_deref(), Some("pdf"));
         assert_eq!(b.mime_type, "application/pdf");
         assert_eq!(
-            base64::engine::general_purpose::STANDARD.decode(&b.data).unwrap(),
+            base64::engine::general_purpose::STANDARD
+                .decode(&b.data)
+                .unwrap(),
             b"%PDF-1.4"
         );
         assert!(attachment_binaries("a", &[]).is_empty());

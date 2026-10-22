@@ -135,7 +135,15 @@ impl CaptionStyle {
     }
 
     pub fn minimal() -> Self {
-        Self { size: 44, outline: 2.0, shadow: 0.0, bold: false, anim: CaptionAnim::None, margin_v: 90, ..Self::classic() }
+        Self {
+            size: 44,
+            outline: 2.0,
+            shadow: 0.0,
+            bold: false,
+            anim: CaptionAnim::None,
+            margin_v: 90,
+            ..Self::classic()
+        }
     }
 
     pub fn preset(name: &str) -> Option<Self> {
@@ -159,11 +167,18 @@ pub fn words_for_clip(tr: &Transcript, clip: &Clip, map: &OutputMap) -> Vec<CapW
         if clip.deleted_words.contains(&i) || (clip.remove_fillers && w.flags.filler) {
             continue;
         }
-        let (Some(s), Some(e)) = (map.to_output(w.start.max(clip.start)), map.to_output(w.end.min(clip.end))) else {
+        let (Some(s), Some(e)) = (
+            map.to_output(w.start.max(clip.start)),
+            map.to_output(w.end.min(clip.end)),
+        ) else {
             continue;
         };
         if e > s {
-            out.push(CapWord { text: w.text.trim().to_string(), start: s, end: e });
+            out.push(CapWord {
+                text: w.text.trim().to_string(),
+                start: s,
+                end: e,
+            });
         }
     }
     out
@@ -202,16 +217,40 @@ pub fn ass_color(hex: &str) -> String {
     } else {
         ("FF", "FF", "FF")
     };
-    format!("&H00{}{}{}", b.to_uppercase(), g.to_uppercase(), r.to_uppercase())
+    format!(
+        "&H00{}{}{}",
+        b.to_uppercase(),
+        g.to_uppercase(),
+        r.to_uppercase()
+    )
 }
 
 fn ass_time(t: f64) -> String {
     let cs = (t.max(0.0) * 100.0).round() as u64;
-    format!("{}:{:02}:{:02}.{:02}", cs / 360_000, (cs / 6000) % 60, (cs / 100) % 60, cs % 100)
+    format!(
+        "{}:{:02}:{:02}.{:02}",
+        cs / 360_000,
+        (cs / 6000) % 60,
+        (cs / 100) % 60,
+        cs % 100
+    )
 }
 
 fn escape(text: &str, upper: bool) -> String {
-    let t: String = text.chars().map(|c| if c == '{' { '(' } else if c == '}' { ')' } else if c == '\\' || c == '\n' { ' ' } else { c }).collect();
+    let t: String = text
+        .chars()
+        .map(|c| {
+            if c == '{' {
+                '('
+            } else if c == '}' {
+                ')'
+            } else if c == '\\' || c == '\n' {
+                ' '
+            } else {
+                c
+            }
+        })
+        .collect();
     if upper { t.to_uppercase() } else { t }
 }
 
@@ -253,29 +292,54 @@ pub fn to_ass(words: &[CapWord], style: &CaptionStyle, play: (u32, u32)) -> Stri
         let line_end = line.last().map_or(first.end, |w| w.end);
         match style.mode {
             CaptionMode::Block => {
-                let text = line.iter().map(|w| escape(&w.text, style.uppercase)).collect::<Vec<_>>().join(" ");
-                let _ = writeln!(s, "Dialogue: 0,{},{},Default,,0,0,0,,{{{anim}}}{text}", ass_time(first.start), ass_time(line_end));
+                let text = line
+                    .iter()
+                    .map(|w| escape(&w.text, style.uppercase))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let _ = writeln!(
+                    s,
+                    "Dialogue: 0,{},{},Default,,0,0,0,,{{{anim}}}{text}",
+                    ass_time(first.start),
+                    ass_time(line_end)
+                );
             }
             CaptionMode::Karaoke => {
                 for (k, w) in line.iter().enumerate() {
-                    let end = line.get(k + 1).map_or(line_end, |n| n.start.max(w.end.min(n.start)));
+                    let end = line
+                        .get(k + 1)
+                        .map_or(line_end, |n| n.start.max(w.end.min(n.start)));
                     let end = if end <= w.start { w.end } else { end };
                     let text = line
                         .iter()
                         .enumerate()
                         .map(|(j, x)| {
                             let t = escape(&x.text, style.uppercase);
-                            if j == k { format!("{{\\c{hi}}}{t}{{\\c{base}}}") } else { t }
+                            if j == k {
+                                format!("{{\\c{hi}}}{t}{{\\c{base}}}")
+                            } else {
+                                t
+                            }
                         })
                         .collect::<Vec<_>>()
                         .join(" ");
-                    let _ = writeln!(s, "Dialogue: 0,{},{},Default,,0,0,0,,{{{anim}}}{text}", ass_time(w.start), ass_time(end));
+                    let _ = writeln!(
+                        s,
+                        "Dialogue: 0,{},{},Default,,0,0,0,,{{{anim}}}{text}",
+                        ass_time(w.start),
+                        ass_time(end)
+                    );
                 }
             }
             CaptionMode::WordByWord => {
                 for w in &line {
                     let t = escape(&w.text, style.uppercase);
-                    let _ = writeln!(s, "Dialogue: 0,{},{},Default,,0,0,0,,{{\\c{hi}{anim}}}{t}", ass_time(w.start), ass_time(w.end));
+                    let _ = writeln!(
+                        s,
+                        "Dialogue: 0,{},{},Default,,0,0,0,,{{\\c{hi}{anim}}}{t}",
+                        ass_time(w.start),
+                        ass_time(w.end)
+                    );
                 }
             }
         }
@@ -285,16 +349,34 @@ pub fn to_ass(words: &[CapWord], style: &CaptionStyle, play: (u32, u32)) -> Stri
 
 fn srt_time(t: f64, sep: char) -> String {
     let ms = (t.max(0.0) * 1000.0).round() as u64;
-    format!("{:02}:{:02}:{:02}{sep}{:03}", ms / 3_600_000, (ms / 60_000) % 60, (ms / 1000) % 60, ms % 1000)
+    format!(
+        "{:02}:{:02}:{:02}{sep}{:03}",
+        ms / 3_600_000,
+        (ms / 60_000) % 60,
+        (ms / 1000) % 60,
+        ms % 1000
+    )
 }
 
 /// SRT, one cue per display line.
 pub fn to_srt(words: &[CapWord], style: &CaptionStyle) -> String {
     let mut s = String::new();
     for (n, line) in group_lines(words, style).iter().enumerate() {
-        let (Some(a), Some(b)) = (line.first(), line.last()) else { continue };
-        let text = line.iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ");
-        let _ = write!(s, "{}\n{} --> {}\n{text}\n\n", n + 1, srt_time(a.start, ','), srt_time(b.end, ','));
+        let (Some(a), Some(b)) = (line.first(), line.last()) else {
+            continue;
+        };
+        let text = line
+            .iter()
+            .map(|w| w.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let _ = write!(
+            s,
+            "{}\n{} --> {}\n{text}\n\n",
+            n + 1,
+            srt_time(a.start, ','),
+            srt_time(b.end, ',')
+        );
     }
     s
 }
@@ -303,9 +385,20 @@ pub fn to_srt(words: &[CapWord], style: &CaptionStyle) -> String {
 pub fn to_vtt(words: &[CapWord], style: &CaptionStyle) -> String {
     let mut s = String::from("WEBVTT\n\n");
     for line in group_lines(words, style) {
-        let (Some(a), Some(b)) = (line.first(), line.last()) else { continue };
-        let text = line.iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ");
-        let _ = write!(s, "{} --> {}\n{text}\n\n", srt_time(a.start, '.'), srt_time(b.end, '.'));
+        let (Some(a), Some(b)) = (line.first(), line.last()) else {
+            continue;
+        };
+        let text = line
+            .iter()
+            .map(|w| w.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let _ = write!(
+            s,
+            "{} --> {}\n{text}\n\n",
+            srt_time(a.start, '.'),
+            srt_time(b.end, '.')
+        );
     }
     s
 }
@@ -315,7 +408,11 @@ mod tests {
     use super::*;
 
     fn w(t: &str, s: f64, e: f64) -> CapWord {
-        CapWord { text: t.into(), start: s, end: e }
+        CapWord {
+            text: t.into(),
+            start: s,
+            end: e,
+        }
     }
 
     #[test]
@@ -334,11 +431,26 @@ mod tests {
 
     #[test]
     fn lines_split_on_gap_words_and_punctuation() {
-        let words = vec![w("a", 0.0, 0.2), w("b", 0.3, 0.5), w("end.", 0.6, 0.9), w("next", 1.0, 1.2), w("late", 3.0, 3.2)];
-        let st = CaptionStyle { max_words: 10, ..CaptionStyle::classic() };
+        let words = vec![
+            w("a", 0.0, 0.2),
+            w("b", 0.3, 0.5),
+            w("end.", 0.6, 0.9),
+            w("next", 1.0, 1.2),
+            w("late", 3.0, 3.2),
+        ];
+        let st = CaptionStyle {
+            max_words: 10,
+            ..CaptionStyle::classic()
+        };
         let lines = group_lines(&words, &st);
-        assert_eq!(lines.iter().map(Vec::len).collect::<Vec<_>>(), vec![3, 1, 1]);
-        let st = CaptionStyle { max_words: 2, ..CaptionStyle::classic() };
+        assert_eq!(
+            lines.iter().map(Vec::len).collect::<Vec<_>>(),
+            vec![3, 1, 1]
+        );
+        let st = CaptionStyle {
+            max_words: 2,
+            ..CaptionStyle::classic()
+        };
         assert_eq!(group_lines(&words[..2], &st).len(), 1);
         assert_eq!(group_lines(&words[..3], &st).len(), 2);
     }

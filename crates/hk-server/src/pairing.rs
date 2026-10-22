@@ -14,8 +14,8 @@ use std::collections::HashMap;
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use axum::extract::{Query, State};
 use axum::Json;
+use axum::extract::{Query, State};
 use hmac::{Hmac, Mac};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -81,12 +81,17 @@ pub struct Pairing {
 
 impl std::fmt::Debug for Pairing {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Pairing").field("public_url", &self.public_url).field("ttl", &self.ttl).finish_non_exhaustive()
+        f.debug_struct("Pairing")
+            .field("public_url", &self.public_url)
+            .field("ttl", &self.ttl)
+            .finish_non_exhaustive()
     }
 }
 
 fn unix_now() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
 }
 
 fn hex(b: &[u8]) -> String {
@@ -97,7 +102,10 @@ fn unhex(s: &str) -> Option<Vec<u8>> {
     if s.len() % 2 != 0 || !s.is_ascii() {
         return None;
     }
-    (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok()).collect()
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok())
+        .collect()
 }
 
 fn mac(key: &[u8]) -> HmacSha256 {
@@ -147,7 +155,13 @@ impl Pairing {
         let url = self.public_url.clone();
         let enc_url: String = form_urlencoded::byte_serialize(url.as_bytes()).collect();
         let payload = format!("hokkabaz://pair?url={enc_url}&token={token}");
-        Ok(Minted { token, scope, expires_at: exp, url, payload })
+        Ok(Minted {
+            token,
+            scope,
+            expires_at: exp,
+            url,
+            payload,
+        })
     }
 
     /// Check and burn `token`. Every failure is the same opaque error.
@@ -158,12 +172,18 @@ impl Pairing {
     pub fn redeem_at(&self, token: &str, now: u64) -> Result<Scope, PairingError> {
         let rest = token.strip_prefix(PREFIX).ok_or(PairingError::Invalid)?;
         let mut parts = rest.split('.');
-        let (Some(scope), Some(exp), Some(nonce), Some(sig), None) =
-            (parts.next(), parts.next(), parts.next(), parts.next(), parts.next())
-        else {
+        let (Some(scope), Some(exp), Some(nonce), Some(sig), None) = (
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+        ) else {
             return Err(PairingError::Invalid);
         };
-        let scope = Scope::parse(scope).filter(|s| Scope::TIERS.contains(s)).ok_or(PairingError::Invalid)?;
+        let scope = Scope::parse(scope)
+            .filter(|s| Scope::TIERS.contains(s))
+            .ok_or(PairingError::Invalid)?;
         let exp: u64 = exp.parse().map_err(|_| PairingError::Invalid)?;
         let sig = unhex(sig).ok_or(PairingError::Invalid)?;
         let mut m = mac(&self.key);
@@ -183,14 +203,25 @@ impl Pairing {
 }
 
 pub fn qr_svg(payload: &str) -> Result<String, PairingError> {
-    let code = qrcode::QrCode::new(payload.as_bytes()).map_err(|e| PairingError::Qr(e.to_string()))?;
-    Ok(code.render::<qrcode::render::svg::Color>().min_dimensions(256, 256).quiet_zone(true).build())
+    let code =
+        qrcode::QrCode::new(payload.as_bytes()).map_err(|e| PairingError::Qr(e.to_string()))?;
+    Ok(code
+        .render::<qrcode::render::svg::Color>()
+        .min_dimensions(256, 256)
+        .quiet_zone(true)
+        .build())
 }
 
 pub fn qr_terminal(payload: &str) -> Result<String, PairingError> {
     use qrcode::render::unicode::Dense1x2;
-    let code = qrcode::QrCode::new(payload.as_bytes()).map_err(|e| PairingError::Qr(e.to_string()))?;
-    Ok(code.render::<Dense1x2>().dark_color(Dense1x2::Light).light_color(Dense1x2::Dark).quiet_zone(true).build())
+    let code =
+        qrcode::QrCode::new(payload.as_bytes()).map_err(|e| PairingError::Qr(e.to_string()))?;
+    Ok(code
+        .render::<Dense1x2>()
+        .dark_color(Dense1x2::Light)
+        .light_color(Dense1x2::Dark)
+        .quiet_zone(true)
+        .build())
 }
 
 // ------------------------------------------------------------------ routes
@@ -215,8 +246,13 @@ pub(crate) async fn issue(
             .ok_or_else(|| ApiError::BadRequest("`scope` must be read, run or admin".into()))?,
     };
     p.require(scope)?;
-    let pairing = s.pairing.as_ref().ok_or_else(|| ApiError::NotFound("pairing is not enabled".into()))?;
-    let m = pairing.mint(scope).map_err(|e| ApiError::Internal(e.to_string()))?;
+    let pairing = s
+        .pairing
+        .as_ref()
+        .ok_or_else(|| ApiError::NotFound("pairing is not enabled".into()))?;
+    let m = pairing
+        .mint(scope)
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
     let qr_svg = m.qr_svg().map_err(|e| ApiError::Internal(e.to_string()))?;
     Ok(Json(json!({
         "url": m.url,
@@ -239,10 +275,20 @@ pub(crate) async fn exchange(
     State(s): State<AppState>,
     Json(b): Json<ExchangeBody>,
 ) -> Result<Json<Value>, ApiError> {
-    let pairing = s.pairing.as_ref().ok_or_else(|| ApiError::NotFound("pairing is not enabled".into()))?;
-    let scope = pairing.redeem(&b.token).map_err(|_| ApiError::Unauthorized)?;
-    let token = s.auth.token(scope).ok_or_else(|| ApiError::Internal("instance has no token for that scope".into()))?;
-    Ok(Json(json!({ "token": token.expose(), "scope": scope.as_str(), "url": pairing.public_url() })))
+    let pairing = s
+        .pairing
+        .as_ref()
+        .ok_or_else(|| ApiError::NotFound("pairing is not enabled".into()))?;
+    let scope = pairing
+        .redeem(&b.token)
+        .map_err(|_| ApiError::Unauthorized)?;
+    let token = s
+        .auth
+        .token(scope)
+        .ok_or_else(|| ApiError::Internal("instance has no token for that scope".into()))?;
+    Ok(Json(
+        json!({ "token": token.expose(), "scope": scope.as_str(), "url": pairing.public_url() }),
+    ))
 }
 
 #[cfg(test)]
@@ -259,7 +305,10 @@ mod tests {
     use crate::{AppState, router};
 
     fn auth() -> Auth {
-        Auth::new().with_token(Scope::Read, "r").with_token(Scope::Run, "u").with_token(Scope::Admin, "a")
+        Auth::new()
+            .with_token(Scope::Read, "r")
+            .with_token(Scope::Run, "u")
+            .with_token(Scope::Admin, "a")
     }
 
     #[test]
@@ -268,7 +317,10 @@ mod tests {
         assert_eq!(p.public_url(), "http://h:1");
         let m = p.mint_at(Scope::Run, 1000).unwrap();
         assert_eq!(m.expires_at, 1300);
-        assert!(m.payload.starts_with("hokkabaz://pair?url=http%3A%2F%2Fh%3A1&token=hkp_run."));
+        assert!(
+            m.payload
+                .starts_with("hokkabaz://pair?url=http%3A%2F%2Fh%3A1&token=hkp_run.")
+        );
         assert_eq!(p.redeem_at(&m.token, 1100).unwrap(), Scope::Run);
         assert!(p.redeem_at(&m.token, 1101).is_err(), "single use");
 
@@ -289,18 +341,29 @@ mod tests {
 
     #[test]
     fn qr_renders() {
-        let m = Pairing::new(&auth(), "http://h").unwrap().mint(Scope::Run).unwrap();
+        let m = Pairing::new(&auth(), "http://h")
+            .unwrap()
+            .mint(Scope::Run)
+            .unwrap();
         assert!(m.qr_svg().unwrap().contains("<svg"));
         assert!(m.qr_terminal().unwrap().contains('\n'));
     }
 
-    async fn call(app: &axum::Router, method: Method, uri: &str, tok: Option<&str>, body: Option<Value>) -> (StatusCode, Value) {
+    async fn call(
+        app: &axum::Router,
+        method: Method,
+        uri: &str,
+        tok: Option<&str>,
+        body: Option<Value>,
+    ) -> (StatusCode, Value) {
         let mut b = Request::builder().method(method).uri(uri);
         if let Some(t) = tok {
             b = b.header(header::AUTHORIZATION, format!("Bearer {t}"));
         }
         let req = match body {
-            Some(v) => b.header(header::CONTENT_TYPE, "application/json").body(Body::from(v.to_string())),
+            Some(v) => b
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(v.to_string())),
             None => b.body(Body::empty()),
         }
         .unwrap();
@@ -317,11 +380,43 @@ mod tests {
             .with_pairing(Pairing::new(&a, "http://box:7878").unwrap());
         let app = router(state);
 
-        assert_eq!(call(&app, Method::GET, "/api/v1/pairing", None, None).await.0, StatusCode::UNAUTHORIZED);
-        assert_eq!(call(&app, Method::GET, "/api/v1/pairing", Some("r"), None).await.0, StatusCode::FORBIDDEN);
+        assert_eq!(
+            call(&app, Method::GET, "/api/v1/pairing", None, None)
+                .await
+                .0,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            call(&app, Method::GET, "/api/v1/pairing", Some("r"), None)
+                .await
+                .0,
+            StatusCode::FORBIDDEN
+        );
         // run token cannot mint an admin pairing
-        assert_eq!(call(&app, Method::GET, "/api/v1/pairing?scope=admin", Some("u"), None).await.0, StatusCode::FORBIDDEN);
-        assert_eq!(call(&app, Method::GET, "/api/v1/pairing?scope=bogus", Some("a"), None).await.0, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            call(
+                &app,
+                Method::GET,
+                "/api/v1/pairing?scope=admin",
+                Some("u"),
+                None
+            )
+            .await
+            .0,
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            call(
+                &app,
+                Method::GET,
+                "/api/v1/pairing?scope=bogus",
+                Some("a"),
+                None
+            )
+            .await
+            .0,
+            StatusCode::BAD_REQUEST
+        );
 
         let (st, v) = call(&app, Method::GET, "/api/v1/pairing", Some("u"), None).await;
         assert_eq!(st, StatusCode::OK);
@@ -329,11 +424,31 @@ mod tests {
         assert_eq!(v["scope"], "run");
         assert!(v["qr_svg"].as_str().unwrap().contains("<svg"));
         let tok = v["token"].as_str().unwrap().to_owned();
-        assert!(!v.to_string().contains("\"u\""), "response must not carry the bearer");
+        assert!(
+            !v.to_string().contains("\"u\""),
+            "response must not carry the bearer"
+        );
 
-        let (st, v) = call(&app, Method::POST, "/api/v1/pairing/exchange", None, Some(json!({"token": tok}))).await;
-        assert_eq!((st, v["token"].as_str(), v["scope"].as_str()), (StatusCode::OK, Some("u"), Some("run")));
-        let (st, _) = call(&app, Method::POST, "/api/v1/pairing/exchange", None, Some(json!({"token": tok}))).await;
+        let (st, v) = call(
+            &app,
+            Method::POST,
+            "/api/v1/pairing/exchange",
+            None,
+            Some(json!({"token": tok})),
+        )
+        .await;
+        assert_eq!(
+            (st, v["token"].as_str(), v["scope"].as_str()),
+            (StatusCode::OK, Some("u"), Some("run"))
+        );
+        let (st, _) = call(
+            &app,
+            Method::POST,
+            "/api/v1/pairing/exchange",
+            None,
+            Some(json!({"token": tok})),
+        )
+        .await;
         assert_eq!(st, StatusCode::UNAUTHORIZED, "replay");
     }
 }

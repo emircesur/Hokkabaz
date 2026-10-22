@@ -13,8 +13,8 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand};
-use std::io::IsTerminal;
 use hk_session::SessionStore;
+use std::io::IsTerminal;
 
 #[derive(Debug, Parser)]
 #[command(name = "hk", version, about = "Hokkabaz agent harness CLI")]
@@ -93,7 +93,8 @@ fn main() -> Result<()> {
                 Cmd::Chat(args) => chat::run(&paths, args).await,
                 Cmd::Tui(args) => tui::run(&paths, args).await,
                 Cmd::Sessions { cmd } => {
-                    let store = SessionStore::open(paths.sessions()).context("open session store")?;
+                    let store =
+                        SessionStore::open(paths.sessions()).context("open session store")?;
                     match cmd {
                         SessionsCmd::Ls { limit } => sessions::ls(&store, limit),
                         SessionsCmd::Show { id } => sessions::show(&store, &id),

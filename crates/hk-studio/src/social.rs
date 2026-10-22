@@ -24,7 +24,13 @@ struct Limits {
 }
 
 impl Platform {
-    pub const ALL: [Platform; 5] = [Platform::YoutubeShorts, Platform::Tiktok, Platform::InstagramReels, Platform::X, Platform::Linkedin];
+    pub const ALL: [Platform; 5] = [
+        Platform::YoutubeShorts,
+        Platform::Tiktok,
+        Platform::InstagramReels,
+        Platform::X,
+        Platform::Linkedin,
+    ];
 
     pub fn key(self) -> &'static str {
         match self {
@@ -38,11 +44,31 @@ impl Platform {
 
     fn limits(self) -> Limits {
         match self {
-            Self::YoutubeShorts => Limits { title: 100, description: 5000, hashtags: 5 },
-            Self::Tiktok => Limits { title: 90, description: 2200, hashtags: 5 },
-            Self::InstagramReels => Limits { title: 125, description: 2200, hashtags: 10 },
-            Self::X => Limits { title: 0, description: 270, hashtags: 2 },
-            Self::Linkedin => Limits { title: 150, description: 3000, hashtags: 4 },
+            Self::YoutubeShorts => Limits {
+                title: 100,
+                description: 5000,
+                hashtags: 5,
+            },
+            Self::Tiktok => Limits {
+                title: 90,
+                description: 2200,
+                hashtags: 5,
+            },
+            Self::InstagramReels => Limits {
+                title: 125,
+                description: 2200,
+                hashtags: 10,
+            },
+            Self::X => Limits {
+                title: 0,
+                description: 270,
+                hashtags: 2,
+            },
+            Self::Linkedin => Limits {
+                title: 150,
+                description: 3000,
+                hashtags: 4,
+            },
         }
     }
 }
@@ -87,7 +113,10 @@ pub fn truncate(s: &str, max: usize) -> String {
         return s.chars().take(max).collect();
     }
     let cut: String = s.chars().take(max - 1).collect();
-    let cut = cut.rfind(char::is_whitespace).map_or(cut.as_str(), |i| &cut[..i]).trim_end_matches([',', ';', ':', '-', ' ']);
+    let cut = cut
+        .rfind(char::is_whitespace)
+        .map_or(cut.as_str(), |i| &cut[..i])
+        .trim_end_matches([',', ';', ':', '-', ' ']);
     format!("{cut}…")
 }
 
@@ -96,7 +125,12 @@ pub fn normalize_hashtags(tags: &[String], max: usize) -> Vec<String> {
     let mut seen = Vec::<String>::new();
     let mut out = Vec::new();
     for t in tags {
-        let core: String = t.trim().trim_start_matches('#').chars().filter(|c| c.is_alphanumeric() || *c == '_').collect();
+        let core: String = t
+            .trim()
+            .trim_start_matches('#')
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
         if core.is_empty() || seen.contains(&core.to_lowercase()) {
             continue;
         }
@@ -115,15 +149,28 @@ fn clamp_post(p: Platform, mut post: PlatformPost) -> PlatformPost {
     post.hashtags = normalize_hashtags(&post.hashtags, l.hashtags);
     // The description must leave room for hashtags on platforms that inline them (X).
     let tags = post.hashtags.join(" ");
-    let room = if p == Platform::X { l.description.saturating_sub(tags.chars().count() + 1) } else { l.description };
+    let room = if p == Platform::X {
+        l.description.saturating_sub(tags.chars().count() + 1)
+    } else {
+        l.description
+    };
     post.description = truncate(&post.description, room);
     post
 }
 
 /// Generate posts for `platforms` from the clip's transcript text.
-pub async fn write_social(llm: &dyn Llm, clip_title: &str, text: &str, platforms: &[Platform], opts: &SocialOpts) -> Result<SocialPack> {
+pub async fn write_social(
+    llm: &dyn Llm,
+    clip_title: &str,
+    text: &str,
+    platforms: &[Platform],
+    opts: &SocialOpts,
+) -> Result<SocialPack> {
     let names: Vec<&str> = platforms.iter().map(|p| p.key()).collect();
-    let mut user = format!("Platforms: {}.\nClip working title: {clip_title}\n", names.join(", "));
+    let mut user = format!(
+        "Platforms: {}.\nClip working title: {clip_title}\n",
+        names.join(", ")
+    );
     if let Some(t) = &opts.tone {
         user.push_str(&format!("Tone: {t}\n"));
     }
@@ -133,13 +180,28 @@ pub async fn write_social(llm: &dyn Llm, clip_title: &str, text: &str, platforms
     if let Some(c) = &opts.call_to_action {
         user.push_str(&format!("Call to action: {c}\n"));
     }
-    let limits: Vec<String> = platforms.iter().map(|p| format!("{} (title<={}, description<={}, hashtags<={})", p.key(), p.limits().title, p.limits().description, p.limits().hashtags)).collect();
-    user.push_str(&format!("Limits: {}\n\nTranscript:\n{text}", limits.join("; ")));
+    let limits: Vec<String> = platforms
+        .iter()
+        .map(|p| {
+            format!(
+                "{} (title<={}, description<={}, hashtags<={})",
+                p.key(),
+                p.limits().title,
+                p.limits().description,
+                p.limits().hashtags
+            )
+        })
+        .collect();
+    user.push_str(&format!(
+        "Limits: {}\n\nTranscript:\n{text}",
+        limits.join("; ")
+    ));
     let out: Out = complete_json(llm, SYSTEM, &user).await?;
     let mut pack = SocialPack::default();
     for p in platforms {
         if let Some(post) = out.posts.get(p.key()) {
-            pack.posts.insert(p.key().to_string(), clamp_post(*p, post.clone()));
+            pack.posts
+                .insert(p.key().to_string(), clamp_post(*p, post.clone()));
         }
     }
     Ok(pack)
@@ -177,7 +239,14 @@ mod tests {
 
     #[test]
     fn hashtags_normalized() {
-        let t = vec!["#Fun".into(), "fun".into(), "very cool!".into(), "".into(), "#a_b".into(), "x".into()];
+        let t = vec![
+            "#Fun".into(),
+            "fun".into(),
+            "very cool!".into(),
+            "".into(),
+            "#a_b".into(),
+            "x".into(),
+        ];
         assert_eq!(normalize_hashtags(&t, 3), vec!["#Fun", "#verycool", "#a_b"]);
     }
 
@@ -188,7 +257,15 @@ mod tests {
             r#"{{"posts":{{"x":{{"title":"ignored","description":"{long}","hashtags":["a","b","c"]}},"tiktok":{{"title":"T","description":"d","hashtags":["x"]}}}}}}"#
         );
         let llm = ScriptedLlm::new([reply]);
-        let pack = write_social(&llm, "t", "text", &[Platform::X, Platform::Tiktok, Platform::Linkedin], &SocialOpts::default()).await.unwrap();
+        let pack = write_social(
+            &llm,
+            "t",
+            "text",
+            &[Platform::X, Platform::Tiktok, Platform::Linkedin],
+            &SocialOpts::default(),
+        )
+        .await
+        .unwrap();
         assert_eq!(pack.posts.len(), 2, "missing platform omitted");
         let x = &pack.posts["x"];
         assert_eq!(x.title, "");

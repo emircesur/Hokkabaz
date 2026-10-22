@@ -16,24 +16,77 @@ use crate::templates::{apply_template, builtin};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum EditOp {
-    AddClip { title: String, start: f64, end: f64 },
-    RemoveClip { clip: String },
-    RenameClip { clip: String, title: String },
-    SetBounds { clip: String, start: f64, end: f64 },
-    SplitClip { clip: String, at: f64 },
-    DeleteWords { clip: String, words: Vec<usize> },
-    RestoreWords { clip: String, words: Vec<usize> },
+    AddClip {
+        title: String,
+        start: f64,
+        end: f64,
+    },
+    RemoveClip {
+        clip: String,
+    },
+    RenameClip {
+        clip: String,
+        title: String,
+    },
+    SetBounds {
+        clip: String,
+        start: f64,
+        end: f64,
+    },
+    SplitClip {
+        clip: String,
+        at: f64,
+    },
+    DeleteWords {
+        clip: String,
+        words: Vec<usize>,
+    },
+    RestoreWords {
+        clip: String,
+        words: Vec<usize>,
+    },
     /// Delete every word that lies fully inside `start..end` (source seconds).
-    DeleteRange { clip: String, start: f64, end: f64 },
-    SetFillers { clip: String, on: bool },
-    SetSilence { clip: String, silence: Option<SilenceCut> },
-    SetCaptions { clip: String, style: Option<CaptionStyle> },
-    SetCaptionPreset { clip: String, preset: String },
-    SetReframe { clip: String, reframe: Option<ReframeSpec> },
-    SetBroll { clip: String, broll: Vec<BrollPlacement> },
-    RemoveBroll { clip: String, index: usize },
-    SetMusic { clip: String, music: Option<MusicSpec> },
-    ApplyTemplate { clip: String, template: String },
+    DeleteRange {
+        clip: String,
+        start: f64,
+        end: f64,
+    },
+    SetFillers {
+        clip: String,
+        on: bool,
+    },
+    SetSilence {
+        clip: String,
+        silence: Option<SilenceCut>,
+    },
+    SetCaptions {
+        clip: String,
+        style: Option<CaptionStyle>,
+    },
+    SetCaptionPreset {
+        clip: String,
+        preset: String,
+    },
+    SetReframe {
+        clip: String,
+        reframe: Option<ReframeSpec>,
+    },
+    SetBroll {
+        clip: String,
+        broll: Vec<BrollPlacement>,
+    },
+    RemoveBroll {
+        clip: String,
+        index: usize,
+    },
+    SetMusic {
+        clip: String,
+        music: Option<MusicSpec>,
+    },
+    ApplyTemplate {
+        clip: String,
+        template: String,
+    },
 }
 
 impl EditOp {
@@ -63,7 +116,12 @@ impl EditOp {
 
 /// Words fully inside `start..end`.
 pub fn words_in(tr: &Transcript, start: f64, end: f64) -> Vec<usize> {
-    tr.words.iter().enumerate().filter(|(_, w)| w.start >= start - 1e-6 && w.end <= end + 1e-6).map(|(i, _)| i).collect()
+    tr.words
+        .iter()
+        .enumerate()
+        .filter(|(_, w)| w.start >= start - 1e-6 && w.end <= end + 1e-6)
+        .map(|(i, _)| i)
+        .collect()
 }
 
 /// Apply `op`. Returns the id of the clip it created or changed, if any.
@@ -97,10 +155,16 @@ pub fn apply(p: &mut StudioProject, op: &EditOp) -> Result<Option<String>> {
             Ok(Some(clip.clone()))
         }
         EditOp::SplitClip { clip, at } => {
-            let idx = p.clips.iter().position(|c| &c.id == clip).ok_or_else(|| StudioError::NotFound(format!("clip {clip}")))?;
+            let idx = p
+                .clips
+                .iter()
+                .position(|c| &c.id == clip)
+                .ok_or_else(|| StudioError::NotFound(format!("clip {clip}")))?;
             let orig = p.clips[idx].clone();
             if !(*at > orig.start + 0.5 && *at < orig.end - 0.5) {
-                return Err(StudioError::Invalid("split point must be inside the clip, 0.5s from each end".into()));
+                return Err(StudioError::Invalid(
+                    "split point must be inside the clip, 0.5s from each end".into(),
+                ));
             }
             let mut second = orig.clone();
             second.id = new_id("c");
@@ -140,7 +204,8 @@ pub fn apply(p: &mut StudioProject, op: &EditOp) -> Result<Option<String>> {
             Ok(Some(clip.clone()))
         }
         EditOp::SetCaptionPreset { clip, preset } => {
-            let st = CaptionStyle::preset(preset).ok_or_else(|| StudioError::Invalid(format!("unknown caption preset {preset}")))?;
+            let st = CaptionStyle::preset(preset)
+                .ok_or_else(|| StudioError::Invalid(format!("unknown caption preset {preset}")))?;
             p.clip_mut(clip)?.captions = Some(st);
             Ok(Some(clip.clone()))
         }
@@ -165,7 +230,8 @@ pub fn apply(p: &mut StudioProject, op: &EditOp) -> Result<Option<String>> {
             Ok(Some(clip.clone()))
         }
         EditOp::ApplyTemplate { clip, template } => {
-            let t = builtin(template).ok_or_else(|| StudioError::Invalid(format!("unknown template {template}")))?;
+            let t = builtin(template)
+                .ok_or_else(|| StudioError::Invalid(format!("unknown template {template}")))?;
             apply_template(p.clip_mut(clip)?, &t);
             Ok(Some(clip.clone()))
         }
@@ -230,11 +296,23 @@ mod tests {
     use crate::project::SourceRef;
 
     fn project() -> StudioProject {
-        let mut p = StudioProject::new("t", SourceRef { path: PathBuf::from("a.mp4"), duration: 100.0, width: 1920, height: 1080, fps: 30.0, has_audio: true });
+        let mut p = StudioProject::new(
+            "t",
+            SourceRef {
+                path: PathBuf::from("a.mp4"),
+                duration: 100.0,
+                width: 1920,
+                height: 1080,
+                fps: 30.0,
+                has_audio: true,
+            },
+        );
         p.transcript = Some(Transcript {
             language: None,
             duration: 100.0,
-            words: (0..10).map(|i| Word::new(format!("w{i}"), i as f64, i as f64 + 0.8)).collect(),
+            words: (0..10)
+                .map(|i| Word::new(format!("w{i}"), i as f64, i as f64 + 0.8))
+                .collect(),
             segments: vec![],
         });
         p
@@ -243,40 +321,170 @@ mod tests {
     #[test]
     fn word_edits_and_range_delete() {
         let mut p = project();
-        let id = apply(&mut p, &EditOp::AddClip { title: "a".into(), start: 0.0, end: 10.0 }).unwrap().unwrap();
-        apply(&mut p, &EditOp::DeleteWords { clip: id.clone(), words: vec![1, 2] }).unwrap();
-        apply(&mut p, &EditOp::DeleteRange { clip: id.clone(), start: 5.0, end: 7.9 }).unwrap();
+        let id = apply(
+            &mut p,
+            &EditOp::AddClip {
+                title: "a".into(),
+                start: 0.0,
+                end: 10.0,
+            },
+        )
+        .unwrap()
+        .unwrap();
+        apply(
+            &mut p,
+            &EditOp::DeleteWords {
+                clip: id.clone(),
+                words: vec![1, 2],
+            },
+        )
+        .unwrap();
+        apply(
+            &mut p,
+            &EditOp::DeleteRange {
+                clip: id.clone(),
+                start: 5.0,
+                end: 7.9,
+            },
+        )
+        .unwrap();
         let c = p.clip(&id).unwrap();
-        assert_eq!(c.deleted_words.iter().copied().collect::<Vec<_>>(), vec![1, 2, 5, 6, 7]);
-        apply(&mut p, &EditOp::RestoreWords { clip: id.clone(), words: vec![1] }).unwrap();
+        assert_eq!(
+            c.deleted_words.iter().copied().collect::<Vec<_>>(),
+            vec![1, 2, 5, 6, 7]
+        );
+        apply(
+            &mut p,
+            &EditOp::RestoreWords {
+                clip: id.clone(),
+                words: vec![1],
+            },
+        )
+        .unwrap();
         assert!(!p.clip(&id).unwrap().deleted_words.contains(&1));
-        assert!(apply(&mut p, &EditOp::DeleteWords { clip: id, words: vec![99] }).is_err());
+        assert!(
+            apply(
+                &mut p,
+                &EditOp::DeleteWords {
+                    clip: id,
+                    words: vec![99]
+                }
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn split_bounds_and_remove() {
         let mut p = project();
-        let id = apply(&mut p, &EditOp::AddClip { title: "a".into(), start: 10.0, end: 50.0 }).unwrap().unwrap();
-        let second = apply(&mut p, &EditOp::SplitClip { clip: id.clone(), at: 30.0 }).unwrap().unwrap();
+        let id = apply(
+            &mut p,
+            &EditOp::AddClip {
+                title: "a".into(),
+                start: 10.0,
+                end: 50.0,
+            },
+        )
+        .unwrap()
+        .unwrap();
+        let second = apply(
+            &mut p,
+            &EditOp::SplitClip {
+                clip: id.clone(),
+                at: 30.0,
+            },
+        )
+        .unwrap()
+        .unwrap();
         assert_eq!(p.clips.len(), 2);
-        assert_eq!((p.clip(&id).unwrap().end, p.clip(&second).unwrap().start), (30.0, 30.0));
-        assert!(apply(&mut p, &EditOp::SplitClip { clip: id.clone(), at: 10.1 }).is_err());
-        apply(&mut p, &EditOp::SetBounds { clip: id.clone(), start: -5.0, end: 500.0 }).unwrap();
-        assert_eq!((p.clip(&id).unwrap().start, p.clip(&id).unwrap().end), (0.0, 100.0));
-        apply(&mut p, &EditOp::RemoveClip { clip: second.clone() }).unwrap();
+        assert_eq!(
+            (p.clip(&id).unwrap().end, p.clip(&second).unwrap().start),
+            (30.0, 30.0)
+        );
+        assert!(
+            apply(
+                &mut p,
+                &EditOp::SplitClip {
+                    clip: id.clone(),
+                    at: 10.1
+                }
+            )
+            .is_err()
+        );
+        apply(
+            &mut p,
+            &EditOp::SetBounds {
+                clip: id.clone(),
+                start: -5.0,
+                end: 500.0,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            (p.clip(&id).unwrap().start, p.clip(&id).unwrap().end),
+            (0.0, 100.0)
+        );
+        apply(
+            &mut p,
+            &EditOp::RemoveClip {
+                clip: second.clone(),
+            },
+        )
+        .unwrap();
         assert!(apply(&mut p, &EditOp::RemoveClip { clip: second }).is_err());
     }
 
     #[test]
     fn presets_templates_and_errors() {
         let mut p = project();
-        let id = apply(&mut p, &EditOp::AddClip { title: "a".into(), start: 0.0, end: 10.0 }).unwrap().unwrap();
-        apply(&mut p, &EditOp::SetCaptionPreset { clip: id.clone(), preset: "pop".into() }).unwrap();
+        let id = apply(
+            &mut p,
+            &EditOp::AddClip {
+                title: "a".into(),
+                start: 0.0,
+                end: 10.0,
+            },
+        )
+        .unwrap()
+        .unwrap();
+        apply(
+            &mut p,
+            &EditOp::SetCaptionPreset {
+                clip: id.clone(),
+                preset: "pop".into(),
+            },
+        )
+        .unwrap();
         assert!(p.clip(&id).unwrap().captions.is_some());
-        assert!(apply(&mut p, &EditOp::SetCaptionPreset { clip: id.clone(), preset: "nope".into() }).is_err());
-        apply(&mut p, &EditOp::ApplyTemplate { clip: id.clone(), template: "shorts-karaoke".into() }).unwrap();
+        assert!(
+            apply(
+                &mut p,
+                &EditOp::SetCaptionPreset {
+                    clip: id.clone(),
+                    preset: "nope".into()
+                }
+            )
+            .is_err()
+        );
+        apply(
+            &mut p,
+            &EditOp::ApplyTemplate {
+                clip: id.clone(),
+                template: "shorts-karaoke".into(),
+            },
+        )
+        .unwrap();
         assert!(p.clip(&id).unwrap().reframe.is_some());
-        assert!(apply(&mut p, &EditOp::ApplyTemplate { clip: id, template: "zzz".into() }).is_err());
+        assert!(
+            apply(
+                &mut p,
+                &EditOp::ApplyTemplate {
+                    clip: id,
+                    template: "zzz".into()
+                }
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -284,9 +492,25 @@ mod tests {
         let mut p = project();
         let mut h = History::default();
         h.record(&p);
-        let id = apply(&mut p, &EditOp::AddClip { title: "a".into(), start: 0.0, end: 10.0 }).unwrap().unwrap();
+        let id = apply(
+            &mut p,
+            &EditOp::AddClip {
+                title: "a".into(),
+                start: 0.0,
+                end: 10.0,
+            },
+        )
+        .unwrap()
+        .unwrap();
         h.record(&p);
-        apply(&mut p, &EditOp::DeleteWords { clip: id.clone(), words: vec![3] }).unwrap();
+        apply(
+            &mut p,
+            &EditOp::DeleteWords {
+                clip: id.clone(),
+                words: vec![3],
+            },
+        )
+        .unwrap();
         assert!(h.undo(&mut p));
         assert!(p.clip(&id).unwrap().deleted_words.is_empty());
         assert!(h.undo(&mut p));
@@ -302,7 +526,10 @@ mod tests {
 
     #[test]
     fn ops_roundtrip_json() {
-        let op = EditOp::DeleteWords { clip: "c1".into(), words: vec![1, 2] };
+        let op = EditOp::DeleteWords {
+            clip: "c1".into(),
+            words: vec![1, 2],
+        };
         let s = serde_json::to_string(&op).unwrap();
         assert!(s.contains("\"op\":\"delete_words\""));
         assert_eq!(serde_json::from_str::<EditOp>(&s).unwrap(), op);

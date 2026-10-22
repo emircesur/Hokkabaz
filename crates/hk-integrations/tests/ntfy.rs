@@ -34,7 +34,9 @@ fn ctx(params: Value, token: &str, extra: Value) -> NodeContext {
 }
 
 fn with_server(mut c: NodeContext, url: &str, secret: &str) -> NodeContext {
-    c.hooks.credentials = Some(Arc::new(Creds(json!({"serverUrl": url, "accessToken": secret}))));
+    c.hooks.credentials = Some(Arc::new(Creds(
+        json!({"serverUrl": url, "accessToken": secret}),
+    )));
     c
 }
 
@@ -56,7 +58,11 @@ fn registers_node_and_credential_schema() {
 #[tokio::test]
 async fn sends_json_publish_with_bearer_auth() {
     let (nodes, _c) = setup();
-    let (url, seen) = serve(vec![http_resp("200 OK", r#"{"id":"abc","time":1,"event":"message","topic":"alerts"}"#)]).await;
+    let (url, seen) = serve(vec![http_resp(
+        "200 OK",
+        r#"{"id":"abc","time":1,"event":"message","topic":"alerts"}"#,
+    )])
+    .await;
     let params = json!({
         "resource": "message", "operation": "send", "topic": "alerts", "message": "disk full",
         "additionalFields": {"title": "Host down", "priority": 5, "tags": "warning, skull"}
@@ -69,7 +75,10 @@ async fn sends_json_publish_with_bearer_auth() {
 
     let req = seen.lock().unwrap()[0].clone();
     assert!(req.starts_with("POST / HTTP/1.1"), "{req}");
-    assert!(req.to_lowercase().contains("authorization: bearer tk_secret".to_lowercase().as_str()));
+    assert!(
+        req.to_lowercase()
+            .contains("authorization: bearer tk_secret".to_lowercase().as_str())
+    );
     let body: Value = serde_json::from_str(req.split("\r\n\r\n").nth(1).unwrap()).unwrap();
     assert_eq!(
         body,
@@ -82,16 +91,26 @@ async fn errors_are_mapped_and_never_leak_the_token() {
     let (nodes, _c) = setup();
     let node = nodes.latest("hokkabaz.ntfy").unwrap();
     let params = json!({"resource": "message", "operation": "send", "topic": "t", "message": "m"});
-    let canned = http_resp("401 Unauthorized", r#"{"code":40101,"http":401,"error":"unauthorized"}"#);
+    let canned = http_resp(
+        "401 Unauthorized",
+        r#"{"code":40101,"http":401,"error":"unauthorized"}"#,
+    );
 
     let (url, _s) = serve(vec![canned.clone()]).await;
     let c = with_server(ctx(params.clone(), "", json!({})), &url, "tk_SECRET");
     let e = node.execute(&c).await.unwrap_err().to_string();
-    assert!(e.contains("401") && e.contains("unauthorized") && e.contains("credentials"), "{e}");
+    assert!(
+        e.contains("401") && e.contains("unauthorized") && e.contains("credentials"),
+        "{e}"
+    );
     assert!(!e.contains("tk_SECRET"));
 
     let (url, _s) = serve(vec![canned]).await;
-    let c = with_server(ctx(params, "", json!({"continueOnFail": true})), &url, "tk_SECRET");
+    let c = with_server(
+        ctx(params, "", json!({"continueOnFail": true})),
+        &url,
+        "tk_SECRET",
+    );
     let out = node.execute(&c).await.unwrap();
     let item = &out[0][0];
     assert!(item.json["error"].as_str().unwrap().contains("401"));
@@ -103,13 +122,27 @@ async fn errors_are_mapped_and_never_leak_the_token() {
 async fn missing_topic_is_not_sent_and_server_rejects() {
     // empty required params are skipped by routing; the service reports the problem
     let (nodes, _c) = setup();
-    let (url, seen) = serve(vec![http_resp("400 Bad Request", r#"{"error":"topic missing"}"#)]).await;
+    let (url, seen) = serve(vec![http_resp(
+        "400 Bad Request",
+        r#"{"error":"topic missing"}"#,
+    )])
+    .await;
     let c = with_server(
-        ctx(json!({"resource": "message", "operation": "send", "topic": "", "message": "m"}), "", json!({})),
+        ctx(
+            json!({"resource": "message", "operation": "send", "topic": "", "message": "m"}),
+            "",
+            json!({}),
+        ),
         &url,
         "",
     );
-    let e = nodes.latest("hokkabaz.ntfy").unwrap().execute(&c).await.unwrap_err().to_string();
+    let e = nodes
+        .latest("hokkabaz.ntfy")
+        .unwrap()
+        .execute(&c)
+        .await
+        .unwrap_err()
+        .to_string();
     assert!(e.contains("400") && e.contains("topic missing"), "{e}");
     let req = seen.lock().unwrap()[0].clone();
     assert!(!req.contains("\"topic\""));

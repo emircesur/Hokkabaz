@@ -29,7 +29,9 @@ static MASTER_KEY: RwLock<Option<[u8; 32]>> = RwLock::new(None);
 /// Master key for encrypting the secrets file (from the platform keystore). Call before
 /// `core_init`. Exactly 32 bytes.
 pub fn set_master_key(key: &[u8]) -> Result<(), SecretError> {
-    let k: [u8; 32] = key.try_into().map_err(|_| be("master key must be 32 bytes"))?;
+    let k: [u8; 32] = key
+        .try_into()
+        .map_err(|_| be("master key must be 32 bytes"))?;
     *MASTER_KEY.write().unwrap_or_else(PoisonError::into_inner) = Some(k);
     Ok(())
 }
@@ -43,9 +45,16 @@ fn seal(key: &[u8; 32], plain: &[u8]) -> Result<Vec<u8>, SecretError> {
     use ring::rand::{SecureRandom, SystemRandom};
     let k = LessSafeKey::new(UnboundKey::new(&CHACHA20_POLY1305, key).map_err(|_| be("bad key"))?);
     let mut nonce = [0u8; 12];
-    SystemRandom::new().fill(&mut nonce).map_err(|_| be("rng failed"))?;
+    SystemRandom::new()
+        .fill(&mut nonce)
+        .map_err(|_| be("rng failed"))?;
     let mut buf = plain.to_vec();
-    k.seal_in_place_append_tag(Nonce::assume_unique_for_key(nonce), Aad::from(MAGIC), &mut buf).map_err(|_| be("encrypt failed"))?;
+    k.seal_in_place_append_tag(
+        Nonce::assume_unique_for_key(nonce),
+        Aad::from(MAGIC),
+        &mut buf,
+    )
+    .map_err(|_| be("encrypt failed"))?;
     let mut out = Vec::with_capacity(4 + 12 + buf.len());
     out.extend_from_slice(MAGIC);
     out.extend_from_slice(&nonce);
@@ -61,13 +70,17 @@ fn open(key: &[u8; 32], data: &[u8]) -> Result<Vec<u8>, SecretError> {
     let k = LessSafeKey::new(UnboundKey::new(&CHACHA20_POLY1305, key).map_err(|_| be("bad key"))?);
     let nonce = Nonce::try_assume_unique_for_key(&data[4..16]).map_err(|_| be("bad nonce"))?;
     let mut buf = data[16..].to_vec();
-    let plain = k.open_in_place(nonce, Aad::from(MAGIC), &mut buf).map_err(|_| be("cannot decrypt secrets (wrong key or damaged file)"))?;
+    let plain = k
+        .open_in_place(nonce, Aad::from(MAGIC), &mut buf)
+        .map_err(|_| be("cannot decrypt secrets (wrong key or damaged file)"))?;
     Ok(plain.to_vec())
 }
 
 impl fmt::Debug for FileSecretStore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FileSecretStore").field("path", &self.path).finish()
+        f.debug_struct("FileSecretStore")
+            .field("path", &self.path)
+            .finish()
     }
 }
 
@@ -77,13 +90,21 @@ fn be(e: impl fmt::Display) -> SecretError {
 
 impl FileSecretStore {
     pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into(), lock: Mutex::new(()), key: None }
+        Self {
+            path: path.into(),
+            lock: Mutex::new(()),
+            key: None,
+        }
     }
 
     /// Encrypt the file with `key`. A plaintext file from before the key existed is read and
     /// re-written encrypted on the next change.
     pub fn encrypted(path: impl Into<PathBuf>, key: [u8; 32]) -> Self {
-        Self { path: path.into(), lock: Mutex::new(()), key: Some(key) }
+        Self {
+            path: path.into(),
+            lock: Mutex::new(()),
+            key: Some(key),
+        }
     }
 
     fn load(&self) -> Result<BTreeMap<String, String>, SecretError> {
@@ -93,7 +114,10 @@ impl FileSecretStore {
             Err(e) => return Err(be(e)),
         };
         let plain = if bytes.starts_with(MAGIC) {
-            let key = self.key.as_ref().ok_or_else(|| be("secrets file is encrypted but no master key is available"))?;
+            let key = self
+                .key
+                .as_ref()
+                .ok_or_else(|| be("secrets file is encrypted but no master key is available"))?;
             open(key, &bytes)?
         } else {
             bytes // legacy plaintext JSON
@@ -191,9 +215,17 @@ mod tests {
         assert!(!String::from_utf8_lossy(&raw).contains("sk-super-secret"));
         assert_eq!(s.get("a").unwrap().unwrap().expose(), "sk-super-secret");
         // A second store with the same key reads it; another key cannot.
-        assert!(FileSecretStore::encrypted(&p, [7; 32]).get("a").unwrap().is_some());
+        assert!(
+            FileSecretStore::encrypted(&p, [7; 32])
+                .get("a")
+                .unwrap()
+                .is_some()
+        );
         assert!(FileSecretStore::encrypted(&p, [8; 32]).get("a").is_err());
-        assert!(FileSecretStore::new(&p).get("a").is_err(), "no key, encrypted file");
+        assert!(
+            FileSecretStore::new(&p).get("a").is_err(),
+            "no key, encrypted file"
+        );
         s.delete("a").unwrap();
         assert!(s.get("a").unwrap().is_none());
     }
@@ -201,7 +233,9 @@ mod tests {
     #[test]
     fn plaintext_file_migrates_on_next_write() {
         let p = tmp("mig");
-        FileSecretStore::new(&p).set("old", &Secret::new("v1")).unwrap();
+        FileSecretStore::new(&p)
+            .set("old", &Secret::new("v1"))
+            .unwrap();
         assert!(std::fs::read(&p).unwrap().starts_with(b"{"));
         let s = FileSecretStore::encrypted(&p, [1; 32]);
         assert_eq!(s.get("old").unwrap().unwrap().expose(), "v1");

@@ -67,11 +67,7 @@ pub struct State {
 pub type Log = Arc<Mutex<State>>;
 
 fn media_len(path: &str) -> f64 {
-    if path.contains("broll") {
-        8.0
-    } else {
-        100.0
-    }
+    if path.contains("broll") { 8.0 } else { 100.0 }
 }
 
 /// Spawns the fake on one end of a duplex pipe; returns the client end and a handle for asserts.
@@ -83,8 +79,13 @@ pub fn spawn(opts: FakeOpts) -> (DuplexStream, Log) {
         let (r, mut w) = tokio::io::split(server);
         let mut lines = BufReader::new(r).lines();
         while let Ok(Some(line)) = lines.next_line().await {
-            let Ok(msg) = serde_json::from_str::<Value>(&line) else { continue };
-            let (Some(id), Some(method)) = (msg.get("id").cloned(), msg.get("method").and_then(Value::as_str)) else {
+            let Ok(msg) = serde_json::from_str::<Value>(&line) else {
+                continue;
+            };
+            let (Some(id), Some(method)) = (
+                msg.get("id").cloned(),
+                msg.get("method").and_then(Value::as_str),
+            ) else {
                 continue; // notification
             };
             let params = msg.get("params").cloned().unwrap_or(Value::Null);
@@ -148,16 +149,31 @@ fn call(state: &Log, opts: &FakeOpts, params: &Value) -> Value {
 type Res = Result<Value, (&'static str, String)>;
 
 fn under_roots(opts: &FakeOpts, path: &str) -> Result<(), (&'static str, String)> {
-    if opts.roots.is_empty() || opts.roots.iter().any(|r| std::path::Path::new(path).starts_with(r)) {
+    if opts.roots.is_empty()
+        || opts
+            .roots
+            .iter()
+            .any(|r| std::path::Path::new(path).starts_with(r))
+    {
         return Ok(());
     }
-    let roots = opts.roots.iter().map(|r| r.display().to_string()).collect::<Vec<_>>().join(", ");
-    Err(("refused", format!("{path} is outside where this API writes ({roots})")))
+    let roots = opts
+        .roots
+        .iter()
+        .map(|r| r.display().to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err((
+        "refused",
+        format!("{path} is outside where this API writes ({roots})"),
+    ))
 }
 
 fn proj<'a>(st: &'a mut State, args: &Value) -> Result<&'a mut Project, (&'static str, String)> {
     let p = args["path"].as_str().unwrap_or("");
-    st.projects.get_mut(p).ok_or(("notOpen", format!("{p} is not open")))
+    st.projects
+        .get_mut(p)
+        .ok_or(("notOpen", format!("{p} is not open")))
 }
 
 fn run(st: &mut State, opts: &FakeOpts, name: &str, a: &Value) -> Res {
@@ -327,7 +343,12 @@ fn apply(p: &mut Project, op: &Value) -> Result<Option<String>, (&'static str, S
         }
         "addClip" => {
             let mid = op["mediaId"].as_str().unwrap_or("");
-            let m = p.media.iter().find(|m| m.id == mid).ok_or(("refused", "media is gone".to_owned()))?.clone();
+            let m = p
+                .media
+                .iter()
+                .find(|m| m.id == mid)
+                .ok_or(("refused", "media is gone".to_owned()))?
+                .clone();
             let t = op["trackId"].as_str().unwrap_or("");
             if !p.tracks.iter().any(|x| x == t) {
                 return Err(("refused", "track is gone".into()));
@@ -353,7 +374,8 @@ fn apply(p: &mut Project, op: &Value) -> Result<Option<String>, (&'static str, S
         "trimClip" => {
             let id = op["clipId"].as_str().unwrap_or("");
             let delta = f(op, "delta");
-            let media_len: HashMap<String, f64> = p.media.iter().map(|m| (m.id.clone(), m.duration)).collect();
+            let media_len: HashMap<String, f64> =
+                p.media.iter().map(|m| (m.id.clone(), m.duration)).collect();
             if let Some(c) = p.clips.iter_mut().find(|c| c.id == id) {
                 if op["edge"] == "start" {
                     c.start += delta;
@@ -373,7 +395,10 @@ fn apply(p: &mut Project, op: &Value) -> Result<Option<String>, (&'static str, S
                 let id = m["clipId"].as_str().unwrap_or("");
                 if let Some(c) = p.clips.iter_mut().find(|c| c.id == id) {
                     c.start = f(&m, "start").max(0.0);
-                    if let Some(t) = m["trackId"].as_str().filter(|t| p.tracks.iter().any(|x| x == t)) {
+                    if let Some(t) = m["trackId"]
+                        .as_str()
+                        .filter(|t| p.tracks.iter().any(|x| x == t))
+                    {
                         c.track = t.into();
                     }
                 }
@@ -381,9 +406,17 @@ fn apply(p: &mut Project, op: &Value) -> Result<Option<String>, (&'static str, S
         }
         "splitClips" => {
             let time = f(op, "time");
-            let ids: Vec<String> = op["clipIds"].as_array().cloned().unwrap_or_default().iter().filter_map(|v| v.as_str().map(str::to_owned)).collect();
+            let ids: Vec<String> = op["clipIds"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect();
             for id in ids {
-                let Some(i) = p.clips.iter().position(|c| c.id == id) else { continue };
+                let Some(i) = p.clips.iter().position(|c| c.id == id) else {
+                    continue;
+                };
                 let c = p.clips[i].clone();
                 if time > c.start + 1.0 / 60.0 && time < c.start + c.duration - 1.0 / 60.0 {
                     let cut = time - c.start;
@@ -399,12 +432,27 @@ fn apply(p: &mut Project, op: &Value) -> Result<Option<String>, (&'static str, S
             }
         }
         "removeClips" => {
-            let ids: Vec<String> = op["clipIds"].as_array().cloned().unwrap_or_default().iter().filter_map(|v| v.as_str().map(str::to_owned)).collect();
-            let removed: Vec<Clip> = p.clips.iter().filter(|c| ids.contains(&c.id)).cloned().collect();
+            let ids: Vec<String> = op["clipIds"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect();
+            let removed: Vec<Clip> = p
+                .clips
+                .iter()
+                .filter(|c| ids.contains(&c.id))
+                .cloned()
+                .collect();
             p.clips.retain(|c| !ids.contains(&c.id));
             if op["ripple"].as_bool().unwrap_or(false) {
                 for c in &mut p.clips {
-                    let shift: f64 = removed.iter().filter(|r| r.track == c.track && r.start + r.duration <= c.start + 1e-6).map(|r| r.duration).sum();
+                    let shift: f64 = removed
+                        .iter()
+                        .filter(|r| r.track == c.track && r.start + r.duration <= c.start + 1e-6)
+                        .map(|r| r.duration)
+                        .sum();
                     c.start -= shift;
                 }
             }
@@ -412,11 +460,21 @@ fn apply(p: &mut Project, op: &Value) -> Result<Option<String>, (&'static str, S
         "addTextClip" => {
             let start = f(op, "start");
             let dur = op["duration"].as_f64().unwrap_or(4.0);
-            let free = |p: &Project, t: &str| !p.clips.iter().any(|c| c.track == t && c.start < start + dur && start < c.start + c.duration);
-            let has_video = |p: &Project, t: &str| p.clips.iter().any(|c| c.track == t && c.kind == "video");
+            let free = |p: &Project, t: &str| {
+                !p.clips
+                    .iter()
+                    .any(|c| c.track == t && c.start < start + dur && start < c.start + c.duration)
+            };
+            let has_video =
+                |p: &Project, t: &str| p.clips.iter().any(|c| c.track == t && c.kind == "video");
             let track = match op["trackId"].as_str() {
                 Some(t) => t.to_owned(),
-                None => match p.tracks.iter().find(|t| !has_video(p, t) && free(p, t)).cloned() {
+                None => match p
+                    .tracks
+                    .iter()
+                    .find(|t| !has_video(p, t) && free(p, t))
+                    .cloned()
+                {
                     Some(t) => t,
                     None => {
                         p.n_track += 1;
@@ -446,9 +504,14 @@ fn apply(p: &mut Project, op: &Value) -> Result<Option<String>, (&'static str, S
         }
         "setClipKey" => {
             let id = op["clipId"].as_str().unwrap_or("");
-            let (prop, at, value) = (op["property"].as_str().unwrap_or("").to_owned(), f(op, "at"), f(op, "value"));
+            let (prop, at, value) = (
+                op["property"].as_str().unwrap_or("").to_owned(),
+                f(op, "at"),
+                f(op, "value"),
+            );
             if let Some(c) = p.clips.iter_mut().find(|c| c.id == id) {
-                c.keys.retain(|k| !(k.0 == prop && (k.1 - at).abs() < 0.002));
+                c.keys
+                    .retain(|k| !(k.0 == prop && (k.1 - at).abs() < 0.002));
                 c.keys.push((prop, at, value));
             }
         }
@@ -489,7 +552,10 @@ fn apply(p: &mut Project, op: &Value) -> Result<Option<String>, (&'static str, S
 }
 
 fn track_json(p: &Project) -> Vec<Value> {
-    p.tracks.iter().map(|t| json!({ "id": t, "visible": true, "muted": false })).collect()
+    p.tracks
+        .iter()
+        .map(|t| json!({ "id": t, "visible": true, "muted": false }))
+        .collect()
 }
 
 fn clip_raw(c: &Clip) -> Value {
@@ -528,7 +594,10 @@ fn raw_view(p: &Project) -> Value {
 fn summary(p: &Project, created: Option<String>) -> Value {
     let mut clips: Vec<&Clip> = p.clips.iter().collect();
     clips.sort_by(|a, b| a.start.total_cmp(&b.start));
-    let dur = clips.iter().map(|c| c.start + c.duration).fold(0.0, f64::max);
+    let dur = clips
+        .iter()
+        .map(|c| c.start + c.duration)
+        .fold(0.0, f64::max);
     let clip_json: Vec<Value> = clips
         .iter()
         .map(|c| {

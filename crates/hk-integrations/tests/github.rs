@@ -24,7 +24,11 @@ fn setup() -> Setup {
     let creds = CredentialTypes::new();
     let mut polls = PollRegistry::new();
     register_integrations_with_polling(&mut nodes, &creds, &mut polls).unwrap();
-    Setup { nodes, creds, polls }
+    Setup {
+        nodes,
+        creds,
+        polls,
+    }
 }
 
 fn node(ty: &str, params: Value) -> Node {
@@ -41,7 +45,11 @@ fn creds_for(url: &str) -> Arc<Creds> {
 }
 
 fn ctx(url: &str, params: Value) -> NodeContext {
-    let mut c = NodeContext::new(node("n8n-nodes-base.github", params), vec![vec![Item::from_json(json!({}))]], 0);
+    let mut c = NodeContext::new(
+        node("n8n-nodes-base.github", params),
+        vec![vec![Item::from_json(json!({}))]],
+        0,
+    );
     c.hooks.credentials = Some(creds_for(url));
     c
 }
@@ -60,23 +68,39 @@ fn registers_node_trigger_and_credential() {
     assert!(s.nodes.latest("n8n-nodes-base.github").is_some());
     assert!(s.polls.get("n8n-nodes-base.githubTrigger").is_some());
     let schema = s.creds.schema("githubApi").unwrap();
-    assert_eq!(schema["properties"]["server"]["default"], "https://api.github.com");
+    assert_eq!(
+        schema["properties"]["server"]["default"],
+        "https://api.github.com"
+    );
     assert_eq!(schema["required"], json!(["accessToken"]));
 }
 
 #[tokio::test]
 async fn issue_create_routes_with_auth_and_body() {
     let s = setup();
-    let (url, seen) = serve(vec![http_resp("201 Created", r#"{"number":7,"title":"T"}"#)]).await;
+    let (url, seen) = serve(vec![http_resp(
+        "201 Created",
+        r#"{"number":7,"title":"T"}"#,
+    )])
+    .await;
     let params = json!({
         "resource": "issue", "operation": "create", "owner": "acme", "repository": "wid get",
         "title": "T", "body": "B", "labels": "bug, ui", "assignees": [{"assignee": "alice"}]
     });
-    let out = s.nodes.latest("n8n-nodes-base.github").unwrap().execute(&ctx(&url, params)).await.unwrap();
+    let out = s
+        .nodes
+        .latest("n8n-nodes-base.github")
+        .unwrap()
+        .execute(&ctx(&url, params))
+        .await
+        .unwrap();
     assert_eq!(out[0][0].json["number"], 7);
 
     let req = seen.lock().unwrap()[0].clone();
-    assert_eq!(request_line(&req), "POST /repos/acme/wid%20get/issues HTTP/1.1");
+    assert_eq!(
+        request_line(&req),
+        "POST /repos/acme/wid%20get/issues HTTP/1.1"
+    );
     let low = req.to_lowercase();
     assert!(low.contains("authorization: token ghp_secret"), "{req}");
     assert!(low.contains("user-agent: hokkabaz") && low.contains("application/vnd.github+json"));
@@ -89,9 +113,21 @@ async fn issue_create_routes_with_auth_and_body() {
 #[tokio::test]
 async fn errors_map_and_do_not_leak_the_token() {
     let s = setup();
-    let (url, _seen) = serve(vec![http_resp("404 Not Found", r#"{"message":"Not Found"}"#)]).await;
-    let params = json!({"resource": "repository", "operation": "get", "owner": "a", "repository": "b"});
-    let e = s.nodes.latest("n8n-nodes-base.github").unwrap().execute(&ctx(&url, params)).await.unwrap_err().to_string();
+    let (url, _seen) = serve(vec![http_resp(
+        "404 Not Found",
+        r#"{"message":"Not Found"}"#,
+    )])
+    .await;
+    let params =
+        json!({"resource": "repository", "operation": "get", "owner": "a", "repository": "b"});
+    let e = s
+        .nodes
+        .latest("n8n-nodes-base.github")
+        .unwrap()
+        .execute(&ctx(&url, params))
+        .await
+        .unwrap_err()
+        .to_string();
     assert!(e.contains("404") && e.contains("Not Found"), "{e}");
     assert!(!e.contains("ghp_SECRET"));
 }
@@ -140,7 +176,10 @@ async fn file_edit_reads_the_sha_first() {
     let s = setup();
     let (url, seen) = serve(vec![
         http_resp("200 OK", r#"{"sha":"abc123","type":"file"}"#),
-        http_resp("200 OK", r#"{"content":{"path":"dir/a b.txt"},"commit":{"sha":"c1"}}"#),
+        http_resp(
+            "200 OK",
+            r#"{"content":{"path":"dir/a b.txt"},"commit":{"sha":"c1"}}"#,
+        ),
     ])
     .await;
     let params = json!({
@@ -148,12 +187,24 @@ async fn file_edit_reads_the_sha_first() {
         "filePath": "dir/a b.txt", "fileContent": "hi", "commitMessage": "update",
         "additionalParameters": {"branch": {"branch": "dev"}, "authorName": "Al", "authorEmail": "al@x.io"}
     });
-    let out = s.nodes.latest("n8n-nodes-base.github").unwrap().execute(&ctx(&url, params)).await.unwrap();
+    let out = s
+        .nodes
+        .latest("n8n-nodes-base.github")
+        .unwrap()
+        .execute(&ctx(&url, params))
+        .await
+        .unwrap();
     assert_eq!(out[0][0].json["commit"]["sha"], "c1");
 
     let seen = seen.lock().unwrap();
-    assert_eq!(request_line(&seen[0]), "GET /repos/a/b/contents/dir/a%20b.txt?ref=dev HTTP/1.1");
-    assert_eq!(request_line(&seen[1]), "PUT /repos/a/b/contents/dir/a%20b.txt HTTP/1.1");
+    assert_eq!(
+        request_line(&seen[0]),
+        "GET /repos/a/b/contents/dir/a%20b.txt?ref=dev HTTP/1.1"
+    );
+    assert_eq!(
+        request_line(&seen[1]),
+        "PUT /repos/a/b/contents/dir/a%20b.txt HTTP/1.1"
+    );
     assert_eq!(
         body_of(&seen[1]),
         json!({
@@ -184,12 +235,21 @@ async fn trigger_emits_only_selected_events_oldest_first() {
     assert_eq!(batch.items[1].json["payload"]["action"], "opened");
 
     let req = seen.lock().unwrap()[0].clone();
-    assert!(request_line(&req).starts_with("GET /repos/acme/widget/events?per_page=100"), "{req}");
-    assert!(req.to_lowercase().contains("authorization: token ghp_secret"));
+    assert!(
+        request_line(&req).starts_with("GET /repos/acme/widget/events?per_page=100"),
+        "{req}"
+    );
+    assert!(
+        req.to_lowercase()
+            .contains("authorization: token ghp_secret")
+    );
 
     // `*` takes everything
     let (url, _s) = serve(vec![http_resp("200 OK", &feed.to_string())]).await;
-    let n = node("n8n-nodes-base.githubTrigger", json!({"owner": "a", "repository": "b", "events": "*"}));
+    let n = node(
+        "n8n-nodes-base.githubTrigger",
+        json!({"owner": "a", "repository": "b", "events": "*"}),
+    );
     let cx = PollContext::for_node(&n, Some("wf"), Some(creds_for(&url)));
     assert_eq!(trigger.poll(&cx, None).await.unwrap().items.len(), 3);
 }

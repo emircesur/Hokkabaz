@@ -26,7 +26,9 @@ pub struct N8nClient {
 
 impl fmt::Debug for N8nClient {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("N8nClient").field("base", &self.base).finish_non_exhaustive()
+        f.debug_struct("N8nClient")
+            .field("base", &self.base)
+            .finish_non_exhaustive()
     }
 }
 
@@ -54,38 +56,65 @@ impl N8nClient {
         if api_key.trim().is_empty() {
             return Err("n8n API key is empty".into());
         }
-        let http = reqwest::Client::builder().timeout(TIMEOUT).build().map_err(|e| e.to_string())?;
-        Ok(Self { http, base, key: api_key.trim().to_owned() })
+        let http = reqwest::Client::builder()
+            .timeout(TIMEOUT)
+            .build()
+            .map_err(|e| e.to_string())?;
+        Ok(Self {
+            http,
+            base,
+            key: api_key.trim().to_owned(),
+        })
     }
 
     fn root(&self) -> &str {
         self.base.trim_end_matches("/api/v1")
     }
 
-    async fn call(&self, what: &str, method: reqwest::Method, path: &str, body: Option<&Value>) -> Result<Value, String> {
-        let mut r = self.http.request(method, format!("{}{path}", self.base)).header("X-N8N-API-KEY", &self.key);
+    async fn call(
+        &self,
+        what: &str,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&Value>,
+    ) -> Result<Value, String> {
+        let mut r = self
+            .http
+            .request(method, format!("{}{path}", self.base))
+            .header("X-N8N-API-KEY", &self.key);
         if let Some(b) = body {
-            r = r.header("content-type", "application/json").body(b.to_string());
+            r = r
+                .header("content-type", "application/json")
+                .body(b.to_string());
         }
         let resp = r.send().await.map_err(|e| http_err(what, &e))?;
         let status = resp.status();
         let text = resp.text().await.map_err(|e| http_err(what, &e))?;
         if !status.is_success() {
-            let msg = serde_json::from_str::<Value>(&text).ok().and_then(|v| v["message"].as_str().map(str::to_owned)).unwrap_or_default();
+            let msg = serde_json::from_str::<Value>(&text)
+                .ok()
+                .and_then(|v| v["message"].as_str().map(str::to_owned))
+                .unwrap_or_default();
             return Err(match status.as_u16() {
                 401 | 403 => format!("{what}: the n8n API key was rejected"),
                 404 => format!("{what}: not found on the n8n instance"),
-                code => format!("{what}: n8n answered {code} {msg}").trim().to_owned(),
+                code => format!("{what}: n8n answered {code} {msg}")
+                    .trim()
+                    .to_owned(),
             });
         }
         if text.trim().is_empty() {
             return Ok(Value::Null);
         }
-        serde_json::from_str(&text).map_err(|_| format!("{what}: n8n returned something that is not JSON (is the URL the API base?)"))
+        serde_json::from_str(&text).map_err(|_| {
+            format!("{what}: n8n returned something that is not JSON (is the URL the API base?)")
+        })
     }
 
     pub async fn ping(&self) -> Result<(), String> {
-        self.call("connect", reqwest::Method::GET, "/workflows?limit=1", None).await.map(|_| ())
+        self.call("connect", reqwest::Method::GET, "/workflows?limit=1", None)
+            .await
+            .map(|_| ())
     }
 
     /// Every workflow (id, name, active, updatedAt, ... without need for node bodies).
@@ -97,7 +126,9 @@ impl N8nClient {
                 Some(c) => format!("/workflows?limit=100&cursor={c}"),
                 None => "/workflows?limit=100".to_owned(),
             };
-            let page = self.call("list workflows", reqwest::Method::GET, &path, None).await?;
+            let page = self
+                .call("list workflows", reqwest::Method::GET, &path, None)
+                .await?;
             if let Some(d) = page["data"].as_array() {
                 out.extend(d.iter().cloned());
             }
@@ -110,29 +141,69 @@ impl N8nClient {
     }
 
     pub async fn get_workflow(&self, id: &str) -> Result<Value, String> {
-        self.call("get workflow", reqwest::Method::GET, &format!("/workflows/{}", urlenc(id)), None).await
+        self.call(
+            "get workflow",
+            reqwest::Method::GET,
+            &format!("/workflows/{}", urlenc(id)),
+            None,
+        )
+        .await
     }
 
     pub async fn create_workflow(&self, wf: &Value) -> Result<Value, String> {
-        self.call("create workflow", reqwest::Method::POST, "/workflows", Some(&push_body(wf))).await
+        self.call(
+            "create workflow",
+            reqwest::Method::POST,
+            "/workflows",
+            Some(&push_body(wf)),
+        )
+        .await
     }
 
     pub async fn update_workflow(&self, id: &str, wf: &Value) -> Result<Value, String> {
-        self.call("update workflow", reqwest::Method::PUT, &format!("/workflows/{}", urlenc(id)), Some(&push_body(wf))).await
+        self.call(
+            "update workflow",
+            reqwest::Method::PUT,
+            &format!("/workflows/{}", urlenc(id)),
+            Some(&push_body(wf)),
+        )
+        .await
     }
 
     pub async fn set_active(&self, id: &str, active: bool) -> Result<(), String> {
         let action = if active { "activate" } else { "deactivate" };
-        self.call(action, reqwest::Method::POST, &format!("/workflows/{}/{action}", urlenc(id)), None).await.map(|_| ())
+        self.call(
+            action,
+            reqwest::Method::POST,
+            &format!("/workflows/{}/{action}", urlenc(id)),
+            None,
+        )
+        .await
+        .map(|_| ())
     }
 
     pub async fn delete_workflow(&self, id: &str) -> Result<(), String> {
-        self.call("delete workflow", reqwest::Method::DELETE, &format!("/workflows/{}", urlenc(id)), None).await.map(|_| ())
+        self.call(
+            "delete workflow",
+            reqwest::Method::DELETE,
+            &format!("/workflows/{}", urlenc(id)),
+            None,
+        )
+        .await
+        .map(|_| ())
     }
 }
 
 fn urlenc(s: &str) -> String {
-    s.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect()
+    s.bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect()
 }
 
 /// The subset of a workflow n8n's create/update accepts (extra properties are rejected).
@@ -140,8 +211,14 @@ pub fn push_body(wf: &Value) -> Value {
     let mut settings = wf["settings"].as_object().cloned().unwrap_or_default();
     // Only settings the public API knows; anything else makes n8n answer 400.
     const KNOWN: &[&str] = &[
-        "saveExecutionProgress", "saveManualExecutions", "saveDataErrorExecution", "saveDataSuccessExecution",
-        "executionTimeout", "errorWorkflow", "timezone", "executionOrder",
+        "saveExecutionProgress",
+        "saveManualExecutions",
+        "saveDataErrorExecution",
+        "saveDataSuccessExecution",
+        "executionTimeout",
+        "errorWorkflow",
+        "timezone",
+        "executionOrder",
     ];
     settings.retain(|k, _| KNOWN.contains(&k.as_str()));
     json!({
@@ -171,15 +248,23 @@ pub struct Unmapped {
 /// can create the credential and pick it in the node panel.
 pub fn map_credentials(wf: &mut Value, local: &[LocalCred]) -> Vec<Unmapped> {
     let mut missing = Vec::new();
-    let Some(nodes) = wf["nodes"].as_array_mut() else { return missing };
+    let Some(nodes) = wf["nodes"].as_array_mut() else {
+        return missing;
+    };
     for n in nodes {
         let node_name = n["name"].as_str().unwrap_or_default().to_owned();
-        let Some(creds) = n.get_mut("credentials").and_then(Value::as_object_mut) else { continue };
+        let Some(creds) = n.get_mut("credentials").and_then(Value::as_object_mut) else {
+            continue;
+        };
         for (kind, r) in creds.iter_mut() {
             let name = r["name"].as_str().unwrap_or_default().to_owned();
             match local.iter().find(|c| &c.kind == kind && c.name == name) {
                 Some(c) => *r = json!({"id": c.id, "name": c.name}),
-                None => missing.push(Unmapped { node: node_name.clone(), kind: kind.clone(), name }),
+                None => missing.push(Unmapped {
+                    node: node_name.clone(),
+                    kind: kind.clone(),
+                    name,
+                }),
             }
         }
     }
@@ -202,7 +287,9 @@ impl N8nRemote {
 fn token() -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
     static N: AtomicU64 = AtomicU64::new(0);
-    let ns = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+    let ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
     format!("hk-{ns:x}-{:x}", N.fetch_add(1, Ordering::Relaxed))
 }
 
@@ -243,13 +330,24 @@ impl N8nRemote {
         // The production webhook registers a moment after activation.
         let mut last = String::new();
         for attempt in 0..6u64 {
-            let resp = self.client.http.post(&url).header("content-type", "application/json").body(body.to_string()).send().await.map_err(|e| http_err("run on n8n", &e))?;
+            let resp = self
+                .client
+                .http
+                .post(&url)
+                .header("content-type", "application/json")
+                .body(body.to_string())
+                .send()
+                .await
+                .map_err(|e| http_err("run on n8n", &e))?;
             let status = resp.status();
             let text = resp.text().await.map_err(|e| http_err("run on n8n", &e))?;
             if status.is_success() {
                 return Ok(serde_json::from_str(&text).unwrap_or(Value::Null));
             }
-            let msg = serde_json::from_str::<Value>(&text).ok().and_then(|v| v["message"].as_str().map(str::to_owned)).unwrap_or_default();
+            let msg = serde_json::from_str::<Value>(&text)
+                .ok()
+                .and_then(|v| v["message"].as_str().map(str::to_owned))
+                .unwrap_or_default();
             last = format!("n8n answered {} {msg}", status.as_u16());
             if status.as_u16() != 404 {
                 break;
@@ -263,11 +361,20 @@ impl N8nRemote {
 #[async_trait]
 impl RemoteNodeRunner for N8nRemote {
     async fn run_node(&self, node: &Node, input: &[Item]) -> Result<Vec<Vec<Item>>, FlowError> {
-        let fail = |m: String| FlowError::Node { node: node.name.clone(), message: format!("{m} (node type {} is not built in; delegated to n8n)", node.node_type) };
+        let fail = |m: String| FlowError::Node {
+            node: node.name.clone(),
+            message: format!(
+                "{m} (node type {} is not built in; delegated to n8n)",
+                node.node_type
+            ),
+        };
         let path = token();
         let wf = shim_workflow(node, &path).map_err(&fail)?;
         let created = self.client.create_workflow(&wf).await.map_err(&fail)?;
-        let id = created["id"].as_str().map(str::to_owned).ok_or_else(|| fail("n8n did not return a workflow id".into()))?;
+        let id = created["id"]
+            .as_str()
+            .map(str::to_owned)
+            .ok_or_else(|| fail("n8n did not return a workflow id".into()))?;
         let result = async {
             self.client.set_active(&id, true).await?;
             self.call_webhook(&path, input).await
@@ -298,8 +405,16 @@ mod tests {
 
     #[test]
     fn base_url_is_normalised_and_key_required() {
-        assert_eq!(N8nClient::new("https://n.example.com/", "k").unwrap().base, "https://n.example.com/api/v1");
-        assert_eq!(N8nClient::new("https://n.example.com/api/v1", "k").unwrap().root(), "https://n.example.com");
+        assert_eq!(
+            N8nClient::new("https://n.example.com/", "k").unwrap().base,
+            "https://n.example.com/api/v1"
+        );
+        assert_eq!(
+            N8nClient::new("https://n.example.com/api/v1", "k")
+                .unwrap()
+                .root(),
+            "https://n.example.com"
+        );
         assert!(N8nClient::new("n.example.com", "k").is_err());
         assert!(N8nClient::new("https://n.example.com", " ").is_err());
     }
@@ -319,11 +434,25 @@ mod tests {
         let mut wf = json!({"nodes": [
             {"name": "A", "credentials": {"slackApi": {"id": "r1", "name": "Team Slack"}, "notionApi": {"id": "r2", "name": "Wiki"}}},
             {"name": "B"}]});
-        let local = [LocalCred { id: "c9".into(), name: "Team Slack".into(), kind: "slackApi".into() }];
+        let local = [LocalCred {
+            id: "c9".into(),
+            name: "Team Slack".into(),
+            kind: "slackApi".into(),
+        }];
         let missing = map_credentials(&mut wf, &local);
-        assert_eq!(wf["nodes"][0]["credentials"]["slackApi"], json!({"id": "c9", "name": "Team Slack"}));
+        assert_eq!(
+            wf["nodes"][0]["credentials"]["slackApi"],
+            json!({"id": "c9", "name": "Team Slack"})
+        );
         assert_eq!(wf["nodes"][0]["credentials"]["notionApi"]["id"], "r2");
-        assert_eq!(missing, vec![Unmapped { node: "A".into(), kind: "notionApi".into(), name: "Wiki".into() }]);
+        assert_eq!(
+            missing,
+            vec![Unmapped {
+                node: "A".into(),
+                kind: "notionApi".into(),
+                name: "Wiki".into()
+            }]
+        );
     }
 
     #[test]

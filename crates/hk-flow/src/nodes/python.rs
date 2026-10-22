@@ -44,7 +44,10 @@ fn script(code: &str) -> String {
     let body: String = if code.trim().is_empty() {
         "    pass".to_owned()
     } else {
-        code.lines().map(|l| format!("    {l}")).collect::<Vec<_>>().join("\n")
+        code.lines()
+            .map(|l| format!("    {l}"))
+            .collect::<Vec<_>>()
+            .join("\n")
     };
     HARNESS.replace("@@CODE@@", &body)
 }
@@ -67,7 +70,9 @@ pub(crate) async fn run(code: &str, each: bool, items: Vec<Value>) -> Result<Val
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true)
         .spawn()
-        .map_err(|e| format!("cannot start {program}: {e}. Install Python 3 to use Python in the Code node"))?;
+        .map_err(|e| {
+            format!("cannot start {program}: {e}. Install Python 3 to use Python in the Code node")
+        })?;
     let req = json!({"mode": if each { "each" } else { "all" }, "items": items}).to_string();
     let mut stdin = child.stdin.take().ok_or("no stdin")?;
     let write = tokio::spawn(async move {
@@ -84,11 +89,17 @@ pub(crate) async fn run(code: &str, each: bool, items: Vec<Value>) -> Result<Val
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr);
         // The traceback's last line is the useful one (`NameError: ...`).
-        let last = err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("Python exited with an error");
+        let last = err
+            .lines()
+            .rev()
+            .find(|l| !l.trim().is_empty())
+            .unwrap_or("Python exited with an error");
         return Err(last.trim().to_owned());
     }
     let text = String::from_utf8_lossy(&out.stdout);
-    let (_, result) = text.rsplit_once("@@HK-RESULT@@").ok_or("Python code did not return a result")?;
+    let (_, result) = text
+        .rsplit_once("@@HK-RESULT@@")
+        .ok_or("Python code did not return a result")?;
     serde_json::from_str(result).map_err(|e| format!("Python result is not JSON: {e}"))
 }
 
@@ -102,7 +113,10 @@ mod tests {
     use super::*;
 
     fn python_available() -> bool {
-        std::process::Command::new(if cfg!(windows) { "python" } else { "python3" }).arg("--version").output().is_ok()
+        std::process::Command::new(if cfg!(windows) { "python" } else { "python3" })
+            .arg("--version")
+            .output()
+            .is_ok()
     }
 
     #[tokio::test]
@@ -111,10 +125,25 @@ mod tests {
             return;
         }
         let items = vec![json!({"json": {"n": 1}}), json!({"json": {"n": 2}})];
-        let all = run("return [{'json': {'sum': sum(i['json']['n'] for i in _items)}}]", false, items.clone()).await.unwrap();
+        let all = run(
+            "return [{'json': {'sum': sum(i['json']['n'] for i in _items)}}]",
+            false,
+            items.clone(),
+        )
+        .await
+        .unwrap();
         assert_eq!(all, json!([{"json": {"sum": 3}}]));
-        let each = run("_item['json']['double'] = _item['json']['n'] * 2\nreturn _item", true, items).await.unwrap();
-        assert_eq!(each, json!([{"json": {"n": 1, "double": 2}}, {"json": {"n": 2, "double": 4}}]));
+        let each = run(
+            "_item['json']['double'] = _item['json']['n'] * 2\nreturn _item",
+            true,
+            items,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            each,
+            json!([{"json": {"n": 1, "double": 2}}, {"json": {"n": 2, "double": 4}}])
+        );
     }
 
     #[tokio::test]
@@ -122,7 +151,9 @@ mod tests {
         if !python_available() {
             return;
         }
-        let e = run("return undefined_name", false, vec![]).await.unwrap_err();
+        let e = run("return undefined_name", false, vec![])
+            .await
+            .unwrap_err();
         assert!(e.contains("NameError"), "{e}");
     }
 }

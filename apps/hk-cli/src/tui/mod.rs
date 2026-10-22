@@ -9,17 +9,17 @@ mod view;
 use std::sync::Arc;
 
 use anyhow::{Context, Result, bail};
-use hk_server::{AgentRuntime, ApprovalDecision, CreateSession, LocalConfig, LocalRuntime, TurnMode};
-use ratatui::crossterm::event::{
-    DisableBracketedPaste, EnableBracketedPaste, Event, KeyEventKind,
+use hk_server::{
+    AgentRuntime, ApprovalDecision, CreateSession, LocalConfig, LocalRuntime, TurnMode,
 };
+use ratatui::crossterm::event::{DisableBracketedPaste, EnableBracketedPaste, Event, KeyEventKind};
 use ratatui::crossterm::execute;
 use tokio::sync::{broadcast, mpsc};
 
 use self::state::{Cmd, Conn, Msg, TuiState};
+use crate::auth;
 use crate::chat::{DEFAULT_MODEL, ModeArg};
 use crate::paths::Paths;
-use crate::auth;
 
 #[derive(Debug, clap::Args)]
 pub struct TuiArgs {
@@ -48,7 +48,9 @@ impl Default for TuiArgs {
         Self {
             mode: ModeArg::Build,
             model: DEFAULT_MODEL.to_owned(),
-            base_url: std::env::var("DEEPSEEK_BASE_URL").ok().filter(|u| !u.is_empty()),
+            base_url: std::env::var("DEEPSEEK_BASE_URL")
+                .ok()
+                .filter(|u| !u.is_empty()),
             session: None,
             resume: false,
             max_steps: 50,
@@ -73,17 +75,27 @@ pub async fn run(paths: &Paths, args: TuiArgs) -> Result<()> {
     })
     .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    let list = rt.list_sessions(500, 0).await.map_err(|e| anyhow::anyhow!("{e}"))?;
+    let list = rt
+        .list_sessions(500, 0)
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
     let open = match (&args.session, args.resume) {
         (Some(prefix), _) => {
-            let hits: Vec<_> = list.iter().filter(|s| s.id.starts_with(prefix.as_str())).collect();
+            let hits: Vec<_> = list
+                .iter()
+                .filter(|s| s.id.starts_with(prefix.as_str()))
+                .collect();
             match hits.as_slice() {
                 [one] => Some(one.id.clone()),
                 [] => bail!("no session matches `{prefix}`"),
                 _ => bail!("`{prefix}` is ambiguous ({} sessions match)", hits.len()),
             }
         }
-        (None, true) => Some(list.first().map(|s| s.id.clone()).context("no sessions to resume")?),
+        (None, true) => Some(
+            list.first()
+                .map(|s| s.id.clone())
+                .context("no sessions to resume")?,
+        ),
         _ => None,
     };
 
@@ -95,7 +107,12 @@ pub async fn run(paths: &Paths, args: TuiArgs) -> Result<()> {
     let mut first_cmds = Vec::new();
     st.update(Msg::Sessions(list));
     if let Some(id) = open {
-        if let Some(m) = st.sessions.iter().find(|s| s.id == id).and_then(|s| s.model.clone()) {
+        if let Some(m) = st
+            .sessions
+            .iter()
+            .find(|s| s.id == id)
+            .and_then(|s| s.model.clone())
+        {
             st.model = m;
         }
         st.begin_session(&id, true);
@@ -124,7 +141,17 @@ pub async fn run(paths: &Paths, args: TuiArgs) -> Result<()> {
         prev(info);
     }));
 
-    let res = event_loop(&mut terminal, &rt, st, first_cmds, feed, key_rx, res_tx, res_rx).await;
+    let res = event_loop(
+        &mut terminal,
+        &rt,
+        st,
+        first_cmds,
+        feed,
+        key_rx,
+        res_tx,
+        res_rx,
+    )
+    .await;
 
     let _ = execute!(std::io::stdout(), DisableBracketedPaste);
     ratatui::restore();
@@ -143,7 +170,9 @@ async fn event_loop(
     mut res_rx: mpsc::UnboundedReceiver<Msg>,
 ) -> Result<()> {
     if let Ok(size) = terminal.size() {
-        st.update(Msg::Resize { height: size.height });
+        st.update(Msg::Resize {
+            height: size.height,
+        });
     }
     // Models for the picker; sessions list already loaded.
     spawn_models(rt, &res_tx);
@@ -172,7 +201,9 @@ async fn event_loop(
             match feed.try_recv() {
                 Ok(ev) => feed_msgs(Ok(ev), &st, &mut msgs),
                 Err(broadcast::error::TryRecvError::Empty) => break,
-                Err(broadcast::error::TryRecvError::Lagged(n)) => feed_msgs(Err(broadcast::error::RecvError::Lagged(n)), &st, &mut msgs),
+                Err(broadcast::error::TryRecvError::Lagged(n)) => {
+                    feed_msgs(Err(broadcast::error::RecvError::Lagged(n)), &st, &mut msgs)
+                }
                 Err(broadcast::error::TryRecvError::Closed) => break,
             }
         }
@@ -186,7 +217,11 @@ async fn event_loop(
     }
 }
 
-fn feed_msgs(r: Result<hk_server::ServerEvent, broadcast::error::RecvError>, st: &TuiState, out: &mut Vec<Msg>) {
+fn feed_msgs(
+    r: Result<hk_server::ServerEvent, broadcast::error::RecvError>,
+    st: &TuiState,
+    out: &mut Vec<Msg>,
+) {
     match r {
         Ok(ev) => {
             if st.current.as_deref() == Some(ev.session_id.as_str()) {
@@ -210,7 +245,8 @@ fn spawn_models(rt: &LocalRuntime, tx: &mpsc::UnboundedSender<Msg>) {
 
 /// Run one command; `true` means quit.
 async fn exec(rt: &LocalRuntime, cmd: Cmd, tx: &mpsc::UnboundedSender<Msg>) -> bool {
-    let fail = |what: &str, e: hk_server::ApiError| drop(tx.send(Msg::Error(format!("{what}: {e}"))));
+    let fail =
+        |what: &str, e: hk_server::ApiError| drop(tx.send(Msg::Error(format!("{what}: {e}"))));
     match cmd {
         Cmd::Quit => return true,
         // Inline: the runtime call is a flag flip, and quit must not outrun it.
@@ -219,8 +255,17 @@ async fn exec(rt: &LocalRuntime, cmd: Cmd, tx: &mpsc::UnboundedSender<Msg>) -> b
                 fail("cancel", e);
             }
         }
-        Cmd::Respond { approval_id, session_id, approved, reason } => {
-            let d = ApprovalDecision { approved, reason, session_id: Some(session_id) };
+        Cmd::Respond {
+            approval_id,
+            session_id,
+            approved,
+            reason,
+        } => {
+            let d = ApprovalDecision {
+                approved,
+                reason,
+                session_id: Some(session_id),
+            };
             if let Err(e) = rt.respond_approval(&approval_id, d).await {
                 fail("approval", e);
             }
@@ -234,7 +279,9 @@ async fn exec(rt: &LocalRuntime, cmd: Cmd, tx: &mpsc::UnboundedSender<Msg>) -> b
             let (rt, tx) = (rt.clone(), tx.clone());
             tokio::spawn(async move {
                 let req = CreateSession {
-                    cwd: std::env::current_dir().ok().map(|p| p.display().to_string()),
+                    cwd: std::env::current_dir()
+                        .ok()
+                        .map(|p| p.display().to_string()),
                     model: Some(model).filter(|m| !m.is_empty()),
                     title: None,
                 };

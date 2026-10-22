@@ -33,7 +33,11 @@ pub fn credential_type() -> CredentialType {
                 .default("https://matrix-client.matrix.org")
                 .required(),
         )
-        .property(Prop::string("accessToken", "Access Token").password().required())
+        .property(
+            Prop::string("accessToken", "Access Token")
+                .password()
+                .required(),
+        )
         .authenticate(Authenticate::bearer("={{$credentials.accessToken}}"))
         .test(CredentialTest::get(
             "={{$credentials.homeserverUrl}}",
@@ -69,7 +73,10 @@ fn description() -> NodeTypeDescription {
             Prop::options(
                 "operation",
                 "Operation",
-                vec![Choice::new("Send", "create"), Choice::new("Get Many", "getAll")],
+                vec![
+                    Choice::new("Send", "create"),
+                    Choice::new("Get Many", "getAll"),
+                ],
             )
             .show("resource", &["message"]),
         )
@@ -94,12 +101,22 @@ fn description() -> NodeTypeDescription {
                 .show("resource", &["event", "message"]),
         )
         .property(
-            on(Prop::string("roomId", "Room ID").required(), "room", &["invite", "kick", "leave"])
-                .placeholder("!123abc:matrix.org"),
+            on(
+                Prop::string("roomId", "Room ID").required(),
+                "room",
+                &["invite", "kick", "leave"],
+            )
+            .placeholder("!123abc:matrix.org"),
         )
-        .property(on(Prop::string("eventId", "Event ID").required(), "event", &["get"]))
         .property(on(
-            Prop::string("text", "Text").required().type_option("rows", 3),
+            Prop::string("eventId", "Event ID").required(),
+            "event",
+            &["get"],
+        ))
+        .property(on(
+            Prop::string("text", "Text")
+                .required()
+                .type_option("rows", 3),
             "message",
             &["create"],
         ))
@@ -120,7 +137,10 @@ fn description() -> NodeTypeDescription {
             Prop::options(
                 "messageFormat",
                 "Message Format",
-                vec![Choice::new("Plain Text", "plain"), Choice::new("HTML", "org.matrix.custom.html")],
+                vec![
+                    Choice::new("Plain Text", "plain"),
+                    Choice::new("HTML", "org.matrix.custom.html"),
+                ],
             ),
             "message",
             &["create"],
@@ -134,7 +154,11 @@ fn description() -> NodeTypeDescription {
             )
             .show("messageFormat", &["org.matrix.custom.html"]),
         )
-        .property(on(Prop::string("roomName", "Room Name"), "room", &["create"]))
+        .property(on(
+            Prop::string("roomName", "Room Name"),
+            "room",
+            &["create"],
+        ))
         .property(on(
             Prop::options(
                 "preset",
@@ -149,16 +173,25 @@ fn description() -> NodeTypeDescription {
             &["create"],
         ))
         .property(on(
-            Prop::string("roomAlias", "Room Alias").description("Local part, without `#` and server"),
+            Prop::string("roomAlias", "Room Alias")
+                .description("Local part, without `#` and server"),
             "room",
             &["create"],
         ))
         .property(on(
-            Prop::string("roomIdOrAlias", "Room ID or Alias").required().placeholder("#room:matrix.org"),
+            Prop::string("roomIdOrAlias", "Room ID or Alias")
+                .required()
+                .placeholder("#room:matrix.org"),
             "room",
             &["join"],
         ))
-        .property(on(Prop::string("userId", "User ID").required().placeholder("@alice:matrix.org"), "room", &["invite", "kick"]))
+        .property(on(
+            Prop::string("userId", "User ID")
+                .required()
+                .placeholder("@alice:matrix.org"),
+            "room",
+            &["invite", "kick"],
+        ))
         .property(on(Prop::string("reason", "Reason"), "room", &["kick"]));
     b = b.properties(return_all_and_limit(Some("message"), &["getAll"]));
     let mut d = b.build();
@@ -231,10 +264,14 @@ impl MatrixNode {
                 let txn = txn_id();
                 let mut r = Req::new(M::PUT, &["rooms", &room, "send", "m.room.message", &txn]);
                 let text = s("text")?;
-                let msgtype = Some(s("messageType")?).filter(|t| !t.is_empty()).unwrap_or_else(|| "m.text".into());
+                let msgtype = Some(s("messageType")?)
+                    .filter(|t| !t.is_empty())
+                    .unwrap_or_else(|| "m.text".into());
                 let mut body = json!({ "msgtype": msgtype });
                 if s("messageFormat")? == "org.matrix.custom.html" {
-                    let fallback = Some(s("fallbackText")?).filter(|t| !t.is_empty()).unwrap_or_else(|| text.clone());
+                    let fallback = Some(s("fallbackText")?)
+                        .filter(|t| !t.is_empty())
+                        .unwrap_or_else(|| text.clone());
                     body["body"] = fallback.into();
                     body["format"] = "org.matrix.custom.html".into();
                     body["formatted_body"] = text.into();
@@ -253,7 +290,11 @@ impl MatrixNode {
             ("room", "create") => {
                 let mut r = Req::new(M::POST, &["createRoom"]);
                 let mut body = Map::new();
-                for (key, param) in [("name", "roomName"), ("preset", "preset"), ("room_alias_name", "roomAlias")] {
+                for (key, param) in [
+                    ("name", "roomName"),
+                    ("preset", "preset"),
+                    ("room_alias_name", "roomAlias"),
+                ] {
                     let v = s(param)?;
                     if !v.is_empty() {
                         body.insert(key.into(), v.into());
@@ -359,7 +400,11 @@ impl MatrixNode {
                 q.push(("from".into(), f.clone()));
             }
             let body = self.send(ctx, http, &base, &token, &req, &q).await?;
-            let chunk = body.get("chunk").and_then(Value::as_array).cloned().unwrap_or_default();
+            let chunk = body
+                .get("chunk")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
             let n = chunk.len();
             out.extend(chunk.into_iter().map(kit::to_item));
             from = body.get("end").and_then(Value::as_str).map(str::to_owned);
@@ -397,7 +442,10 @@ impl FlowNode for MatrixNode {
 /// Node and credential type into the shared registries. Features: `int-matrix`.
 pub fn register(nodes: &mut NodeRegistry, creds: &CredentialTypes) -> Result<(), FlowError> {
     creds.register_if_absent(credential_type());
-    nodes.register(Arc::new(MatrixNode { desc: description(), creds: creds.clone() }))
+    nodes.register(Arc::new(MatrixNode {
+        desc: description(),
+        creds: creds.clone(),
+    }))
 }
 
 #[cfg(test)]
@@ -406,7 +454,12 @@ mod tests {
 
     #[test]
     fn room_ids_are_encoded_per_segment() {
-        let u = url("n", "https://hs.example/base/", &["rooms".into(), "!a b:x/y".into(), "leave".into()]).unwrap();
+        let u = url(
+            "n",
+            "https://hs.example/base/",
+            &["rooms".into(), "!a b:x/y".into(), "leave".into()],
+        )
+        .unwrap();
         assert_eq!(u.path(), "/base/_matrix/client/v3/rooms/!a%20b:x%2Fy/leave");
         assert!(url("n", "ftp://x", &[]).is_err());
     }

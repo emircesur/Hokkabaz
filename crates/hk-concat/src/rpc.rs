@@ -66,11 +66,19 @@ impl Rpc {
                 while let Ok(Some(line)) = lines.next_line().await {
                     dispatch(&pending, &line);
                 }
-                let tail = stderr.lock().unwrap_or_else(PoisonError::into_inner).clone();
-                let waiting: Vec<_> =
-                    pending.lock().unwrap_or_else(PoisonError::into_inner).drain().collect();
+                let tail = stderr
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .clone();
+                let waiting: Vec<_> = pending
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .drain()
+                    .collect();
                 for (_, tx) in waiting {
-                    let _ = tx.send(Err(ConcatError::Closed { stderr: tail.clone() }));
+                    let _ = tx.send(Err(ConcatError::Closed {
+                        stderr: tail.clone(),
+                    }));
                 }
             })
         };
@@ -87,20 +95,34 @@ impl Rpc {
     pub(crate) async fn request(&self, method: &str, params: Value) -> Result<Value, ConcatError> {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();
-        self.pending.lock().unwrap_or_else(PoisonError::into_inner).insert(id, tx);
+        self.pending
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(id, tx);
         let msg = json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params });
         if let Err(e) = self.write(&msg).await {
-            self.pending.lock().unwrap_or_else(PoisonError::into_inner).remove(&id);
+            self.pending
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .remove(&id);
             return Err(e);
         }
         match tokio::time::timeout(self.timeout, rx).await {
             Ok(Ok(r)) => r,
-            Ok(Err(_)) => Err(ConcatError::Closed { stderr: self.tail() }),
+            Ok(Err(_)) => Err(ConcatError::Closed {
+                stderr: self.tail(),
+            }),
             Err(_) => {
-                self.pending.lock().unwrap_or_else(PoisonError::into_inner).remove(&id);
+                self.pending
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .remove(&id);
                 // Concat's server honours this and stops waiting (protocol.rs `notification`).
                 let _ = self
-                    .notify("notifications/cancelled", json!({ "requestId": id, "reason": "timeout" }))
+                    .notify(
+                        "notifications/cancelled",
+                        json!({ "requestId": id, "reason": "timeout" }),
+                    )
                     .await;
                 Err(ConcatError::Timeout(self.timeout))
             }
@@ -108,7 +130,8 @@ impl Rpc {
     }
 
     pub(crate) async fn notify(&self, method: &str, params: Value) -> Result<(), ConcatError> {
-        self.write(&json!({ "jsonrpc": "2.0", "method": method, "params": params })).await
+        self.write(&json!({ "jsonrpc": "2.0", "method": method, "params": params }))
+            .await
     }
 
     async fn write(&self, msg: &Value) -> Result<(), ConcatError> {
@@ -121,7 +144,9 @@ impl Rpc {
             w.flush().await
         }
         .await;
-        res.map_err(|_| ConcatError::Closed { stderr: self.tail() })
+        res.map_err(|_| ConcatError::Closed {
+            stderr: self.tail(),
+        })
     }
 
     /// Closes our write half (child sees EOF on stdin and exits).
@@ -130,23 +155,38 @@ impl Rpc {
     }
 
     fn tail(&self) -> String {
-        self.stderr.lock().unwrap_or_else(PoisonError::into_inner).clone()
+        self.stderr
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 }
 
 fn dispatch(pending: &Pending, line: &str) {
-    let Ok(Value::Object(mut msg)) = serde_json::from_str::<Value>(line) else { return };
+    let Ok(Value::Object(mut msg)) = serde_json::from_str::<Value>(line) else {
+        return;
+    };
     // Notifications (progress, logging) and server requests carry a method: ignored. Concat sends
     // none we need; export progress is polled via `export_status`.
     if msg.contains_key("method") {
         return;
     }
-    let Some(id) = msg.get("id").and_then(Value::as_u64) else { return };
-    let Some(tx) = pending.lock().unwrap_or_else(PoisonError::into_inner).remove(&id) else { return };
+    let Some(id) = msg.get("id").and_then(Value::as_u64) else {
+        return;
+    };
+    let Some(tx) = pending
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .remove(&id)
+    else {
+        return;
+    };
     let out = match msg.remove("error") {
         Some(err) => Err(ConcatError::Protocol(format!(
             "{} (code {})",
-            err.get("message").and_then(Value::as_str).unwrap_or("error"),
+            err.get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("error"),
             err.get("code").and_then(Value::as_i64).unwrap_or(0)
         ))),
         None => Ok(msg.remove("result").unwrap_or(Value::Null)),

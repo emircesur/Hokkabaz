@@ -65,7 +65,10 @@ pub fn show(store: &SessionStore, prefix: &str) -> Result<()> {
             }
             EventKind::ToolCall {
                 name, arguments, ..
-            } => out(&format!("  > {name} {}\n", clip(&arguments.to_string(), 200))),
+            } => out(&format!(
+                "  > {name} {}\n",
+                clip(&arguments.to_string(), 200)
+            )),
             EventKind::ToolResult {
                 content, is_error, ..
             } => {
@@ -81,7 +84,10 @@ pub fn show(store: &SessionStore, prefix: &str) -> Result<()> {
             } => out(&format!(
                 "  ? {}{}\n",
                 if *approved { "approved" } else { "denied" },
-                reason.as_deref().map(|r| format!(" ({r})")).unwrap_or_default()
+                reason
+                    .as_deref()
+                    .map(|r| format!(" ({r})"))
+                    .unwrap_or_default()
             )),
             EventKind::TurnEnd { reason, .. } => out(&format!("-- turn {reason:?}\n\n")),
             _ => {}

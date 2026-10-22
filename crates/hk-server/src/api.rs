@@ -41,13 +41,21 @@ pub struct AppState {
 
 impl std::fmt::Debug for AppState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AppState").field("auth", &self.auth).finish_non_exhaustive()
+        f.debug_struct("AppState")
+            .field("auth", &self.auth)
+            .finish_non_exhaustive()
     }
 }
 
 impl AppState {
     pub fn new(runtime: Arc<dyn AgentRuntime>, auth: Auth) -> Self {
-        Self { runtime, auth, flow: None, limiter: Arc::new(RateLimiter::default()), pairing: None }
+        Self {
+            runtime,
+            auth,
+            flow: None,
+            limiter: Arc::new(RateLimiter::default()),
+            pairing: None,
+        }
     }
 
     /// Enable `/webhook`, `/webhook-test` and the n8n REST routes.
@@ -88,25 +96,41 @@ pub fn router(state: AppState) -> Router {
     let mut app = Router::new();
     if state.flow.is_some() {
         v1 = v1
-            .route("/workflows", get(n8n::list_workflows).post(n8n::create_workflow))
+            .route(
+                "/workflows",
+                get(n8n::list_workflows).post(n8n::create_workflow),
+            )
             .route(
                 "/workflows/{id}",
-                get(n8n::get_workflow).put(n8n::update_workflow).delete(n8n::delete_workflow),
+                get(n8n::get_workflow)
+                    .put(n8n::update_workflow)
+                    .delete(n8n::delete_workflow),
             )
             .route("/workflows/{id}/activate", post(n8n::activate_workflow))
             .route("/workflows/{id}/deactivate", post(n8n::deactivate_workflow))
             .route("/workflows/{id}/run", post(n8n::run_workflow))
             .route("/executions", get(n8n::list_executions))
-            .route("/executions/{id}", get(n8n::get_execution).delete(n8n::delete_execution))
+            .route(
+                "/executions/{id}",
+                get(n8n::get_execution).delete(n8n::delete_execution),
+            )
             .route("/credentials", post(n8n::create_credential))
-            .route("/credentials/{id}", axum::routing::delete(n8n::delete_credential))
-            .route("/credentials/schema/{type_name}", get(n8n::credential_schema));
+            .route(
+                "/credentials/{id}",
+                axum::routing::delete(n8n::delete_credential),
+            )
+            .route(
+                "/credentials/schema/{type_name}",
+                get(n8n::credential_schema),
+            );
         app = app
             .route("/webhook/{*path}", any(webhook::production))
             .route("/webhook-test/{*path}", any(webhook::test));
     }
     if state.pairing.is_some() {
-        v1 = v1.route("/pairing", get(pairing::issue)).route("/pairing/exchange", post(pairing::exchange));
+        v1 = v1
+            .route("/pairing", get(pairing::issue))
+            .route("/pairing/exchange", post(pairing::exchange));
     }
     app.nest("/api/v1", v1).with_state(state)
 }
@@ -124,7 +148,9 @@ pub async fn serve_listener(
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> std::io::Result<()> {
     tracing::info!(addr = ?listener.local_addr().ok(), "hk-server listening");
-    axum::serve(listener, router(state)).with_graceful_shutdown(shutdown).await
+    axum::serve(listener, router(state))
+        .with_graceful_shutdown(shutdown)
+        .await
 }
 
 async fn health() -> Json<Value> {
@@ -144,7 +170,10 @@ async fn list_sessions(
 ) -> Result<Json<Value>, ApiError> {
     p.require(Scope::Read)?;
     let limit = page.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
-    let sessions = s.runtime.list_sessions(limit, page.offset.unwrap_or(0)).await?;
+    let sessions = s
+        .runtime
+        .list_sessions(limit, page.offset.unwrap_or(0))
+        .await?;
     Ok(Json(json!({ "sessions": sessions })))
 }
 
@@ -155,7 +184,10 @@ async fn create_session(
 ) -> Result<(StatusCode, Json<SessionInfo>), ApiError> {
     p.require(Scope::Run)?;
     let req = body.map(|Json(b)| b).unwrap_or_default();
-    Ok((StatusCode::CREATED, Json(s.runtime.create_session(req).await?)))
+    Ok((
+        StatusCode::CREATED,
+        Json(s.runtime.create_session(req).await?),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -183,7 +215,10 @@ async fn submit_turn(
     if req.prompt.trim().is_empty() {
         return Err(ApiError::BadRequest("prompt must not be empty".into()));
     }
-    Ok((StatusCode::ACCEPTED, Json(s.runtime.submit(&id, req).await?)))
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(s.runtime.submit(&id, req).await?),
+    ))
 }
 
 #[derive(Deserialize)]

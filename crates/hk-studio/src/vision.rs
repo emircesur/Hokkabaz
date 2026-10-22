@@ -26,35 +26,68 @@ pub struct Frames {
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
 /// Decode `start..end` of `video` to `width`-wide gray frames at `fps`.
-pub async fn grab_frames(tools: &Tools, video: &Path, start: f64, end: f64, fps: f64, width: usize) -> Result<Frames> {
+pub async fn grab_frames(
+    tools: &Tools,
+    video: &Path,
+    start: f64,
+    end: f64,
+    fps: f64,
+    width: usize,
+) -> Result<Frames> {
     let info = tools.probe(video).await?;
-    let (sw, sh) = info.display_size().ok_or_else(|| StudioError::Invalid("no video stream".into()))?;
+    let (sw, sh) = info
+        .display_size()
+        .ok_or_else(|| StudioError::Invalid("no video stream".into()))?;
     let width = width.max(64) & !1;
     let height = ((width as f64 * f64::from(sh) / f64::from(sw)).round() as usize).max(2) & !1;
     let dur = (end - start).max(0.1);
     let frame_bytes = width * height;
     if (dur * fps).ceil() as usize * frame_bytes > MAX_BYTES {
-        return Err(StudioError::Invalid("range too long for tracking; analyse clips, not the whole video".into()));
+        return Err(StudioError::Invalid(
+            "range too long for tracking; analyse clips, not the whole video".into(),
+        ));
     }
     #[cfg(target_os = "android")]
     {
         let _ = (tools, video);
-        return Err(StudioError::Invalid("tracking needs ffmpeg, not available on Android".into()));
+        return Err(StudioError::Invalid(
+            "tracking needs ffmpeg, not available on Android".into(),
+        ));
     }
     #[cfg(not(target_os = "android"))]
     {
         use std::process::Stdio;
         use tokio::io::AsyncReadExt;
         let mut child = tokio::process::Command::new(&tools.ffmpeg)
-            .args(["-hide_banner", "-nostdin", "-loglevel", "error", "-ss", &format!("{start:.3}"), "-t", &format!("{dur:.3}"), "-i"])
+            .args([
+                "-hide_banner",
+                "-nostdin",
+                "-loglevel",
+                "error",
+                "-ss",
+                &format!("{start:.3}"),
+                "-t",
+                &format!("{dur:.3}"),
+                "-i",
+            ])
             .arg(video)
-            .args(["-an", "-vf", &format!("fps={fps},scale={width}:{height},format=gray"), "-f", "rawvideo", "-"])
+            .args([
+                "-an",
+                "-vf",
+                &format!("fps={fps},scale={width}:{height},format=gray"),
+                "-f",
+                "rawvideo",
+                "-",
+            ])
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .kill_on_drop(true)
             .spawn()
             .map_err(|e| StudioError::Invalid(format!("ffmpeg: {e}")))?;
-        let mut out = child.stdout.take().ok_or_else(|| StudioError::Invalid("no ffmpeg stdout".into()))?;
+        let mut out = child
+            .stdout
+            .take()
+            .ok_or_else(|| StudioError::Invalid("no ffmpeg stdout".into()))?;
         let mut data = Vec::new();
         loop {
             let mut buf = vec![0u8; frame_bytes];
@@ -65,7 +98,13 @@ pub async fn grab_frames(tools: &Tools, video: &Path, start: f64, end: f64, fps:
             }
         }
         let _ = child.wait().await;
-        Ok(Frames { width, height, fps, start, data })
+        Ok(Frames {
+            width,
+            height,
+            fps,
+            start,
+            data,
+        })
     }
 }
 
@@ -81,7 +120,11 @@ pub struct MotionFocus {
 
 impl MotionFocus {
     pub fn new(tools: Tools) -> Self {
-        Self { tools, threshold: 24, min_area: 0.002 }
+        Self {
+            tools,
+            threshold: 24,
+            min_area: 0.002,
+        }
     }
 
     pub fn points(&self, f: &Frames) -> Vec<FocusPoint> {
@@ -111,7 +154,11 @@ impl MotionFocus {
                     last_y = sy / sw / h as f64;
                 }
             }
-            out.push(FocusPoint { t, x: last_x, y: last_y });
+            out.push(FocusPoint {
+                t,
+                x: last_x,
+                y: last_y,
+            });
         }
         out
     }
@@ -119,7 +166,13 @@ impl MotionFocus {
 
 #[async_trait]
 impl FocusSource for MotionFocus {
-    async fn detect(&self, video: &Path, start: f64, end: f64, step: f64) -> Result<Vec<FocusPoint>> {
+    async fn detect(
+        &self,
+        video: &Path,
+        start: f64,
+        end: f64,
+        step: f64,
+    ) -> Result<Vec<FocusPoint>> {
         let frames = grab_frames(&self.tools, video, start, end, 1.0 / step.max(0.1), 320).await?;
         Ok(self.points(&frames))
     }
@@ -146,7 +199,10 @@ mod face {
     /// Make sure the SeetaFace model exists in `dir`, downloading it once.
     pub async fn ensure_face_model(dir: &Path) -> Result<PathBuf> {
         let path = dir.join(MODEL_FILE);
-        if tokio::fs::metadata(&path).await.is_ok_and(|m| m.len() > 100_000) {
+        if tokio::fs::metadata(&path)
+            .await
+            .is_ok_and(|m| m.len() > 100_000)
+        {
             return Ok(path);
         }
         tokio::fs::create_dir_all(dir).await?;
@@ -158,7 +214,9 @@ mod face {
             .await
             .map_err(|e| StudioError::Http(e.to_string()))?;
         if bytes.len() < 100_000 {
-            return Err(StudioError::Http("face model download looks truncated".into()));
+            return Err(StudioError::Http(
+                "face model download looks truncated".into(),
+            ));
         }
         let tmp = path.with_extension("part");
         tokio::fs::write(&tmp, &bytes).await?;
@@ -176,11 +234,15 @@ mod face {
 
     impl FaceFocus {
         pub fn new(tools: Tools, model: impl Into<PathBuf>) -> Self {
-            Self { tools, model: model.into() }
+            Self {
+                tools,
+                model: model.into(),
+            }
         }
 
         fn run(model: &Path, f: &Frames, motion: &[FocusPoint]) -> Result<Vec<FocusPoint>> {
-            let mut det = rustface::create_detector(&model.to_string_lossy()).map_err(|e| StudioError::Invalid(format!("face model: {e}")))?;
+            let mut det = rustface::create_detector(&model.to_string_lossy())
+                .map_err(|e| StudioError::Invalid(format!("face model: {e}")))?;
             det.set_min_face_size(((f.width as f64 * 0.025) as u32).max(20));
             det.set_score_thresh(2.0);
             det.set_pyramid_scale_factor(0.8);
@@ -203,7 +265,8 @@ mod face {
                     .max_by(|a, b| {
                         // Prefer the face closest to the current subject; a much bigger one wins.
                         let score = |c: &(f64, f64, f64)| {
-                            let near = cur.map_or(0.0, |p| -((c.0 - p.0).abs() + (c.1 - p.1).abs()));
+                            let near =
+                                cur.map_or(0.0, |p| -((c.0 - p.0).abs() + (c.1 - p.1).abs()));
                             c.2 + near * 0.5
                         };
                         score(a).total_cmp(&score(b))
@@ -216,7 +279,10 @@ mod face {
                     // Face lost this frame: hold the last face briefly, else motion.
                     (None, Some((x, y, _))) if i % 8 != 0 => out.push(FocusPoint { t, x, y }),
                     _ => {
-                        let m = motion.get(i).copied().unwrap_or(FocusPoint { t, x: 0.5, y: 0.5 });
+                        let m = motion
+                            .get(i)
+                            .copied()
+                            .unwrap_or(FocusPoint { t, x: 0.5, y: 0.5 });
                         out.push(FocusPoint { t, x: m.x, y: m.y });
                     }
                 }
@@ -227,11 +293,20 @@ mod face {
 
     #[async_trait]
     impl FocusSource for FaceFocus {
-        async fn detect(&self, video: &Path, start: f64, end: f64, step: f64) -> Result<Vec<FocusPoint>> {
-            let frames = grab_frames(&self.tools, video, start, end, 1.0 / step.max(0.1), 800).await?;
+        async fn detect(
+            &self,
+            video: &Path,
+            start: f64,
+            end: f64,
+            step: f64,
+        ) -> Result<Vec<FocusPoint>> {
+            let frames =
+                grab_frames(&self.tools, video, start, end, 1.0 / step.max(0.1), 800).await?;
             let motion = MotionFocus::new(self.tools.clone()).points(&frames);
             let model = self.model.clone();
-            tokio::task::spawn_blocking(move || Self::run(&model, &frames, &motion)).await.map_err(|e| StudioError::Invalid(e.to_string()))?
+            tokio::task::spawn_blocking(move || Self::run(&model, &frames, &motion))
+                .await
+                .map_err(|e| StudioError::Invalid(e.to_string()))?
         }
     }
 }
@@ -264,7 +339,13 @@ mod tests {
                 f
             })
             .collect();
-        Frames { width: w, height: h, fps: 2.0, start: 10.0, data }
+        Frames {
+            width: w,
+            height: h,
+            fps: 2.0,
+            start: 10.0,
+            data,
+        }
     }
 
     #[test]

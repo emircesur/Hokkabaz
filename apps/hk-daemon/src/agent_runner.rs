@@ -25,13 +25,18 @@ pub struct RuntimeAgentRunner {
 
 impl std::fmt::Debug for RuntimeAgentRunner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RuntimeAgentRunner").field("timeout", &self.timeout).finish_non_exhaustive()
+        f.debug_struct("RuntimeAgentRunner")
+            .field("timeout", &self.timeout)
+            .finish_non_exhaustive()
     }
 }
 
 impl RuntimeAgentRunner {
     pub fn new(runtime: Arc<dyn AgentRuntime>) -> Self {
-        Self { runtime, timeout: Duration::from_secs(15 * 60) }
+        Self {
+            runtime,
+            timeout: Duration::from_secs(15 * 60),
+        }
     }
 
     #[must_use]
@@ -42,7 +47,10 @@ impl RuntimeAgentRunner {
 }
 
 fn node_err(msg: impl std::fmt::Display) -> FlowError {
-    FlowError::Node { node: "Agent".into(), message: msg.to_string() }
+    FlowError::Node {
+        node: "Agent".into(),
+        message: msg.to_string(),
+    }
 }
 
 fn clip(s: &str) -> String {
@@ -53,7 +61,11 @@ fn clip(s: &str) -> String {
 }
 
 /// Events (as JSON) logged after `after`.
-async fn events_after(rt: &dyn AgentRuntime, id: &str, after: u64) -> Result<Vec<Value>, FlowError> {
+async fn events_after(
+    rt: &dyn AgentRuntime,
+    id: &str,
+    after: u64,
+) -> Result<Vec<Value>, FlowError> {
     let d = rt.session(id, Some(after)).await.map_err(node_err)?;
     match serde_json::to_value(&d.events) {
         Ok(Value::Array(v)) => Ok(v),
@@ -62,7 +74,10 @@ async fn events_after(rt: &dyn AgentRuntime, id: &str, after: u64) -> Result<Vec
 }
 
 fn turn_end(events: &[Value]) -> Option<&str> {
-    events.iter().find(|e| e.get("type").and_then(Value::as_str) == Some("turn/end")).and_then(|e| e.get("reason").and_then(Value::as_str))
+    events
+        .iter()
+        .find(|e| e.get("type").and_then(Value::as_str) == Some("turn/end"))
+        .and_then(|e| e.get("reason").and_then(Value::as_str))
 }
 
 #[async_trait]
@@ -72,7 +87,11 @@ impl AgentRunner for RuntimeAgentRunner {
         let mode = match req.mode.as_deref() {
             None | Some("" | "build") => TurnMode::Build,
             Some("plan") => TurnMode::Plan,
-            Some(other) => return Err(node_err(format!("unknown agent mode `{other}`; use build or plan"))),
+            Some(other) => {
+                return Err(node_err(format!(
+                    "unknown agent mode `{other}`; use build or plan"
+                )));
+            }
         };
         let id = match req.session_id {
             Some(id) => id,
@@ -82,14 +101,26 @@ impl AgentRunner for RuntimeAgentRunner {
                     (Some(w), None) => format!("flow {w}"),
                     _ => "flow agent".to_owned(),
                 };
-                rt.create_session(CreateSession { cwd: None, model: req.model.clone(), title: Some(title) })
-                    .await
-                    .map_err(node_err)?
-                    .id
+                rt.create_session(CreateSession {
+                    cwd: None,
+                    model: req.model.clone(),
+                    title: Some(title),
+                })
+                .await
+                .map_err(node_err)?
+                .id
             }
         };
         // Everything logged before this turn is not ours.
-        let baseline = rt.session(&id, None).await.map_err(node_err)?.events.iter().map(|e| e.seq).max().unwrap_or(0);
+        let baseline = rt
+            .session(&id, None)
+            .await
+            .map_err(node_err)?
+            .events
+            .iter()
+            .map(|e| e.seq)
+            .max()
+            .unwrap_or(0);
         let mut feed = rt.subscribe();
 
         // The runtime has no per-turn system slot; the section rides at the top of the prompt,
@@ -98,7 +129,16 @@ impl AgentRunner for RuntimeAgentRunner {
             Some(sys) => format!("{sys}\n\n{}", req.prompt),
             None => req.prompt,
         };
-        rt.submit(&id, TurnRequest { prompt, mode: Some(mode), model: req.model }).await.map_err(node_err)?;
+        rt.submit(
+            &id,
+            TurnRequest {
+                prompt,
+                mode: Some(mode),
+                model: req.model,
+            },
+        )
+        .await
+        .map_err(node_err)?;
 
         let wait = async {
             loop {
@@ -120,7 +160,10 @@ impl AgentRunner for RuntimeAgentRunner {
             Ok(res) => res?,
             Err(_) => {
                 let _ = rt.cancel(&id).await;
-                return Err(node_err(format!("agent run exceeded {}s (waiting for an approval?)", self.timeout.as_secs())));
+                return Err(node_err(format!(
+                    "agent run exceeded {}s (waiting for an approval?)",
+                    self.timeout.as_secs()
+                )));
             }
         }
 
@@ -130,7 +173,12 @@ impl AgentRunner for RuntimeAgentRunner {
             Some("cancelled") => return Err(node_err("agent turn was cancelled")),
             _ => {}
         }
-        let kind = |e: &Value| e.get("type").and_then(Value::as_str).unwrap_or("").to_owned();
+        let kind = |e: &Value| {
+            e.get("type")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned()
+        };
         let output = events
             .iter()
             .rev()
@@ -159,7 +207,12 @@ impl AgentRunner for RuntimeAgentRunner {
         if let Some(r) = turn_end(&events) {
             extra.insert("endReason".into(), json!(r));
         }
-        Ok(AgentRunResult { output, session_id: Some(id), steps, extra })
+        Ok(AgentRunResult {
+            output,
+            session_id: Some(id),
+            steps,
+            extra,
+        })
     }
 }
 
@@ -175,7 +228,10 @@ mod tests {
 
     #[test]
     fn turn_end_reads_reason() {
-        let ev = vec![json!({"type":"user/message","seq":1}), json!({"type":"turn/end","seq":2,"reason":"max_steps"})];
+        let ev = vec![
+            json!({"type":"user/message","seq":1}),
+            json!({"type":"turn/end","seq":2,"reason":"max_steps"}),
+        ];
         assert_eq!(turn_end(&ev), Some("max_steps"));
         assert_eq!(turn_end(&ev[..1]), None);
     }

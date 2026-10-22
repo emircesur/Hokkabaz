@@ -27,13 +27,21 @@ pub struct ProviderLlm {
 
 impl std::fmt::Debug for ProviderLlm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ProviderLlm").field("provider", &self.provider.id()).field("model", &self.model).finish()
+        f.debug_struct("ProviderLlm")
+            .field("provider", &self.provider.id())
+            .field("model", &self.model)
+            .finish()
     }
 }
 
 impl ProviderLlm {
     pub fn new(provider: Arc<dyn Provider>, model: impl Into<String>) -> Self {
-        Self { provider, model: model.into(), temperature: Some(0.3), max_output_tokens: Some(4096) }
+        Self {
+            provider,
+            model: model.into(),
+            temperature: Some(0.3),
+            max_output_tokens: Some(4096),
+        }
     }
 
     pub fn with_temperature(mut self, t: Option<f32>) -> Self {
@@ -48,16 +56,29 @@ impl ProviderLlm {
 }
 
 fn msg(role: Role, content: &str) -> Message {
-    Message { role, content: content.to_string(), reasoning: None, tool_calls: Vec::new(), tool_call_id: None }
+    Message {
+        role,
+        content: content.to_string(),
+        reasoning: None,
+        tool_calls: Vec::new(),
+        tool_call_id: None,
+    }
 }
 
 #[async_trait]
 impl Llm for ProviderLlm {
     async fn complete(&self, system: &str, user: &str) -> Result<String> {
-        let mut req = ChatRequest::new(self.model.clone(), vec![msg(Role::System, system), msg(Role::User, user)]);
+        let mut req = ChatRequest::new(
+            self.model.clone(),
+            vec![msg(Role::System, system), msg(Role::User, user)],
+        );
         req.temperature = self.temperature;
         req.max_output_tokens = self.max_output_tokens;
-        let mut stream = self.provider.stream(req, CancellationToken::new()).await.map_err(|e| StudioError::Llm(e.to_string()))?;
+        let mut stream = self
+            .provider
+            .stream(req, CancellationToken::new())
+            .await
+            .map_err(|e| StudioError::Llm(e.to_string()))?;
         let mut text = String::new();
         while let Some(ev) = stream.next().await {
             match ev.map_err(|e| StudioError::Llm(e.to_string()))? {
@@ -79,15 +100,25 @@ pub struct ScriptedLlm {
 
 impl ScriptedLlm {
     pub fn new(replies: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        Self { replies: Mutex::new(replies.into_iter().map(Into::into).collect()), prompts: Mutex::new(Vec::new()) }
+        Self {
+            replies: Mutex::new(replies.into_iter().map(Into::into).collect()),
+            prompts: Mutex::new(Vec::new()),
+        }
     }
 }
 
 #[async_trait]
 impl Llm for ScriptedLlm {
     async fn complete(&self, system: &str, user: &str) -> Result<String> {
-        self.prompts.lock().expect("lock").push((system.to_string(), user.to_string()));
-        self.replies.lock().expect("lock").pop_front().ok_or_else(|| StudioError::Llm("scripted llm out of replies".into()))
+        self.prompts
+            .lock()
+            .expect("lock")
+            .push((system.to_string(), user.to_string()));
+        self.replies
+            .lock()
+            .expect("lock")
+            .pop_front()
+            .ok_or_else(|| StudioError::Llm("scripted llm out of replies".into()))
     }
 }
 
@@ -133,16 +164,27 @@ pub fn extract_json(text: &str) -> Result<serde_json::Value> {
         }
         i += 1;
     }
-    Err(StudioError::Llm(format!("no JSON in model output: {}", t.chars().take(120).collect::<String>())))
+    Err(StudioError::Llm(format!(
+        "no JSON in model output: {}",
+        t.chars().take(120).collect::<String>()
+    )))
 }
 
 /// Ask for JSON and parse it into `T`; one repair retry that feeds the error back.
-pub async fn complete_json<T: DeserializeOwned>(llm: &dyn Llm, system: &str, user: &str) -> Result<T> {
+pub async fn complete_json<T: DeserializeOwned>(
+    llm: &dyn Llm,
+    system: &str,
+    user: &str,
+) -> Result<T> {
     let first = llm.complete(system, user).await?;
-    match extract_json(&first).and_then(|v| serde_json::from_value::<T>(v).map_err(|e| StudioError::Llm(e.to_string()))) {
+    match extract_json(&first)
+        .and_then(|v| serde_json::from_value::<T>(v).map_err(|e| StudioError::Llm(e.to_string())))
+    {
         Ok(v) => Ok(v),
         Err(err) => {
-            let retry = format!("{user}\n\nYour previous answer was not valid ({err}). Reply with ONLY the corrected JSON, no prose.");
+            let retry = format!(
+                "{user}\n\nYour previous answer was not valid ({err}). Reply with ONLY the corrected JSON, no prose."
+            );
             let second = llm.complete(system, &retry).await?;
             let v = extract_json(&second)?;
             serde_json::from_value(v).map_err(|e| StudioError::Llm(e.to_string()))
@@ -164,7 +206,10 @@ mod tests {
     #[test]
     fn extracts_from_fences_and_prose() {
         assert_eq!(extract_json("```json\n{\"n\": 1}\n```").unwrap()["n"], 1);
-        assert_eq!(extract_json("Sure! Here: {\"a\": \"}\"} thanks").unwrap()["a"], "}");
+        assert_eq!(
+            extract_json("Sure! Here: {\"a\": \"}\"} thanks").unwrap()["a"],
+            "}"
+        );
         assert_eq!(extract_json("[1,2]").unwrap()[1], 2);
         assert!(extract_json("nothing").is_err());
     }

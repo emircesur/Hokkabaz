@@ -37,6 +37,7 @@ pub async fn n8n_pull(id: String) -> Result<String, HkError> {
 
 /// Create the workflow on the instance, or replace `remote_id`. Returns the remote id.
 pub async fn n8n_push(workflow_json: String, remote_id: Option<String>) -> Result<String, HkError> {
-    let wf: Value = serde_json::from_str(&workflow_json).map_err(|e| HkError::invalid(format!("workflow JSON: {e}")))?;
+    let wf: Value = serde_json::from_str(&workflow_json)
+        .map_err(|e| HkError::invalid(format!("workflow JSON: {e}")))?;
     get()?.push(&wf, remote_id.as_deref()).await
 }

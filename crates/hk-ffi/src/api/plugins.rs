@@ -34,8 +34,13 @@ pub async fn plugin_registry(index_url: Option<String>) -> Result<String, HkErro
     to_json(&manager()?.registry_json(index_url.as_deref()).await?)
 }
 
-pub async fn plugin_install_from_registry(id: String, index_url: Option<String>) -> Result<String, HkError> {
-    manager()?.install_from_registry(&id, index_url.as_deref()).await
+pub async fn plugin_install_from_registry(
+    id: String,
+    index_url: Option<String>,
+) -> Result<String, HkError> {
+    manager()?
+        .install_from_registry(&id, index_url.as_deref())
+        .await
 }
 
 pub async fn plugin_remove(id: String) -> Result<(), HkError> {
@@ -48,7 +53,8 @@ pub async fn plugin_set_enabled(id: String, enabled: bool) -> Result<(), HkError
 
 /// `settings_json` is the plugin's whole settings object (validated by the plugin on use).
 pub async fn plugin_set_settings(id: String, settings_json: String) -> Result<(), HkError> {
-    let v: Value = serde_json::from_str(&settings_json).map_err(|e| HkError::invalid(format!("settings JSON: {e}")))?;
+    let v: Value = serde_json::from_str(&settings_json)
+        .map_err(|e| HkError::invalid(format!("settings JSON: {e}")))?;
     manager()?.set_settings(&id, &v)
 }
 
@@ -61,7 +67,8 @@ pub async fn mcp_list() -> Result<String, HkError> {
 /// url, bearer_token, headers{}, timeout_secs}`; secrets go to the secret store and any change
 /// resets trust.
 pub async fn mcp_save(spec_json: String) -> Result<(), HkError> {
-    let v: Value = serde_json::from_str(&spec_json).map_err(|e| HkError::invalid(format!("MCP spec JSON: {e}")))?;
+    let v: Value = serde_json::from_str(&spec_json)
+        .map_err(|e| HkError::invalid(format!("MCP spec JSON: {e}")))?;
     manager()?.mcp_save(&v).await
 }
 

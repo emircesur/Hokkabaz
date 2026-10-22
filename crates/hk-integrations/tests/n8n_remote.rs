@@ -20,23 +20,38 @@ fn node() -> Node {
 #[tokio::test]
 async fn runs_through_a_temporary_webhook_workflow_and_cleans_up() {
     let (url, seen) = serve(vec![
-        http_resp("200 OK", r#"{"id":"w1"}"#),                         // create
-        http_resp("200 OK", r#"{"id":"w1","active":true}"#),           // activate
+        http_resp("200 OK", r#"{"id":"w1"}"#),               // create
+        http_resp("200 OK", r#"{"id":"w1","active":true}"#), // activate
         http_resp("200 OK", r#"[{"a":1,"y":"ok"},{"a":2,"y":"ok"}]"#), // webhook
-        http_resp("200 OK", r#"{"id":"w1"}"#),                         // deactivate
-        http_resp("200 OK", r#"{"id":"w1"}"#),                         // delete
+        http_resp("200 OK", r#"{"id":"w1"}"#),               // deactivate
+        http_resp("200 OK", r#"{"id":"w1"}"#),               // delete
     ])
     .await;
     let remote = N8nRemote::new(N8nClient::new(&url, "KEY").unwrap());
-    let out = remote.run_node(&node(), &[Item::from_json(json!({"a": 1})), Item::from_json(json!({"a": 2}))]).await.unwrap();
+    let out = remote
+        .run_node(
+            &node(),
+            &[
+                Item::from_json(json!({"a": 1})),
+                Item::from_json(json!({"a": 2})),
+            ],
+        )
+        .await
+        .unwrap();
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].len(), 2);
     assert_eq!(out[0][1].json["a"], 2);
 
     let seen = seen.lock().unwrap();
-    assert!(seen[0].starts_with("POST /api/v1/workflows "), "{}", seen[0]);
+    assert!(
+        seen[0].starts_with("POST /api/v1/workflows "),
+        "{}",
+        seen[0]
+    );
     assert!(seen[0].to_lowercase().contains("x-n8n-api-key: key"));
-    assert!(seen[0].contains("n8n-nodes-base.somethingExotic") && seen[0].contains("respondToWebhook"));
+    assert!(
+        seen[0].contains("n8n-nodes-base.somethingExotic") && seen[0].contains("respondToWebhook")
+    );
     assert!(seen[1].starts_with("POST /api/v1/workflows/w1/activate"));
     assert!(seen[2].starts_with("POST /webhook/hk-"), "{}", seen[2]);
     assert!(seen[2].contains(r#""items":[{"a":1},{"a":2}]"#));
@@ -46,10 +61,19 @@ async fn runs_through_a_temporary_webhook_workflow_and_cleans_up() {
 
 #[tokio::test]
 async fn a_rejected_key_is_reported_without_leaking_it() {
-    let (url, _) = serve(vec![http_resp("401 Unauthorized", r#"{"message":"unauthorized"}"#)]).await;
+    let (url, _) = serve(vec![http_resp(
+        "401 Unauthorized",
+        r#"{"message":"unauthorized"}"#,
+    )])
+    .await;
     let remote = N8nRemote::new(N8nClient::new(&url, "SECRETKEY").unwrap());
     let err = remote.run_node(&node(), &[]).await.unwrap_err();
-    let FlowError::Node { message, .. } = err else { panic!("{err:?}") };
-    assert!(message.contains("rejected") && message.contains("somethingExotic"), "{message}");
+    let FlowError::Node { message, .. } = err else {
+        panic!("{err:?}")
+    };
+    assert!(
+        message.contains("rejected") && message.contains("somethingExotic"),
+        "{message}"
+    );
     assert!(!message.contains("SECRETKEY") && !message.contains("127.0.0.1"));
 }

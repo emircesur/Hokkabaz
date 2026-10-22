@@ -6,15 +6,15 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use hk_ffi::dto::{
-    CoreProfile, CreateSessionDto, ModeDto, PreferencesDto, ProviderInputDto, ProviderKindDto, RoleDto,
-    SessionEventDto, SessionEventKind as K, TurnEndReasonDto, TurnRequestDto,
+    CoreProfile, CreateSessionDto, ModeDto, PreferencesDto, ProviderInputDto, ProviderKindDto,
+    RoleDto, SessionEventDto, SessionEventKind as K, TurnEndReasonDto, TurnRequestDto,
 };
 use hk_ffi::error::HkErrorKind;
 use hk_ffi::handle::CoreHandle;
 use hk_ffi::local::{CoreOptions, LocalCore};
 use hk_llm::{
-    CancellationToken, Capabilities, ChatRequest, EventStream, FinishReason, ModelInfo, Provider, StreamEvent,
-    Usage,
+    CancellationToken, Capabilities, ChatRequest, EventStream, FinishReason, ModelInfo, Provider,
+    StreamEvent, Usage,
 };
 use hk_store::MemorySecretStore;
 
@@ -36,15 +36,27 @@ impl Provider for Scripted {
             name: "Fake".into(),
             context_window: 8192,
             max_output: None,
-            capabilities: Capabilities { tools: true, reasoning: false, vision: false },
+            capabilities: Capabilities {
+                tools: true,
+                reasoning: false,
+                vision: false,
+            },
             cost: None,
         }])
     }
 
-    async fn stream(&self, _req: ChatRequest, _cancel: CancellationToken) -> hk_llm::Result<EventStream> {
+    async fn stream(
+        &self,
+        _req: ChatRequest,
+        _cancel: CancellationToken,
+    ) -> hk_llm::Result<EventStream> {
         let script = {
             let mut v = self.0.lock().unwrap();
-            if v.is_empty() { Vec::new() } else { v.remove(0) }
+            if v.is_empty() {
+                Vec::new()
+            } else {
+                v.remove(0)
+            }
         };
         Ok(futures::stream::iter(script).boxed())
     }
@@ -71,13 +83,19 @@ fn scripts() -> Vec<Script> {
             Ok(StreamEvent::ReasoningDelta { text: "hmm".into() }),
             Ok(StreamEvent::TextDelta { text: "do".into() }),
             Ok(StreamEvent::TextDelta { text: "ne".into() }),
-            Ok(StreamEvent::Usage(Usage { input_tokens: 7, output_tokens: 3, ..Usage::default() })),
+            Ok(StreamEvent::Usage(Usage {
+                input_tokens: 7,
+                output_tokens: 3,
+                ..Usage::default()
+            })),
             Ok(StreamEvent::Finish(FinishReason::Stop)),
         ],
     ]
 }
 
-async fn next(feed: &mut (impl futures::Stream<Item = SessionEventDto> + Unpin)) -> SessionEventDto {
+async fn next(
+    feed: &mut (impl futures::Stream<Item = SessionEventDto> + Unpin),
+) -> SessionEventDto {
     tokio::time::timeout(Duration::from_secs(10), feed.next())
         .await
         .expect("event within 10s")
@@ -100,7 +118,10 @@ async fn full_turn_with_approval_over_dto_stream() {
     .unwrap();
 
     // Settings: a key goes in, only `has_key` comes out.
-    let s = core.set_api_key("deepseek".into(), Some("sk-topsecret".into())).await.unwrap();
+    let s = core
+        .set_api_key("deepseek".into(), Some("sk-topsecret".into()))
+        .await
+        .unwrap();
     let ds = s.providers.iter().find(|p| p.id == "deepseek").unwrap();
     assert!(ds.has_key && ds.enabled && ds.error.is_none());
     assert!(!format!("{s:?}").contains("topsecret"));
@@ -115,7 +136,14 @@ async fn full_turn_with_approval_over_dto_stream() {
         })
         .await
         .unwrap();
-    assert!(s.providers.iter().find(|p| p.id == "anthropic").unwrap().error.is_some());
+    assert!(
+        s.providers
+            .iter()
+            .find(|p| p.id == "anthropic")
+            .unwrap()
+            .error
+            .is_some()
+    );
     let bad = core
         .save_provider(ProviderInputDto {
             id: "mine".into(),
@@ -136,7 +164,12 @@ async fn full_turn_with_approval_over_dto_stream() {
     .unwrap();
 
     let models = core.list_models().await.unwrap();
-    assert!(models.models.iter().any(|m| m.reference == "fake/m" && m.tools));
+    assert!(
+        models
+            .models
+            .iter()
+            .any(|m| m.reference == "fake/m" && m.tools)
+    );
     assert!(models.errors.iter().any(|e| e.provider_id == "anthropic"));
 
     // Session in an explicit workspace; subscribe before submitting.
@@ -152,7 +185,11 @@ async fn full_turn_with_approval_over_dto_stream() {
     let mut feed = core.session_events(&info.id).unwrap();
     core.submit_turn(
         &info.id,
-        TurnRequestDto { prompt: "write a file".into(), mode: Some(ModeDto::Build), model: None },
+        TurnRequestDto {
+            prompt: "write a file".into(),
+            mode: Some(ModeDto::Build),
+            model: None,
+        },
     )
     .await
     .unwrap();
@@ -171,7 +208,9 @@ async fn full_turn_with_approval_over_dto_stream() {
                 assert!(!ws.join("hello.txt").exists(), "ran before approval");
                 let pending = core.get_session(&info.id).await.unwrap().pending_approvals;
                 assert_eq!(pending.len(), 1);
-                core.respond_approval(&info.id, ev.approval_id.as_deref().unwrap(), true, None).await.unwrap();
+                core.respond_approval(&info.id, ev.approval_id.as_deref().unwrap(), true, None)
+                    .await
+                    .unwrap();
             }
             K::Usage => {
                 let u = ev.usage.unwrap();
@@ -207,9 +246,19 @@ async fn full_turn_with_approval_over_dto_stream() {
 
     let detail = core.get_session(&info.id).await.unwrap();
     assert!(detail.pending_approvals.is_empty());
-    assert!(detail.messages.iter().any(|m| m.role == RoleDto::User && m.content == "write a file"));
+    assert!(
+        detail
+            .messages
+            .iter()
+            .any(|m| m.role == RoleDto::User && m.content == "write a file")
+    );
     assert!(detail.messages.iter().any(|m| m.role == RoleDto::Tool));
-    assert!(detail.messages.iter().any(|m| m.role == RoleDto::Assistant && m.content == "done"));
+    assert!(
+        detail
+            .messages
+            .iter()
+            .any(|m| m.role == RoleDto::Assistant && m.content == "done")
+    );
     assert_eq!(core.list_sessions(10, 0).await.unwrap().len(), 1);
 
     core.shutdown().await;

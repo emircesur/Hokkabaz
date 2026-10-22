@@ -21,7 +21,10 @@ pub struct ToolStreamParser {
 
 /// Longest suffix of `s` that is a proper prefix of `tag`.
 fn partial_tag_len(s: &str, tag: &str) -> usize {
-    (1..tag.len().min(s.len() + 1)).rev().find(|&n| s.is_char_boundary(s.len() - n) && tag.starts_with(&s[s.len() - n..])).unwrap_or(0)
+    (1..tag.len().min(s.len() + 1))
+        .rev()
+        .find(|&n| s.is_char_boundary(s.len() - n) && tag.starts_with(&s[s.len() - n..]))
+        .unwrap_or(0)
 }
 
 fn parse_call(body: &str) -> Option<Out> {
@@ -41,7 +44,9 @@ impl ToolStreamParser {
         let mut out = Vec::new();
         loop {
             if self.in_call {
-                let Some(end) = self.buf.find(CLOSE) else { break };
+                let Some(end) = self.buf.find(CLOSE) else {
+                    break;
+                };
                 let body: String = self.buf.drain(..end + CLOSE.len()).collect();
                 self.in_call = false;
                 match parse_call(&body[..body.len() - CLOSE.len()]) {
@@ -104,19 +109,50 @@ mod tests {
 
     #[test]
     fn plain_text_passes_through_even_with_lt() {
-        assert_eq!(run(&["a < b ", "and <t", "ag>"]), vec![Out::Text("a < b and <tag>".into())]);
+        assert_eq!(
+            run(&["a < b ", "and <t", "ag>"]),
+            vec![Out::Text("a < b and <tag>".into())]
+        );
     }
 
     #[test]
     fn call_split_across_tokens() {
-        let r = run(&["Sure.\n<tool", "_call>{\"name\": \"read\", ", "\"arguments\": {\"path\": \"a\"}}</tool_", "call>"]);
-        assert_eq!(r, vec![Out::Text("Sure.\n".into()), Out::Call { name: "read".into(), arguments: json!({"path": "a"}) }]);
+        let r = run(&[
+            "Sure.\n<tool",
+            "_call>{\"name\": \"read\", ",
+            "\"arguments\": {\"path\": \"a\"}}</tool_",
+            "call>",
+        ]);
+        assert_eq!(
+            r,
+            vec![
+                Out::Text("Sure.\n".into()),
+                Out::Call {
+                    name: "read".into(),
+                    arguments: json!({"path": "a"})
+                }
+            ]
+        );
     }
 
     #[test]
     fn two_calls_and_string_arguments() {
-        let r = run(&["<tool_call>{\"name\":\"a\",\"arguments\":\"{\\\"x\\\":1}\"}</tool_call><tool_call>{\"name\":\"b\"}</tool_call>"]);
-        assert_eq!(r, vec![Out::Call { name: "a".into(), arguments: json!({"x": 1}) }, Out::Call { name: "b".into(), arguments: json!({}) }]);
+        let r = run(&[
+            "<tool_call>{\"name\":\"a\",\"arguments\":\"{\\\"x\\\":1}\"}</tool_call><tool_call>{\"name\":\"b\"}</tool_call>",
+        ]);
+        assert_eq!(
+            r,
+            vec![
+                Out::Call {
+                    name: "a".into(),
+                    arguments: json!({"x": 1})
+                },
+                Out::Call {
+                    name: "b".into(),
+                    arguments: json!({})
+                }
+            ]
+        );
     }
 
     #[test]

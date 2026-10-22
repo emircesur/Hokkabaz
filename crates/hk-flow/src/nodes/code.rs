@@ -143,9 +143,13 @@ impl CodeNode {
             return Ok(vec![Vec::new()]);
         }
         let items: Vec<Value> = input.iter().map(|i| json!({"json": i.json})).collect();
-        let out = super::python::run(&code, each, items).await.map_err(|m| node_err(ctx, m))?;
+        let out = super::python::run(&code, each, items)
+            .await
+            .map_err(|m| node_err(ctx, m))?;
         let items = if each {
-            let Value::Array(results) = out else { return Err(node_err(ctx, NOT_OBJECT)) };
+            let Value::Array(results) = out else {
+                return Err(node_err(ctx, NOT_OBJECT));
+            };
             let mut v = Vec::new();
             for (i, r) in results.into_iter().enumerate() {
                 match r {

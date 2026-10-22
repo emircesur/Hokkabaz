@@ -55,7 +55,9 @@ pub fn imap_credential_type() -> CredentialType {
         .property(
             Prop::boolean("secure", "SSL/TLS")
                 .default(true)
-                .description("Implicit TLS (usually port 993). Off: STARTTLS when the server offers it"),
+                .description(
+                    "Implicit TLS (usually port 993). Off: STARTTLS when the server offers it",
+                ),
         )
 }
 

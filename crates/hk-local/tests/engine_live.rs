@@ -9,12 +9,20 @@ use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
 fn msg(role: Role, content: &str) -> Message {
-    Message { role, content: content.into(), reasoning: None, tool_calls: vec![], tool_call_id: None }
+    Message {
+        role,
+        content: content.into(),
+        reasoning: None,
+        tool_calls: vec![],
+        tool_call_id: None,
+    }
 }
 
 #[tokio::test]
 async fn answers_and_calls_tools() {
-    let Some(path) = std::env::var_os("HK_LOCAL_GGUF") else { return };
+    let Some(path) = std::env::var_os("HK_LOCAL_GGUF") else {
+        return;
+    };
     let path = std::path::PathBuf::from(path);
     let dir = std::env::temp_dir().join(format!("hk-local-live-{}", std::process::id()));
     let store = ModelStore::new(&dir);
@@ -22,7 +30,13 @@ async fn answers_and_calls_tools() {
     let p = LlamaProvider::new(store);
     assert_eq!(p.models().await.unwrap().len(), 1);
 
-    let mut req = ChatRequest::new(m.id.clone(), vec![msg(Role::System, "Answer in one short sentence."), msg(Role::User, "What is the capital of France?")]);
+    let mut req = ChatRequest::new(
+        m.id.clone(),
+        vec![
+            msg(Role::System, "Answer in one short sentence."),
+            msg(Role::User, "What is the capital of France?"),
+        ],
+    );
     req.temperature = Some(0.0);
     req.max_output_tokens = Some(48);
     let mut s = p.stream(req, CancellationToken::new()).await.unwrap();
@@ -38,7 +52,16 @@ async fn answers_and_calls_tools() {
     assert!(text.to_lowercase().contains("paris"), "{text}");
     assert!(fin.is_some());
 
-    let mut req = ChatRequest::new(m.id, vec![msg(Role::System, "You are an assistant with tools. Use a tool whenever one fits."), msg(Role::User, "Read the file notes.txt")]);
+    let mut req = ChatRequest::new(
+        m.id,
+        vec![
+            msg(
+                Role::System,
+                "You are an assistant with tools. Use a tool whenever one fits.",
+            ),
+            msg(Role::User, "Read the file notes.txt"),
+        ],
+    );
     req.tools.push(ToolSpec {
         name: "read_file".into(),
         description: "Read a text file from disk".into(),
@@ -50,7 +73,11 @@ async fn answers_and_calls_tools() {
     let (mut name, mut args, mut fin) = (None, String::new(), None);
     while let Some(ev) = s.next().await {
         match ev.unwrap() {
-            StreamEvent::ToolCallDelta { name: n, arguments_delta, .. } => {
+            StreamEvent::ToolCallDelta {
+                name: n,
+                arguments_delta,
+                ..
+            } => {
                 name = name.or(n);
                 args.push_str(&arguments_delta);
             }

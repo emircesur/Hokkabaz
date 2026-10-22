@@ -30,12 +30,25 @@ const MAX_TOOL_OUTPUT: usize = 8_000;
 const DEFAULT_TOOL_RESULTS: usize = 8;
 const MAX_TOOL_RESULTS: usize = 20;
 /// Fields kept from each SearXNG result (the raw object also carries parsed_url, template, ...).
-const KEEP: [&str; 8] = ["title", "url", "content", "engine", "engines", "category", "score", "publishedDate"];
+const KEEP: [&str; 8] = [
+    "title",
+    "url",
+    "content",
+    "engine",
+    "engines",
+    "category",
+    "score",
+    "publishedDate",
+];
 
 pub fn credential_type() -> CredentialType {
     CredentialType::new(CREDENTIAL, "SearXNG API")
         .documentation("https://docs.searxng.org/dev/search_api.html")
-        .property(Prop::string("baseUrl", "Base URL").required().placeholder("https://searx.example.com"))
+        .property(
+            Prop::string("baseUrl", "Base URL")
+                .required()
+                .placeholder("https://searx.example.com"),
+        )
         .property(
             Prop::string("apiKey", "Access Token")
                 .password()
@@ -56,11 +69,15 @@ pub(crate) struct SearchQuery {
 
 /// `<base>/search?q=...&format=json&...`; errors are plain strings (the tool has no node).
 pub(crate) fn search_url(base: &str, q: &SearchQuery) -> Result<Url, String> {
-    let mut url = Url::parse(base.trim()).map_err(|_| "The SearXNG base URL is not a valid URL".to_owned())?;
+    let mut url = Url::parse(base.trim())
+        .map_err(|_| "The SearXNG base URL is not a valid URL".to_owned())?;
     if !matches!(url.scheme(), "http" | "https") {
         return Err("The SearXNG base URL must be http or https".into());
     }
-    url.path_segments_mut().map_err(|()| "The SearXNG base URL cannot be a base".to_owned())?.pop_if_empty().push("search");
+    url.path_segments_mut()
+        .map_err(|()| "The SearXNG base URL cannot be a base".to_owned())?
+        .pop_if_empty()
+        .push("search");
     {
         let mut qp = url.query_pairs_mut();
         qp.append_pair("q", &q.query).append_pair("format", "json");
@@ -95,25 +112,42 @@ pub(crate) async fn search(
     if q.query.trim().is_empty() {
         return Err("The search query is empty".into());
     }
-    let mut rb = http.get(search_url(base, q)?).header("accept", "application/json");
+    let mut rb = http
+        .get(search_url(base, q)?)
+        .header("accept", "application/json");
     if let Some(t) = token.filter(|t| !t.is_empty()) {
         rb = rb.bearer_auth(t);
     }
-    let res = rb.send().await.map_err(|e| format!("The request failed: {}", e.without_url()))?;
+    let res = rb
+        .send()
+        .await
+        .map_err(|e| format!("The request failed: {}", e.without_url()))?;
     let status = res.status();
-    let body = res.text().await.map_err(|e| format!("Could not read the response: {}", e.without_url()))?;
+    let body = res
+        .text()
+        .await
+        .map_err(|e| format!("Could not read the response: {}", e.without_url()))?;
     if !status.is_success() {
-        let hint = if status.as_u16() == 403 { " (is the `json` format enabled in the instance's settings.yml?)" } else { "" };
+        let hint = if status.as_u16() == 403 {
+            " (is the `json` format enabled in the instance's settings.yml?)"
+        } else {
+            ""
+        };
         return Err(format!("SearXNG returned {}{hint}", status.as_u16()));
     }
-    let parsed: Value = serde_json::from_str(&body).map_err(|_| "SearXNG did not return JSON".to_owned())?;
+    let parsed: Value =
+        serde_json::from_str(&body).map_err(|_| "SearXNG did not return JSON".to_owned())?;
     Ok(parsed
         .get("results")
         .and_then(Value::as_array)
         .map(|rs| {
             rs.iter()
                 .map(|r| {
-                    Value::Object(KEEP.iter().filter_map(|k| r.get(*k).map(|v| ((*k).to_owned(), v.clone()))).collect())
+                    Value::Object(
+                        KEEP.iter()
+                            .filter_map(|k| r.get(*k).map(|v| ((*k).to_owned(), v.clone())))
+                            .collect(),
+                    )
                 })
                 .collect()
         })
@@ -130,24 +164,41 @@ fn description() -> NodeTypeDescription {
         .color("#3050ff")
         .credential(CREDENTIAL, true)
         .property(Prop::string("query", "Query").required())
-        .property(Prop::number("limit", "Limit").default(10).min(1.0).description("Max number of results to return"))
+        .property(
+            Prop::number("limit", "Limit")
+                .default(10)
+                .min(1.0)
+                .description("Max number of results to return"),
+        )
         .property(Prop::collection(
             "options",
             "Options",
             vec![
-                Prop::string("categories", "Categories").placeholder("general,news").description("Comma-separated"),
-                Prop::string("engines", "Engines").description("Comma-separated; default: the instance's"),
+                Prop::string("categories", "Categories")
+                    .placeholder("general,news")
+                    .description("Comma-separated"),
+                Prop::string("engines", "Engines")
+                    .description("Comma-separated; default: the instance's"),
                 Prop::string("language", "Language").placeholder("en"),
                 Prop::options(
                     "timeRange",
                     "Time Range",
-                    vec![Choice::new("Any", ""), Choice::new("Day", "day"), Choice::new("Month", "month"), Choice::new("Year", "year")],
+                    vec![
+                        Choice::new("Any", ""),
+                        Choice::new("Day", "day"),
+                        Choice::new("Month", "month"),
+                        Choice::new("Year", "year"),
+                    ],
                 ),
                 Prop::number("pageNo", "Page").default(1).min(1.0),
                 Prop::options(
                     "safeSearch",
                     "Safe Search",
-                    vec![Choice::new("Off", 0), Choice::new("Moderate", 1), Choice::new("Strict", 2)],
+                    vec![
+                        Choice::new("Off", 0),
+                        Choice::new("Moderate", 1),
+                        Choice::new("Strict", 2),
+                    ],
                 ),
             ],
         ))
@@ -189,7 +240,10 @@ impl FlowNode for SearxngNode {
             return Ok(vec![Vec::new()]);
         }
         let cred = kit::credential(ctx, &self.creds, CREDENTIAL).await?;
-        let (base, token) = (kit::cred_str(&cred, "baseUrl"), kit::cred_str(&cred, "apiKey"));
+        let (base, token) = (
+            kit::cred_str(&cred, "baseUrl"),
+            kit::cred_str(&cred, "apiKey"),
+        );
         let http = kit::client(&ctx.node.name, TIMEOUT)?;
         let mut out = Vec::new();
         for i in 0..input_len {
@@ -202,7 +256,11 @@ impl FlowNode for SearxngNode {
                 let rs = search(&http, &base, Some(&token), &self.query(ctx, i)?)
                     .await
                     .map_err(|m| node_err(ctx, m))?;
-                Ok(rs.into_iter().take(limit).map(kit::to_item).collect::<Vec<Item>>())
+                Ok(rs
+                    .into_iter()
+                    .take(limit)
+                    .map(kit::to_item)
+                    .collect::<Vec<Item>>())
             }
             .await;
             kit::settle(ctx, i, res, &mut out)?;
@@ -214,7 +272,10 @@ impl FlowNode for SearxngNode {
 /// Node and credential type into the shared registries. Features: `int-searxng`.
 pub fn register(nodes: &mut NodeRegistry, creds: &CredentialTypes) -> Result<(), FlowError> {
     creds.register_if_absent(credential_type());
-    nodes.register(Arc::new(SearxngNode { desc: description(), creds: creds.clone() }))
+    nodes.register(Arc::new(SearxngNode {
+        desc: description(),
+        creds: creds.clone(),
+    }))
 }
 
 // ------------------------------------------------------------------------------- tool
@@ -228,7 +289,9 @@ struct WebSearch {
 impl std::fmt::Debug for WebSearch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // the token stays out of Debug output
-        f.debug_struct("WebSearch").field("base", &self.base).finish_non_exhaustive()
+        f.debug_struct("WebSearch")
+            .field("base", &self.base)
+            .finish_non_exhaustive()
     }
 }
 
@@ -250,11 +313,19 @@ fn format_results(results: &[Value], max_results: usize) -> String {
     let field = |r: &Value, k: &str| r.get(k).map(display).unwrap_or_default();
     let mut out = String::new();
     for (n, r) in results.iter().take(max_results).enumerate() {
-        out.push_str(&format!("{}. {}\n   {}\n", n + 1, field(r, "title"), field(r, "url")));
+        out.push_str(&format!(
+            "{}. {}\n   {}\n",
+            n + 1,
+            field(r, "title"),
+            field(r, "url")
+        ));
         let snippet = field(r, "content");
         if !snippet.is_empty() {
             let snippet: String = snippet.split_whitespace().collect::<Vec<_>>().join(" ");
-            out.push_str(&format!("   {}\n", snippet.chars().take(400).collect::<String>()));
+            out.push_str(&format!(
+                "   {}\n",
+                snippet.chars().take(400).collect::<String>()
+            ));
         }
     }
     truncate(out, MAX_TOOL_OUTPUT)
@@ -265,9 +336,10 @@ impl Tool for WebSearch {
     fn spec(&self) -> ToolSpec {
         ToolSpec {
             name: TOOL_NAME.into(),
-            description: "Search the web (SearXNG). Returns numbered results with title, URL and a snippet. \
+            description:
+                "Search the web (SearXNG). Returns numbered results with title, URL and a snippet. \
                           Follow up with web_fetch to read a page."
-                .into(),
+                    .into(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -290,15 +362,27 @@ impl Tool for WebSearch {
     }
 
     async fn execute(&self, _ctx: ToolCtx, args: Value) -> Result<ToolOutput, ToolError> {
-        let invalid = |reason: &str| ToolError::InvalidArgs { tool: TOOL_NAME.into(), reason: reason.into() };
-        let query = args.get("query").and_then(Value::as_str).map(str::trim).filter(|q| !q.is_empty()).ok_or_else(|| invalid("`query` is required"))?;
+        let invalid = |reason: &str| ToolError::InvalidArgs {
+            tool: TOOL_NAME.into(),
+            reason: reason.into(),
+        };
+        let query = args
+            .get("query")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|q| !q.is_empty())
+            .ok_or_else(|| invalid("`query` is required"))?;
         let opt = |k: &str| args.get(k).and_then(Value::as_str).map(str::to_owned);
         let q = SearchQuery {
             query: query.to_owned(),
             categories: opt("categories"),
             language: opt("language"),
-            time_range: opt("time_range").filter(|t| matches!(t.as_str(), "day" | "month" | "year")),
-            pageno: args.get("page").and_then(Value::as_u64).and_then(|p| u32::try_from(p).ok()),
+            time_range: opt("time_range")
+                .filter(|t| matches!(t.as_str(), "day" | "month" | "year")),
+            pageno: args
+                .get("page")
+                .and_then(Value::as_u64)
+                .and_then(|p| u32::try_from(p).ok()),
             ..SearchQuery::default()
         };
         let max = args
@@ -306,13 +390,21 @@ impl Tool for WebSearch {
             .and_then(Value::as_u64)
             .and_then(|n| usize::try_from(n).ok())
             .map_or(DEFAULT_TOOL_RESULTS, |n| n.clamp(1, MAX_TOOL_RESULTS));
-        let http = match self.http.get_or_init(|| reqwest::Client::builder().timeout(TIMEOUT).build().map_err(|e| e.without_url().to_string())) {
+        let http = match self.http.get_or_init(|| {
+            reqwest::Client::builder()
+                .timeout(TIMEOUT)
+                .build()
+                .map_err(|e| e.without_url().to_string())
+        }) {
             Ok(c) => c,
             Err(e) => return Ok(ToolOutput::error(format!("web_search is unavailable: {e}"))),
         };
         match search(http, &self.base, self.token.as_deref(), &q).await {
             Ok(rs) if rs.is_empty() => Ok(ToolOutput::ok("No results.")),
-            Ok(rs) => Ok(ToolOutput::untrusted("web_search", &format_results(&rs, max))),
+            Ok(rs) => Ok(ToolOutput::untrusted(
+                "web_search",
+                &format_results(&rs, max),
+            )),
             Err(m) => Ok(ToolOutput::error(format!("web_search failed: {m}"))),
         }
     }
@@ -324,8 +416,15 @@ pub fn searxng_web_search_tool(base_url: impl Into<String>) -> Arc<dyn Tool> {
 }
 
 /// Like [`searxng_web_search_tool`], sending `token` as a bearer token.
-pub fn searxng_web_search_tool_with_token(base_url: impl Into<String>, token: Option<String>) -> Arc<dyn Tool> {
-    Arc::new(WebSearch { base: base_url.into(), token, http: OnceLock::new() })
+pub fn searxng_web_search_tool_with_token(
+    base_url: impl Into<String>,
+    token: Option<String>,
+) -> Arc<dyn Tool> {
+    Arc::new(WebSearch {
+        base: base_url.into(),
+        token,
+        http: OnceLock::new(),
+    })
 }
 
 #[cfg(test)]
@@ -334,7 +433,12 @@ mod tests {
 
     #[test]
     fn url_carries_only_set_options() {
-        let q = SearchQuery { query: "rust & co".into(), categories: Some("news".into()), pageno: Some(2), ..SearchQuery::default() };
+        let q = SearchQuery {
+            query: "rust & co".into(),
+            categories: Some("news".into()),
+            pageno: Some(2),
+            ..SearchQuery::default()
+        };
         assert_eq!(
             search_url("https://s.example/base/", &q).unwrap().as_str(),
             "https://s.example/base/search?q=rust+%26+co&format=json&categories=news&pageno=2"

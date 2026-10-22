@@ -30,7 +30,10 @@ pub trait Backends: Send + Sync + std::fmt::Debug {
     /// The language model for highlights, scoring, B-roll and copy.
     async fn llm(&self) -> Result<Arc<dyn Llm>>;
     /// Speech-to-text engine wrapped for long audio with `splitter`.
-    async fn transcriber(&self, splitter: Arc<dyn AudioSplitter>) -> Result<(Arc<dyn Transcriber>, TranscribeOpts)>;
+    async fn transcriber(
+        &self,
+        splitter: Arc<dyn AudioSplitter>,
+    ) -> Result<(Arc<dyn Transcriber>, TranscribeOpts)>;
     /// Stock footage sources the user configured (Pexels / Pixabay keys, local folders).
     fn stock(&self) -> Vec<Arc<dyn StockProvider>> {
         Vec::new()
@@ -83,7 +86,13 @@ pub struct StudioService {
 
 impl StudioService {
     pub fn new(root: impl Into<PathBuf>, tools: Tools, backends: Arc<dyn Backends>) -> Self {
-        Self { studio: Studio::new(root, tools), backends, live: Mutex::default(), jobs: Mutex::default(), renders: Arc::default() }
+        Self {
+            studio: Studio::new(root, tools),
+            backends,
+            live: Mutex::default(),
+            jobs: Mutex::default(),
+            renders: Arc::default(),
+        }
     }
 
     pub fn studio(&self) -> &Studio {
@@ -91,7 +100,14 @@ impl StudioService {
     }
 
     pub async fn projects(&self) -> Result<Vec<ProjectSummary>> {
-        Ok(self.studio.store.list().await?.iter().map(ProjectSummary::from).collect())
+        Ok(self
+            .studio
+            .store
+            .list()
+            .await?
+            .iter()
+            .map(ProjectSummary::from)
+            .collect())
     }
 
     pub async fn import(&self, path: &Path, name: Option<&str>) -> Result<LiveStudio> {
@@ -123,30 +139,51 @@ impl StudioService {
         let live = self.open(id).await?;
         let mut snap = live.snapshot().await;
         let (t, opts) = self.backends.transcriber(self.studio.splitter()).await?;
-        self.studio.transcribe(&mut snap, t.as_ref(), &opts, false).await?;
-        let tr = snap.transcript.ok_or_else(|| StudioError::Invalid("transcription produced nothing".into()))?;
+        self.studio
+            .transcribe(&mut snap, t.as_ref(), &opts, false)
+            .await?;
+        let tr = snap
+            .transcript
+            .ok_or_else(|| StudioError::Invalid("transcription produced nothing".into()))?;
         live.set_transcript(tr).await
     }
 
     /// Find highlights, add them as scored clips. Returns the new clip ids.
-    pub async fn analyze(&self, id: &str, opts: &HighlightOpts, rubric: Option<&str>, template: Option<&str>) -> Result<Vec<String>> {
+    pub async fn analyze(
+        &self,
+        id: &str,
+        opts: &HighlightOpts,
+        rubric: Option<&str>,
+        template: Option<&str>,
+    ) -> Result<Vec<String>> {
         let live = self.open(id).await?;
         let llm = self.backends.llm().await?;
         let mut snap = live.snapshot().await;
         let before: Vec<String> = snap.clips.iter().map(|c| c.id.clone()).collect();
-        self.studio.analyze(&mut snap, llm.as_ref(), opts, rubric, template).await?;
-        let new: Vec<Clip> = snap.clips.into_iter().filter(|c| !before.contains(&c.id)).collect();
+        self.studio
+            .analyze(&mut snap, llm.as_ref(), opts, rubric, template)
+            .await?;
+        let new: Vec<Clip> = snap
+            .clips
+            .into_iter()
+            .filter(|c| !before.contains(&c.id))
+            .collect();
         let ids = new.iter().map(|c| c.id.clone()).collect();
         live.mutate(|p| {
             p.clips.extend(new);
-            p.clips.sort_by_key(|c| std::cmp::Reverse(c.score.as_ref().map_or(0, |s| s.total)));
+            p.clips
+                .sort_by_key(|c| std::cmp::Reverse(c.score.as_ref().map_or(0, |s| s.total)));
         })
         .await?;
         Ok(ids)
     }
 
     fn focus_source(&self) -> Box<dyn FocusSource> {
-        let model = self.backends.face_model_dir().map(|d| d.join("seeta_fd_frontal_v1.0.bin")).filter(|p| p.is_file());
+        let model = self
+            .backends
+            .face_model_dir()
+            .map(|d| d.join("seeta_fd_frontal_v1.0.bin"))
+            .filter(|p| p.is_file());
         auto_focus(self.studio.tools.clone(), model)
     }
 
@@ -165,15 +202,25 @@ impl StudioService {
         let snap = live.snapshot().await;
         let clip = snap.clip(clip_id)?.clone();
         let src = snap.source.path.clone();
-        let points = match self.focus_source().detect(&src, clip.start, clip.end, 0.5).await {
+        let points = match self
+            .focus_source()
+            .detect(&src, clip.start, clip.end, 0.5)
+            .await
+        {
             Ok(p) => p,
             Err(e) => {
                 tracing::warn!(error = %e, "tracking failed, using motion");
-                MotionFocus::new(self.studio.tools.clone()).detect(&src, clip.start, clip.end, 0.5).await?
+                MotionFocus::new(self.studio.tools.clone())
+                    .detect(&src, clip.start, clip.end, 0.5)
+                    .await?
             }
         };
         let n = points.len();
-        let mut spec = clip.reframe.clone().or(base).unwrap_or_else(ReframeSpec::vertical);
+        let mut spec = clip
+            .reframe
+            .clone()
+            .or(base)
+            .unwrap_or_else(ReframeSpec::vertical);
         spec.mode = ReframeMode::Track;
         spec.focus = points;
         let cid = clip_id.to_string();
@@ -196,7 +243,10 @@ impl StudioService {
         let words = words_for_clip(tr, clip, &map);
         let providers = self.backends.stock();
         if providers.is_empty() {
-            return Err(StudioError::Invalid("no stock footage source configured (Pexels / Pixabay key or a local folder)".into()));
+            return Err(StudioError::Invalid(
+                "no stock footage source configured (Pexels / Pixabay key or a local folder)"
+                    .into(),
+            ));
         }
         let llm = self.backends.llm().await?;
         let reqs = plan_broll(llm.as_ref(), &words, opts).await?;
@@ -214,14 +264,24 @@ impl StudioService {
         Ok(n)
     }
 
-    pub async fn social(&self, id: &str, clip_id: &str, platforms: &[Platform], opts: &SocialOpts) -> Result<()> {
+    pub async fn social(
+        &self,
+        id: &str,
+        clip_id: &str,
+        platforms: &[Platform],
+        opts: &SocialOpts,
+    ) -> Result<()> {
         let live = self.open(id).await?;
         let snap = live.snapshot().await;
         let clip = snap.clip(clip_id)?;
         let tr = snap.transcript()?;
         let text = {
             let map = OutputMap::new(kept_ranges(clip, tr));
-            words_for_clip(tr, clip, &map).iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ")
+            words_for_clip(tr, clip, &map)
+                .iter()
+                .map(|w| w.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
         };
         let llm = self.backends.llm().await?;
         let pack = write_social(llm.as_ref(), &clip.title, &text, platforms, opts).await?;
@@ -270,9 +330,15 @@ impl StudioService {
             match handle.wait().await {
                 Ok(r) => {
                     renders.lock().await.insert(renders_key, r.output.clone());
-                    events.emit(StudioEvent::RenderDone { clip: cid, path: r.output.to_string_lossy().into_owned() });
+                    events.emit(StudioEvent::RenderDone {
+                        clip: cid,
+                        path: r.output.to_string_lossy().into_owned(),
+                    });
                 }
-                Err(e) => events.emit(StudioEvent::RenderFailed { clip: cid, error: e.to_string() }),
+                Err(e) => events.emit(StudioEvent::RenderFailed {
+                    clip: cid,
+                    error: e.to_string(),
+                }),
             }
         });
         Ok(job)
@@ -286,44 +352,91 @@ impl StudioService {
     }
 
     pub async fn render_path(&self, id: &str, clip: &str) -> Option<PathBuf> {
-        let known = self.renders.lock().await.get(&(id.to_string(), clip.to_string())).cloned();
+        let known = self
+            .renders
+            .lock()
+            .await
+            .get(&(id.to_string(), clip.to_string()))
+            .cloned();
         if known.is_some() {
             return known;
         }
-        let on_disk = self.studio.store.work_dir(id).join("renders").join(format!("{clip}.mp4"));
+        let on_disk = self
+            .studio
+            .store
+            .work_dir(id)
+            .join("renders")
+            .join(format!("{clip}.mp4"));
         on_disk.is_file().then_some(on_disk)
     }
 
     /// Upload the rendered clip to YouTube (private unless told otherwise) using the clip's
     /// post copy for `youtube_shorts` (or its title).
-    pub async fn publish_youtube(&self, id: &str, clip_id: &str, privacy: crate::publish::Privacy) -> Result<crate::publish::Published> {
+    pub async fn publish_youtube(
+        &self,
+        id: &str,
+        clip_id: &str,
+        privacy: crate::publish::Privacy,
+    ) -> Result<crate::publish::Published> {
         use crate::publish::Publisher as _;
-        let creds = self.backends.youtube().ok_or_else(|| StudioError::Invalid("YouTube is not set up (Studio settings: client id, secret, refresh token)".into()))?;
-        let video = self.render_path(id, clip_id).await.ok_or_else(|| StudioError::NotFound("rendered video (render the clip first)".into()))?;
+        let creds = self.backends.youtube().ok_or_else(|| {
+            StudioError::Invalid(
+                "YouTube is not set up (Studio settings: client id, secret, refresh token)".into(),
+            )
+        })?;
+        let video = self.render_path(id, clip_id).await.ok_or_else(|| {
+            StudioError::NotFound("rendered video (render the clip first)".into())
+        })?;
         let snap = self.open(id).await?.snapshot().await;
         let clip = snap.clip(clip_id)?;
         let post = clip
             .social
             .as_ref()
             .and_then(|s| s.posts.get("youtube_shorts").cloned())
-            .unwrap_or_else(|| crate::social::PlatformPost { title: clip.title.clone(), description: clip.hook.clone().unwrap_or_default(), hashtags: Vec::new() });
-        crate::publish::Youtube::new(creds).publish(&video, &post, privacy).await
+            .unwrap_or_else(|| crate::social::PlatformPost {
+                title: clip.title.clone(),
+                description: clip.hook.clone().unwrap_or_default(),
+                hashtags: Vec::new(),
+            });
+        crate::publish::Youtube::new(creds)
+            .publish(&video, &post, privacy)
+            .await
     }
 
     /// Copy the render and write captions + post text next to it.
     pub async fn export_package(&self, id: &str, clip_id: &str, dir: &Path) -> Result<PathBuf> {
-        let video = self.render_path(id, clip_id).await.ok_or_else(|| StudioError::NotFound("rendered video (render the clip first)".into()))?;
+        let video = self.render_path(id, clip_id).await.ok_or_else(|| {
+            StudioError::NotFound("rendered video (render the clip first)".into())
+        })?;
         let snap = self.open(id).await?.snapshot().await;
         let clip = snap.clip(clip_id)?;
-        let name: String = clip.title.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
+        let name: String = clip
+            .title
+            .chars()
+            .map(|c| {
+                if c.is_alphanumeric() || c == ' ' || c == '-' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect();
         let out = dir.join(name.trim());
         tokio::fs::create_dir_all(&out).await?;
         tokio::fs::copy(&video, out.join("clip.mp4")).await?;
         if let (Some(tr), Some(style)) = (snap.transcript.as_ref(), clip.captions.as_ref()) {
             let map = OutputMap::new(kept_ranges(clip, tr));
             let words = words_for_clip(tr, clip, &map);
-            tokio::fs::write(out.join("captions.srt"), crate::captions::to_srt(&words, style)).await?;
-            tokio::fs::write(out.join("captions.vtt"), crate::captions::to_vtt(&words, style)).await?;
+            tokio::fs::write(
+                out.join("captions.srt"),
+                crate::captions::to_srt(&words, style),
+            )
+            .await?;
+            tokio::fs::write(
+                out.join("captions.vtt"),
+                crate::captions::to_vtt(&words, style),
+            )
+            .await?;
         }
         if let Some(pack) = &clip.social {
             for pl in Platform::ALL {

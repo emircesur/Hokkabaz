@@ -20,7 +20,9 @@ pub const CUT_PAD: f64 = 0.04;
 /// small pad on both sides, never more than half the removed stretch.
 pub fn kept_ranges(clip: &Clip, tr: &Transcript) -> Vec<Range<f64>> {
     let silence: Option<SilenceCut> = clip.silence;
-    let dropped = |i: usize| clip.deleted_words.contains(&i) || (clip.remove_fillers && tr.words[i].flags.filler);
+    let dropped = |i: usize| {
+        clip.deleted_words.contains(&i) || (clip.remove_fillers && tr.words[i].flags.filler)
+    };
 
     // Raw runs of kept words: (start, end) clamped to the clip.
     let mut runs: Vec<(f64, f64)> = Vec::new();
@@ -30,7 +32,9 @@ pub fn kept_ranges(clip: &Clip, tr: &Transcript) -> Vec<Range<f64>> {
             continue;
         }
         let (ws, we) = (w.start.max(clip.start), w.end.min(clip.end));
-        let joined = prev.is_some_and(|p| p + 1 == i && silence.is_none_or(|s| ws - tr.words[p].end <= s.min_gap));
+        let joined = prev.is_some_and(|p| {
+            p + 1 == i && silence.is_none_or(|s| ws - tr.words[p].end <= s.min_gap)
+        });
         match (joined, runs.last_mut()) {
             (true, Some(last)) => last.1 = we,
             _ => runs.push((ws, we)),
@@ -43,8 +47,16 @@ pub fn kept_ranges(clip: &Clip, tr: &Transcript) -> Vec<Range<f64>> {
     let mut out: Vec<Range<f64>> = Vec::with_capacity(n);
     for k in 0..n {
         let (s, e) = runs[k];
-        let left = if k == 0 { (s - clip.start).max(0.0) } else { (s - runs[k - 1].1).max(0.0) / 2.0 };
-        let right = if k + 1 == n { (clip.end - e).max(0.0) } else { (runs[k + 1].0 - e).max(0.0) / 2.0 };
+        let left = if k == 0 {
+            (s - clip.start).max(0.0)
+        } else {
+            (s - runs[k - 1].1).max(0.0) / 2.0
+        };
+        let right = if k + 1 == n {
+            (clip.end - e).max(0.0)
+        } else {
+            (runs[k + 1].0 - e).max(0.0) / 2.0
+        };
         out.push((s - pad.min(left))..(e + pad.min(right)));
     }
     out.retain(|r| r.end - r.start > 0.05);
@@ -80,7 +92,11 @@ impl OutputMap {
 
     /// Output time of source time `t`, if `t` is inside a kept range.
     pub fn to_output(&self, t: f64) -> Option<f64> {
-        self.ranges.iter().zip(&self.offsets).find(|(r, _)| t >= r.start && t <= r.end).map(|(r, o)| o + (t - r.start))
+        self.ranges
+            .iter()
+            .zip(&self.offsets)
+            .find(|(r, _)| t >= r.start && t <= r.end)
+            .map(|(r, o)| o + (t - r.start))
     }
 
     /// Output time of `t`, snapping removed time to the next kept instant.
@@ -117,7 +133,10 @@ mod tests {
         Transcript {
             language: Some("en".into()),
             duration: words.last().map_or(0.0, |w| w.2),
-            words: words.iter().map(|(t, s, e)| Word::new(*t, *s, *e)).collect(),
+            words: words
+                .iter()
+                .map(|(t, s, e)| Word::new(*t, *s, *e))
+                .collect(),
             segments: Vec::new(),
         }
     }
@@ -150,7 +169,10 @@ mod tests {
         let t = tr(&[("a", 0.0, 0.5), ("b", 3.0, 3.4)]);
         let mut c = clip(0.0, 4.0);
         assert_eq!(kept_ranges(&c, &t).len(), 1);
-        c.silence = Some(SilenceCut { min_gap: 0.6, keep: 0.1 });
+        c.silence = Some(SilenceCut {
+            min_gap: 0.6,
+            keep: 0.1,
+        });
         let r = kept_ranges(&c, &t);
         assert_eq!(r.len(), 2);
         let total: f64 = r.iter().map(|x| x.end - x.start).sum();

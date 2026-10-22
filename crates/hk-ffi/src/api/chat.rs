@@ -1,7 +1,8 @@
 //! Sessions, turns, approvals and the live event stream.
 
 use crate::dto::{
-    CreateSessionDto, ModeDto, SessionDetailDto, SessionEventDto, SessionInfoDto, TurnAcceptedDto, TurnRequestDto,
+    CreateSessionDto, ModeDto, SessionDetailDto, SessionEventDto, SessionInfoDto, TurnAcceptedDto,
+    TurnRequestDto,
 };
 use crate::error::{HkError, HkErrorKind};
 use crate::frb_generated::StreamSink;
@@ -15,7 +16,13 @@ pub async fn create_session(
     model: Option<String>,
     workspace_root: Option<String>,
 ) -> Result<SessionInfoDto, HkError> {
-    core()?.create_session(CreateSessionDto { title, model, workspace_root }).await
+    core()?
+        .create_session(CreateSessionDto {
+            title,
+            model,
+            workspace_root,
+        })
+        .await
 }
 
 /// Most recently updated first.
@@ -36,7 +43,16 @@ pub async fn submit_turn(
     mode: Option<ModeDto>,
     model: Option<String>,
 ) -> Result<TurnAcceptedDto, HkError> {
-    core()?.submit_turn(&session_id, TurnRequestDto { prompt, mode, model }).await
+    core()?
+        .submit_turn(
+            &session_id,
+            TurnRequestDto {
+                prompt,
+                mode,
+                model,
+            },
+        )
+        .await
 }
 
 /// Steer the running turn with an extra user message (applied at the next step boundary).
@@ -56,15 +72,21 @@ pub async fn respond_approval(
     approved: bool,
     reason: Option<String>,
 ) -> Result<(), HkError> {
-    core()?.respond_approval(&session_id, &approval_id, approved, reason).await
+    core()?
+        .respond_approval(&session_id, &approval_id, approved, reason)
+        .await
 }
 
 /// Live events of one session until `core_shutdown`. Listen *before* `submit_turn`; history is
 /// `get_session`. Cancelling the Dart subscription is noticed on the next event of the session.
-pub async fn session_events(session_id: String, sink: StreamSink<SessionEventDto>) -> Result<(), HkError> {
+pub async fn session_events(
+    session_id: String,
+    sink: StreamSink<SessionEventDto>,
+) -> Result<(), HkError> {
     let mut feed = core()?.session_events(&session_id)?;
     while let Some(ev) = feed.next().await {
-        sink.add(ev).map_err(|e| HkError::new(HkErrorKind::Closed, e.to_string()))?;
+        sink.add(ev)
+            .map_err(|e| HkError::new(HkErrorKind::Closed, e.to_string()))?;
     }
     Ok(())
 }

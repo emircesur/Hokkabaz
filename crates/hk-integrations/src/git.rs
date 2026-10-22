@@ -57,12 +57,20 @@ pub fn credential_type() -> CredentialType {
     CredentialType::new(CREDENTIAL, "Git")
         .documentation("https://docs.n8n.io/integrations/builtin/credentials/git/")
         .property(Prop::string("username", "Username"))
-        .property(Prop::string("password", "Password").password().description("Password or personal access token"))
+        .property(
+            Prop::string("password", "Password")
+                .password()
+                .description("Password or personal access token"),
+        )
 }
 
 const OPERATIONS: &[(&str, &str, &str)] = &[
     ("Add", "add", "Add files to the index"),
-    ("Checkout", "checkout", "Switch to a branch, optionally creating it"),
+    (
+        "Checkout",
+        "checkout",
+        "Switch to a branch, optionally creating it",
+    ),
     ("Clone", "clone", "Clone a repository into the workspace"),
     ("Commit", "commit", "Commit the index"),
     ("Fetch", "fetch", "Fetch from a remote"),
@@ -87,7 +95,10 @@ fn description() -> NodeTypeDescription {
             Prop::options(
                 "operation",
                 "Operation",
-                OPERATIONS.iter().map(|(n, v, d)| Choice::new(n, *v).action(d)).collect(),
+                OPERATIONS
+                    .iter()
+                    .map(|(n, v, d)| Choice::new(n, *v).action(d))
+                    .collect(),
             )
             .default("status"),
         )
@@ -96,12 +107,19 @@ fn description() -> NodeTypeDescription {
                 .required()
                 .description("Relative to the workspace root (the clone destination for Clone)"),
         )
-        .property(Prop::string("sourceRepository", "Source Repository").required().show("operation", &["clone"]))
+        .property(
+            Prop::string("sourceRepository", "Source Repository")
+                .required()
+                .show("operation", &["clone"]),
+        )
         .property(
             Prop::options(
                 "authentication",
                 "Authentication",
-                vec![Choice::new("None", "none"), Choice::new("Basic Auth (git password)", "gitPassword")],
+                vec![
+                    Choice::new("None", "none"),
+                    Choice::new("Basic Auth (git password)", "gitPassword"),
+                ],
             )
             .default("none")
             .show("operation", NETWORK_OPS),
@@ -112,7 +130,11 @@ fn description() -> NodeTypeDescription {
                 .description("Comma-separated paths relative to the repository")
                 .show("operation", &["add"]),
         )
-        .property(Prop::string("message", "Message").required().show("operation", &["commit"]))
+        .property(
+            Prop::string("message", "Message")
+                .required()
+                .show("operation", &["commit"]),
+        )
         .property(
             Prop::collection(
                 "options",
@@ -125,21 +147,48 @@ fn description() -> NodeTypeDescription {
             )
             .show("operation", &["commit"]),
         )
-        .property(Prop::string("branch", "Branch").required().show("operation", &["checkout"]))
-        .property(Prop::string("branch", "Branch").description("Empty: the configured upstream").show("operation", &["push", "pull"]))
-        .property(Prop::boolean("createBranch", "Create Branch").default(false).show("operation", &["checkout"]))
-        .property(Prop::string("remote", "Remote").default("origin").show("operation", &["fetch", "pull", "push", "pushTags"]))
-        .property(Prop::string("name", "Tag Name").required().show("operation", &["tag"]))
+        .property(
+            Prop::string("branch", "Branch")
+                .required()
+                .show("operation", &["checkout"]),
+        )
+        .property(
+            Prop::string("branch", "Branch")
+                .description("Empty: the configured upstream")
+                .show("operation", &["push", "pull"]),
+        )
+        .property(
+            Prop::boolean("createBranch", "Create Branch")
+                .default(false)
+                .show("operation", &["checkout"]),
+        )
+        .property(
+            Prop::string("remote", "Remote")
+                .default("origin")
+                .show("operation", &["fetch", "pull", "push", "pushTags"]),
+        )
+        .property(
+            Prop::string("name", "Tag Name")
+                .required()
+                .show("operation", &["tag"]),
+        )
         .properties(return_all_and_limit(None, &["log"]))
         .property(
-            Prop::collection("logOptions", "Options", vec![Prop::string("file", "File").description("Only commits touching this path")])
-                .show("operation", &["log"]),
+            Prop::collection(
+                "logOptions",
+                "Options",
+                vec![Prop::string("file", "File").description("Only commits touching this path")],
+            )
+            .show("operation", &["log"]),
         )
         .build()
 }
 
 fn node_err(ctx: &NodeContext, message: impl Into<String>) -> FlowError {
-    FlowError::Node { node: ctx.node.name.clone(), message: message.into() }
+    FlowError::Node {
+        node: ctx.node.name.clone(),
+        message: message.into(),
+    }
 }
 
 pub struct GitNode {
@@ -150,14 +199,20 @@ pub struct GitNode {
 
 impl std::fmt::Debug for GitNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GitNode").field("root", &self.root).finish_non_exhaustive()
+        f.debug_struct("GitNode")
+            .field("root", &self.root)
+            .finish_non_exhaustive()
     }
 }
 
 impl GitNode {
     /// `root`: workspace root; `None` reads [`workspace_root`] on every run.
     pub fn new(root: Option<PathBuf>, creds: &CredentialTypes) -> Self {
-        Self { desc: description(), root, creds: creds.clone() }
+        Self {
+            desc: description(),
+            root,
+            creds: creds.clone(),
+        }
     }
 }
 
@@ -183,7 +238,10 @@ impl FlowNode for GitNode {
     }
 
     async fn execute(&self, ctx: &NodeContext) -> Result<NodeOutput, FlowError> {
-        let carry = matches!(ctx.node.error_mode(), ErrorMode::ContinueRegularOutput | ErrorMode::ContinueErrorOutput);
+        let carry = matches!(
+            ctx.node.error_mode(),
+            ErrorMode::ContinueRegularOutput | ErrorMode::ContinueErrorOutput
+        );
         let n = ctx.input.first().map_or(0, Vec::len);
         let mut out = Vec::new();
         for i in 0..n {
@@ -210,7 +268,10 @@ impl GitNode {
     async fn run_item(&self, ctx: &NodeContext, _i: usize) -> Result<Vec<Item>, FlowError> {
         let _ = &self.creds;
         let _ = &self.root;
-        Err(node_err(ctx, "The Git node is not supported on Android: there is no git binary here. Run this workflow on a desktop instance"))
+        Err(node_err(
+            ctx,
+            "The Git node is not supported on Android: there is no git binary here. Run this workflow on a desktop instance",
+        ))
     }
 }
 
@@ -274,16 +335,28 @@ mod imp {
         let croot = root
             .canonicalize()
             .map_err(|e| format!("workspace root {} is not usable: {e}", root.display()))?;
-        let joined = if p.is_absolute() { p.to_path_buf() } else { croot.join(p) };
+        let joined = if p.is_absolute() {
+            p.to_path_buf()
+        } else {
+            croot.join(p)
+        };
         let resolved = if must_exist {
-            joined.canonicalize().map_err(|e| format!("{}: {e}", joined.display()))?
+            joined
+                .canonicalize()
+                .map_err(|e| format!("{}: {e}", joined.display()))?
         } else {
             let parent = joined.parent().ok_or("path has no parent")?;
             let name = joined.file_name().ok_or("path has no name")?;
-            parent.canonicalize().map_err(|e| format!("{}: {e}", parent.display()))?.join(name)
+            parent
+                .canonicalize()
+                .map_err(|e| format!("{}: {e}", parent.display()))?
+                .join(name)
         };
         if !resolved.starts_with(&croot) {
-            return Err(format!("path is outside the workspace root {}", croot.display()));
+            return Err(format!(
+                "path is outside the workspace root {}",
+                croot.display()
+            ));
         }
         Ok(resolved)
     }
@@ -363,11 +436,19 @@ mod imp {
         if !res.status.success() {
             let err = String::from_utf8_lossy(&res.stderr);
             let msg: String = scrub(err.trim()).chars().take(800).collect();
-            return Err(node_err(ctx, format!("git {} failed: {msg}", args.first().map_or("", String::as_str))));
+            return Err(node_err(
+                ctx,
+                format!(
+                    "git {} failed: {msg}",
+                    args.first().map_or("", String::as_str)
+                ),
+            ));
         }
         let mut stdout = res.stdout;
         stdout.truncate(MAX_OUTPUT);
-        Ok(Out { stdout: String::from_utf8_lossy(&stdout).into_owned() })
+        Ok(Out {
+            stdout: String::from_utf8_lossy(&stdout).into_owned(),
+        })
     }
 
     fn ok(op: &str) -> Vec<Item> {
@@ -378,38 +459,56 @@ mod imp {
         v.to_owned()
     }
 
-    pub(super) async fn run_item(node: &GitNode, ctx: &NodeContext, i: usize) -> Result<Vec<Item>, FlowError> {
+    pub(super) async fn run_item(
+        node: &GitNode,
+        ctx: &NodeContext,
+        i: usize,
+    ) -> Result<Vec<Item>, FlowError> {
         let op = req_param(ctx, "operation", i)?;
         if !OPERATIONS.iter().any(|(_, v, _)| *v == op) {
             return Err(node_err(ctx, format!("Unknown operation `{op}`")));
         }
         let root = node.root.clone().unwrap_or_else(workspace_root);
         let repo_raw = req_param(ctx, "repositoryPath", i)?;
-        let repo = resolve_under(&root, &repo_raw, op != "clone").map_err(|m| node_err(ctx, format!("Repository path: {m}")))?;
+        let repo = resolve_under(&root, &repo_raw, op != "clone")
+            .map_err(|m| node_err(ctx, format!("Repository path: {m}")))?;
 
         // credentials only for network operations that ask for them
         let mut env = HashMap::new();
         let mut secrets = Vec::new();
-        if NETWORK_OPS.contains(&op.as_str()) && str_param(ctx, "authentication", i)? == "gitPassword" {
+        if NETWORK_OPS.contains(&op.as_str())
+            && str_param(ctx, "authentication", i)? == "gitPassword"
+        {
             let reference = ctx
                 .node
                 .credentials
                 .as_ref()
                 .and_then(|m| m.get(CREDENTIAL))
-                .ok_or_else(|| node_err(ctx, format!("No credentials of type `{CREDENTIAL}` selected")))?;
-            let resolver = ctx
-                .hooks
-                .credentials
-                .as_ref()
-                .ok_or_else(|| node_err(ctx, "Credentials are not available in this runtime"))?;
+                .ok_or_else(|| {
+                    node_err(
+                        ctx,
+                        format!("No credentials of type `{CREDENTIAL}` selected"),
+                    )
+                })?;
+            let resolver =
+                ctx.hooks.credentials.as_ref().ok_or_else(|| {
+                    node_err(ctx, "Credentials are not available in this runtime")
+                })?;
             let raw = resolver.resolve(CREDENTIAL, reference).await?;
             let data = node.creds.with_defaults(CREDENTIAL, &raw);
             let get = |k: &str| data.get(k).map(display).unwrap_or_default();
-            let token = base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", get("username"), get("password")));
+            let token = base64::engine::general_purpose::STANDARD.encode(format!(
+                "{}:{}",
+                get("username"),
+                get("password")
+            ));
             // config via env, not argv: argv is world-readable in the process table
             env.insert("GIT_CONFIG_COUNT".into(), "1".into());
             env.insert("GIT_CONFIG_KEY_0".into(), "http.extraHeader".into());
-            env.insert("GIT_CONFIG_VALUE_0".into(), format!("Authorization: Basic {token}"));
+            env.insert(
+                "GIT_CONFIG_VALUE_0".into(),
+                format!("Authorization: Basic {token}"),
+            );
             secrets = vec![token, get("password")];
         }
 
@@ -427,12 +526,28 @@ mod imp {
                     .to_string_lossy()
                     .into_owned()
             } else if src.starts_with("file://") {
-                return Err(node_err(ctx, "file:// sources are not allowed; use a path under the workspace root"));
+                return Err(node_err(
+                    ctx,
+                    "file:// sources are not allowed; use a path under the workspace root",
+                ));
             } else {
                 src
             };
             let parent = repo.parent().unwrap_or(&root);
-            git(ctx, parent, Some(parent), &secrets, &env, &[s("clone"), s("--"), src, repo.to_string_lossy().into_owned()]).await?;
+            git(
+                ctx,
+                parent,
+                Some(parent),
+                &secrets,
+                &env,
+                &[
+                    s("clone"),
+                    s("--"),
+                    src,
+                    repo.to_string_lossy().into_owned(),
+                ],
+            )
+            .await?;
             return Ok(ok(&op));
         }
 
@@ -446,8 +561,16 @@ mod imp {
             "add" => {
                 let paths = str_param(ctx, "pathsToAdd", i)?;
                 let mut args = vec![s("add"), s("--")];
-                let list: Vec<&str> = paths.split(',').map(str::trim).filter(|p| !p.is_empty()).collect();
-                args.extend(if list.is_empty() { vec![s(".")] } else { list.into_iter().map(s).collect() });
+                let list: Vec<&str> = paths
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|p| !p.is_empty())
+                    .collect();
+                args.extend(if list.is_empty() {
+                    vec![s(".")]
+                } else {
+                    list.into_iter().map(s).collect()
+                });
                 run(args).await?;
             }
             "commit" => {
@@ -462,15 +585,25 @@ mod imp {
                     args.extend([s("-c"), format!("user.email={email}")]);
                 }
                 args.extend([s("commit"), s("-m"), message]);
-                if matches!(ctx.eval_param_at("options.allowEmpty", i)?, Some(Value::Bool(true))) {
+                if matches!(
+                    ctx.eval_param_at("options.allowEmpty", i)?,
+                    Some(Value::Bool(true))
+                ) {
                     args.push(s("--allow-empty"));
                 }
                 run(args).await?;
             }
             "checkout" => {
                 let branch = ref_like(ctx, "branch", req_param(ctx, "branch", i)?)?;
-                let create = matches!(ctx.eval_param_at("createBranch", i)?, Some(Value::Bool(true)));
-                let args = if create { vec![s("checkout"), s("-b"), branch] } else { vec![s("checkout"), branch, s("--")] };
+                let create = matches!(
+                    ctx.eval_param_at("createBranch", i)?,
+                    Some(Value::Bool(true))
+                );
+                let args = if create {
+                    vec![s("checkout"), s("-b"), branch]
+                } else {
+                    vec![s("checkout"), branch, s("--")]
+                };
                 run(args).await?;
             }
             "fetch" | "pull" | "push" | "pushTags" => {
@@ -504,7 +637,11 @@ mod imp {
                 let mut args = vec![s("log"), s("--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1e")];
                 let all = matches!(ctx.eval_param_at("returnAll", i)?, Some(Value::Bool(true)));
                 if !all {
-                    let limit = ctx.eval_param_at("limit", i)?.and_then(|v| v.as_u64()).unwrap_or(100).max(1);
+                    let limit = ctx
+                        .eval_param_at("limit", i)?
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(100)
+                        .max(1);
                     args.push(format!("-n{limit}"));
                 }
                 let file = str_param(ctx, "logOptions.file", i)?;
@@ -538,7 +675,8 @@ mod imp {
 
     pub(super) fn parse_status(out: &str) -> Value {
         let mut entries = out.split('\0').filter(|e| !e.is_empty());
-        let (mut current, mut tracking, mut ahead, mut behind) = (Value::Null, Value::Null, 0u64, 0u64);
+        let (mut current, mut tracking, mut ahead, mut behind) =
+            (Value::Null, Value::Null, 0u64, 0u64);
         if let Some(h) = entries.next().and_then(|h| h.strip_prefix("## ")) {
             if let Some(b) = h.strip_prefix("No commits yet on ") {
                 current = json!(b);
@@ -583,10 +721,15 @@ mod imp {
 
         #[test]
         fn status_parsing() {
-            let v = parse_status("## main...origin/main [ahead 2, behind 1]\0 M a.txt\0?? b c.txt\0R  new\0old\0");
+            let v = parse_status(
+                "## main...origin/main [ahead 2, behind 1]\0 M a.txt\0?? b c.txt\0R  new\0old\0",
+            );
             assert_eq!(v["current"], "main");
             assert_eq!(v["tracking"], "origin/main");
-            assert_eq!((v["ahead"].as_u64(), v["behind"].as_u64()), (Some(2), Some(1)));
+            assert_eq!(
+                (v["ahead"].as_u64(), v["behind"].as_u64()),
+                (Some(2), Some(1))
+            );
             assert_eq!(v["files"].as_array().unwrap().len(), 3);
             assert_eq!(v["files"][1]["path"], "b c.txt");
             assert_eq!(v["files"][1]["index"], "?");

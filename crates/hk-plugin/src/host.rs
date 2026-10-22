@@ -57,7 +57,9 @@ pub struct HostServices {
 
 impl fmt::Debug for HostServices {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("HostServices").field("data_dir", &self.data_dir).finish_non_exhaustive()
+        f.debug_struct("HostServices")
+            .field("data_dir", &self.data_dir)
+            .finish_non_exhaustive()
     }
 }
 
@@ -101,8 +103,14 @@ struct Kv {
 impl Kv {
     fn open(dir: PathBuf) -> Self {
         let path = dir.join("kv.json");
-        let map = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
-        Self { path, map: Mutex::new(map) }
+        let map = std::fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
+        Self {
+            path,
+            map: Mutex::new(map),
+        }
     }
 
     fn with<R>(&self, f: impl FnOnce(&mut HashMap<String, String>) -> R) -> R {
@@ -114,7 +122,8 @@ impl Kv {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         let tmp = self.path.with_extension("tmp");
-        std::fs::write(&tmp, serde_json::to_vec(map).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        std::fs::write(&tmp, serde_json::to_vec(map).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
         std::fs::rename(&tmp, &self.path).map_err(|e| e.to_string())
     }
 }
@@ -134,7 +143,10 @@ struct State {
 
 impl WasiView for State {
     fn ctx(&mut self) -> WasiCtxView<'_> {
-        WasiCtxView { ctx: &mut self.wasi, table: &mut self.table }
+        WasiCtxView {
+            ctx: &mut self.wasi,
+            table: &mut self.table,
+        }
     }
 }
 
@@ -168,7 +180,12 @@ impl hokkabaz::plugin::host::Host for State {
         let url = self.caps.check_url(url).map_err(host_err)?;
         let method = req["method"].as_str().unwrap_or("GET").to_ascii_uppercase();
         let method = reqwest::Method::from_bytes(method.as_bytes()).map_err(host_err)?;
-        let timeout = Duration::from_millis(req["timeout_ms"].as_u64().unwrap_or(15_000).clamp(100, 60_000));
+        let timeout = Duration::from_millis(
+            req["timeout_ms"]
+                .as_u64()
+                .unwrap_or(15_000)
+                .clamp(100, 60_000),
+        );
         // Redirects are followed only to hosts the plugin was granted.
         let caps = self.caps.clone();
         let policy = reqwest::redirect::Policy::custom(move |attempt| {
@@ -178,7 +195,11 @@ impl hokkabaz::plugin::host::Host for State {
                 attempt.follow()
             }
         });
-        let client = reqwest::blocking::Client::builder().timeout(timeout).redirect(policy).build().map_err(host_err)?;
+        let client = reqwest::blocking::Client::builder()
+            .timeout(timeout)
+            .redirect(policy)
+            .build()
+            .map_err(host_err)?;
         let mut rb = client.request(method, url);
         if let Some(h) = req["headers"].as_object() {
             for (k, v) in h {
@@ -192,10 +213,21 @@ impl hokkabaz::plugin::host::Host for State {
         }
         let resp = rb.send().map_err(host_err)?;
         let status = resp.status().as_u16();
-        let headers: serde_json::Map<String, Value> =
-            resp.headers().iter().filter_map(|(k, v)| v.to_str().ok().map(|v| (k.as_str().to_string(), Value::String(v.to_string())))).collect();
+        let headers: serde_json::Map<String, Value> = resp
+            .headers()
+            .iter()
+            .filter_map(|(k, v)| {
+                v.to_str()
+                    .ok()
+                    .map(|v| (k.as_str().to_string(), Value::String(v.to_string())))
+            })
+            .collect();
         let mut body = Vec::new();
-        std::io::Read::read_to_end(&mut std::io::Read::take(resp, MAX_HTTP_BODY as u64 + 1), &mut body).map_err(host_err)?;
+        std::io::Read::read_to_end(
+            &mut std::io::Read::take(resp, MAX_HTTP_BODY as u64 + 1),
+            &mut body,
+        )
+        .map_err(host_err)?;
         if body.len() > MAX_HTTP_BODY {
             return Err("response body is too large".into());
         }
@@ -213,7 +245,11 @@ impl hokkabaz::plugin::host::Host for State {
             return Err("key must be 1-256 bytes".into());
         }
         self.kv.with(|m| {
-            let used: usize = m.iter().filter(|(k, _)| **k != key).map(|(k, v)| k.len() + v.len()).sum();
+            let used: usize = m
+                .iter()
+                .filter(|(k, _)| **k != key)
+                .map(|(k, v)| k.len() + v.len())
+                .sum();
             if used + key.len() + value.len() > MAX_KV_BYTES {
                 return Err("key/value store is full (1 MiB)".to_string());
             }
@@ -232,13 +268,20 @@ impl hokkabaz::plugin::host::Host for State {
 
     fn secret(&mut self, name: String) -> std::result::Result<String, String> {
         self.caps.check_secret(&name).map_err(host_err)?;
-        self.svc.secrets.get(&name).ok_or_else(|| format!("secret `{name}` is not set"))
+        self.svc
+            .secrets
+            .get(&name)
+            .ok_or_else(|| format!("secret `{name}` is not set"))
     }
 
     fn emit(&mut self, trigger: String, event: String) -> std::result::Result<(), String> {
         self.caps.check_emit().map_err(host_err)?;
         let event: Value = serde_json::from_str(&event).map_err(host_err)?;
-        (self.svc.emit)(EmitEvent { plugin_id: self.id.clone(), trigger, event });
+        (self.svc.emit)(EmitEvent {
+            plugin_id: self.id.clone(),
+            trigger,
+            event,
+        });
         Ok(())
     }
 }
@@ -256,7 +299,10 @@ pub struct LoadedPlugin {
 
 impl fmt::Debug for LoadedPlugin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("LoadedPlugin").field("id", &self.manifest.id).field("version", &self.manifest.version).finish_non_exhaustive()
+        f.debug_struct("LoadedPlugin")
+            .field("id", &self.manifest.id)
+            .field("version", &self.manifest.version)
+            .finish_non_exhaustive()
     }
 }
 
@@ -265,13 +311,23 @@ impl LoadedPlugin {
         let mut wasi = WasiCtxBuilder::new();
         // No stdio, no env, no network, no clocks beyond what WASI always gives; files only where granted.
         for g in &self.manifest.capabilities.fs {
-            let perms = if g.write { FsPerms::ReadWrite } else { FsPerms::ReadOnly };
-            wasi.preopened_dir(&g.path, g.path.to_string_lossy(), perms).map_err(|e| PluginError::Runtime(format!("fs grant {}: {e}", g.path.display())))?;
+            let perms = if g.write {
+                FsPerms::ReadWrite
+            } else {
+                FsPerms::ReadOnly
+            };
+            wasi.preopened_dir(&g.path, g.path.to_string_lossy(), perms)
+                .map_err(|e| PluginError::Runtime(format!("fs grant {}: {e}", g.path.display())))?;
         }
         let state = State {
             wasi: wasi.build(),
             table: ResourceTable::new(),
-            limits: StoreLimitsBuilder::new().memory_size(MEMORY_LIMIT).instances(16).tables(16).memories(8).build(),
+            limits: StoreLimitsBuilder::new()
+                .memory_size(MEMORY_LIMIT)
+                .instances(16)
+                .tables(16)
+                .memories(8)
+                .build(),
             id: self.manifest.id.clone(),
             caps: self.manifest.capabilities.clone(),
             svc: self.svc.clone(),
@@ -285,28 +341,41 @@ impl LoadedPlugin {
         Ok(store)
     }
 
-    fn run<R>(&self, f: impl FnOnce(&Plugin, &mut Store<State>) -> wasmtime::Result<R>) -> Result<R> {
+    fn run<R>(
+        &self,
+        f: impl FnOnce(&Plugin, &mut Store<State>) -> wasmtime::Result<R>,
+    ) -> Result<R> {
         let mut store = self.new_store()?;
-        let inst = self.pre.instantiate(&mut store).map_err(|e| PluginError::Runtime(format!("{e:#}")))?;
+        let inst = self
+            .pre
+            .instantiate(&mut store)
+            .map_err(|e| PluginError::Runtime(format!("{e:#}")))?;
         f(&inst, &mut store).map_err(|e| PluginError::Runtime(format!("{e:#}")))
     }
 
     /// Per-plugin settings JSON (`settings.json`), `null` when never saved.
     pub fn settings(&self) -> Value {
-        std::fs::read(&self.settings_path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(Value::Null)
+        std::fs::read(&self.settings_path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or(Value::Null)
     }
 
     pub fn set_settings(&self, v: &Value) -> Result<()> {
         if let Some(p) = self.settings_path.parent() {
             std::fs::create_dir_all(p)?;
         }
-        std::fs::write(&self.settings_path, serde_json::to_vec(v).map_err(|e| PluginError::Runtime(e.to_string()))?)?;
+        std::fs::write(
+            &self.settings_path,
+            serde_json::to_vec(v).map_err(|e| PluginError::Runtime(e.to_string()))?,
+        )?;
         Ok(())
     }
 
     /// Blocking: run it on a blocking thread from async code.
     pub fn call_tool(&self, name: &str, args: &str) -> Result<String> {
-        self.run(|p, s| p.hokkabaz_plugin_guest().call_call_tool(s, name, args))?.map_err(PluginError::Plugin)
+        self.run(|p, s| p.hokkabaz_plugin_guest().call_call_tool(s, name, args))?
+            .map_err(PluginError::Plugin)
     }
 
     /// Blocking. `input` is the JSON described in the WIT file; settings are added when missing.
@@ -315,16 +384,28 @@ impl LoadedPlugin {
             input["settings"] = self.settings();
         }
         let text = input.to_string();
-        let out = self.run(|p, s| p.hokkabaz_plugin_guest().call_execute_node(s, node_type, &text))?.map_err(PluginError::Plugin)?;
-        serde_json::from_str(&out).map_err(|e| PluginError::Plugin(format!("node returned invalid JSON: {e}")))
+        let out = self
+            .run(|p, s| {
+                p.hokkabaz_plugin_guest()
+                    .call_execute_node(s, node_type, &text)
+            })?
+            .map_err(PluginError::Plugin)?;
+        serde_json::from_str(&out)
+            .map_err(|e| PluginError::Plugin(format!("node returned invalid JSON: {e}")))
     }
 
     /// Blocking. Returns `(events, new_state)`.
     pub fn poll_trigger(&self, name: &str, state: &Value) -> Result<(Vec<Value>, Value)> {
         let st = state.to_string();
-        let out = self.run(|p, s| p.hokkabaz_plugin_guest().call_poll_trigger(s, name, &st))?.map_err(PluginError::Plugin)?;
-        let v: Value = serde_json::from_str(&out).map_err(|e| PluginError::Plugin(format!("trigger returned invalid JSON: {e}")))?;
-        Ok((v["events"].as_array().cloned().unwrap_or_default(), v["state"].clone()))
+        let out = self
+            .run(|p, s| p.hokkabaz_plugin_guest().call_poll_trigger(s, name, &st))?
+            .map_err(PluginError::Plugin)?;
+        let v: Value = serde_json::from_str(&out)
+            .map_err(|e| PluginError::Plugin(format!("trigger returned invalid JSON: {e}")))?;
+        Ok((
+            v["events"].as_array().cloned().unwrap_or_default(),
+            v["state"].clone(),
+        ))
     }
 }
 
@@ -339,7 +420,9 @@ pub struct PluginHost {
 
 impl fmt::Debug for PluginHost {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PluginHost").field("loaded", &self.loaded.read().map(|l| l.len()).unwrap_or(0)).finish_non_exhaustive()
+        f.debug_struct("PluginHost")
+            .field("loaded", &self.loaded.read().map(|l| l.len()).unwrap_or(0))
+            .finish_non_exhaustive()
     }
 }
 
@@ -356,8 +439,10 @@ impl PluginHost {
         cfg.epoch_interruption(true);
         let engine = Engine::new(&cfg).map_err(|e| PluginError::Runtime(format!("{e:#}")))?;
         let mut linker: Linker<State> = Linker::new(&engine);
-        wasmtime_wasi::p2::add_to_linker_sync(&mut linker).map_err(|e| PluginError::Runtime(format!("{e:#}")))?;
-        Plugin::add_to_linker::<State, wasmtime::component::HasSelf<State>>(&mut linker, |s| s).map_err(|e| PluginError::Runtime(format!("{e:#}")))?;
+        wasmtime_wasi::p2::add_to_linker_sync(&mut linker)
+            .map_err(|e| PluginError::Runtime(format!("{e:#}")))?;
+        Plugin::add_to_linker::<State, wasmtime::component::HasSelf<State>>(&mut linker, |s| s)
+            .map_err(|e| PluginError::Runtime(format!("{e:#}")))?;
         // Epoch ticker: bounds every guest call by wall-clock time.
         let stop = Arc::new(AtomicBool::new(false));
         {
@@ -372,13 +457,23 @@ impl PluginHost {
                 })
                 .map_err(PluginError::Io)?;
         }
-        Ok(Self { engine, linker, svc: Arc::new(services), loaded: RwLock::new(HashMap::new()), stop })
+        Ok(Self {
+            engine,
+            linker,
+            svc: Arc::new(services),
+            loaded: RwLock::new(HashMap::new()),
+            stop,
+        })
     }
 
     /// Compile and instantiate-check a plugin, ask it to describe itself, keep it loaded.
     pub fn load(&self, p: &InstalledPlugin) -> Result<Arc<LoadedPlugin>> {
-        let component = Component::from_file(&self.engine, p.wasm_path()).map_err(|e| PluginError::Runtime(format!("{}: {e:#}", p.manifest.wasm)))?;
-        let pre = self.linker.instantiate_pre(&component).map_err(|e| PluginError::Runtime(format!("{e:#}")))?;
+        let component = Component::from_file(&self.engine, p.wasm_path())
+            .map_err(|e| PluginError::Runtime(format!("{}: {e:#}", p.manifest.wasm)))?;
+        let pre = self
+            .linker
+            .instantiate_pre(&component)
+            .map_err(|e| PluginError::Runtime(format!("{e:#}")))?;
         let pre = PluginPre::new(pre).map_err(|e| PluginError::Runtime(format!("{e:#}")))?;
         let data = self.svc.data_dir.join(&p.manifest.id);
         let lp = LoadedPlugin {
@@ -391,27 +486,51 @@ impl PluginHost {
             settings_path: data.join("settings.json"),
         };
         let raw = lp.run(|inst, s| inst.hokkabaz_plugin_guest().call_describe(s))?;
-        let description: Description = serde_json::from_str(&raw).map_err(|e| PluginError::Plugin(format!("describe returned invalid JSON: {e}")))?;
+        let description: Description = serde_json::from_str(&raw)
+            .map_err(|e| PluginError::Plugin(format!("describe returned invalid JSON: {e}")))?;
         for t in &description.tools {
-            if t.name.is_empty() || t.name.len() > 64 || !t.name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-')) {
+            if t.name.is_empty()
+                || t.name.len() > 64
+                || !t
+                    .name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
+            {
                 return Err(PluginError::Plugin(format!("bad tool name `{}`", t.name)));
             }
         }
         let lp = Arc::new(LoadedPlugin { description, ..lp });
-        self.loaded.write().unwrap_or_else(PoisonError::into_inner).insert(p.manifest.id.clone(), lp.clone());
+        self.loaded
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(p.manifest.id.clone(), lp.clone());
         Ok(lp)
     }
 
     pub fn unload(&self, id: &str) -> bool {
-        self.loaded.write().unwrap_or_else(PoisonError::into_inner).remove(id).is_some()
+        self.loaded
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(id)
+            .is_some()
     }
 
     pub fn get(&self, id: &str) -> Option<Arc<LoadedPlugin>> {
-        self.loaded.read().unwrap_or_else(PoisonError::into_inner).get(id).cloned()
+        self.loaded
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(id)
+            .cloned()
     }
 
     pub fn loaded(&self) -> Vec<Arc<LoadedPlugin>> {
-        let mut v: Vec<_> = self.loaded.read().unwrap_or_else(PoisonError::into_inner).values().cloned().collect();
+        let mut v: Vec<_> = self
+            .loaded
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+            .cloned()
+            .collect();
         v.sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
         v
     }

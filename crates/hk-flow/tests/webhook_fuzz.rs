@@ -28,8 +28,13 @@ impl Rng {
         items[self.below(items.len())]
     }
     fn text(&mut self, max: usize) -> String {
-        const ALPHABET: &[char] = &['a', 'b', 'Z', '0', '/', '.', '%', '&', '=', '?', ':', '-', '_', ' ', '\n', '\r', '"', '{', '}', '[', ']', '\\', 'é', '\u{0}', '\u{202e}'];
-        (0..self.below(max)).map(|_| ALPHABET[self.below(ALPHABET.len())]).collect()
+        const ALPHABET: &[char] = &[
+            'a', 'b', 'Z', '0', '/', '.', '%', '&', '=', '?', ':', '-', '_', ' ', '\n', '\r', '"',
+            '{', '}', '[', ']', '\\', 'é', '\u{0}', '\u{202e}',
+        ];
+        (0..self.below(max))
+            .map(|_| ALPHABET[self.below(ALPHABET.len())])
+            .collect()
     }
 }
 
@@ -49,7 +54,11 @@ fn json_ish(r: &mut Rng) -> Vec<u8> {
     match r.below(6) {
         0 => b"{\"a\":".repeat(r.below(3000)),
         1 => format!("{}{}", "[".repeat(r.below(5000)), "]".repeat(r.below(5000))).into_bytes(),
-        2 => format!("{{\"k\":\"{}\"}}", r.text(40).replace(['"', '\\', '\n', '\r', '\u{0}'], "")).into_bytes(),
+        2 => format!(
+            "{{\"k\":\"{}\"}}",
+            r.text(40).replace(['"', '\\', '\n', '\r', '\u{0}'], "")
+        )
+        .into_bytes(),
         3 => b"{\"n\":1e999999,\"m\":-0,\"s\":\"\\ud800\"}".to_vec(),
         _ => r.bytes(200),
     }
@@ -74,7 +83,10 @@ fn multipart_ish(r: &mut Rng) -> Vec<u8> {
 
 #[test]
 fn hostile_requests_never_panic() {
-    let seed = std::env::var("HK_FUZZ_SEED").ok().and_then(|s| s.parse().ok()).unwrap_or(0x9E37_79B9_7F4A_7C15u64);
+    let seed = std::env::var("HK_FUZZ_SEED")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0x9E37_79B9_7F4A_7C15u64);
     eprintln!("webhook fuzz seed: {seed}");
     let mut r = Rng(seed | 1);
     let reg = WebhookRegistry::new();
@@ -91,7 +103,9 @@ fn hostile_requests_never_panic() {
             headers.push((r.text(10), r.text(30)));
         }
         let req = WebhookRequest {
-            method: r.pick(&["GET", "POST", "PUT", "DELETE", "HEAD", "PATCH", "", "\u{0}"]).to_owned(),
+            method: r
+                .pick(&["GET", "POST", "PUT", "DELETE", "HEAD", "PATCH", "", "\u{0}"])
+                .to_owned(),
             path: r.text(60),
             headers,
             query: (r.below(2) == 0).then(|| r.text(80)),

@@ -51,10 +51,12 @@ pub use api::{AppState, router, serve, serve_listener};
 pub use auth::{Auth, AuthError, Grants, Principal, Reject, Scope};
 #[cfg(feature = "concat")]
 pub use concat_tools::{ConcatConfig, ConcatSession, concat_tools};
+pub use error::ApiError;
 #[cfg(feature = "server")]
 pub use flow::{BuiltinCredentialSchemas, CredentialSchemas, FlowApi, WorkflowActivator};
 #[cfg(feature = "server")]
 pub use flow_tools::{FlowToolHost, TestRun, flow_tools};
+pub use local::{LocalConfig, LocalRuntime};
 #[cfg(feature = "server")]
 pub use n8n::workflow_json;
 #[cfg(feature = "server")]
@@ -63,16 +65,14 @@ pub use openapi::ApiDoc;
 pub use pairing::{Minted, Pairing, PairingError, qr_svg, qr_terminal};
 #[cfg(feature = "server")]
 pub use ratelimit::{RateLimit, RateLimiter, Throttled};
+pub use runtime::{
+    AgentRuntime, ApprovalDecision, CreateSession, ServerEvent, SessionDetail, SessionInfo,
+    TurnAccepted, TurnMode, TurnRequest,
+};
 #[cfg(feature = "server")]
 pub use signature::{HmacAlgorithm, HmacPreset, HmacSpec, SigEncoding, SignatureError};
 #[cfg(feature = "server")]
 pub use webhook::{
     ChannelSink, LastNodeData, ResponseMode, WebhookAuth, WebhookCall, WebhookHandler, WebhookMode,
     WebhookRegistry, WebhookResult, WebhookRoute, WebhookRun, WebhookSpec, WebhookTarget,
-};
-pub use error::ApiError;
-pub use local::{LocalConfig, LocalRuntime};
-pub use runtime::{
-    AgentRuntime, ApprovalDecision, CreateSession, SessionDetail, SessionInfo, ServerEvent,
-    TurnAccepted, TurnMode, TurnRequest,
 };

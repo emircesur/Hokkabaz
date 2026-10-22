@@ -83,7 +83,9 @@ pub struct LocalRuntime(Arc<Inner>);
 
 impl std::fmt::Debug for LocalRuntime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LocalRuntime").field("cfg", &self.0.cfg).finish_non_exhaustive()
+        f.debug_struct("LocalRuntime")
+            .field("cfg", &self.0.cfg)
+            .finish_non_exhaustive()
     }
 }
 
@@ -95,11 +97,19 @@ impl LocalRuntime {
     pub fn new(cfg: LocalConfig) -> Result<Self, ApiError> {
         let store = SessionStore::open(&cfg.sessions_dir)?;
         let (tx, _) = broadcast::channel(FEED_CAPACITY);
-        Ok(Self(Arc::new(Inner { cfg, store, tx, live: Mutex::default(), extra_tools: Mutex::default() })))
+        Ok(Self(Arc::new(Inner {
+            cfg,
+            store,
+            tx,
+            live: Mutex::default(),
+            extra_tools: Mutex::default(),
+        })))
     }
 
     fn info(&self, s: &SessionSummary) -> SessionInfo {
-        let running = lock(&self.0.live).get(&s.id).is_some_and(|l| l.handle.is_running());
+        let running = lock(&self.0.live)
+            .get(&s.id)
+            .is_some_and(|l| l.handle.is_running());
         SessionInfo {
             id: s.id.clone(),
             title: s.title.clone(),
@@ -137,16 +147,39 @@ impl LocalRuntime {
         let mut effects: Vec<Effect> =
             register_builtins(&registry).map_err(|e| ApiError::Internal(format!("tools: {e}")))?;
         for t in lock(&self.0.extra_tools).iter() {
-            effects.push(registry.register(t.clone()).map_err(|e| ApiError::Internal(format!("tools: {e}")))?);
+            effects.push(
+                registry
+                    .register(t.clone())
+                    .map_err(|e| ApiError::Internal(format!("tools: {e}")))?,
+            );
         }
-        let pipeline = ToolPipeline::new(registry, bus.clone(), OutputLimits::new(self.0.cfg.spill_dir.clone()));
+        let pipeline = ToolPipeline::new(
+            registry,
+            bus.clone(),
+            OutputLimits::new(self.0.cfg.spill_dir.clone()),
+        );
 
-        let mut cfg = AgentConfig::new(summary.model.clone().unwrap_or_else(|| self.0.cfg.default_model.clone()));
+        let mut cfg = AgentConfig::new(
+            summary
+                .model
+                .clone()
+                .unwrap_or_else(|| self.0.cfg.default_model.clone()),
+        );
         cfg.system = vec![SYSTEM_PROMPT.to_owned()];
-        cfg.cwd = summary.cwd.as_ref().map(PathBuf::from).or_else(|| self.0.cfg.default_cwd.clone());
+        cfg.cwd = summary
+            .cwd
+            .as_ref()
+            .map(PathBuf::from)
+            .or_else(|| self.0.cfg.default_cwd.clone());
         cfg.max_steps = self.0.cfg.max_steps;
-        let agent = Agent::new(self.0.cfg.provider.clone(), pipeline, bus.clone(), cfg.clone(), writer)
-            .map_err(|e| ApiError::Internal(format!("agent: {e}")))?;
+        let agent = Agent::new(
+            self.0.cfg.provider.clone(),
+            pipeline,
+            bus.clone(),
+            cfg.clone(),
+            writer,
+        )
+        .map_err(|e| ApiError::Internal(format!("agent: {e}")))?;
 
         let live = Arc::new(Live {
             handle: agent.handle(),
@@ -165,7 +198,11 @@ impl LocalRuntime {
                     "event": serde_json::to_value(&e.event).unwrap_or(Value::Null),
                 });
                 // No subscribers is fine: the log still has everything.
-                let _ = tx.send(ServerEvent { name: "agent/assistant-stream".into(), session_id: sid, data });
+                let _ = tx.send(ServerEvent {
+                    name: "agent/assistant-stream".into(),
+                    session_id: sid,
+                    data,
+                });
             }
         }));
         let l = live.clone();
@@ -174,7 +211,14 @@ impl LocalRuntime {
             async move { l.flush.notify_one() }
         }));
 
-        tokio::spawn(drive(self.0.clone(), live.clone(), agent, id.to_owned(), log_path, effects));
+        tokio::spawn(drive(
+            self.0.clone(),
+            live.clone(),
+            agent,
+            id.to_owned(),
+            log_path,
+            effects,
+        ));
         map.insert(id.to_owned(), live.clone());
         Ok(live)
     }
@@ -189,7 +233,10 @@ async fn drive(
     log_path: PathBuf,
     _effects: Vec<Effect>,
 ) {
-    let mut tail = Tail { last_seq: agent.events().last().map(|e| e.seq), last_len: 0 };
+    let mut tail = Tail {
+        last_seq: agent.events().last().map(|e| e.seq),
+        last_len: 0,
+    };
     loop {
         live.wake.notified().await;
         loop {
@@ -245,11 +292,22 @@ impl Tail {
         };
         self.last_len = len;
         let seen = self.last_seq;
-        for ev in events.into_iter().filter(|e| seen.is_none_or(|s| e.seq > s)) {
+        for ev in events
+            .into_iter()
+            .filter(|e| seen.is_none_or(|s| e.seq > s))
+        {
             self.last_seq = Some(ev.seq);
             let data = serde_json::to_value(&ev).unwrap_or(Value::Null);
-            let name = data.get("type").and_then(Value::as_str).unwrap_or("session/event").to_owned();
-            let _ = tx.send(ServerEvent { name, session_id: id.to_owned(), data });
+            let name = data
+                .get("type")
+                .and_then(Value::as_str)
+                .unwrap_or("session/event")
+                .to_owned();
+            let _ = tx.send(ServerEvent {
+                name,
+                session_id: id.to_owned(),
+                data,
+            });
         }
     }
 }
@@ -264,8 +322,17 @@ impl AgentRuntime for LocalRuntime {
     async fn create_session(&self, req: CreateSession) -> Result<SessionInfo, ApiError> {
         let w = self.0.store.create(NewSession {
             id: None,
-            cwd: req.cwd.or_else(|| self.0.cfg.default_cwd.as_ref().map(|p| p.display().to_string())),
-            model: Some(req.model.unwrap_or_else(|| self.0.cfg.default_model.clone())),
+            cwd: req.cwd.or_else(|| {
+                self.0
+                    .cfg
+                    .default_cwd
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+            }),
+            model: Some(
+                req.model
+                    .unwrap_or_else(|| self.0.cfg.default_model.clone()),
+            ),
             title: req.title,
         })?;
         Ok(self.info(w.summary()))
@@ -278,9 +345,16 @@ impl AgentRuntime for LocalRuntime {
         if let Some(after) = after_seq {
             events.retain(|e| e.seq > after);
         }
-        let pending_approvals =
-            lock(&self.0.live).get(id).map(|l| l.handle.pending_approvals()).unwrap_or_default();
-        Ok(SessionDetail { session: self.info(&summary), events, messages, pending_approvals })
+        let pending_approvals = lock(&self.0.live)
+            .get(id)
+            .map(|l| l.handle.pending_approvals())
+            .unwrap_or_default();
+        Ok(SessionDetail {
+            session: self.info(&summary),
+            events,
+            messages,
+            pending_approvals,
+        })
     }
 
     async fn submit(&self, id: &str, req: TurnRequest) -> Result<TurnAccepted, ApiError> {
@@ -303,7 +377,10 @@ impl AgentRuntime for LocalRuntime {
         let queued = live.handle.is_running();
         live.handle.submit(req.prompt);
         live.wake.notify_one();
-        Ok(TurnAccepted { session_id: id.to_owned(), queued })
+        Ok(TurnAccepted {
+            session_id: id.to_owned(),
+            queued,
+        })
     }
 
     async fn inject(&self, id: &str, text: String) -> Result<(), ApiError> {
@@ -323,20 +400,37 @@ impl AgentRuntime for LocalRuntime {
         Ok(())
     }
 
-    async fn respond_approval(&self, approval_id: &str, d: ApprovalDecision) -> Result<(), ApiError> {
+    async fn respond_approval(
+        &self,
+        approval_id: &str,
+        d: ApprovalDecision,
+    ) -> Result<(), ApiError> {
         let candidates: Vec<(String, AgentHandle)> = lock(&self.0.live)
             .iter()
-            .filter(|(sid, _)| d.session_id.as_deref().is_none_or(|want| want == sid.as_str()))
-            .filter(|(_, l)| l.handle.pending_approvals().iter().any(|a| a == approval_id))
+            .filter(|(sid, _)| {
+                d.session_id
+                    .as_deref()
+                    .is_none_or(|want| want == sid.as_str())
+            })
+            .filter(|(_, l)| {
+                l.handle
+                    .pending_approvals()
+                    .iter()
+                    .any(|a| a == approval_id)
+            })
             .map(|(sid, l)| (sid.clone(), l.handle.clone()))
             .collect();
         match candidates.as_slice() {
-            [] => Err(ApiError::NotFound(format!("no pending approval `{approval_id}`"))),
+            [] => Err(ApiError::NotFound(format!(
+                "no pending approval `{approval_id}`"
+            ))),
             [(_, h)] => {
                 if h.respond(approval_id, d.approved, d.reason) {
                     Ok(())
                 } else {
-                    Err(ApiError::NotFound(format!("approval `{approval_id}` already settled")))
+                    Err(ApiError::NotFound(format!(
+                        "approval `{approval_id}` already settled"
+                    )))
                 }
             }
             _ => Err(ApiError::Conflict(format!(
@@ -346,7 +440,12 @@ impl AgentRuntime for LocalRuntime {
     }
 
     async fn models(&self) -> Result<Vec<ModelInfo>, ApiError> {
-        self.0.cfg.provider.models().await.map_err(|e| ApiError::Internal(format!("models: {e}")))
+        self.0
+            .cfg
+            .provider
+            .models()
+            .await
+            .map_err(|e| ApiError::Internal(format!("models: {e}")))
     }
 
     fn subscribe(&self) -> broadcast::Receiver<ServerEvent> {

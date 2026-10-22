@@ -362,7 +362,10 @@ impl Prop {
 
     /// Show only when parameter `key` is one of `values` (n8n `displayOptions.show`).
     pub fn show(mut self, key: &str, values: &[&str]) -> Self {
-        let d = self.0.display_options.get_or_insert_with(DisplayOptions::default);
+        let d = self
+            .0
+            .display_options
+            .get_or_insert_with(DisplayOptions::default);
         d.show
             .get_or_insert_with(IndexMap::new)
             .insert(key.to_owned(), json!(values));
@@ -371,7 +374,10 @@ impl Prop {
 
     /// Hide when parameter `key` is one of `values`.
     pub fn hide(mut self, key: &str, values: &[&str]) -> Self {
-        let d = self.0.display_options.get_or_insert_with(DisplayOptions::default);
+        let d = self
+            .0
+            .display_options
+            .get_or_insert_with(DisplayOptions::default);
         d.hide
             .get_or_insert_with(IndexMap::new)
             .insert(key.to_owned(), json!(values));
@@ -380,7 +386,10 @@ impl Prop {
 
     /// Same as [`show`](Self::show) with a boolean condition value.
     pub fn show_bool(mut self, key: &str, value: bool) -> Self {
-        let d = self.0.display_options.get_or_insert_with(DisplayOptions::default);
+        let d = self
+            .0
+            .display_options
+            .get_or_insert_with(DisplayOptions::default);
         d.show
             .get_or_insert_with(IndexMap::new)
             .insert(key.to_owned(), json!([value]));
@@ -452,7 +461,9 @@ pub fn return_all_and_limit(resource: Option<&str>, operations: &[&str]) -> Vec<
 pub fn simplify_prop() -> Prop {
     Prop::boolean("simplify", "Simplify")
         .default(true)
-        .description("Whether to return a simplified version of the response instead of the raw data")
+        .description(
+            "Whether to return a simplified version of the response instead of the raw data",
+        )
 }
 
 /// n8n polling trigger interval (`pollTimes`): `{ item: [{ mode, value, unit }] }`.
@@ -460,7 +471,8 @@ pub fn simplify_prop() -> Prop {
 pub fn poll_times_prop() -> Prop {
     let mut p = Prop::new("pollTimes", "Poll Times", PropertyType::FixedCollection);
     p.0.default = Some(json!({"item": [{"mode": "everyMinute"}]}));
-    p.0.type_options = Some(json!({"multipleValues": true, "multipleValueButtonText": "Add Poll Time"}));
+    p.0.type_options =
+        Some(json!({"multipleValues": true, "multipleValueButtonText": "Add Poll Time"}));
     p.0.options = Some(vec![json!({
         "name": "item", "displayName": "Item",
         "values": [
@@ -656,12 +668,22 @@ mod tests {
                 )
                 .show("resource", &["a"]),
             )
-            .property(Prop::string("id", "ID").required().send(RouteSend::query("id")))
+            .property(
+                Prop::string("id", "ID")
+                    .required()
+                    .send(RouteSend::query("id")),
+            )
             .build();
         let v = serde_json::to_value(&d).unwrap();
         assert_eq!(v["name"], "hokkabaz.demo");
-        assert_eq!(v["properties"][0]["options"][0]["routing"]["request"]["url"], "/x");
-        assert_eq!(v["properties"][0]["displayOptions"]["show"]["resource"], json!(["a"]));
+        assert_eq!(
+            v["properties"][0]["options"][0]["routing"]["request"]["url"],
+            "/x"
+        );
+        assert_eq!(
+            v["properties"][0]["displayOptions"]["show"]["resource"],
+            json!(["a"])
+        );
         assert_eq!(v["properties"][1]["routing"]["send"]["type"], "query");
         // parses back through the hk-flow schema
         let back: NodeTypeDescription = serde_json::from_value(v).unwrap();
@@ -678,7 +700,10 @@ mod tests {
         let l = |m: Value| move |k: &str| m.get(k).cloned();
         assert!(is_visible(Some(&d), &l(json!({"resource": "b"}))));
         assert!(!is_visible(Some(&d), &l(json!({"resource": "c"}))));
-        assert!(!is_visible(Some(&d), &l(json!({"resource": "a", "x": true}))));
+        assert!(!is_visible(
+            Some(&d),
+            &l(json!({"resource": "a", "x": true}))
+        ));
         assert!(is_visible(None, &l(json!({}))));
     }
 }

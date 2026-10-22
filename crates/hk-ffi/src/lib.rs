@@ -6,16 +6,16 @@
 //! [`local::LocalCore`] (in-process agent) or [`remote::RemoteCore`] (a `hokkabazd` over REST + WS). Dart only sees [`dto`].
 
 pub mod api;
+mod credentials;
 pub mod dto;
 pub mod error;
-mod credentials;
-mod local_models;
-mod n8n_sync;
 mod events;
 mod flow_runs;
 pub mod handle;
 pub mod instances;
 pub mod local;
+mod local_models;
+mod n8n_sync;
 pub mod nodes;
 pub mod plugins;
 pub mod remote;

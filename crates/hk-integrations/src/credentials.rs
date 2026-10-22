@@ -58,7 +58,8 @@ impl fmt::Debug for AppliedAuth {
 }
 
 /// Code-defined authenticate (n8n function form), for shapes templates cannot express.
-pub type AuthFn = Arc<dyn Fn(&Map<String, Value>) -> Result<AppliedAuth, CredentialError> + Send + Sync>;
+pub type AuthFn =
+    Arc<dyn Fn(&Map<String, Value>) -> Result<AppliedAuth, CredentialError> + Send + Sync>;
 
 /// n8n `IAuthenticateGeneric.properties`: every value is a `$credentials.*` template.
 #[derive(Debug, Clone, Default)]
@@ -74,7 +75,9 @@ pub struct GenericAuth {
 pub enum Authenticate {
     Generic(Box<GenericAuth>),
     /// n8n httpCustomAuth: a JSON field holding `{headers, qs, body}` as literal values.
-    JsonBlob { field: String },
+    JsonBlob {
+        field: String,
+    },
     Function(AuthFn),
 }
 
@@ -112,7 +115,10 @@ impl Authenticate {
 
     /// `Authorization: Bearer <token>`; `token` is a template (`={{$credentials.token}}`).
     pub fn bearer(token: &str) -> Self {
-        Self::header("Authorization", &format!("=Bearer {}", token.trim_start_matches('=')))
+        Self::header(
+            "Authorization",
+            &format!("=Bearer {}", token.trim_start_matches('=')),
+        )
     }
 
     pub fn function(
@@ -126,13 +132,18 @@ impl Authenticate {
             Self::Generic(g) => {
                 let mut out = AppliedAuth::default();
                 for (k, v) in &g.headers {
-                    out.headers.push((template::render(k, data)?, template::render(v, data)?));
+                    out.headers
+                        .push((template::render(k, data)?, template::render(v, data)?));
                 }
                 for (k, v) in &g.qs {
-                    out.query.push((template::render(k, data)?, template::render(v, data)?));
+                    out.query
+                        .push((template::render(k, data)?, template::render(v, data)?));
                 }
                 for (k, v) in &g.body {
-                    out.body.insert(template::render(k, data)?, Value::String(template::render(v, data)?));
+                    out.body.insert(
+                        template::render(k, data)?,
+                        Value::String(template::render(v, data)?),
+                    );
                 }
                 if let Some((u, p)) = &g.basic {
                     out.basic = Some((template::render(u, data)?, template::render(p, data)?));
@@ -140,11 +151,14 @@ impl Authenticate {
                 Ok(out)
             }
             Self::JsonBlob { field } => {
-                let raw = data.get(field).ok_or_else(|| CredentialError::MissingField(field.clone()))?;
+                let raw = data
+                    .get(field)
+                    .ok_or_else(|| CredentialError::MissingField(field.clone()))?;
                 // never echo the blob: it holds the secrets
                 let spec: Value = match raw {
-                    Value::String(s) => serde_json::from_str(s)
-                        .map_err(|_| CredentialError::Invalid(format!("field `{field}` is not valid JSON")))?,
+                    Value::String(s) => serde_json::from_str(s).map_err(|_| {
+                        CredentialError::Invalid(format!("field `{field}` is not valid JSON"))
+                    })?,
                     other => other.clone(),
                 };
                 let mut out = AppliedAuth::default();
@@ -291,7 +305,9 @@ impl CredentialType {
                         .collect();
                     json!({"type": "string", "enum": vals})
                 }
-                PropertyType::Notice | PropertyType::Hidden | PropertyType::Button => json!({"type": "string"}),
+                PropertyType::Notice | PropertyType::Hidden | PropertyType::Button => {
+                    json!({"type": "string"})
+                }
                 _ => json!({"type": "string"}),
             };
             if let (Some(d), Value::Object(m)) = (&p.default, &mut s)
@@ -351,7 +367,9 @@ pub struct CredentialTypes(Arc<RwLock<BTreeMap<String, Arc<CredentialType>>>>);
 
 impl fmt::Debug for CredentialTypes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CredentialTypes").field("names", &self.names()).finish()
+        f.debug_struct("CredentialTypes")
+            .field("names", &self.names())
+            .finish()
     }
 }
 
@@ -371,7 +389,10 @@ impl CredentialTypes {
     }
 
     pub fn register(&self, ty: CredentialType) -> Result<(), CredentialError> {
-        let mut g = self.0.write().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut g = self
+            .0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if g.contains_key(&ty.name) {
             return Err(CredentialError::Duplicate(ty.name));
         }
@@ -385,11 +406,20 @@ impl CredentialTypes {
     }
 
     pub fn get(&self, name: &str) -> Option<Arc<CredentialType>> {
-        self.0.read().unwrap_or_else(std::sync::PoisonError::into_inner).get(name).cloned()
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(name)
+            .cloned()
     }
 
     pub fn names(&self) -> Vec<String> {
-        self.0.read().unwrap_or_else(std::sync::PoisonError::into_inner).keys().cloned().collect()
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .keys()
+            .cloned()
+            .collect()
     }
 
     /// Type with the properties of its `extends` parents merged in (parents first).
@@ -418,7 +448,11 @@ impl CredentialTypes {
         self.resolved(name).map(|t| t.schema())
     }
 
-    pub fn apply(&self, name: &str, data: &Map<String, Value>) -> Result<AppliedAuth, CredentialError> {
+    pub fn apply(
+        &self,
+        name: &str,
+        data: &Map<String, Value>,
+    ) -> Result<AppliedAuth, CredentialError> {
         self.resolved(name)
             .ok_or_else(|| CredentialError::UnknownType(name.to_owned()))?
             .apply(data)
@@ -434,17 +468,30 @@ impl CredentialTypes {
 
     /// All types as n8n `ICredentialType` JSON.
     pub fn describe_all(&self) -> Vec<Value> {
-        self.names().iter().filter_map(|n| self.resolved(n)).map(|t| t.describe()).collect()
+        self.names()
+            .iter()
+            .filter_map(|n| self.resolved(n))
+            .map(|t| t.describe())
+            .collect()
     }
 
     /// Run the type's test request. `Ok` = the service accepted the credential.
     pub async fn test(&self, name: &str, data: &Map<String, Value>) -> Result<(), CredentialError> {
-        let ty = self.resolved(name).ok_or_else(|| CredentialError::UnknownType(name.to_owned()))?;
-        let t = ty.test.clone().ok_or_else(|| CredentialError::Test("type has no test request".into()))?;
+        let ty = self
+            .resolved(name)
+            .ok_or_else(|| CredentialError::UnknownType(name.to_owned()))?;
+        let t = ty
+            .test
+            .clone()
+            .ok_or_else(|| CredentialError::Test("type has no test request".into()))?;
         let data = ty.with_defaults(data);
         let auth = ty.apply(&data)?;
         let base = template::render(&t.base_url, &data)?;
-        let url = format!("{}/{}", base.trim_end_matches('/'), t.url.trim_start_matches('/'));
+        let url = format!(
+            "{}/{}",
+            base.trim_end_matches('/'),
+            t.url.trim_start_matches('/')
+        );
         let method = reqwest::Method::from_bytes(t.method.to_uppercase().as_bytes())
             .map_err(|_| CredentialError::Test("bad method".into()))?;
         let client = reqwest::Client::builder()
@@ -461,10 +508,21 @@ impl CredentialTypes {
         if let Some((u, p)) = &auth.basic {
             rb = rb.basic_auth(u, Some(p));
         }
-        let res = rb.send().await.map_err(|e| CredentialError::Test(e.without_url().to_string()))?;
+        let res = rb
+            .send()
+            .await
+            .map_err(|e| CredentialError::Test(e.without_url().to_string()))?;
         let s = res.status().as_u16();
-        let ok = if t.ok_status.is_empty() { (200..300).contains(&s) } else { t.ok_status.contains(&s) };
-        if ok { Ok(()) } else { Err(CredentialError::Test(format!("service answered {s}"))) }
+        let ok = if t.ok_status.is_empty() {
+            (200..300).contains(&s)
+        } else {
+            t.ok_status.contains(&s)
+        };
+        if ok {
+            Ok(())
+        } else {
+            Err(CredentialError::Test(format!("service answered {s}")))
+        }
     }
 }
 
@@ -597,13 +655,24 @@ mod tests {
     #[test]
     fn generic_types_authenticate() {
         let t = CredentialTypes::with_builtins();
-        let a = t.apply("httpHeaderAuth", &m(json!({"name": "X-K", "value": "v"}))).unwrap();
+        let a = t
+            .apply("httpHeaderAuth", &m(json!({"name": "X-K", "value": "v"})))
+            .unwrap();
         assert_eq!(a.headers, vec![("X-K".to_owned(), "v".to_owned())]);
-        let a = t.apply("httpBearerAuth", &m(json!({"token": "tok"}))).unwrap();
-        assert_eq!(a.headers, vec![("Authorization".to_owned(), "Bearer tok".to_owned())]);
-        let a = t.apply("httpBasicAuth", &m(json!({"user": "u", "password": "p"}))).unwrap();
+        let a = t
+            .apply("httpBearerAuth", &m(json!({"token": "tok"})))
+            .unwrap();
+        assert_eq!(
+            a.headers,
+            vec![("Authorization".to_owned(), "Bearer tok".to_owned())]
+        );
+        let a = t
+            .apply("httpBasicAuth", &m(json!({"user": "u", "password": "p"})))
+            .unwrap();
         assert_eq!(a.basic, Some(("u".into(), "p".into())));
-        let a = t.apply("httpQueryAuth", &m(json!({"name": "k", "value": "v"}))).unwrap();
+        let a = t
+            .apply("httpQueryAuth", &m(json!({"name": "k", "value": "v"})))
+            .unwrap();
         assert_eq!(a.query, vec![("k".to_owned(), "v".to_owned())]);
         let a = t
             .apply("httpCustomAuth", &m(json!({"json": "{\"headers\":{\"A\":\"1\"},\"qs\":{\"b\":2},\"body\":{\"c\":3}}"})))
@@ -611,25 +680,52 @@ mod tests {
         assert_eq!(a.headers, vec![("A".to_owned(), "1".to_owned())]);
         assert_eq!(a.query, vec![("b".to_owned(), "2".to_owned())]);
         assert_eq!(a.body["c"], 3);
-        let a = t.apply("apiKey", &m(json!({"apiKey": "k", "in": "query", "name": "key"}))).unwrap();
+        let a = t
+            .apply(
+                "apiKey",
+                &m(json!({"apiKey": "k", "in": "query", "name": "key"})),
+            )
+            .unwrap();
         assert_eq!(a.query, vec![("key".to_owned(), "k".to_owned())]);
-        let a = t.apply("apiKey", &m(json!({"apiKey": "k", "prefix": "Bearer "}))).unwrap();
-        assert_eq!(a.headers, vec![("X-API-Key".to_owned(), "Bearer k".to_owned())]);
-        let a = t.apply("oAuth2Api", &m(json!({"oauthTokenData": {"access_token": "at"}}))).unwrap();
+        let a = t
+            .apply("apiKey", &m(json!({"apiKey": "k", "prefix": "Bearer "})))
+            .unwrap();
+        assert_eq!(
+            a.headers,
+            vec![("X-API-Key".to_owned(), "Bearer k".to_owned())]
+        );
+        let a = t
+            .apply(
+                "oAuth2Api",
+                &m(json!({"oauthTokenData": {"access_token": "at"}})),
+            )
+            .unwrap();
         assert_eq!(a.headers[0].1, "Bearer at");
     }
 
     #[test]
     fn errors_do_not_leak_values() {
         let t = CredentialTypes::with_builtins();
-        let e = t.apply("httpCustomAuth", &m(json!({"json": "{not json SECRET"}))).unwrap_err().to_string();
+        let e = t
+            .apply("httpCustomAuth", &m(json!({"json": "{not json SECRET"})))
+            .unwrap_err()
+            .to_string();
         assert!(!e.contains("SECRET"));
         assert!(matches!(
             t.apply("httpBearerAuth", &m(json!({}))),
             Err(CredentialError::MissingField(_))
         ));
-        assert!(matches!(t.apply("nope", &m(json!({}))), Err(CredentialError::UnknownType(_))));
-        let dbg = format!("{:?}", AppliedAuth { headers: vec![("a".into(), "SECRET".into())], ..AppliedAuth::default() });
+        assert!(matches!(
+            t.apply("nope", &m(json!({}))),
+            Err(CredentialError::UnknownType(_))
+        ));
+        let dbg = format!(
+            "{:?}",
+            AppliedAuth {
+                headers: vec![("a".into(), "SECRET".into())],
+                ..AppliedAuth::default()
+            }
+        );
         assert!(!dbg.contains("SECRET"));
     }
 

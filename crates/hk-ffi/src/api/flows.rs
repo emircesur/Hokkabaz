@@ -3,7 +3,6 @@
 //! Stateless on purpose: workflows are plain n8n JSON owned by Dart for now (hk-store / REST
 //! persistence lands later), so nothing here touches the core handle.
 
-
 use flutter_rust_bridge::frb;
 use hk_flow::{IoDecl, NodeRegistry, NodeTypeDescription, Workflow};
 

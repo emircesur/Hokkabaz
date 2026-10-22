@@ -38,7 +38,10 @@ pub struct SilenceCut {
 
 impl Default for SilenceCut {
     fn default() -> Self {
-        Self { min_gap: 0.6, keep: 0.12 }
+        Self {
+            min_gap: 0.6,
+            keep: 0.12,
+        }
     }
 }
 
@@ -128,14 +131,20 @@ pub struct StudioProject {
 }
 
 pub fn now_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
 }
 
 /// Short unique-enough id (time + process counter); not a security token.
 pub fn new_id(prefix: &str) -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
     static N: AtomicU64 = AtomicU64::new(0);
-    format!("{prefix}{:x}{:x}", now_ms(), N.fetch_add(1, Ordering::Relaxed))
+    format!(
+        "{prefix}{:x}{:x}",
+        now_ms(),
+        N.fetch_add(1, Ordering::Relaxed)
+    )
 }
 
 impl StudioProject {
@@ -151,29 +160,49 @@ impl StudioProject {
     }
 
     pub fn clip(&self, id: &str) -> Result<&Clip> {
-        self.clips.iter().find(|c| c.id == id).ok_or_else(|| StudioError::NotFound(format!("clip {id}")))
+        self.clips
+            .iter()
+            .find(|c| c.id == id)
+            .ok_or_else(|| StudioError::NotFound(format!("clip {id}")))
     }
 
     pub fn clip_mut(&mut self, id: &str) -> Result<&mut Clip> {
-        self.clips.iter_mut().find(|c| c.id == id).ok_or_else(|| StudioError::NotFound(format!("clip {id}")))
+        self.clips
+            .iter_mut()
+            .find(|c| c.id == id)
+            .ok_or_else(|| StudioError::NotFound(format!("clip {id}")))
     }
 
     pub fn transcript(&self) -> Result<&Transcript> {
-        self.transcript.as_ref().ok_or_else(|| StudioError::Invalid("project has no transcript yet".into()))
+        self.transcript
+            .as_ref()
+            .ok_or_else(|| StudioError::Invalid("project has no transcript yet".into()))
     }
 
     /// Add a clip, clamping it to the source.
-    pub fn add_clip(&mut self, title: impl Into<String>, start: f64, end: f64) -> Result<&mut Clip> {
+    pub fn add_clip(
+        &mut self,
+        title: impl Into<String>,
+        start: f64,
+        end: f64,
+    ) -> Result<&mut Clip> {
         let (s, e) = (start.max(0.0), end.min(self.source.duration));
         if (e - s).is_nan() || e - s <= 0.1 {
-            return Err(StudioError::Invalid(format!("empty clip range {start}..{end}")));
+            return Err(StudioError::Invalid(format!(
+                "empty clip range {start}..{end}"
+            )));
         }
         self.clips.push(Clip::new(new_id("c"), title, s, e));
         Ok(self.clips.last_mut().expect("just pushed"))
     }
 
     /// Toggle deletion of transcript words (text-based editing).
-    pub fn set_words_deleted(&mut self, clip_id: &str, words: impl IntoIterator<Item = usize>, deleted: bool) -> Result<()> {
+    pub fn set_words_deleted(
+        &mut self,
+        clip_id: &str,
+        words: impl IntoIterator<Item = usize>,
+        deleted: bool,
+    ) -> Result<()> {
         let n = self.transcript()?.words.len();
         let clip = self.clip_mut(clip_id)?;
         for w in words {
@@ -206,7 +235,11 @@ impl ProjectStore {
     }
 
     fn check_id(id: &str) -> Result<()> {
-        if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        if id.is_empty()
+            || !id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
             return Err(StudioError::Invalid(format!("bad project id {id:?}")));
         }
         Ok(())
@@ -239,7 +272,13 @@ impl ProjectStore {
         Self::check_id(id)?;
         let bytes = tokio::fs::read(self.dir(id).join("project.json"))
             .await
-            .map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { StudioError::NotFound(format!("project {id}")) } else { e.into() })?;
+            .map_err(|e| {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    StudioError::NotFound(format!("project {id}"))
+                } else {
+                    e.into()
+                }
+            })?;
         let mut p: StudioProject = serde_json::from_slice(&bytes)?;
         if let Ok(t) = tokio::fs::read(self.dir(id).join("transcript.json")).await {
             p.transcript = Some(serde_json::from_slice(&t)?);
@@ -283,7 +322,9 @@ impl ProjectStore {
 /// Probe `path` into a [`SourceRef`].
 pub async fn probe_source(path: &Path) -> Result<SourceRef> {
     let info = hk_media::probe(path).await?;
-    let (w, h) = info.display_size().ok_or_else(|| StudioError::Invalid("source has no video stream".into()))?;
+    let (w, h) = info
+        .display_size()
+        .ok_or_else(|| StudioError::Invalid("source has no video stream".into()))?;
     Ok(SourceRef {
         path: path.to_path_buf(),
         duration: info.duration.unwrap_or(0.0),

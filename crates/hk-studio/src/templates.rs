@@ -30,7 +30,9 @@ pub fn builtin_templates() -> Vec<Template> {
     vec![
         Template {
             name: "shorts-karaoke".into(),
-            description: "Vertical 9:16, big uppercase captions with the spoken word highlighted, tight cuts".into(),
+            description:
+                "Vertical 9:16, big uppercase captions with the spoken word highlighted, tight cuts"
+                    .into(),
             captions: Some(CaptionStyle::karaoke()),
             reframe: Some(ReframeSpec::vertical()),
             silence: Some(SilenceCut::default()),
@@ -43,7 +45,10 @@ pub fn builtin_templates() -> Vec<Template> {
             description: "Vertical 9:16, one big word at a time, fast pacing".into(),
             captions: Some(CaptionStyle::pop()),
             reframe: Some(ReframeSpec::vertical()),
-            silence: Some(SilenceCut { min_gap: 0.4, keep: 0.08 }),
+            silence: Some(SilenceCut {
+                min_gap: 0.4,
+                keep: 0.08,
+            }),
             remove_fillers: true,
             broll: true,
             music: None,
@@ -94,7 +99,8 @@ pub async fn load_templates(dir: Option<&Path>) -> Result<Vec<Template>> {
                 if e.path().extension().and_then(|x| x.to_str()) != Some("json") {
                     continue;
                 }
-                if let Ok(t) = serde_json::from_slice::<Template>(&tokio::fs::read(e.path()).await?) {
+                if let Ok(t) = serde_json::from_slice::<Template>(&tokio::fs::read(e.path()).await?)
+                {
                     all.retain(|x| x.name != t.name);
                     all.push(t);
                 }
@@ -141,10 +147,18 @@ mod tests {
         tokio::fs::create_dir_all(&d).await.unwrap();
         let mut t = builtin("clean-vertical").unwrap();
         t.description = "mine".into();
-        tokio::fs::write(d.join("a.json"), serde_json::to_vec(&t).unwrap()).await.unwrap();
+        tokio::fs::write(d.join("a.json"), serde_json::to_vec(&t).unwrap())
+            .await
+            .unwrap();
         let all = load_templates(Some(&d)).await.unwrap();
         assert_eq!(all.iter().filter(|x| x.name == "clean-vertical").count(), 1);
-        assert_eq!(all.iter().find(|x| x.name == "clean-vertical").unwrap().description, "mine");
+        assert_eq!(
+            all.iter()
+                .find(|x| x.name == "clean-vertical")
+                .unwrap()
+                .description,
+            "mine"
+        );
         tokio::fs::remove_dir_all(&d).await.unwrap();
     }
 }

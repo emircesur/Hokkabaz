@@ -51,7 +51,10 @@ impl CredentialSchemas for BuiltinCredentialSchemas {
             "httpCustomAuth" => (&["json"], &["json"]),
             _ => return None,
         };
-        let properties: Map<String, Value> = props.iter().map(|p| ((*p).to_owned(), json!({ "type": "string" }))).collect();
+        let properties: Map<String, Value> = props
+            .iter()
+            .map(|p| ((*p).to_owned(), json!({ "type": "string" })))
+            .collect();
         Some(json!({
             "additionalProperties": false,
             "type": "object",
@@ -77,7 +80,9 @@ pub struct FlowApi {
 
 impl fmt::Debug for FlowApi {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FlowApi").field("webhooks", &self.webhooks).finish_non_exhaustive()
+        f.debug_struct("FlowApi")
+            .field("webhooks", &self.webhooks)
+            .finish_non_exhaustive()
     }
 }
 
@@ -133,7 +138,10 @@ impl FlowApi {
         workflow_snapshot: Option<&Value>,
     ) -> Result<i64, ApiError> {
         let snap = workflow_snapshot.map(Value::to_string);
-        let row = self.store.insert_execution(workflow_id, mode, "running", snap.as_deref()).await?;
+        let row = self
+            .store
+            .insert_execution(workflow_id, mode, "running", snap.as_deref())
+            .await?;
         self.emit(
             "execution/started",
             row.id,
@@ -144,19 +152,41 @@ impl FlowApi {
 
     /// Persist the outcome and announce it (`execution/finished`). `data` is the n8n
     /// `{resultData: {runData}}` envelope; the engine guarantees it carries no secrets.
-    pub async fn finish_execution(&self, id: i64, status: &str, data: Option<&Value>) -> Result<(), ApiError> {
+    pub async fn finish_execution(
+        &self,
+        id: i64,
+        status: &str,
+        data: Option<&Value>,
+    ) -> Result<(), ApiError> {
         let text = data.map(Value::to_string);
         let finished = status == "success";
-        if !self.store.finish_execution(id, status, finished, text.as_deref()).await? {
+        if !self
+            .store
+            .finish_execution(id, status, finished, text.as_deref())
+            .await?
+        {
             return Err(ApiError::NotFound(format!("execution {id} not found")));
         }
-        let wf = self.store.get_execution(id).await?.map(|e| e.workflow_id).unwrap_or_default();
-        self.emit("execution/finished", id, json!({ "workflow_id": wf, "status": status, "finished": finished }));
+        let wf = self
+            .store
+            .get_execution(id)
+            .await?
+            .map(|e| e.workflow_id)
+            .unwrap_or_default();
+        self.emit(
+            "execution/finished",
+            id,
+            json!({ "workflow_id": wf, "status": status, "finished": finished }),
+        );
         Ok(())
     }
 
     fn emit(&self, name: &str, execution_id: i64, data: Value) {
         // No receivers is normal.
-        let _ = self.events.send(ServerEvent { name: name.into(), session_id: execution_id.to_string(), data });
+        let _ = self.events.send(ServerEvent {
+            name: name.into(),
+            session_id: execution_id.to_string(),
+            data,
+        });
     }
 }

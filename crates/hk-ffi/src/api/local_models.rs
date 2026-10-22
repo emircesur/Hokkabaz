@@ -35,12 +35,17 @@ pub async fn local_model_delete(id: String) -> Result<(), HkError> {
     if c.overview()["fallback"].as_str() == Some(id.as_str()) {
         c.set_fallback(None).await?;
     }
-    c.store.remove(&id).map_err(|e| HkError::invalid(e.to_string()))
+    c.store
+        .remove(&id)
+        .map_err(|e| HkError::invalid(e.to_string()))
 }
 
 /// Use a GGUF file already on disk.
 pub async fn local_model_add_file(path: String, name: Option<String>) -> Result<String, HkError> {
-    let m = ctx()?.store.add_custom(std::path::Path::new(&path), name.as_deref()).map_err(|e| HkError::invalid(e.to_string()))?;
+    let m = ctx()?
+        .store
+        .add_custom(std::path::Path::new(&path), name.as_deref())
+        .map_err(|e| HkError::invalid(e.to_string()))?;
     Ok(m.id)
 }
 

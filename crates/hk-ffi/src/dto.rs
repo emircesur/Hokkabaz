@@ -432,7 +432,10 @@ impl FlowRunEventDto {
     }
 
     pub fn is_terminal(&self) -> bool {
-        matches!(self.kind, FlowRunEventKind::RunFinished | FlowRunEventKind::RunError)
+        matches!(
+            self.kind,
+            FlowRunEventKind::RunFinished | FlowRunEventKind::RunError
+        )
     }
 }
 

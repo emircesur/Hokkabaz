@@ -20,7 +20,11 @@ pub struct TranscribeOpts {
 
 impl Default for TranscribeOpts {
     fn default() -> Self {
-        Self { language: None, prompt: None, word_timestamps: true }
+        Self {
+            language: None,
+            prompt: None,
+            word_timestamps: true,
+        }
     }
 }
 

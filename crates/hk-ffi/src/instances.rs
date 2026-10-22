@@ -10,9 +10,7 @@ use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use hk_store::{Secret, SecretStore};
 use serde::{Deserialize, Serialize};
 
-use crate::dto::{
-    CoreProfile, InstanceDto, InstanceKindDto, InstanceStateDto, InstanceStatusDto,
-};
+use crate::dto::{CoreProfile, InstanceDto, InstanceKindDto, InstanceStateDto, InstanceStatusDto};
 use crate::error::{HkError, HkErrorKind};
 use crate::handle;
 use crate::remote::{self, RemoteCore};
@@ -54,7 +52,9 @@ pub struct Manager {
 
 impl std::fmt::Debug for Manager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Manager").field("path", &self.path).finish_non_exhaustive()
+        f.debug_struct("Manager")
+            .field("path", &self.path)
+            .finish_non_exhaustive()
     }
 }
 
@@ -85,7 +85,10 @@ impl Manager {
             path,
             profile,
             secrets,
-            state: Mutex::new(State { book, connected: LOCAL_ID.to_owned() }),
+            state: Mutex::new(State {
+                book,
+                connected: LOCAL_ID.to_owned(),
+            }),
             connect_lock: tokio::sync::Mutex::new(()),
         }
     }
@@ -138,7 +141,10 @@ impl Manager {
     }
 
     fn get(&self, id: &str) -> Result<InstanceDto, HkError> {
-        self.list().into_iter().find(|i| i.id == id).ok_or_else(|| not_found(id))
+        self.list()
+            .into_iter()
+            .find(|i| i.id == id)
+            .ok_or_else(|| not_found(id))
     }
 
     pub fn add(&self, name: &str, base_url: &str, token: &str) -> Result<InstanceDto, HkError> {
@@ -154,12 +160,22 @@ impl Manager {
         };
         let mut st = self.lock();
         if let Some(dup) = st.book.instances.iter().find(|i| i.base_url == base_url) {
-            return Err(HkError::new(HkErrorKind::Conflict, format!("already added as `{}`", dup.name)));
+            return Err(HkError::new(
+                HkErrorKind::Conflict,
+                format!("already added as `{}`", dup.name),
+            ));
         }
         let id = new_id(&st.book);
         self.secrets.set(&token_name(&id), &Secret::new(token))?;
-        let stored = Stored { id: id.clone(), name, base_url };
-        let mut next = Book { default: st.book.default.clone(), instances: st.book.instances.clone() };
+        let stored = Stored {
+            id: id.clone(),
+            name,
+            base_url,
+        };
+        let mut next = Book {
+            default: st.book.default.clone(),
+            instances: st.book.instances.clone(),
+        };
         next.instances.push(stored.clone());
         if let Err(e) = self.save(&next) {
             let _ = self.secrets.delete(&token_name(&id));
@@ -179,7 +195,10 @@ impl Manager {
             self.connect(LOCAL_ID).await?;
         }
         let mut st = self.lock();
-        let mut next = Book { default: st.book.default.clone(), instances: st.book.instances.clone() };
+        let mut next = Book {
+            default: st.book.default.clone(),
+            instances: st.book.instances.clone(),
+        };
         next.instances.retain(|i| i.id != id);
         if next.default.as_deref() == Some(id) {
             next.default = None;
@@ -234,7 +253,13 @@ impl Manager {
     }
 
     fn stored(&self, id: &str) -> Result<Stored, HkError> {
-        self.lock().book.instances.iter().find(|i| i.id == id).cloned().ok_or_else(|| not_found(id))
+        self.lock()
+            .book
+            .instances
+            .iter()
+            .find(|i| i.id == id)
+            .cloned()
+            .ok_or_else(|| not_found(id))
     }
 
     /// Switch the active core to `id`; chat/settings calls from now on hit it. A remote must
@@ -248,16 +273,22 @@ impl Manager {
             }
         } else {
             let stored = self.stored(id)?;
-            let token = self
-                .secrets
-                .get(&token_name(id))?
-                .ok_or_else(|| HkError::new(HkErrorKind::Unauthorized, "no token stored for this instance"))?;
+            let token = self.secrets.get(&token_name(id))?.ok_or_else(|| {
+                HkError::new(
+                    HkErrorKind::Unauthorized,
+                    "no token stored for this instance",
+                )
+            })?;
             let st = remote::probe(id, &stored.base_url, Some(&token)).await;
             let msg = st.message.unwrap_or_default();
             match st.state {
                 InstanceStateDto::Online => {}
-                InstanceStateDto::Unauthorized => return Err(HkError::new(HkErrorKind::Unauthorized, msg)),
-                InstanceStateDto::Unreachable => return Err(HkError::new(HkErrorKind::Unavailable, msg)),
+                InstanceStateDto::Unauthorized => {
+                    return Err(HkError::new(HkErrorKind::Unauthorized, msg));
+                }
+                InstanceStateDto::Unreachable => {
+                    return Err(HkError::new(HkErrorKind::Unavailable, msg));
+                }
             }
             let core = RemoteCore::new(&stored.base_url, token, self.profile)?;
             if let Some(old) = handle::activate(core) {
@@ -272,14 +303,17 @@ impl Manager {
 
 fn host_label(url: &reqwest::Url) -> String {
     let host = url.host_str().unwrap_or("instance");
-    url.port().map_or_else(|| host.to_owned(), |p| format!("{host}:{p}"))
+    url.port()
+        .map_or_else(|| host.to_owned(), |p| format!("{host}:{p}"))
 }
 
 fn new_id(book: &Book) -> String {
     use std::hash::{BuildHasher, Hasher};
     loop {
         // RandomState is seeded per process from the OS; ids only need to be unique, not secret.
-        let n = std::collections::hash_map::RandomState::new().build_hasher().finish();
+        let n = std::collections::hash_map::RandomState::new()
+            .build_hasher()
+            .finish();
         let id = format!("inst_{:08x}", n as u32);
         if !book.instances.iter().any(|i| i.id == id) {
             return id;
@@ -291,9 +325,16 @@ fn new_id(book: &Book) -> String {
 pub fn parse_pairing_uri(uri: &str) -> Result<(String, String), HkError> {
     let u = reqwest::Url::parse(uri.trim()).map_err(|_| HkError::invalid("not a pairing link"))?;
     if u.scheme() != "hokkabaz" || u.host_str() != Some("pair") {
-        return Err(HkError::invalid("not a pairing link (expected hokkabaz://pair?url=..&token=..)"));
+        return Err(HkError::invalid(
+            "not a pairing link (expected hokkabaz://pair?url=..&token=..)",
+        ));
     }
-    let get = |k: &str| u.query_pairs().find(|(n, _)| n == k).map(|(_, v)| v.into_owned()).filter(|v| !v.is_empty());
+    let get = |k: &str| {
+        u.query_pairs()
+            .find(|(n, _)| n == k)
+            .map(|(_, v)| v.into_owned())
+            .filter(|v| !v.is_empty())
+    };
     match (get("url"), get("token")) {
         (Some(url), Some(token)) => Ok((url, token)),
         _ => Err(HkError::invalid("pairing link lacks `url` or `token`")),
@@ -325,13 +366,18 @@ mod tests {
     use super::*;
 
     fn mgr(dir: &Path) -> Manager {
-        Manager::open(dir, CoreProfile::Desktop, Arc::new(MemorySecretStore::default()))
+        Manager::open(
+            dir,
+            CoreProfile::Desktop,
+            Arc::new(MemorySecretStore::default()),
+        )
     }
 
     #[test]
     fn pairing_uri_parses() {
         let (u, t) =
-            parse_pairing_uri("hokkabaz://pair?url=http%3A%2F%2Fh%3A1&token=hkp_run.1.2.ab").unwrap();
+            parse_pairing_uri("hokkabaz://pair?url=http%3A%2F%2Fh%3A1&token=hkp_run.1.2.ab")
+                .unwrap();
         assert_eq!((u.as_str(), t.as_str()), ("http://h:1", "hkp_run.1.2.ab"));
         assert!(parse_pairing_uri("https://h/pair?url=x&token=y").is_err());
         assert!(parse_pairing_uri("hokkabaz://pair?url=x").is_err());
@@ -343,8 +389,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let m = mgr(dir.path());
         let a = m.add("", "http://10.0.0.5:7878/", " tok ").unwrap();
-        assert_eq!((a.name.as_str(), a.base_url.as_deref(), a.has_token), ("10.0.0.5:7878", Some("http://10.0.0.5:7878"), true));
-        assert_eq!(m.add("x", "http://10.0.0.5:7878", "t").unwrap_err().kind, HkErrorKind::Conflict);
+        assert_eq!(
+            (a.name.as_str(), a.base_url.as_deref(), a.has_token),
+            ("10.0.0.5:7878", Some("http://10.0.0.5:7878"), true)
+        );
+        assert_eq!(
+            m.add("x", "http://10.0.0.5:7878", "t").unwrap_err().kind,
+            HkErrorKind::Conflict
+        );
         assert!(m.add("x", "ftp://h", "t").is_err());
         assert!(m.add("x", "http://h", "  ").is_err());
         m.select(&a.id).unwrap();
@@ -352,11 +404,21 @@ mod tests {
         assert!(!raw.contains("tok"), "token must not reach instances.json");
 
         // reopen: same book; local first and default flag follows selection
-        let m2 = Manager::open(dir.path(), CoreProfile::Desktop, Arc::new(MemorySecretStore::default()));
+        let m2 = Manager::open(
+            dir.path(),
+            CoreProfile::Desktop,
+            Arc::new(MemorySecretStore::default()),
+        );
         let l = m2.list();
         assert_eq!(l.len(), 2);
-        assert_eq!((l[0].id.as_str(), l[0].connected, l[0].is_default), (LOCAL_ID, true, false));
-        assert!(l[1].is_default && !l[1].connected && !l[1].has_token, "fresh secret store has no token");
+        assert_eq!(
+            (l[0].id.as_str(), l[0].connected, l[0].is_default),
+            (LOCAL_ID, true, false)
+        );
+        assert!(
+            l[1].is_default && !l[1].connected && !l[1].has_token,
+            "fresh secret store has no token"
+        );
         assert_eq!(m2.select("nope").unwrap_err().kind, HkErrorKind::NotFound);
     }
 }

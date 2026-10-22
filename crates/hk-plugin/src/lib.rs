@@ -26,6 +26,6 @@ pub mod tool;
 mod error;
 
 pub use error::{PluginError, Result};
-pub use manifest::{Capabilities, FsGrant, Manifest};
 #[cfg(feature = "wasm-plugins")]
 pub use host::{Description, HostServices, LoadedPlugin, PluginHost, SecretLookup, TriggerDecl};
+pub use manifest::{Capabilities, FsGrant, Manifest};

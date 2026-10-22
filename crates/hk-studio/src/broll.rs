@@ -52,7 +52,13 @@ pub struct BrollOpts {
 
 impl Default for BrollOpts {
     fn default() -> Self {
-        Self { max: 4, min_len: 1.5, max_len: 4.0, min_gap: 4.0, lead_in: 2.5 }
+        Self {
+            max: 4,
+            min_len: 1.5,
+            max_len: 4.0,
+            min_gap: 4.0,
+            lead_in: 2.5,
+        }
     }
 }
 
@@ -68,7 +74,11 @@ struct Moments {
 }
 
 /// Ask the LLM where to cut away. `words` are on the output timeline.
-pub async fn plan_broll(llm: &dyn Llm, words: &[CapWord], opts: &BrollOpts) -> Result<Vec<BrollRequest>> {
+pub async fn plan_broll(
+    llm: &dyn Llm,
+    words: &[CapWord],
+    opts: &BrollOpts,
+) -> Result<Vec<BrollRequest>> {
     let end = words.last().map_or(0.0, |w| w.end);
     if words.is_empty() || end < opts.lead_in + opts.min_len {
         return Ok(Vec::new());
@@ -145,20 +155,37 @@ pub trait StockProvider: Send + Sync {
 
 const MAX_DOWNLOAD: u64 = 200 * 1024 * 1024;
 
-async fn download(client: &reqwest::Client, url: &str, dir: &Path, stem: &str, ext: &str) -> Result<PathBuf> {
+async fn download(
+    client: &reqwest::Client,
+    url: &str,
+    dir: &Path,
+    stem: &str,
+    ext: &str,
+) -> Result<PathBuf> {
     tokio::fs::create_dir_all(dir).await?;
     let dest = dir.join(format!("{stem}.{ext}"));
     if tokio::fs::metadata(&dest).await.is_ok_and(|m| m.len() > 0) {
         return Ok(dest);
     }
-    let resp = client.get(url).send().await.map_err(|e| StudioError::Http(e.to_string()))?;
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| StudioError::Http(e.to_string()))?;
     if !resp.status().is_success() {
-        return Err(StudioError::Http(format!("download {}: {}", resp.status(), url)));
+        return Err(StudioError::Http(format!(
+            "download {}: {}",
+            resp.status(),
+            url
+        )));
     }
     if resp.content_length().is_some_and(|n| n > MAX_DOWNLOAD) {
         return Err(StudioError::Http("asset too large".into()));
     }
-    let bytes = resp.bytes().await.map_err(|e| StudioError::Http(e.to_string()))?;
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| StudioError::Http(e.to_string()))?;
     if bytes.len() as u64 > MAX_DOWNLOAD {
         return Err(StudioError::Http("asset too large".into()));
     }
@@ -169,12 +196,19 @@ async fn download(client: &reqwest::Client, url: &str, dir: &Path, stem: &str, e
 }
 
 fn safe_stem(s: &str) -> String {
-    s.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).take(60).collect()
+    s.chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .take(60)
+        .collect()
 }
 
 fn ext_of(url: &str, default: &str) -> String {
     let path = url.split(['?', '#']).next().unwrap_or(url);
-    path.rsplit('.').next().filter(|e| e.len() <= 4 && e.chars().all(|c| c.is_ascii_alphanumeric())).unwrap_or(default).to_lowercase()
+    path.rsplit('.')
+        .next()
+        .filter(|e| e.len() <= 4 && e.chars().all(|c| c.is_ascii_alphanumeric()))
+        .unwrap_or(default)
+        .to_lowercase()
 }
 
 /// Pexels (https://www.pexels.com/api/).
@@ -187,7 +221,11 @@ pub struct Pexels {
 
 impl Pexels {
     pub fn new(key: impl Into<String>) -> Self {
-        Self { key: key.into(), base: "https://api.pexels.com".into(), client: reqwest::Client::new() }
+        Self {
+            key: key.into(),
+            base: "https://api.pexels.com".into(),
+            client: reqwest::Client::new(),
+        }
     }
 
     pub fn with_base(mut self, base: impl Into<String>) -> Self {
@@ -211,19 +249,40 @@ impl StockProvider for Pexels {
             .client
             .get(format!("{}/{path}", self.base))
             .header("Authorization", &self.key)
-            .query(&[("query", query), ("per_page", &limit.to_string()), ("orientation", orient)])
+            .query(&[
+                ("query", query),
+                ("per_page", &limit.to_string()),
+                ("orientation", orient),
+            ])
             .send()
             .await
             .map_err(|e| StudioError::Http(e.to_string()))?;
         if !resp.status().is_success() {
             return Err(StudioError::Http(format!("pexels {}", resp.status())));
         }
-        let v: serde_json::Value = resp.json().await.map_err(|e| StudioError::Http(e.to_string()))?;
+        let v: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| StudioError::Http(e.to_string()))?;
         Ok(parse_pexels(&v, kind))
     }
 
     async fn fetch(&self, a: &StockAsset, dir: &Path) -> Result<PathBuf> {
-        download(&self.client, &a.url, dir, &format!("pexels_{}", safe_stem(&a.id)), &ext_of(&a.url, if a.kind == AssetKind::Video { "mp4" } else { "jpg" })).await
+        download(
+            &self.client,
+            &a.url,
+            dir,
+            &format!("pexels_{}", safe_stem(&a.id)),
+            &ext_of(
+                &a.url,
+                if a.kind == AssetKind::Video {
+                    "mp4"
+                } else {
+                    "jpg"
+                },
+            ),
+        )
+        .await
     }
 }
 
@@ -246,21 +305,30 @@ pub fn parse_pexels(v: &serde_json::Value, kind: AssetKind) -> Vec<StockAsset> {
                         kind,
                         width: f["width"].as_u64().unwrap_or(0) as u32,
                         height: f["height"].as_u64().unwrap_or(0) as u32,
-                        credit: format!("Video by {} on Pexels", it["user"]["name"].as_str().unwrap_or("unknown")),
+                        credit: format!(
+                            "Video by {} on Pexels",
+                            it["user"]["name"].as_str().unwrap_or("unknown")
+                        ),
                     });
                 }
             }
         }
         AssetKind::Image => {
             for it in v["photos"].as_array().into_iter().flatten() {
-                if let Some(url) = it["src"]["large2x"].as_str().or_else(|| it["src"]["large"].as_str()) {
+                if let Some(url) = it["src"]["large2x"]
+                    .as_str()
+                    .or_else(|| it["src"]["large"].as_str())
+                {
                     out.push(StockAsset {
                         id: it["id"].to_string(),
                         url: url.to_string(),
                         kind,
                         width: it["width"].as_u64().unwrap_or(0) as u32,
                         height: it["height"].as_u64().unwrap_or(0) as u32,
-                        credit: format!("Photo by {} on Pexels", it["photographer"].as_str().unwrap_or("unknown")),
+                        credit: format!(
+                            "Photo by {} on Pexels",
+                            it["photographer"].as_str().unwrap_or("unknown")
+                        ),
                     });
                 }
             }
@@ -280,7 +348,11 @@ pub struct Pixabay {
 
 impl Pixabay {
     pub fn new(key: impl Into<String>) -> Self {
-        Self { key: key.into(), base: "https://pixabay.com".into(), client: reqwest::Client::new() }
+        Self {
+            key: key.into(),
+            base: "https://pixabay.com".into(),
+            client: reqwest::Client::new(),
+        }
     }
 
     pub fn with_base(mut self, base: impl Into<String>) -> Self {
@@ -296,23 +368,49 @@ impl StockProvider for Pixabay {
     }
 
     async fn search(&self, query: &str, kind: AssetKind, limit: usize) -> Result<Vec<StockAsset>> {
-        let path = if kind == AssetKind::Video { "api/videos/" } else { "api/" };
+        let path = if kind == AssetKind::Video {
+            "api/videos/"
+        } else {
+            "api/"
+        };
         let resp = self
             .client
             .get(format!("{}/{path}", self.base))
-            .query(&[("key", self.key.as_str()), ("q", query), ("per_page", &limit.max(3).to_string()), ("safesearch", "true")])
+            .query(&[
+                ("key", self.key.as_str()),
+                ("q", query),
+                ("per_page", &limit.max(3).to_string()),
+                ("safesearch", "true"),
+            ])
             .send()
             .await
             .map_err(|e| StudioError::Http(e.to_string()))?;
         if !resp.status().is_success() {
             return Err(StudioError::Http(format!("pixabay {}", resp.status())));
         }
-        let v: serde_json::Value = resp.json().await.map_err(|e| StudioError::Http(e.to_string()))?;
+        let v: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| StudioError::Http(e.to_string()))?;
         Ok(parse_pixabay(&v, kind))
     }
 
     async fn fetch(&self, a: &StockAsset, dir: &Path) -> Result<PathBuf> {
-        download(&self.client, &a.url, dir, &format!("pixabay_{}", safe_stem(&a.id)), &ext_of(&a.url, if a.kind == AssetKind::Video { "mp4" } else { "jpg" })).await
+        download(
+            &self.client,
+            &a.url,
+            dir,
+            &format!("pixabay_{}", safe_stem(&a.id)),
+            &ext_of(
+                &a.url,
+                if a.kind == AssetKind::Video {
+                    "mp4"
+                } else {
+                    "jpg"
+                },
+            ),
+        )
+        .await
     }
 }
 
@@ -323,7 +421,10 @@ pub fn parse_pixabay(v: &serde_json::Value, kind: AssetKind) -> Vec<StockAsset> 
         match kind {
             AssetKind::Video => {
                 let f = &it["videos"];
-                let pick = ["large", "medium", "small"].iter().map(|k| &f[*k]).find(|x| x["url"].as_str().is_some_and(|u| !u.is_empty()));
+                let pick = ["large", "medium", "small"]
+                    .iter()
+                    .map(|k| &f[*k])
+                    .find(|x| x["url"].as_str().is_some_and(|u| !u.is_empty()));
                 if let Some(x) = pick {
                     out.push(StockAsset {
                         id: it["id"].to_string(),
@@ -371,12 +472,20 @@ impl StockProvider for LocalFolder {
     }
 
     async fn search(&self, query: &str, kind: AssetKind, limit: usize) -> Result<Vec<StockAsset>> {
-        let words: Vec<String> = query.to_lowercase().split_whitespace().map(str::to_string).collect();
+        let words: Vec<String> = query
+            .to_lowercase()
+            .split_whitespace()
+            .map(str::to_string)
+            .collect();
         let mut hits: Vec<(usize, StockAsset)> = Vec::new();
         let mut rd = tokio::fs::read_dir(&self.dir).await?;
         while let Some(e) = rd.next_entry().await? {
             let path = e.path();
-            let ext = path.extension().and_then(|x| x.to_str()).unwrap_or("").to_lowercase();
+            let ext = path
+                .extension()
+                .and_then(|x| x.to_str())
+                .unwrap_or("")
+                .to_lowercase();
             let k = match ext.as_str() {
                 "mp4" | "mov" | "mkv" | "webm" => AssetKind::Video,
                 "jpg" | "jpeg" | "png" | "webp" => AssetKind::Image,
@@ -385,10 +494,24 @@ impl StockProvider for LocalFolder {
             if k != kind {
                 continue;
             }
-            let name = path.file_stem().and_then(|x| x.to_str()).unwrap_or("").to_lowercase();
+            let name = path
+                .file_stem()
+                .and_then(|x| x.to_str())
+                .unwrap_or("")
+                .to_lowercase();
             let score = words.iter().filter(|w| name.contains(w.as_str())).count();
             if score > 0 {
-                hits.push((score, StockAsset { id: name.clone(), url: path.to_string_lossy().into_owned(), kind: k, width: 0, height: 0, credit: String::new() }));
+                hits.push((
+                    score,
+                    StockAsset {
+                        id: name.clone(),
+                        url: path.to_string_lossy().into_owned(),
+                        kind: k,
+                        width: 0,
+                        height: 0,
+                        credit: String::new(),
+                    },
+                ));
             }
         }
         hits.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.id.cmp(&b.1.id)));
@@ -401,14 +524,23 @@ impl StockProvider for LocalFolder {
 }
 
 /// Search + download for each request; requests with no hit are skipped.
-pub async fn fetch_broll(providers: &[&dyn StockProvider], reqs: &[BrollRequest], dir: &Path) -> Vec<BrollPlacement> {
+pub async fn fetch_broll(
+    providers: &[&dyn StockProvider],
+    reqs: &[BrollRequest],
+    dir: &Path,
+) -> Vec<BrollPlacement> {
     let mut out = Vec::new();
     for r in reqs {
         'prov: for p in providers {
             for kind in [AssetKind::Video, AssetKind::Image] {
-                let Ok(hits) = p.search(&r.query, kind, 5).await else { continue };
+                let Ok(hits) = p.search(&r.query, kind, 5).await else {
+                    continue;
+                };
                 // Prefer portrait-ish assets when sizes are known.
-                let pick = hits.iter().find(|a| a.height >= a.width && a.height > 0).or_else(|| hits.first());
+                let pick = hits
+                    .iter()
+                    .find(|a| a.height >= a.width && a.height > 0)
+                    .or_else(|| hits.first());
                 let Some(asset) = pick else { continue };
                 match p.fetch(asset, dir).await {
                     Ok(path) => {
@@ -422,7 +554,9 @@ pub async fn fetch_broll(providers: &[&dyn StockProvider], reqs: &[BrollRequest]
                         });
                         break 'prov;
                     }
-                    Err(e) => tracing::warn!(provider = p.name(), error = %e, "b-roll fetch failed"),
+                    Err(e) => {
+                        tracing::warn!(provider = p.name(), error = %e, "b-roll fetch failed")
+                    }
                 }
             }
         }
@@ -436,7 +570,13 @@ mod tests {
     use crate::llm::ScriptedLlm;
 
     fn words(n: usize) -> Vec<CapWord> {
-        (0..n).map(|i| CapWord { text: format!("w{i}"), start: i as f64 * 0.5, end: i as f64 * 0.5 + 0.4 }).collect()
+        (0..n)
+            .map(|i| CapWord {
+                text: format!("w{i}"),
+                start: i as f64 * 0.5,
+                end: i as f64 * 0.5 + 0.4,
+            })
+            .collect()
     }
 
     #[tokio::test]
@@ -449,12 +589,19 @@ mod tests {
             {"start":12.0,"end":14.0,"query":""}
         ]}"#;
         let llm = ScriptedLlm::new([reply]);
-        let out = plan_broll(&llm, &words(40), &BrollOpts::default()).await.unwrap();
+        let out = plan_broll(&llm, &words(40), &BrollOpts::default())
+            .await
+            .unwrap();
         // "too early" moves to lead_in (2.5) -> 2.5..2.0 invalid; city skyline capped to 4s.
         assert_eq!(out.len(), 1, "{out:?}");
         assert_eq!(out[0].query, "city skyline");
         assert!((out[0].end - out[0].start - 4.0).abs() < 1e-9);
-        assert!(plan_broll(&llm, &words(2), &BrollOpts::default()).await.unwrap().is_empty());
+        assert!(
+            plan_broll(&llm, &words(2), &BrollOpts::default())
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]
@@ -487,13 +634,31 @@ mod tests {
     async fn local_folder_matches_by_name() {
         let d = std::env::temp_dir().join(format!("hk_broll_{}", crate::project::new_id("t")));
         tokio::fs::create_dir_all(&d).await.unwrap();
-        tokio::fs::write(d.join("city_skyline_night.mp4"), b"x").await.unwrap();
+        tokio::fs::write(d.join("city_skyline_night.mp4"), b"x")
+            .await
+            .unwrap();
         tokio::fs::write(d.join("forest.mp4"), b"x").await.unwrap();
         tokio::fs::write(d.join("notes.txt"), b"x").await.unwrap();
         let p = LocalFolder::new(&d);
         let hits = p.search("city skyline", AssetKind::Video, 5).await.unwrap();
         assert_eq!(hits.len(), 1);
-        let placements = fetch_broll(&[&p], &[BrollRequest { start: 3.0, end: 5.0, query: "forest".into() }, BrollRequest { start: 9.0, end: 11.0, query: "ocean".into() }], &d).await;
+        let placements = fetch_broll(
+            &[&p],
+            &[
+                BrollRequest {
+                    start: 3.0,
+                    end: 5.0,
+                    query: "forest".into(),
+                },
+                BrollRequest {
+                    start: 9.0,
+                    end: 11.0,
+                    query: "ocean".into(),
+                },
+            ],
+            &d,
+        )
+        .await;
         assert_eq!(placements.len(), 1);
         assert!(placements[0].asset.ends_with("forest.mp4"));
         tokio::fs::remove_dir_all(&d).await.unwrap();

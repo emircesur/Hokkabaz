@@ -107,7 +107,11 @@ pub trait AgentRuntime: Send + Sync + 'static {
     async fn inject(&self, id: &str, text: String) -> Result<(), ApiError>;
     async fn cancel(&self, id: &str) -> Result<(), ApiError>;
     /// `NotFound` when nothing pending matches (settled, cancelled, wrong id).
-    async fn respond_approval(&self, approval_id: &str, decision: ApprovalDecision) -> Result<(), ApiError>;
+    async fn respond_approval(
+        &self,
+        approval_id: &str,
+        decision: ApprovalDecision,
+    ) -> Result<(), ApiError>;
     async fn models(&self) -> Result<Vec<ModelInfo>, ApiError>;
     /// Live feed: agent bus events and logged session events for every session.
     fn subscribe(&self) -> broadcast::Receiver<ServerEvent>;

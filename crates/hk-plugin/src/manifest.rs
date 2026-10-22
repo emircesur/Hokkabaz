@@ -69,7 +69,9 @@ impl Manifest {
         let bad = |m: &str| Err(PluginError::Manifest(m.to_string()));
         if self.id.is_empty()
             || self.id.len() > 100
-            || !self.id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '_' | '-'))
+            || !self.id.chars().all(|c| {
+                c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '_' | '-')
+            })
             || self.id.starts_with(['.', '-'])
             || self.id.contains("..")
         {
@@ -78,21 +80,33 @@ impl Manifest {
         if self.name.trim().is_empty() {
             return bad("`name` is required");
         }
-        if self.version.split('.').count() != 3 || !self.version.split('.').all(|p| p.parse::<u32>().is_ok()) {
+        if self.version.split('.').count() != 3
+            || !self.version.split('.').all(|p| p.parse::<u32>().is_ok())
+        {
             return bad("`version` must be MAJOR.MINOR.PATCH");
         }
         let w = Path::new(&self.wasm);
-        if self.wasm.is_empty() || w.is_absolute() || w.components().any(|c| matches!(c, std::path::Component::ParentDir)) || !self.wasm.ends_with(".wasm") {
+        if self.wasm.is_empty()
+            || w.is_absolute()
+            || w.components()
+                .any(|c| matches!(c, std::path::Component::ParentDir))
+            || !self.wasm.ends_with(".wasm")
+        {
             return bad("`wasm` must be a relative .wasm file next to plugin.toml");
         }
         for p in &self.capabilities.http {
             if !valid_host_pattern(p) {
-                return Err(PluginError::Manifest(format!("bad http host pattern `{p}`")));
+                return Err(PluginError::Manifest(format!(
+                    "bad http host pattern `{p}`"
+                )));
             }
         }
         for g in &self.capabilities.fs {
             if !g.path.is_absolute() {
-                return Err(PluginError::Manifest(format!("fs grant `{}` must be an absolute path", g.path.display())));
+                return Err(PluginError::Manifest(format!(
+                    "fs grant `{}` must be an absolute path",
+                    g.path.display()
+                )));
             }
         }
         Ok(())
@@ -115,7 +129,11 @@ impl Manifest {
             out.push("Start flows (trigger events)".into());
         }
         for g in &c.fs {
-            out.push(format!("{} files in {}", if g.write { "Read and write" } else { "Read" }, g.path.display()));
+            out.push(format!(
+                "{} files in {}",
+                if g.write { "Read and write" } else { "Read" },
+                g.path.display()
+            ));
         }
         if out.is_empty() {
             out.push("No special permissions".into());
@@ -126,7 +144,12 @@ impl Manifest {
 
 fn valid_host_pattern(p: &str) -> bool {
     let host = p.strip_prefix("*.").unwrap_or(p);
-    !host.is_empty() && host.len() <= 253 && !host.contains(['/', ':', ' ', '*']) && host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'))
+    !host.is_empty()
+        && host.len() <= 253
+        && !host.contains(['/', ':', ' ', '*'])
+        && host
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'))
 }
 
 impl Capabilities {
@@ -134,13 +157,21 @@ impl Capabilities {
     pub fn check_url(&self, url: &str) -> Result<Url> {
         let u = Url::parse(url).map_err(|e| PluginError::Denied(format!("bad URL: {e}")))?;
         if !matches!(u.scheme(), "http" | "https") {
-            return Err(PluginError::Denied(format!("scheme `{}` is not allowed", u.scheme())));
+            return Err(PluginError::Denied(format!(
+                "scheme `{}` is not allowed",
+                u.scheme()
+            )));
         }
-        let host = u.host_str().ok_or_else(|| PluginError::Denied("URL has no host".into()))?.to_ascii_lowercase();
+        let host = u
+            .host_str()
+            .ok_or_else(|| PluginError::Denied("URL has no host".into()))?
+            .to_ascii_lowercase();
         if self.http.iter().any(|p| host_matches(p, &host)) {
             Ok(u)
         } else {
-            Err(PluginError::Denied(format!("http access to `{host}` was not granted")))
+            Err(PluginError::Denied(format!(
+                "http access to `{host}` was not granted"
+            )))
         }
     }
 
@@ -148,23 +179,41 @@ impl Capabilities {
         if self.secrets.iter().any(|s| s == name) {
             Ok(())
         } else {
-            Err(PluginError::Denied(format!("secret `{name}` was not granted")))
+            Err(PluginError::Denied(format!(
+                "secret `{name}` was not granted"
+            )))
         }
     }
 
     pub fn check_kv(&self) -> Result<()> {
-        if self.kv { Ok(()) } else { Err(PluginError::Denied("key/value storage was not granted".into())) }
+        if self.kv {
+            Ok(())
+        } else {
+            Err(PluginError::Denied(
+                "key/value storage was not granted".into(),
+            ))
+        }
     }
 
     pub fn check_emit(&self) -> Result<()> {
-        if self.emit { Ok(()) } else { Err(PluginError::Denied("emitting events was not granted".into())) }
+        if self.emit {
+            Ok(())
+        } else {
+            Err(PluginError::Denied(
+                "emitting events was not granted".into(),
+            ))
+        }
     }
 }
 
 fn host_matches(pattern: &str, host: &str) -> bool {
     let p = pattern.to_ascii_lowercase();
     match p.strip_prefix("*.") {
-        Some(suffix) => host.len() > suffix.len() && host.ends_with(suffix) && host.as_bytes()[host.len() - suffix.len() - 1] == b'.',
+        Some(suffix) => {
+            host.len() > suffix.len()
+                && host.ends_with(suffix)
+                && host.as_bytes()[host.len() - suffix.len() - 1] == b'.'
+        }
         None => host == p,
     }
 }
@@ -190,7 +239,12 @@ secrets = ["demo_key"]
         assert_eq!(m.id, "dev.example.demo");
         let s = m.capability_summary();
         assert!(s[0].contains("api.example.com") && s.iter().any(|l| l.contains("demo_key")));
-        assert_eq!(Manifest::parse("id='a.b'\nname='x'\nversion='0.0.1'\nwasm='x.wasm'").unwrap().capability_summary(), ["No special permissions"]);
+        assert_eq!(
+            Manifest::parse("id='a.b'\nname='x'\nversion='0.0.1'\nwasm='x.wasm'")
+                .unwrap()
+                .capability_summary(),
+            ["No special permissions"]
+        );
     }
 
     #[test]
@@ -203,12 +257,31 @@ secrets = ["demo_key"]
             ("wasm = \"x.txt\"", "not wasm"),
         ] {
             let key = frag.split(' ').next().unwrap();
-            let text: String = OK.lines().map(|l| if l.starts_with(key) { frag.to_string() } else { l.to_string() }).collect::<Vec<_>>().join("\n");
+            let text: String = OK
+                .lines()
+                .map(|l| {
+                    if l.starts_with(key) {
+                        frag.to_string()
+                    } else {
+                        l.to_string()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
             assert!(Manifest::parse(&text).is_err(), "{why}");
         }
-        assert!(Manifest::parse(&OK.replace("kv = true", "kv = true\nbogus = 1")).is_err(), "unknown capability key");
-        assert!(Manifest::parse(&OK.replace("api.example.com", "https://x/y")).is_err(), "pattern with scheme");
-        assert!(Manifest::parse(&OK.replace("*.cdn.example.com", "*")).is_err(), "bare wildcard");
+        assert!(
+            Manifest::parse(&OK.replace("kv = true", "kv = true\nbogus = 1")).is_err(),
+            "unknown capability key"
+        );
+        assert!(
+            Manifest::parse(&OK.replace("api.example.com", "https://x/y")).is_err(),
+            "pattern with scheme"
+        );
+        assert!(
+            Manifest::parse(&OK.replace("*.cdn.example.com", "*")).is_err(),
+            "bare wildcard"
+        );
     }
 
     #[test]
@@ -216,7 +289,10 @@ secrets = ["demo_key"]
         let c = Manifest::parse(OK).unwrap().capabilities;
         assert!(c.check_url("https://api.example.com/v1/x").is_ok());
         assert!(c.check_url("http://img.cdn.example.com/a.png").is_ok());
-        assert!(c.check_url("https://cdn.example.com/").is_err(), "wildcard needs a subdomain");
+        assert!(
+            c.check_url("https://cdn.example.com/").is_err(),
+            "wildcard needs a subdomain"
+        );
         assert!(c.check_url("https://evilapi.example.com/").is_err());
         assert!(c.check_url("https://api.example.com.evil.net/").is_err());
         assert!(c.check_url("file:///etc/passwd").is_err());

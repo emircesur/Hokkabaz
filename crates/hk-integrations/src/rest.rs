@@ -48,7 +48,8 @@ pub enum RestBody {
 }
 
 /// Escape hatch run after routing and before auth: `(request, ctx, item_index)`.
-pub type PreSend = Arc<dyn Fn(&mut RestRequest, &NodeContext, usize) -> Result<(), FlowError> + Send + Sync>;
+pub type PreSend =
+    Arc<dyn Fn(&mut RestRequest, &NodeContext, usize) -> Result<(), FlowError> + Send + Sync>;
 
 /// Credential a node uses.
 #[derive(Debug, Clone)]
@@ -86,17 +87,27 @@ impl RestSpec {
             credential: None,
             default_headers: Vec::new(),
             timeout: Duration::from_secs(30),
-            error_paths: ["message", "error.message", "error", "errors.0.message", "detail", "error_description"]
-                .iter()
-                .map(|s| (*s).to_owned())
-                .collect(),
+            error_paths: [
+                "message",
+                "error.message",
+                "error",
+                "errors.0.message",
+                "detail",
+                "error_description",
+            ]
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect(),
             pre_send: None,
             max_pages: 1000,
         }
     }
 
     pub fn credential(mut self, name: &str, required: bool) -> Self {
-        self.credential = Some(CredentialUse { name: name.to_owned(), required });
+        self.credential = Some(CredentialUse {
+            name: name.to_owned(),
+            required,
+        });
         self
     }
 
@@ -117,7 +128,10 @@ impl RestSpec {
 
     pub fn pre_send(
         mut self,
-        f: impl Fn(&mut RestRequest, &NodeContext, usize) -> Result<(), FlowError> + Send + Sync + 'static,
+        f: impl Fn(&mut RestRequest, &NodeContext, usize) -> Result<(), FlowError>
+        + Send
+        + Sync
+        + 'static,
     ) -> Self {
         self.pre_send = Some(Arc::new(f));
         self
@@ -132,20 +146,29 @@ pub struct RestNode {
 
 impl fmt::Debug for RestNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("RestNode").field("type", &self.desc.name).finish_non_exhaustive()
+        f.debug_struct("RestNode")
+            .field("type", &self.desc.name)
+            .finish_non_exhaustive()
     }
 }
 
 impl RestNode {
     pub fn new(desc: NodeTypeDescription, spec: RestSpec, creds: &CredentialTypes) -> Self {
-        Self { desc, spec, creds: creds.clone() }
+        Self {
+            desc,
+            spec,
+            creds: creds.clone(),
+        }
     }
 }
 
 // ------------------------------------------------------------------ helpers
 
 fn node_err(ctx: &NodeContext, message: impl Into<String>) -> FlowError {
-    FlowError::Node { node: ctx.node.name.clone(), message: message.into() }
+    FlowError::Node {
+        node: ctx.node.name.clone(),
+        message: message.into(),
+    }
 }
 
 /// Evaluate a routing value: `=`-prefixed or `{{ }}`-containing strings are expressions.
@@ -159,7 +182,12 @@ fn ev(ctx: &NodeContext, v: &Value, i: usize) -> Result<Value, FlowError> {
 }
 
 /// Parameter value, falling back to the description default (n8n exports omit defaults).
-fn param(ctx: &NodeContext, desc: &NodeTypeDescription, name: &str, i: usize) -> Result<Option<Value>, FlowError> {
+fn param(
+    ctx: &NodeContext,
+    desc: &NodeTypeDescription,
+    name: &str,
+    i: usize,
+) -> Result<Option<Value>, FlowError> {
     if let Some(v) = ctx.eval_param_at(name, i)? {
         return Ok(Some(v));
     }
@@ -186,7 +214,9 @@ fn set_path(obj: &mut Map<String, Value>, path: &str, v: Value) {
             cur.insert(p.to_owned(), v);
             return;
         }
-        let slot = cur.entry(p.to_owned()).or_insert_with(|| Value::Object(Map::new()));
+        let slot = cur
+            .entry(p.to_owned())
+            .or_insert_with(|| Value::Object(Map::new()));
         if !slot.is_object() {
             *slot = Value::Object(Map::new());
         }
@@ -250,7 +280,9 @@ impl RestNode {
                         .get("routing")
                         .and_then(|r| serde_json::from_value::<Routing>(r.clone()).ok())
                         .filter(|r| r.request.is_some())
-                        .ok_or_else(|| node_err(ctx, format!("Operation `{wanted}` has no request routing")));
+                        .ok_or_else(|| {
+                            node_err(ctx, format!("Operation `{wanted}` has no request routing"))
+                        });
                 }
             }
         }
@@ -274,11 +306,19 @@ impl RestNode {
             if base.is_empty() {
                 return Err(node_err(ctx, "Base URL is empty"));
             }
-            format!("{}/{}", base.trim_end_matches('/'), url_t.trim_start_matches('/'))
+            format!(
+                "{}/{}",
+                base.trim_end_matches('/'),
+                url_t.trim_start_matches('/')
+            )
         };
 
         let mut req = RestRequest {
-            method: rq.method.clone().unwrap_or_else(|| "GET".into()).to_uppercase(),
+            method: rq
+                .method
+                .clone()
+                .unwrap_or_else(|| "GET".into())
+                .to_uppercase(),
             url,
             query: Vec::new(),
             headers: self.spec.default_headers.clone(),
@@ -296,7 +336,10 @@ impl RestNode {
         }
 
         for p in &self.desc.properties {
-            if p.name == RESOURCE || p.name == OPERATION || !is_visible(p.display_options.as_ref(), &look) {
+            if p.name == RESOURCE
+                || p.name == OPERATION
+                || !is_visible(p.display_options.as_ref(), &look)
+            {
                 continue;
             }
             if matches!(p.prop_type, PropertyType::Collection) {
@@ -319,7 +362,13 @@ impl RestNode {
             .and_then(|v| v.as_u64())
             .and_then(|n| usize::try_from(n).ok())
             .filter(|n| *n > 0);
-        Ok(Plan { req, route, simplify, return_all, limit })
+        Ok(Plan {
+            req,
+            route,
+            simplify,
+            return_all,
+            limit,
+        })
     }
 
     fn collect_collection(
@@ -331,7 +380,9 @@ impl RestNode {
         body: &mut Map<String, Value>,
     ) -> Result<(), FlowError> {
         for opt in coll.options.iter().flatten() {
-            let Some(name) = opt.get("name").and_then(Value::as_str) else { continue };
+            let Some(name) = opt.get("name").and_then(Value::as_str) else {
+                continue;
+            };
             let Some(send) = opt
                 .get("routing")
                 .and_then(|r| serde_json::from_value::<Routing>(r.clone()).ok())
@@ -378,12 +429,18 @@ impl RestNode {
 
     async fn resolve_creds(&self, ctx: &NodeContext) -> Result<Resolved, FlowError> {
         let Some(c) = &self.spec.credential else {
-            return Ok(Resolved { data: Map::new(), auth: AppliedAuth::default() });
+            return Ok(Resolved {
+                data: Map::new(),
+                auth: AppliedAuth::default(),
+            });
         };
         let reference = ctx.node.credentials.as_ref().and_then(|m| m.get(&c.name));
         let Some(reference) = reference else {
             if c.required {
-                return Err(node_err(ctx, format!("No credentials of type `{}` selected", c.name)));
+                return Err(node_err(
+                    ctx,
+                    format!("No credentials of type `{}` selected", c.name),
+                ));
             }
             return Ok(Resolved {
                 data: self.creds.with_defaults(&c.name, &Map::new()),
@@ -397,7 +454,10 @@ impl RestNode {
             .ok_or_else(|| node_err(ctx, "Credentials are not available in this runtime"))?;
         let raw = resolver.resolve(&c.name, reference).await?;
         let data = self.creds.with_defaults(&c.name, &raw);
-        let auth = self.creds.apply(&c.name, &data).map_err(|e| node_err(ctx, e.to_string()))?;
+        let auth = self
+            .creds
+            .apply(&c.name, &data)
+            .map_err(|e| node_err(ctx, e.to_string()))?;
         Ok(Resolved { data, auth })
     }
 
@@ -434,12 +494,13 @@ impl RestNode {
                 if let Value::Object(o) = &mut v {
                     o.extend(auth.body.clone());
                 }
-                rb.header("content-type", "application/json").body(v.to_string())
+                rb.header("content-type", "application/json")
+                    .body(v.to_string())
             }
             RestBody::Form(p) => rb.form(p),
-            RestBody::Raw { content_type, data } => {
-                rb.header("content-type", content_type.as_str()).body(data.clone())
-            }
+            RestBody::Raw { content_type, data } => rb
+                .header("content-type", content_type.as_str())
+                .body(data.clone()),
         };
         let res = rb
             .send()
@@ -447,10 +508,12 @@ impl RestNode {
             // without_url: the query string may carry a credential
             .map_err(|e| node_err(ctx, format!("The request failed: {}", e.without_url())))?;
         let status = res.status();
-        let text = res
-            .text()
-            .await
-            .map_err(|e| node_err(ctx, format!("Could not read the response: {}", e.without_url())))?;
+        let text = res.text().await.map_err(|e| {
+            node_err(
+                ctx,
+                format!("Could not read the response: {}", e.without_url()),
+            )
+        })?;
         let parsed = if text.trim().is_empty() {
             None
         } else {
@@ -464,13 +527,20 @@ impl RestNode {
 
     fn map_error(&self, status: reqwest::StatusCode, body: Option<&Value>) -> String {
         let detail = body.and_then(|b| {
-            self.spec.error_paths.iter().find_map(|p| match get_path(b, p) {
-                Some(Value::String(s)) if !s.is_empty() => Some(s.clone()),
-                Some(v @ (Value::Number(_) | Value::Bool(_))) => Some(v.to_string()),
-                _ => None,
-            })
+            self.spec
+                .error_paths
+                .iter()
+                .find_map(|p| match get_path(b, p) {
+                    Some(Value::String(s)) if !s.is_empty() => Some(s.clone()),
+                    Some(v @ (Value::Number(_) | Value::Bool(_))) => Some(v.to_string()),
+                    _ => None,
+                })
         });
-        let mut msg = format!("The service returned an error: {} {}", status.as_u16(), status.canonical_reason().unwrap_or(""));
+        let mut msg = format!(
+            "The service returned an error: {} {}",
+            status.as_u16(),
+            status.canonical_reason().unwrap_or("")
+        );
         if let Some(d) = detail {
             msg.push_str(": ");
             msg.extend(d.chars().take(300));
@@ -510,7 +580,11 @@ impl RestNode {
         }
         let output = plan.route.output.clone();
         let is_list = output.as_ref().is_some_and(|o| o.property.is_some());
-        let target = if plan.return_all || !is_list { usize::MAX } else { plan.limit.unwrap_or(usize::MAX) };
+        let target = if plan.return_all || !is_list {
+            usize::MAX
+        } else {
+            plan.limit.unwrap_or(usize::MAX)
+        };
         let mut req = plan.req;
         let mut out: Vec<Value> = Vec::new();
 
@@ -540,15 +614,27 @@ impl RestNode {
                 Pagination::NextUrl { .. } => usize::MAX,
             };
             match &p {
-                Pagination::Offset { limit_param, offset_param, .. } => {
+                Pagination::Offset {
+                    limit_param,
+                    offset_param,
+                    ..
+                } => {
                     upsert(&mut req.query, limit_param, size.to_string());
                     upsert(&mut req.query, offset_param, offset.to_string());
                 }
-                Pagination::Page { page_param, size_param, .. } => {
+                Pagination::Page {
+                    page_param,
+                    size_param,
+                    ..
+                } => {
                     upsert(&mut req.query, size_param, size.to_string());
                     upsert(&mut req.query, page_param, page_no.to_string());
                 }
-                Pagination::Cursor { cursor_param, size_param, .. } => {
+                Pagination::Cursor {
+                    cursor_param,
+                    size_param,
+                    ..
+                } => {
                     if let Some(sp) = size_param {
                         upsert(&mut req.query, sp, size.to_string());
                     }
@@ -579,19 +665,28 @@ impl RestNode {
                     }
                 }
                 Pagination::Cursor { next_path, .. } => {
-                    match get_path(&body, next_path).map(display).filter(|s| !s.is_empty()) {
+                    match get_path(&body, next_path)
+                        .map(display)
+                        .filter(|s| !s.is_empty())
+                    {
                         Some(c) => cursor = Some(c),
                         None => break,
                     }
                 }
                 Pagination::NextUrl { next_path } => {
-                    let Some(next) = get_path(&body, next_path).map(display).filter(|s| !s.is_empty()) else {
+                    let Some(next) = get_path(&body, next_path)
+                        .map(display)
+                        .filter(|s| !s.is_empty())
+                    else {
                         break;
                     };
-                    let base = reqwest::Url::parse(&req.url).map_err(|_| node_err(ctx, "Invalid URL"))?;
+                    let base =
+                        reqwest::Url::parse(&req.url).map_err(|_| node_err(ctx, "Invalid URL"))?;
                     req.url = base
                         .join(&next)
-                        .map_err(|_| node_err(ctx, "Next URL from the response is not a valid URL"))?
+                        .map_err(|_| {
+                            node_err(ctx, "Next URL from the response is not a valid URL")
+                        })?
                         .to_string();
                     req.query.clear();
                 }
@@ -611,13 +706,21 @@ impl RestNode {
         let plan = self.plan(ctx, i, creds)?;
         let (simplify, fields) = (
             plan.simplify,
-            plan.route.output.as_ref().map(|o| o.simplify.clone()).unwrap_or_default(),
+            plan.route
+                .output
+                .as_ref()
+                .map(|o| o.simplify.clone())
+                .unwrap_or_default(),
         );
         let values = self.fetch(ctx, client, plan, &creds.auth, i).await?;
         Ok(values
             .into_iter()
             .map(|v| {
-                let v = if simplify && !fields.is_empty() { pick(&v, &fields) } else { v };
+                let v = if simplify && !fields.is_empty() {
+                    pick(&v, &fields)
+                } else {
+                    v
+                };
                 match v {
                     Value::Object(m) => Item::new(m),
                     other => Item::from_json(json!({ "value": other })),
@@ -646,7 +749,12 @@ impl FlowNode for RestNode {
         let client = reqwest::Client::builder()
             .timeout(self.spec.timeout)
             .build()
-            .map_err(|e| node_err(ctx, format!("Could not build HTTP client: {}", e.without_url())))?;
+            .map_err(|e| {
+                node_err(
+                    ctx,
+                    format!("Could not build HTTP client: {}", e.without_url()),
+                )
+            })?;
         let mut out = Vec::new();
         for i in 0..input.len() {
             match self.run_item(ctx, &client, &creds, i).await {

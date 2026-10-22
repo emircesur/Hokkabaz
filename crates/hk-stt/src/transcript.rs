@@ -106,7 +106,11 @@ pub struct SegmentOpts {
 
 impl Default for SegmentOpts {
     fn default() -> Self {
-        Self { max_gap: 0.8, max_duration: 12.0, max_words: 40 }
+        Self {
+            max_gap: 0.8,
+            max_duration: 12.0,
+            max_words: 40,
+        }
     }
 }
 
@@ -140,7 +144,8 @@ pub struct Transcript {
 
 /// Lowercase and strip edge punctuation for matching.
 pub(crate) fn normalize_token(s: &str) -> String {
-    s.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase()
+    s.trim_matches(|c: char| !c.is_alphanumeric())
+        .to_lowercase()
 }
 
 fn ends_sentence(text: &str) -> bool {
@@ -298,11 +303,19 @@ impl Transcript {
 
     /// Case/punctuation-insensitive phrase search; returns time spans.
     pub fn search(&self, query: &str) -> Vec<SearchHit> {
-        let q: Vec<String> = query.split_whitespace().map(normalize_token).filter(|t| !t.is_empty()).collect();
+        let q: Vec<String> = query
+            .split_whitespace()
+            .map(normalize_token)
+            .filter(|t| !t.is_empty())
+            .collect();
         if q.is_empty() || q.len() > self.words.len() {
             return Vec::new();
         }
-        let norm: Vec<String> = self.words.iter().map(|w| normalize_token(&w.text)).collect();
+        let norm: Vec<String> = self
+            .words
+            .iter()
+            .map(|w| normalize_token(&w.text))
+            .collect();
         let mut hits = Vec::new();
         let mut i = 0;
         while i + q.len() <= norm.len() {
@@ -356,7 +369,12 @@ impl Transcript {
 
     /// Indices of words flagged as filler.
     pub fn filler_indices(&self) -> BTreeSet<usize> {
-        self.words.iter().enumerate().filter(|(_, w)| w.flags.filler).map(|(i, _)| i).collect()
+        self.words
+            .iter()
+            .enumerate()
+            .filter(|(_, w)| w.flags.filler)
+            .map(|(i, _)| i)
+            .collect()
     }
 
     /// Time ranges to keep after deleting `deleted` word indices.
@@ -368,7 +386,11 @@ impl Transcript {
     /// ignored; everything deleted gives an empty list.
     pub fn kept_ranges(&self, deleted: &BTreeSet<usize>, padding: f64) -> Vec<Range<f64>> {
         let n = self.words.len();
-        let pad = if padding.is_finite() { padding.max(0.0) } else { 0.0 };
+        let pad = if padding.is_finite() {
+            padding.max(0.0)
+        } else {
+            0.0
+        };
         let mut runs: Vec<(usize, usize)> = Vec::new();
         let mut i = 0;
         while i < n {
@@ -392,7 +414,11 @@ impl Transcript {
             let lo = if s == 0 {
                 0.0
             } else {
-                let prev_end = if k == 0 { 0.0 } else { self.words[runs[k - 1].1].end };
+                let prev_end = if k == 0 {
+                    0.0
+                } else {
+                    self.words[runs[k - 1].1].end
+                };
                 (prev_end.min(ws) + ws) / 2.0
             };
             let hi = if e + 1 == n {
@@ -434,7 +460,10 @@ mod tests {
         Transcript {
             language: Some("en".into()),
             duration,
-            words: words.iter().map(|(t, s, e)| Word::new(*t, *s, *e)).collect(),
+            words: words
+                .iter()
+                .map(|(t, s, e)| Word::new(*t, *s, *e))
+                .collect(),
             segments: vec![],
         }
     }
@@ -444,11 +473,22 @@ mod tests {
     }
 
     fn approx(a: &Range<f64>, s: f64, e: f64) {
-        assert!((a.start - s).abs() < 1e-9 && (a.end - e).abs() < 1e-9, "{a:?} != {s}..{e}");
+        assert!(
+            (a.start - s).abs() < 1e-9 && (a.end - e).abs() < 1e-9,
+            "{a:?} != {s}..{e}"
+        );
     }
 
     fn sample() -> Transcript {
-        tr(&[("a", 1.0, 1.5), ("b", 1.5, 2.0), ("c", 3.0, 3.5), ("d", 3.5, 4.0)], 5.0)
+        tr(
+            &[
+                ("a", 1.0, 1.5),
+                ("b", 1.5, 2.0),
+                ("c", 3.0, 3.5),
+                ("d", 3.5, 4.0),
+            ],
+            5.0,
+        )
     }
 
     #[test]
@@ -505,7 +545,15 @@ mod tests {
 
     #[test]
     fn fix_timings_repairs_zero_negative_overlap() {
-        let mut t = tr(&[("a", 1.0, 1.0), ("b", 0.9, 0.5), ("c", 1.2, 1.1), ("d", 2.0, 2.5)], 0.0);
+        let mut t = tr(
+            &[
+                ("a", 1.0, 1.0),
+                ("b", 0.9, 0.5),
+                ("c", 1.2, 1.1),
+                ("d", 2.0, 2.5),
+            ],
+            0.0,
+        );
         t.fix_timings();
         for w in &t.words {
             assert!(w.duration() >= MIN_WORD_DURATION - 1e-12, "{w:?}");
@@ -522,7 +570,14 @@ mod tests {
     #[test]
     fn groups_sentences_and_gaps() {
         let mut t = tr(
-            &[("Hi.", 0.0, 0.3), ("How", 0.4, 0.6), ("are", 0.6, 0.8), ("you?", 0.8, 1.0), ("fine", 3.0, 3.3), ("ok", 3.3, 3.5)],
+            &[
+                ("Hi.", 0.0, 0.3),
+                ("How", 0.4, 0.6),
+                ("are", 0.6, 0.8),
+                ("you?", 0.8, 1.0),
+                ("fine", 3.0, 3.3),
+                ("ok", 3.3, 3.5),
+            ],
             4.0,
         );
         t.regroup_segments(&SegmentOpts::default());
@@ -530,7 +585,10 @@ mod tests {
         assert_eq!(t.segments[1].text, "How are you?");
         assert_eq!(t.segments[1].word_range, 1..4);
         assert_eq!(t.segments[2].word_range, 4..6);
-        let max = SegmentOpts { max_words: 2, ..Default::default() };
+        let max = SegmentOpts {
+            max_words: 2,
+            ..Default::default()
+        };
         t.regroup_segments(&max);
         assert!(t.segments.iter().all(|s| s.word_range.len() <= 2));
     }

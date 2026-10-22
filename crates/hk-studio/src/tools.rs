@@ -41,19 +41,29 @@ pub fn studio_tools(svc: Arc<StudioService>) -> Vec<Arc<dyn Tool>> {
 }
 
 fn obj<'a>(tool: &str, args: &'a Value) -> Result<&'a Map<String, Value>, ToolError> {
-    args.as_object().ok_or_else(|| bad(tool, "arguments must be an object"))
+    args.as_object()
+        .ok_or_else(|| bad(tool, "arguments must be an object"))
 }
 
 fn bad(tool: &str, reason: impl Into<String>) -> ToolError {
-    ToolError::InvalidArgs { tool: tool.into(), reason: reason.into() }
+    ToolError::InvalidArgs {
+        tool: tool.into(),
+        reason: reason.into(),
+    }
 }
 
 fn failed(tool: &str, e: impl std::fmt::Display) -> ToolError {
-    ToolError::Failed { tool: tool.into(), reason: e.to_string() }
+    ToolError::Failed {
+        tool: tool.into(),
+        reason: e.to_string(),
+    }
 }
 
 fn s<'a>(tool: &str, a: &'a Map<String, Value>, key: &str) -> Result<&'a str, ToolError> {
-    a.get(key).and_then(Value::as_str).filter(|v| !v.is_empty()).ok_or_else(|| bad(tool, format!("`{key}` is required")))
+    a.get(key)
+        .and_then(Value::as_str)
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| bad(tool, format!("`{key}` is required")))
 }
 
 fn f(a: &Map<String, Value>, key: &str) -> Option<f64> {
@@ -125,15 +135,29 @@ impl Tool for Projects {
         match a.get("action").and_then(Value::as_str) {
             Some("list") => out(&json!(self.0.projects().await.map_err(|e| failed(T, e))?)),
             Some("get") => {
-                let live = self.0.open(s(T, a, "project")?).await.map_err(|e| failed(T, e))?;
+                let live = self
+                    .0
+                    .open(s(T, a, "project")?)
+                    .await
+                    .map_err(|e| failed(T, e))?;
                 out(&project_json(&live.snapshot().await))
             }
             Some("import") => {
-                let live = self.0.import(Path::new(s(T, a, "path")?), a.get("name").and_then(Value::as_str)).await.map_err(|e| failed(T, e))?;
+                let live = self
+                    .0
+                    .import(
+                        Path::new(s(T, a, "path")?),
+                        a.get("name").and_then(Value::as_str),
+                    )
+                    .await
+                    .map_err(|e| failed(T, e))?;
                 out(&project_json(&live.snapshot().await))
             }
             Some("delete") => {
-                self.0.delete(s(T, a, "project")?).await.map_err(|e| failed(T, e))?;
+                self.0
+                    .delete(s(T, a, "project")?)
+                    .await
+                    .map_err(|e| failed(T, e))?;
                 out(&json!({"deleted": true}))
             }
             _ => Err(bad(T, "`action` must be list, get, import or delete")),
@@ -163,9 +187,17 @@ impl Tool for Transcribe {
         const T: &str = "studio_transcribe";
         let id = s(T, obj(T, &args)?, "project")?;
         self.0.transcribe(id).await.map_err(|e| failed(T, e))?;
-        let p = self.0.open(id).await.map_err(|e| failed(T, e))?.snapshot().await;
+        let p = self
+            .0
+            .open(id)
+            .await
+            .map_err(|e| failed(T, e))?
+            .snapshot()
+            .await;
         let t = p.transcript.as_ref();
-        out(&json!({"words": t.map(|t| t.words.len()), "language": t.and_then(|t| t.language.clone()), "fillers": t.map(|t| t.filler_indices().len())}))
+        out(
+            &json!({"words": t.map(|t| t.words.len()), "language": t.and_then(|t| t.language.clone()), "fillers": t.map(|t| t.filler_indices().len())}),
+        )
     }
 }
 
@@ -186,18 +218,43 @@ impl Tool for Transcript {
     async fn execute(&self, _ctx: ToolCtx, args: Value) -> Result<ToolOutput, ToolError> {
         const T: &str = "studio_transcript";
         let a = obj(T, &args)?;
-        let p = self.0.open(s(T, a, "project")?).await.map_err(|e| failed(T, e))?.snapshot().await;
+        let p = self
+            .0
+            .open(s(T, a, "project")?)
+            .await
+            .map_err(|e| failed(T, e))?
+            .snapshot()
+            .await;
         let t = p.transcript().map_err(|e| failed(T, e))?;
-        let (start, end) = (f(a, "start").unwrap_or(0.0), f(a, "end").unwrap_or(f64::MAX));
+        let (start, end) = (
+            f(a, "start").unwrap_or(0.0),
+            f(a, "end").unwrap_or(f64::MAX),
+        );
         let mut lines = Vec::new();
-        for (shown, (i, w)) in t.words.iter().enumerate().filter(|(_, w)| w.end > start && w.start < end).enumerate() {
+        for (shown, (i, w)) in t
+            .words
+            .iter()
+            .enumerate()
+            .filter(|(_, w)| w.end > start && w.start < end)
+            .enumerate()
+        {
             if shown >= MAX_WORDS_SHOWN {
-                lines.push(format!("... truncated at {MAX_WORDS_SHOWN} words; pass start/end to read more"));
+                lines.push(format!(
+                    "... truncated at {MAX_WORDS_SHOWN} words; pass start/end to read more"
+                ));
                 break;
             }
-            lines.push(format!("{i}|{:.1}|{}{}", w.start, w.text, if w.flags.filler { "*" } else { "" }));
+            lines.push(format!(
+                "{i}|{:.1}|{}{}",
+                w.start,
+                w.text,
+                if w.flags.filler { "*" } else { "" }
+            ));
         }
-        Ok(ToolOutput::ok(format!("index|start|word\n{}", lines.join("\n"))))
+        Ok(ToolOutput::ok(format!(
+            "index|start|word\n{}",
+            lines.join("\n")
+        )))
     }
 }
 
@@ -233,9 +290,29 @@ impl Tool for Highlights {
         o.min_secs = f(a, "min_secs").unwrap_or(o.min_secs);
         o.max_secs = f(a, "max_secs").unwrap_or(o.max_secs);
         o.brief = a.get("brief").and_then(Value::as_str).map(str::to_string);
-        let ids = self.0.analyze(id, &o, a.get("rubric").and_then(Value::as_str), a.get("template").and_then(Value::as_str)).await.map_err(|e| failed(T, e))?;
-        let p = self.0.open(id).await.map_err(|e| failed(T, e))?.snapshot().await;
-        let clips: Vec<Value> = p.clips.iter().filter(|c| ids.contains(&c.id)).map(|c| clip_json(&p, c)).collect();
+        let ids = self
+            .0
+            .analyze(
+                id,
+                &o,
+                a.get("rubric").and_then(Value::as_str),
+                a.get("template").and_then(Value::as_str),
+            )
+            .await
+            .map_err(|e| failed(T, e))?;
+        let p = self
+            .0
+            .open(id)
+            .await
+            .map_err(|e| failed(T, e))?
+            .snapshot()
+            .await;
+        let clips: Vec<Value> = p
+            .clips
+            .iter()
+            .filter(|c| ids.contains(&c.id))
+            .map(|c| clip_json(&p, c))
+            .collect();
         out(&json!({"added": clips.len(), "clips": clips}))
     }
 }
@@ -261,10 +338,13 @@ impl Tool for Edit {
         const T: &str = "studio_edit";
         let a = obj(T, &args)?;
         let id = s(T, a, "project")?;
-        let ops: Vec<EditOp> = serde_json::from_value(a.get("ops").cloned().unwrap_or(Value::Null)).map_err(|e| bad(T, format!("bad ops: {e}")))?;
+        let ops: Vec<EditOp> = serde_json::from_value(a.get("ops").cloned().unwrap_or(Value::Null))
+            .map_err(|e| bad(T, format!("bad ops: {e}")))?;
         let live = self.0.open(id).await.map_err(|e| failed(T, e))?;
         for (i, op) in ops.into_iter().enumerate() {
-            live.edit(op, "agent").await.map_err(|e| failed(T, format!("op #{i}: {e}")))?;
+            live.edit(op, "agent")
+                .await
+                .map_err(|e| failed(T, format!("op #{i}: {e}")))?;
         }
         out(&project_json(&live.snapshot().await))
     }
@@ -294,7 +374,11 @@ impl Tool for Track {
             Some("square") => Some(crate::reframe::ReframeSpec::square()),
             _ => Some(crate::reframe::ReframeSpec::vertical()),
         };
-        let n = self.0.track(s(T, a, "project")?, s(T, a, "clip")?, base).await.map_err(|e| failed(T, e))?;
+        let n = self
+            .0
+            .track(s(T, a, "project")?, s(T, a, "clip")?, base)
+            .await
+            .map_err(|e| failed(T, e))?;
         out(&json!({"tracked_points": n}))
     }
 }
@@ -320,7 +404,11 @@ impl Tool for Broll {
         if let Some(m) = a.get("max").and_then(Value::as_u64) {
             o.max = m.clamp(1, 10) as usize;
         }
-        let n = self.0.add_broll(s(T, a, "project")?, s(T, a, "clip")?, &o).await.map_err(|e| failed(T, e))?;
+        let n = self
+            .0
+            .add_broll(s(T, a, "project")?, s(T, a, "clip")?, &o)
+            .await
+            .map_err(|e| failed(T, e))?;
         out(&json!({"inserted": n}))
     }
 }
@@ -332,7 +420,9 @@ impl Tool for Social {
     fn spec(&self) -> ToolSpec {
         ToolSpec {
             name: "studio_social".into(),
-            description: "Write titles, descriptions and hashtags for a clip, within each platform's limits.".into(),
+            description:
+                "Write titles, descriptions and hashtags for a clip, within each platform's limits."
+                    .into(),
             parameters: json!({"type":"object","properties":{
                 "project":{"type":"string"},"clip":{"type":"string"},
                 "platforms":{"type":"array","items":{"type":"string","enum":["youtube_shorts","tiktok","instagram_reels","x","linkedin"]}},
@@ -346,16 +436,32 @@ impl Tool for Social {
         let a = obj(T, &args)?;
         let (id, clip) = (s(T, a, "project")?, s(T, a, "clip")?);
         let platforms: Vec<Platform> = match a.get("platforms") {
-            Some(v) => serde_json::from_value(v.clone()).map_err(|e| bad(T, format!("bad platforms: {e}")))?,
+            Some(v) => serde_json::from_value(v.clone())
+                .map_err(|e| bad(T, format!("bad platforms: {e}")))?,
             None => Platform::ALL.to_vec(),
         };
         let opts = SocialOpts {
             tone: a.get("tone").and_then(Value::as_str).map(str::to_string),
-            language: a.get("language").and_then(Value::as_str).map(str::to_string),
-            call_to_action: a.get("call_to_action").and_then(Value::as_str).map(str::to_string),
+            language: a
+                .get("language")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            call_to_action: a
+                .get("call_to_action")
+                .and_then(Value::as_str)
+                .map(str::to_string),
         };
-        self.0.social(id, clip, &platforms, &opts).await.map_err(|e| failed(T, e))?;
-        let p = self.0.open(id).await.map_err(|e| failed(T, e))?.snapshot().await;
+        self.0
+            .social(id, clip, &platforms, &opts)
+            .await
+            .map_err(|e| failed(T, e))?;
+        let p = self
+            .0
+            .open(id)
+            .await
+            .map_err(|e| failed(T, e))?
+            .snapshot()
+            .await;
         out(&json!(p.clip(clip).map_err(|e| failed(T, e))?.social))
     }
 }
@@ -384,17 +490,29 @@ impl Tool for Render {
         let (id, clip) = (s(T, a, "project")?, s(T, a, "clip")?);
         let live = self.0.open(id).await.map_err(|e| failed(T, e))?;
         let mut rx = live.subscribe();
-        let job = self.0.start_render(id, clip, RenderOpts::default()).await.map_err(|e| failed(T, e))?;
+        let job = self
+            .0
+            .start_render(id, clip, RenderOpts::default())
+            .await
+            .map_err(|e| failed(T, e))?;
         if a.get("wait").and_then(Value::as_bool) == Some(false) {
             return out(&json!({"job": job, "status": "started"}));
         }
-        let secs = a.get("timeout_secs").and_then(Value::as_u64).unwrap_or(600).min(MAX_RENDER_WAIT_SECS);
+        let secs = a
+            .get("timeout_secs")
+            .and_then(Value::as_u64)
+            .unwrap_or(600)
+            .min(MAX_RENDER_WAIT_SECS);
         let wait = async {
             loop {
                 match rx.recv().await {
                     Ok(StudioEvent::RenderDone { clip: c, path }) if c == clip => return Ok(path),
-                    Ok(StudioEvent::RenderFailed { clip: c, error }) if c == clip => return Err(error),
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return Err("session closed".to_string()),
+                    Ok(StudioEvent::RenderFailed { clip: c, error }) if c == clip => {
+                        return Err(error);
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        return Err("session closed".to_string());
+                    }
                     _ => {}
                 }
             }
@@ -402,7 +520,9 @@ impl Tool for Render {
         match tokio::time::timeout(Duration::from_secs(secs), wait).await {
             Ok(Ok(path)) => out(&json!({"job": job, "status": "done", "path": path})),
             Ok(Err(e)) => Ok(ToolOutput::error(format!("render failed: {e}"))),
-            Err(_) => out(&json!({"job": job, "status": "running", "note": "still rendering; call studio_export later"})),
+            Err(_) => out(
+                &json!({"job": job, "status": "running", "note": "still rendering; call studio_export later"}),
+            ),
         }
     }
 }
@@ -429,7 +549,15 @@ impl Tool for Export {
     async fn execute(&self, _ctx: ToolCtx, args: Value) -> Result<ToolOutput, ToolError> {
         const T: &str = "studio_export";
         let a = obj(T, &args)?;
-        let p = self.0.export_package(s(T, a, "project")?, s(T, a, "clip")?, Path::new(s(T, a, "dir")?)).await.map_err(|e| failed(T, e))?;
+        let p = self
+            .0
+            .export_package(
+                s(T, a, "project")?,
+                s(T, a, "clip")?,
+                Path::new(s(T, a, "dir")?),
+            )
+            .await
+            .map_err(|e| failed(T, e))?;
         out(&json!({"folder": p.to_string_lossy()}))
     }
 }
@@ -461,8 +589,14 @@ impl Tool for Publish {
             Some("unlisted") => crate::publish::Privacy::Unlisted,
             _ => crate::publish::Privacy::Private,
         };
-        let out = self.0.publish_youtube(s(T, a, "project")?, s(T, a, "clip")?, privacy).await.map_err(|e| failed(T, e))?;
-        out_json(&json!({"id": out.id, "url": out.url, "privacy": format!("{privacy:?}").to_lowercase()}))
+        let out = self
+            .0
+            .publish_youtube(s(T, a, "project")?, s(T, a, "clip")?, privacy)
+            .await
+            .map_err(|e| failed(T, e))?;
+        out_json(
+            &json!({"id": out.id, "url": out.url, "privacy": format!("{privacy:?}").to_lowercase()}),
+        )
     }
 }
 

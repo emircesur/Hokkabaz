@@ -38,13 +38,19 @@ pub fn credential_type() -> CredentialType {
             let get = |k: &str| d.get(k).map(display).unwrap_or_default();
             let mut out = AppliedAuth::default();
             if !get("accessToken").is_empty() {
-                out.headers.push(("Authorization".into(), format!("Bearer {}", get("accessToken"))));
+                out.headers.push((
+                    "Authorization".into(),
+                    format!("Bearer {}", get("accessToken")),
+                ));
             } else if !get("user").is_empty() {
                 out.basic = Some((get("user"), get("password")));
             }
             Ok::<_, CredentialError>(out)
         }))
-        .test(CredentialTest::get("={{$credentials.serverUrl}}", "/v1/account"))
+        .test(CredentialTest::get(
+            "={{$credentials.serverUrl}}",
+            "/v1/account",
+        ))
 }
 
 fn description() -> hk_flow::description::NodeTypeDescription {
@@ -68,7 +74,11 @@ fn description() -> hk_flow::description::NodeTypeDescription {
         .icon("fa:bell")
         .color("#338574")
         .credential(CREDENTIAL, false)
-        .property(Prop::options("resource", "Resource", vec![Choice::new("Message", "message")]))
+        .property(Prop::options(
+            "resource",
+            "Resource",
+            vec![Choice::new("Message", "message")],
+        ))
         .property(
             Prop::options(
                 "operation",
@@ -81,8 +91,16 @@ fn description() -> hk_flow::description::NodeTypeDescription {
             )
             .show("resource", &["message"]),
         )
-        .property(Prop::string("topic", "Topic").required().send(RouteSend::body("topic")))
-        .property(Prop::string("message", "Message").required().send(RouteSend::body("message")))
+        .property(
+            Prop::string("topic", "Topic")
+                .required()
+                .send(RouteSend::body("topic")),
+        )
+        .property(
+            Prop::string("message", "Message")
+                .required()
+                .send(RouteSend::body("message")),
+        )
         .property(Prop::collection(
             "additionalFields",
             "Additional Fields",
@@ -94,7 +112,9 @@ fn description() -> hk_flow::description::NodeTypeDescription {
                     .send(RouteSend::body("tags")),
                 Prop::string("click", "Click URL").send(RouteSend::body("click")),
                 Prop::string("icon", "Icon URL").send(RouteSend::body("icon")),
-                Prop::string("delay", "Delay").placeholder("30m").send(RouteSend::body("delay")),
+                Prop::string("delay", "Delay")
+                    .placeholder("30m")
+                    .send(RouteSend::body("delay")),
                 Prop::boolean("markdown", "Markdown").send(RouteSend::body("markdown")),
             ],
         ))

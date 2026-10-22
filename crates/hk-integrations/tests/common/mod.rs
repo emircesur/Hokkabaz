@@ -17,7 +17,9 @@ pub async fn serve(responses: Vec<String>) -> (String, Arc<Mutex<Vec<String>>>) 
     let seen2 = seen.clone();
     tokio::spawn(async move {
         for resp in responses {
-            let Ok((mut sock, _)) = listener.accept().await else { return };
+            let Ok((mut sock, _)) = listener.accept().await else {
+                return;
+            };
             let mut buf = Vec::new();
             let mut chunk = [0u8; 4096];
             loop {
@@ -41,7 +43,10 @@ pub async fn serve(responses: Vec<String>) -> (String, Arc<Mutex<Vec<String>>>) 
                     break;
                 }
             }
-            seen2.lock().unwrap().push(String::from_utf8_lossy(&buf).into_owned());
+            seen2
+                .lock()
+                .unwrap()
+                .push(String::from_utf8_lossy(&buf).into_owned());
             let _ = sock.write_all(resp.as_bytes()).await;
             let _ = sock.shutdown().await;
         }
@@ -62,7 +67,11 @@ pub struct Creds(pub Value);
 
 #[async_trait]
 impl CredentialResolver for Creds {
-    async fn resolve(&self, _kind: &str, _r: &CredentialRef) -> Result<Map<String, Value>, FlowError> {
+    async fn resolve(
+        &self,
+        _kind: &str,
+        _r: &CredentialRef,
+    ) -> Result<Map<String, Value>, FlowError> {
         match &self.0 {
             Value::Object(m) => Ok(m.clone()),
             _ => Ok(Map::new()),

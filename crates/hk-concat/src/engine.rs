@@ -22,8 +22,8 @@ use concat_mcp::tools::{Context, Toolbox};
 use serde_json::{Value, json};
 use tokio::sync::oneshot;
 
-use crate::backend::{BackendType, ConcatBackend, ToolReply};
 use crate::ConcatError;
+use crate::backend::{BackendType, ConcatBackend, ToolReply};
 
 struct Job {
     name: String,
@@ -73,7 +73,11 @@ impl EngineBackend {
                     let outcome = toolbox.call(
                         &job.name,
                         job.args,
-                        Context { backend: &mut backend, cancelled: &cancelled, progress: None },
+                        Context {
+                            backend: &mut backend,
+                            cancelled: &cancelled,
+                            progress: None,
+                        },
                     );
                     let reply = match outcome {
                         None => Err(ConcatError::Tool {
@@ -87,7 +91,11 @@ impl EngineBackend {
                                 res["structuredContent"] = s;
                             }
                             let reply = crate::process::parse_call_result(&res);
-                            if o.is_error { Err(ConcatError::from_tool_text(&job.name, &reply.text)) } else { Ok(reply) }
+                            if o.is_error {
+                                Err(ConcatError::from_tool_text(&job.name, &reply.text))
+                            } else {
+                                Ok(reply)
+                            }
                         }
                     };
                     let _ = job.reply.send(reply);
@@ -96,9 +104,14 @@ impl EngineBackend {
             })
             .map_err(|e| ConcatError::Spawn(format!("engine thread: {e}")))?;
         match ready_rx.recv() {
-            Ok(Ok(())) => Ok(Self { tx: Mutex::new(Some(tx)), worker: Mutex::new(Some(worker)) }),
+            Ok(Ok(())) => Ok(Self {
+                tx: Mutex::new(Some(tx)),
+                worker: Mutex::new(Some(worker)),
+            }),
             Ok(Err(e)) => Err(ConcatError::Spawn(format!("Concat engine: {e}"))),
-            Err(_) => Err(ConcatError::Spawn("Concat engine thread died during start".into())),
+            Err(_) => Err(ConcatError::Spawn(
+                "Concat engine thread died during start".into(),
+            )),
         }
     }
 }
@@ -112,17 +125,39 @@ impl ConcatBackend for EngineBackend {
     async fn call_tool(&self, name: &str, args: Value) -> Result<ToolReply, ConcatError> {
         let (reply, rx) = oneshot::channel();
         {
-            let g = self.tx.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            let tx = g.as_ref().ok_or_else(|| ConcatError::Closed { stderr: String::new() })?;
-            tx.send(Job { name: name.to_owned(), args, reply })
-                .map_err(|_| ConcatError::Closed { stderr: String::new() })?;
+            let g = self
+                .tx
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let tx = g.as_ref().ok_or_else(|| ConcatError::Closed {
+                stderr: String::new(),
+            })?;
+            tx.send(Job {
+                name: name.to_owned(),
+                args,
+                reply,
+            })
+            .map_err(|_| ConcatError::Closed {
+                stderr: String::new(),
+            })?;
         }
-        rx.await.map_err(|_| ConcatError::Closed { stderr: "engine worker panicked".into() })?
+        rx.await.map_err(|_| ConcatError::Closed {
+            stderr: "engine worker panicked".into(),
+        })?
     }
 
     async fn shutdown(&self) {
-        drop(self.tx.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take());
-        let worker = self.worker.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
+        drop(
+            self.tx
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take(),
+        );
+        let worker = self
+            .worker
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
         if let Some(w) = worker {
             let _ = tokio::task::spawn_blocking(move || w.join()).await;
         }

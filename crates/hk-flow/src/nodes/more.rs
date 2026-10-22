@@ -105,13 +105,23 @@ impl FlowNode for StopAndErrorNode {
                     .ok()
                     .and_then(|v| v.get("message").and_then(Value::as_str).map(str::to_owned))
                     .unwrap_or(s),
-                Some(v) => v.get("message").and_then(Value::as_str).map_or_else(|| v.to_string(), str::to_owned),
+                Some(v) => v
+                    .get("message")
+                    .and_then(Value::as_str)
+                    .map_or_else(|| v.to_string(), str::to_owned),
                 None => String::new(),
             }
         } else {
             param_str(ctx, "errorMessage", 0, "")?
         };
-        Err(node_err(ctx, if msg.is_empty() { "Stopped by Stop and Error node" } else { &msg }))
+        Err(node_err(
+            ctx,
+            if msg.is_empty() {
+                "Stopped by Stop and Error node"
+            } else {
+                &msg
+            },
+        ))
     }
 }
 
@@ -166,20 +176,46 @@ impl SummarizeNode {
 
 fn aggregate_one(values: &[&Value], agg: &str, include_empty: bool, sep: &str) -> Value {
     let is_empty = |v: &&Value| v.is_null() || matches!(v, Value::String(s) if s.is_empty());
-    let pick: Vec<&Value> = values.iter().copied().filter(|v| include_empty || !is_empty(v)).collect();
-    let nums = || pick.iter().filter_map(|v| v.as_f64().or_else(|| v.as_str().and_then(|s| s.trim().parse().ok())));
+    let pick: Vec<&Value> = values
+        .iter()
+        .copied()
+        .filter(|v| include_empty || !is_empty(v))
+        .collect();
+    let nums = || {
+        pick.iter().filter_map(|v| {
+            v.as_f64()
+                .or_else(|| v.as_str().and_then(|s| s.trim().parse().ok()))
+        })
+    };
     match agg {
         "append" => Value::Array(pick.into_iter().cloned().collect()),
-        "concatenate" => Value::String(pick.iter().map(|v| to_display(v)).collect::<Vec<_>>().join(sep)),
+        "concatenate" => Value::String(
+            pick.iter()
+                .map(|v| to_display(v))
+                .collect::<Vec<_>>()
+                .join(sep),
+        ),
         "count" => num(pick.len() as f64),
-        "countUnique" => num(pick.iter().map(|v| canonical(v)).collect::<std::collections::HashSet<_>>().len() as f64),
+        "countUnique" => num(pick
+            .iter()
+            .map(|v| canonical(v))
+            .collect::<std::collections::HashSet<_>>()
+            .len() as f64),
         "sum" => num(nums().sum()),
         "average" => {
             let v: Vec<f64> = nums().collect();
-            if v.is_empty() { Value::Null } else { num(v.iter().sum::<f64>() / v.len() as f64) }
+            if v.is_empty() {
+                Value::Null
+            } else {
+                num(v.iter().sum::<f64>() / v.len() as f64)
+            }
         }
-        "max" => nums().fold(None, |a: Option<f64>, x| Some(a.map_or(x, |a| a.max(x)))).map_or(Value::Null, num),
-        "min" => nums().fold(None, |a: Option<f64>, x| Some(a.map_or(x, |a| a.min(x)))).map_or(Value::Null, num),
+        "max" => nums()
+            .fold(None, |a: Option<f64>, x| Some(a.map_or(x, |a| a.max(x))))
+            .map_or(Value::Null, num),
+        "min" => nums()
+            .fold(None, |a: Option<f64>, x| Some(a.map_or(x, |a| a.min(x))))
+            .map_or(Value::Null, num),
         _ => Value::Null,
     }
 }
@@ -202,11 +238,17 @@ impl FlowNode for SummarizeNode {
 
         let mut groups: IndexMap<String, Vec<&Item>> = IndexMap::new();
         for it in items {
-            let key: Vec<Value> = split.iter().map(|f| get_path(&it.json, f, true).cloned().unwrap_or(Value::Null)).collect();
+            let key: Vec<Value> = split
+                .iter()
+                .map(|f| get_path(&it.json, f, true).cloned().unwrap_or(Value::Null))
+                .collect();
             if skip_empty && key.iter().any(|v| v.is_null()) {
                 continue;
             }
-            groups.entry(canonical(&Value::Array(key))).or_default().push(it);
+            groups
+                .entry(canonical(&Value::Array(key)))
+                .or_default()
+                .push(it);
         }
         if split.is_empty() {
             groups.clear();
@@ -218,28 +260,54 @@ impl FlowNode for SummarizeNode {
             let mut row = Map::new();
             if let Some(first) = members.first() {
                 for f in &split {
-                    row.insert(f.clone(), get_path(&first.json, f, true).cloned().unwrap_or(Value::Null));
+                    row.insert(
+                        f.clone(),
+                        get_path(&first.json, f, true)
+                            .cloned()
+                            .unwrap_or(Value::Null),
+                    );
                 }
             }
             for s in specs {
-                let agg = s.get("aggregation").and_then(Value::as_str).unwrap_or("count");
+                let agg = s
+                    .get("aggregation")
+                    .and_then(Value::as_str)
+                    .unwrap_or("count");
                 let field = s.get("field").and_then(Value::as_str).unwrap_or("");
-                let include_empty = s.get("includeEmpty").and_then(Value::as_bool).unwrap_or(false);
+                let include_empty = s
+                    .get("includeEmpty")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
                 let sep = match s.get("separateBy").and_then(Value::as_str).unwrap_or(",") {
-                    "other" => s.get("customSeparator").and_then(Value::as_str).unwrap_or(""),
+                    "other" => s
+                        .get("customSeparator")
+                        .and_then(Value::as_str)
+                        .unwrap_or(""),
                     v => v,
                 };
-                let vals: Vec<&Value> = members.iter().filter_map(|it| get_path(&it.json, field, true)).collect();
+                let vals: Vec<&Value> = members
+                    .iter()
+                    .filter_map(|it| get_path(&it.json, field, true))
+                    .collect();
                 if vals.is_empty() && !members.is_empty() && !lenient && agg != "count" {
-                    return Err(node_err(ctx, format!("The field '{field}' does not exist in any items")));
+                    return Err(node_err(
+                        ctx,
+                        format!("The field '{field}' does not exist in any items"),
+                    ));
                 }
-                row.insert(format!("{agg}_{field}"), aggregate_one(&vals, agg, include_empty, sep));
+                row.insert(
+                    format!("{agg}_{field}"),
+                    aggregate_one(&vals, agg, include_empty, sep),
+                );
             }
             rows.push(row);
         }
         if single {
             let mut m = Map::new();
-            m.insert("splitBy".into(), Value::Array(rows.into_iter().map(Value::Object).collect()));
+            m.insert(
+                "splitBy".into(),
+                Value::Array(rows.into_iter().map(Value::Object).collect()),
+            );
             return Ok(vec![vec![Item::new(m)]]);
         }
         Ok(vec![rows.into_iter().map(Item::new).collect()])
@@ -281,12 +349,19 @@ impl RenameKeysNode {
     }
 }
 
-fn rename_deep(m: &Map<String, Value>, re: &regex::Regex, with: &str, depth: i64) -> Map<String, Value> {
+fn rename_deep(
+    m: &Map<String, Value>,
+    re: &regex::Regex,
+    with: &str,
+    depth: i64,
+) -> Map<String, Value> {
     m.iter()
         .map(|(k, v)| {
             let nk = re.replace_all(k, with).into_owned();
             let nv = match v {
-                Value::Object(o) if depth != 0 => Value::Object(rename_deep(o, re, with, depth - 1)),
+                Value::Object(o) if depth != 0 => {
+                    Value::Object(rename_deep(o, re, with, depth - 1))
+                }
                 other => other.clone(),
             };
             (nk, nv)
@@ -397,7 +472,11 @@ impl FlowNode for CompareDatasetsNode {
         let key_of = |it: &Item, side_a: bool| -> String {
             let k: Vec<Value> = pairs
                 .iter()
-                .map(|(f1, f2)| get_path(&it.json, if side_a { f1 } else { f2 }, dot).cloned().unwrap_or(Value::Null))
+                .map(|(f1, f2)| {
+                    get_path(&it.json, if side_a { f1 } else { f2 }, dot)
+                        .cloned()
+                        .unwrap_or(Value::Null)
+                })
                 .collect();
             canonical(&Value::Array(k))
         };
@@ -408,13 +487,24 @@ impl FlowNode for CompareDatasetsNode {
         let mut used_b = vec![false; b.len()];
         let (mut only_a, mut same, mut different) = (Vec::new(), Vec::new(), Vec::new());
         for it in a {
-            let hit = b_index.get_mut(&key_of(it, true)).and_then(|v| if v.is_empty() { None } else { Some(v.remove(0)) });
+            let hit = b_index.get_mut(&key_of(it, true)).and_then(|v| {
+                if v.is_empty() {
+                    None
+                } else {
+                    Some(v.remove(0))
+                }
+            });
             let Some(j) = hit else {
                 only_a.push(it.clone());
                 continue;
             };
             used_b[j] = true;
-            let strip = |m: &Map<String, Value>| -> Map<String, Value> { m.iter().filter(|(k, _)| !skip.contains(k)).map(|(k, v)| (k.clone(), v.clone())).collect() };
+            let strip = |m: &Map<String, Value>| -> Map<String, Value> {
+                m.iter()
+                    .filter(|(k, _)| !skip.contains(k))
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
+            };
             let (ja, jb) = (strip(&it.json), strip(&b[j].json));
             if ja == jb {
                 same.push(it.clone());
@@ -422,7 +512,10 @@ impl FlowNode for CompareDatasetsNode {
             }
             let mut keys = Map::new();
             for (f1, _) in &pairs {
-                keys.insert(f1.clone(), get_path(&it.json, f1, dot).cloned().unwrap_or(Value::Null));
+                keys.insert(
+                    f1.clone(),
+                    get_path(&it.json, f1, dot).cloned().unwrap_or(Value::Null),
+                );
             }
             let mut same_f = Map::new();
             let mut diff_f = Map::new();
@@ -433,7 +526,10 @@ impl FlowNode for CompareDatasetsNode {
                         same_f.insert(k.clone(), x.clone());
                     }
                     (x, y) => {
-                        let (x, y) = (x.cloned().unwrap_or(Value::Null), y.cloned().unwrap_or(Value::Null));
+                        let (x, y) = (
+                            x.cloned().unwrap_or(Value::Null),
+                            y.cloned().unwrap_or(Value::Null),
+                        );
                         let v = match resolve.as_str() {
                             "preferInput1" => x,
                             "preferInput2" => y,
@@ -450,7 +546,12 @@ impl FlowNode for CompareDatasetsNode {
             m.insert("different".into(), Value::Object(diff_f));
             different.push(Item::new(m));
         }
-        let only_b: Vec<Item> = b.iter().enumerate().filter(|(j, _)| !used_b[*j]).map(|(_, it)| it.clone()).collect();
+        let only_b: Vec<Item> = b
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| !used_b[*j])
+            .map(|(_, it)| it.clone())
+            .collect();
         Ok(vec![only_a, same, different, only_b])
     }
 }
@@ -514,7 +615,13 @@ fn make_binary(bytes: &[u8], mime: &str, name: &str, ext: &str) -> BinaryData {
 }
 
 fn human_size(n: usize) -> String {
-    if n < 1024 { format!("{n} B") } else if n < 1024 * 1024 { format!("{:.1} kB", n as f64 / 1024.0) } else { format!("{:.1} MB", n as f64 / 1048576.0) }
+    if n < 1024 {
+        format!("{n} B")
+    } else if n < 1024 * 1024 {
+        format!("{:.1} kB", n as f64 / 1024.0)
+    } else {
+        format!("{:.1} MB", n as f64 / 1048576.0)
+    }
 }
 
 fn with_binary(prop: &str, b: BinaryData) -> Item {
@@ -536,29 +643,54 @@ impl FlowNode for ConvertToFileNode {
         let prop = param_str(ctx, "binaryPropertyName", 0, "data")?;
         let each = param_str(ctx, "options.mode", 0, "once")? == "each";
         let name = param_str(ctx, "options.fileName", 0, "")?;
-        let delim = param_str(ctx, "options.delimiter", 0, ",")?.chars().next().unwrap_or(',');
+        let delim = param_str(ctx, "options.delimiter", 0, ",")?
+            .chars()
+            .next()
+            .unwrap_or(',');
         let header = param_bool(ctx, "options.headerRow", 0, true)?;
         let mut out = Vec::new();
         match op.as_str() {
             "toBinary" | "toText" => {
                 let src = param_str(ctx, "sourceProperty", 0, "")?;
                 for (i, it) in items.iter().enumerate() {
-                    let v = get_path(&it.json, &src, true).ok_or_else(|| node_err(ctx, format!("No property named '{src}' exists in item {i}")))?;
+                    let v = get_path(&it.json, &src, true).ok_or_else(|| {
+                        node_err(ctx, format!("No property named '{src}' exists in item {i}"))
+                    })?;
                     let text = to_display(v);
                     let bytes = if op == "toBinary" {
-                        B64.decode(text.trim()).map_err(|e| node_err(ctx, format!("'{src}' is not valid base64: {e}")))?
+                        B64.decode(text.trim()).map_err(|e| {
+                            node_err(ctx, format!("'{src}' is not valid base64: {e}"))
+                        })?
                     } else {
                         text.into_bytes()
                     };
-                    let (mime, ext) = if op == "toText" { ("text/plain", "txt") } else { ("application/octet-stream", "bin") };
-                    let fname = if name.is_empty() { format!("file.{ext}") } else { name.clone() };
+                    let (mime, ext) = if op == "toText" {
+                        ("text/plain", "txt")
+                    } else {
+                        ("application/octet-stream", "bin")
+                    };
+                    let fname = if name.is_empty() {
+                        format!("file.{ext}")
+                    } else {
+                        name.clone()
+                    };
                     let mut o = with_binary(&prop, make_binary(&bytes, mime, &fname, ext));
                     o.paired_item = paired(i);
                     out.push(o);
                 }
             }
             "csv" | "toJson" => {
-                let groups: Vec<(Vec<&Item>, usize)> = if each { items.iter().enumerate().map(|(i, it)| (vec![it], i)).collect() } else if items.is_empty() { Vec::new() } else { vec![(items.iter().collect(), 0)] };
+                let groups: Vec<(Vec<&Item>, usize)> = if each {
+                    items
+                        .iter()
+                        .enumerate()
+                        .map(|(i, it)| (vec![it], i))
+                        .collect()
+                } else if items.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![(items.iter().collect(), 0)]
+                };
                 for (g, idx) in groups {
                     let (bytes, mime, ext) = if op == "csv" {
                         let mut cols: Vec<String> = Vec::new();
@@ -572,24 +704,54 @@ impl FlowNode for ConvertToFileNode {
                         let d = delim.to_string();
                         let mut lines = Vec::new();
                         if header {
-                            lines.push(cols.iter().map(|c| csv_cell(&Value::String(c.clone()), delim)).collect::<Vec<_>>().join(&d));
+                            lines.push(
+                                cols.iter()
+                                    .map(|c| csv_cell(&Value::String(c.clone()), delim))
+                                    .collect::<Vec<_>>()
+                                    .join(&d),
+                            );
                         }
                         for it in &g {
-                            lines.push(cols.iter().map(|c| csv_cell(it.json.get(c).unwrap_or(&Value::Null), delim)).collect::<Vec<_>>().join(&d));
+                            lines.push(
+                                cols.iter()
+                                    .map(|c| {
+                                        csv_cell(it.json.get(c).unwrap_or(&Value::Null), delim)
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(&d),
+                            );
                         }
                         (lines.join("\n").into_bytes(), "text/csv", "csv")
                     } else {
-                        let v: Vec<Value> = g.iter().map(|it| Value::Object(it.json.clone())).collect();
-                        let body = if each { v.into_iter().next().unwrap_or(Value::Null) } else { Value::Array(v) };
-                        (serde_json::to_vec_pretty(&body).unwrap_or_default(), "application/json", "json")
+                        let v: Vec<Value> =
+                            g.iter().map(|it| Value::Object(it.json.clone())).collect();
+                        let body = if each {
+                            v.into_iter().next().unwrap_or(Value::Null)
+                        } else {
+                            Value::Array(v)
+                        };
+                        (
+                            serde_json::to_vec_pretty(&body).unwrap_or_default(),
+                            "application/json",
+                            "json",
+                        )
                     };
-                    let fname = if name.is_empty() { format!("file.{ext}") } else { name.clone() };
+                    let fname = if name.is_empty() {
+                        format!("file.{ext}")
+                    } else {
+                        name.clone()
+                    };
                     let mut o = with_binary(&prop, make_binary(&bytes, mime, &fname, ext));
                     o.paired_item = paired(idx);
                     out.push(o);
                 }
             }
-            other => return Err(node_err(ctx, format!("Operation '{other}' is not supported"))),
+            other => {
+                return Err(node_err(
+                    ctx,
+                    format!("Operation '{other}' is not supported"),
+                ));
+            }
         }
         Ok(vec![out])
     }
@@ -629,7 +791,10 @@ impl ExtractFromFileNode {
 /// RFC 4180 records (quotes, escaped quotes, embedded newlines).
 pub(crate) fn parse_csv(text: &str, delim: char) -> Vec<Vec<String>> {
     let (mut rows, mut row, mut cell) = (Vec::new(), Vec::new(), String::new());
-    let (mut quoted, mut chars) = (false, text.trim_start_matches('\u{feff}').chars().peekable());
+    let (mut quoted, mut chars) = (
+        false,
+        text.trim_start_matches('\u{feff}').chars().peekable(),
+    );
     while let Some(c) = chars.next() {
         match (c, quoted) {
             ('"', true) if chars.peek() == Some(&'"') => {
@@ -670,11 +835,22 @@ impl FlowNode for ExtractFromFileNode {
         let mut out = Vec::new();
         for (i, it) in port(ctx, 0).iter().enumerate() {
             let prop = param_str(ctx, "binaryPropertyName", i, "data")?;
-            let bin = it.binary.as_ref().and_then(|b| b.get(&prop)).ok_or_else(|| node_err(ctx, format!("Item {i} has no binary field '{prop}'")))?;
+            let bin = it
+                .binary
+                .as_ref()
+                .and_then(|b| b.get(&prop))
+                .ok_or_else(|| node_err(ctx, format!("Item {i} has no binary field '{prop}'")))?;
             if bin.data.is_empty() {
-                return Err(node_err(ctx, format!("Binary field '{prop}' is stored outside the item and cannot be read here")));
+                return Err(node_err(
+                    ctx,
+                    format!(
+                        "Binary field '{prop}' is stored outside the item and cannot be read here"
+                    ),
+                ));
             }
-            let bytes = B64.decode(bin.data.as_bytes()).map_err(|e| node_err(ctx, format!("Binary data is not valid base64: {e}")))?;
+            let bytes = B64
+                .decode(bin.data.as_bytes())
+                .map_err(|e| node_err(ctx, format!("Binary data is not valid base64: {e}")))?;
             let dest = param_str(ctx, "destinationKey", i, "data")?;
             let text = || String::from_utf8_lossy(&bytes).into_owned();
             let mk = |json: Map<String, Value>| {
@@ -684,14 +860,23 @@ impl FlowNode for ExtractFromFileNode {
             };
             match op.as_str() {
                 "csv" => {
-                    let delim = param_str(ctx, "options.delimiter", i, ",")?.chars().next().unwrap_or(',');
+                    let delim = param_str(ctx, "options.delimiter", i, ",")?
+                        .chars()
+                        .next()
+                        .unwrap_or(',');
                     let header = param_bool(ctx, "options.headerRow", i, true)?;
                     let skip_empty = param_bool(ctx, "options.skipEmptyLines", i, true)?;
                     let mut rows = parse_csv(&text(), delim);
                     if skip_empty {
                         rows.retain(|r| !(r.len() == 1 && r[0].is_empty()));
                     }
-                    let head: Vec<String> = if header && !rows.is_empty() { rows.remove(0) } else { rows.first().map(|r| (0..r.len()).map(|k| k.to_string()).collect()).unwrap_or_default() };
+                    let head: Vec<String> = if header && !rows.is_empty() {
+                        rows.remove(0)
+                    } else {
+                        rows.first()
+                            .map(|r| (0..r.len()).map(|k| k.to_string()).collect())
+                            .unwrap_or_default()
+                    };
                     for r in rows {
                         let mut m = Map::new();
                         for (k, h) in head.iter().enumerate() {
@@ -701,7 +886,8 @@ impl FlowNode for ExtractFromFileNode {
                     }
                 }
                 "fromJson" => {
-                    let v: Value = serde_json::from_slice(&bytes).map_err(|e| node_err(ctx, format!("Invalid JSON file: {e}")))?;
+                    let v: Value = serde_json::from_slice(&bytes)
+                        .map_err(|e| node_err(ctx, format!("Invalid JSON file: {e}")))?;
                     let mut m = Map::new();
                     m.insert(dest, v);
                     out.push(mk(m));
@@ -716,7 +902,12 @@ impl FlowNode for ExtractFromFileNode {
                     m.insert(dest, Value::String(bin.data.clone()));
                     out.push(mk(m));
                 }
-                other => return Err(node_err(ctx, format!("Operation '{other}' is not supported"))),
+                other => {
+                    return Err(node_err(
+                        ctx,
+                        format!("Operation '{other}' is not supported"),
+                    ));
+                }
             }
         }
         Ok(vec![out])
@@ -736,9 +927,19 @@ pub struct LegacyFunctionNode {
 impl LegacyFunctionNode {
     pub fn new(per_item: bool) -> Self {
         let (name, display, prop, def) = if per_item {
-            ("functionItem", "Function Item", "functionCode", "// Code here will run once per input item\nreturn item;")
+            (
+                "functionItem",
+                "Function Item",
+                "functionCode",
+                "// Code here will run once per input item\nreturn item;",
+            )
         } else {
-            ("function", "Function", "functionCode", "// Code here will run only once, no matter how many input items there are\nreturn items;")
+            (
+                "function",
+                "Function",
+                "functionCode",
+                "// Code here will run only once, no matter how many input items there are\nreturn items;",
+            )
         };
         Self {
             desc: describe(json!({
@@ -774,21 +975,31 @@ impl FlowNode for LegacyFunctionNode {
             if input.is_empty() {
                 return Ok(vec![Vec::new()]);
             }
-            let src = format!("const item = $input.item.json;\nconst __r = (function () {{\n{code}\n}})();\nif (__r === null || __r === undefined) return null;\nreturn {{ json: __r }};");
-            let out = evaluator.run_script(&src, ScriptMode::EachItem, &ctx.expr_scope(0)).map_err(|e| node_err(ctx, e.to_string()))?;
+            let src = format!(
+                "const item = $input.item.json;\nconst __r = (function () {{\n{code}\n}})();\nif (__r === null || __r === undefined) return null;\nreturn {{ json: __r }};"
+            );
+            let out = evaluator
+                .run_script(&src, ScriptMode::EachItem, &ctx.expr_scope(0))
+                .map_err(|e| node_err(ctx, e.to_string()))?;
             let items = match out.value {
                 Value::Array(v) => v
                     .into_iter()
                     .enumerate()
                     .filter(|(i, _)| !out.undefined.contains(i))
-                    .filter_map(|(_, v)| v.get("json").and_then(Value::as_object).map(|o| Item::new(o.clone())))
+                    .filter_map(|(_, v)| {
+                        v.get("json")
+                            .and_then(Value::as_object)
+                            .map(|o| Item::new(o.clone()))
+                    })
                     .collect(),
                 _ => Vec::new(),
             };
             return Ok(vec![items]);
         }
         let src = format!("const items = $input.all();\nconst item = items[0];\n{code}");
-        let out = evaluator.run_script(&src, ScriptMode::AllItems, &ctx.expr_scope(0)).map_err(|e| node_err(ctx, e.to_string()))?;
+        let out = evaluator
+            .run_script(&src, ScriptMode::AllItems, &ctx.expr_scope(0))
+            .map_err(|e| node_err(ctx, e.to_string()))?;
         let items = match out.value {
             Value::Array(v) => v
                 .into_iter()
