@@ -51,7 +51,7 @@ async fn tool_formats_and_reports_errors() {
 
     let out = tool.execute(ToolCtx::default(), json!({"query": "rust", "max_results": 2})).await.unwrap();
     assert!(!out.is_error);
-    assert!(out.content.starts_with("1. Rust\n   https://rust-lang.org\n   A language empowering everyone\n2. Crates"), "{}", out.content);
+    assert!(out.content.starts_with("<untrusted-content source=\"web_search\">\n1. Rust\n   https://rust-lang.org\n   A language empowering everyone\n2. Crates"), "{}", out.content);
     assert!(!out.content.contains("3. Third"));
 
     let out = tool.execute(ToolCtx::default(), json!({"query": "rust"})).await.unwrap();
