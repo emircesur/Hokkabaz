@@ -22,7 +22,7 @@ pub(crate) async fn run_capture(bin: &Path, args: &[String]) -> Result<Captured>
     use crate::error::MediaError;
 
     tracing::debug!(bin = %bin.display(), ?args, "spawn");
-    let out = tokio::process::Command::new(bin)
+    let out = tokio::process::Command::new(crate::tools::resolve_program(bin))
         .args(args)
         .stdin(Stdio::null())
         .kill_on_drop(true)

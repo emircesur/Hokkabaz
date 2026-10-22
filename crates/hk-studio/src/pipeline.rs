@@ -253,26 +253,27 @@ impl AudioSplitter for MediaSplitter {
         }
         #[cfg(not(target_os = "android"))]
         {
-            let status = tokio::process::Command::new(&self.tools.ffmpeg)
-                .args([
-                    "-hide_banner",
-                    "-nostdin",
-                    "-y",
-                    "-loglevel",
-                    "error",
-                    "-ss",
-                    &format!("{start:.3}"),
-                    "-t",
-                    &format!("{:.3}", (end - start).max(0.01)),
-                    "-i",
-                ])
-                .arg(audio)
-                .args(["-vn", "-ac", "1", "-ar", "16000"])
-                .arg(out)
-                .kill_on_drop(true)
-                .output()
-                .await
-                .map_err(|e| hk_stt::SttError::Audio(e.to_string()))?;
+            let status =
+                tokio::process::Command::new(hk_media::resolve_program(&self.tools.ffmpeg))
+                    .args([
+                        "-hide_banner",
+                        "-nostdin",
+                        "-y",
+                        "-loglevel",
+                        "error",
+                        "-ss",
+                        &format!("{start:.3}"),
+                        "-t",
+                        &format!("{:.3}", (end - start).max(0.01)),
+                        "-i",
+                    ])
+                    .arg(audio)
+                    .args(["-vn", "-ac", "1", "-ar", "16000"])
+                    .arg(out)
+                    .kill_on_drop(true)
+                    .output()
+                    .await
+                    .map_err(|e| hk_stt::SttError::Audio(e.to_string()))?;
             if status.status.success() {
                 Ok(())
             } else {

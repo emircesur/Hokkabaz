@@ -14,6 +14,7 @@ import 'publish_panel.dart';
 import 'source_strip.dart';
 import 'studio_models.dart';
 import 'studio_providers.dart';
+import 'tools_panel.dart';
 import 'studio_settings.dart';
 import 'studio_transfer.dart';
 import 'style_panel.dart';
@@ -73,11 +74,15 @@ class _ProjectsView extends ConsumerWidget {
             const SizedBox(height: HkTokens.s1),
             Text('Turn long videos into short, captioned, vertical clips. Edit by text, or let the agent do it.', style: TextStyle(color: hk.textMuted)),
             if (tools != null && tools['ffmpeg'] != true)
-              Container(
-                margin: const EdgeInsets.only(top: HkTokens.s3),
-                padding: const EdgeInsets.all(HkTokens.s3),
-                decoration: BoxDecoration(color: hk.warn.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(HkTokens.radiusCard)),
-                child: Text(Platform.isAndroid ? 'Video Studio needs ffmpeg, which Android does not provide. Connect to a Hokkabaz instance that has ffmpeg (Instances tab) and the Studio runs there.' : 'ffmpeg was not found on this device, so videos cannot be imported or rendered here. Install ffmpeg (or point HK_FFMPEG at it).'),
+              Padding(
+                padding: const EdgeInsets.only(top: HkTokens.s3),
+                child: Platform.isAndroid && !studioRemote
+                    ? Container(
+                        padding: const EdgeInsets.all(HkTokens.s3),
+                        decoration: BoxDecoration(color: hk.warn.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(HkTokens.radiusCard)),
+                        child: const Text('Video Studio needs ffmpeg, which Android cannot run. Connect to a Hokkabaz instance (Instances tab): the Studio runs there, and the instance can download ffmpeg for itself.'),
+                      )
+                    : const ToolsPanel(onlyMissing: true),
               ),
             const SizedBox(height: HkTokens.s4),
             list.when(

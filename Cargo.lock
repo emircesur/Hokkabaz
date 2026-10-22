@@ -2935,6 +2935,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "hk-deps"
+version = "0.0.0"
+dependencies = [
+ "futures",
+ "hex",
+ "hk-concat",
+ "hk-media",
+ "lzma-rs",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tar",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "zip",
+]
+
+[[package]]
 name = "hk-ffi"
 version = "0.0.0"
 dependencies = [
@@ -3234,6 +3256,8 @@ version = "0.0.0"
 dependencies = [
  "async-trait",
  "futures",
+ "hk-concat",
+ "hk-deps",
  "hk-llm",
  "hk-local",
  "hk-media",

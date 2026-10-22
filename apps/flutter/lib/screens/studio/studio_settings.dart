@@ -8,7 +8,7 @@ import '../../ffi/settings_providers.dart';
 import '../../src/rust/api/studio.dart' as api;
 import '../../theme/tokens.dart';
 import '../chat/chat_providers.dart' show describeError;
-import 'studio_providers.dart';
+import 'tools_panel.dart';
 import 'whisper_models.dart';
 
 Future<void> showStudioSettings(BuildContext context) => showDialog<void>(context: context, builder: (_) => const _StudioSettingsDialog());
@@ -129,7 +129,6 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
   @override
   Widget build(BuildContext context) {
     final models = ref.watch(modelListProvider).value?.models ?? const [];
-    final tools = ref.watch(studioToolsProvider).value;
     final hk = context.hk;
     final refs = [for (final m in models) m.reference];
     return AlertDialog(
@@ -142,13 +141,8 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (tools != null && tools['ffmpeg'] != true)
-                      Container(
-                        padding: const EdgeInsets.all(HkTokens.s2),
-                        margin: const EdgeInsets.only(bottom: HkTokens.s3),
-                        decoration: BoxDecoration(color: hk.warn.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(HkTokens.radiusCard)),
-                        child: const Text('ffmpeg was not found. Install it (or set HK_FFMPEG) to import, cut and render videos.'),
-                      ),
+                    const _H('Tools'),
+                    const ToolsPanel(),
                     const _H('AI model (highlights, scoring, copy, B-roll)'),
                     DropdownButtonFormField<String>(
                       initialValue: refs.contains(_llm) ? _llm : null,

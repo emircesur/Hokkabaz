@@ -299,6 +299,25 @@ class StudioController extends Notifier<StudioState> {
     }
   }
 
+  /// Build the clip's Concat project from the current edit and open the Concat window on it.
+  Future<void> concatEdit(String clip, {bool open = true, bool rebuild = false}) => _job(
+    'concat',
+    () => api.studioConcatEdit(id: projectId, clip: clip, open: open, rebuild: rebuild),
+    done: open ? 'Concat is open. Edit there, save, close the window, then press "Render with Concat".' : 'Concat project rebuilt from the Studio edit',
+  );
+
+  /// Export the clip's Concat project with Concat's engine; progress arrives like a normal render.
+  Future<void> concatRender(String clip) async {
+    if (state.busy.contains('render')) return;
+    state = state.copyWith(busy: {...state.busy, 'render'}, renderProgress: {...state.renderProgress, clip: 0}, clearNotice: true);
+    try {
+      await api.studioConcatEdit(id: projectId, clip: clip, open: false, rebuild: false);
+      await api.studioConcatRender(id: projectId, clip: clip);
+    } catch (e) {
+      state = state.copyWith(busy: {...state.busy}..remove('render'), renderProgress: {...state.renderProgress}..remove(clip), notice: describeError(e));
+    }
+  }
+
   /// Upload to YouTube; returns the video URL.
   Future<String?> publishYoutube(String clip, {String privacy = 'private'}) => _job(
     'publish',

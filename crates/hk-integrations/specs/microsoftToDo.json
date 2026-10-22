@@ -1,0 +1,151 @@
+{
+ "name": "microsoftToDo",
+ "type": "n8n-nodes-base.microsoftToDo",
+ "display": "Microsoft To Do",
+ "description": "Task lists",
+ "color": "#2564CF",
+ "versions": [
+  1
+ ],
+ "base": "https://graph.microsoft.com/v1.0/me/todo",
+ "cred": {
+  "name": "microsoftToDoOAuth2Api",
+  "display": "Microsoft To Do OAuth2 API",
+  "oauth": {
+   "token_url": "https://login.microsoftonline.com/{{$credentials.tenant}}/oauth2/v2.0/token",
+   "scope": "offline_access Tasks.ReadWrite",
+   "tenant": true
+  },
+  "docs": "https://learn.microsoft.com/entra/identity-platform/v2-oauth2-auth-code-flow (register an app, sign in once, keep the refresh token)"
+ },
+ "resources": [
+  {
+   "name": "list",
+   "display": "List",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/lists",
+     "action": "Get lists",
+     "out": "value",
+     "list": true,
+     "page": {
+      "type": "nextUrl",
+      "nextPath": "@odata.nextLink"
+     }
+    }
+   ]
+  },
+  {
+   "name": "task",
+   "display": "Task",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/lists/{listId}/tasks",
+     "action": "Get tasks",
+     "params": [
+      {
+       "name": "listId",
+       "display": "List ID",
+       "required": true
+      }
+     ],
+     "out": "value",
+     "list": true,
+     "page": {
+      "type": "nextUrl",
+      "nextPath": "@odata.nextLink"
+     }
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/lists/{listId}/tasks",
+     "action": "Create a task",
+     "params": [
+      {
+       "name": "listId",
+       "display": "List ID",
+       "required": true
+      },
+      {
+       "name": "title",
+       "display": "Title",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "importance",
+       "display": "Importance",
+       "send": "body"
+      },
+      {
+       "name": "body",
+       "display": "Notes",
+       "send": "body",
+       "prop": "body.content"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PATCH",
+     "path": "/lists/{listId}/tasks/{taskId}",
+     "action": "Update a task",
+     "params": [
+      {
+       "name": "listId",
+       "display": "List ID",
+       "required": true
+      },
+      {
+       "name": "taskId",
+       "display": "Task ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "title",
+       "display": "Title",
+       "send": "body"
+      },
+      {
+       "name": "status",
+       "display": "Status",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/lists/{listId}/tasks/{taskId}",
+     "action": "Delete a task",
+     "params": [
+      {
+       "name": "listId",
+       "display": "List ID",
+       "required": true
+      },
+      {
+       "name": "taskId",
+       "display": "Task ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

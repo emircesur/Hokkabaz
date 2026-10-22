@@ -20,7 +20,11 @@ fn sample(p: &ParamSpec) -> Value {
         "number" => json!(3),
         "boolean" => json!(true),
         "json" => json!(r#"{"a":1}"#),
-        "options" => p.options.first().map(|(_, v)| v.clone()).unwrap_or(json!("x")),
+        "options" => p
+            .options
+            .first()
+            .map(|(_, v)| v.clone())
+            .unwrap_or(json!("x")),
         "dateTime" => json!("2024-01-02T03:04:05Z"),
         _ => json!(format!("v_{}", p.name)),
     }
@@ -36,7 +40,7 @@ fn pct_decode(s: &str) -> String {
     let mut i = 0;
     while i < b.len() {
         if b[i] == b'%'
-            && i + 2 < b.len() + 0
+            && i + 2 < b.len()
             && let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16)
         {
             out.push(v);
@@ -68,13 +72,27 @@ fn every_spec_parses_and_registers_once() {
     register_integrations(&mut nodes, &creds).unwrap();
     let mut seen = std::collections::HashSet::new();
     for s in &all {
-        assert!(seen.insert(s.node_type.clone()), "duplicate type {}", s.node_type);
-        assert!(nodes.latest(&s.node_type).is_some(), "{} not registered", s.name);
+        assert!(
+            seen.insert(s.node_type.clone()),
+            "duplicate type {}",
+            s.node_type
+        );
+        assert!(
+            nodes.latest(&s.node_type).is_some(),
+            "{} not registered",
+            s.name
+        );
         assert!(creds.get(&s.cred.name).is_some(), "{} credential", s.name);
         for r in &s.resources {
             let mut ops = std::collections::HashSet::new();
             for o in &r.ops {
-                assert!(ops.insert(&o.name), "{}: duplicate op {}.{}", s.name, r.name, o.name);
+                assert!(
+                    ops.insert(&o.name),
+                    "{}: duplicate op {}.{}",
+                    s.name,
+                    r.name,
+                    o.name
+                );
                 // every {placeholder} has a parameter of that name
                 let mut rest = o.path.as_str();
                 while let Some(i) = rest.find('{') {
@@ -95,9 +113,20 @@ fn every_spec_parses_and_registers_once() {
 }
 
 async fn run_op(s: &Spec, resource: &str, o: &OpSpec) {
+    // absolute URLs bypass the mock base; never call a real service from a test
+    if o.path.starts_with("http") {
+        return;
+    }
     // answer with the shape the operation reads: a list at `out`, else a plain object
     let reply = match &o.out {
-        Some(path) => path.split('.').rev().fold(json!([{"id": "1"}]), |acc, k| json!({ k: acc })),
+        Some(path) if o.rows => path
+            .split('.')
+            .rev()
+            .fold(json!([["h"], ["v"]]), |acc, k| json!({ k: acc })),
+        Some(path) => path
+            .split('.')
+            .rev()
+            .fold(json!([{"id": "1"}]), |acc, k| json!({ k: acc })),
         None if o.list => json!([{"id": "1"}]),
         None => json!({"id": "1", "ok": true}),
     };
@@ -117,7 +146,11 @@ async fn run_op(s: &Spec, resource: &str, o: &OpSpec) {
         params.insert("limit".into(), json!(2));
     }
     if !o.extra.is_empty() {
-        let extra: Map<String, Value> = o.extra.iter().map(|p| (p.name.clone(), sample(p))).collect();
+        let extra: Map<String, Value> = o
+            .extra
+            .iter()
+            .map(|p| (p.name.clone(), sample(p)))
+            .collect();
         params.insert("additionalFields".into(), Value::Object(extra));
     }
     let node: Node = serde_json::from_value(json!({
@@ -145,7 +178,10 @@ async fn run_op(s: &Spec, resource: &str, o: &OpSpec) {
         "{label}: {line}"
     );
     let target = line.split(' ').nth(1).unwrap();
-    assert!(!target.contains('{') && !target.contains("%7B"), "{label}: unresolved placeholder in {target}");
+    assert!(
+        !target.contains('{') && !target.contains("%7B"),
+        "{label}: unresolved placeholder in {target}"
+    );
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
     let query = &pct_decode(query);
     // the path template with each {x} replaced by its sample
@@ -158,20 +194,35 @@ async fn run_op(s: &Spec, resource: &str, o: &OpSpec) {
 
     let lower = head.to_lowercase();
     for k in s.cred.auth.header.keys() {
-        assert!(lower.contains(&format!("{}:", k.to_lowercase())), "{label}: auth header {k} missing");
+        assert!(
+            lower.contains(&format!("{}:", k.to_lowercase())),
+            "{label}: auth header {k} missing"
+        );
     }
     if s.cred.oauth.is_some() {
-        assert!(lower.contains("authorization: bearer cv_accesstoken"), "{label}: bearer");
+        assert!(
+            lower.contains("authorization: bearer cv_accesstoken"),
+            "{label}: bearer"
+        );
     }
     if let Some((u, _)) = &s.cred.auth.basic {
         let _ = u;
-        assert!(lower.contains("authorization: basic"), "{label}: basic auth");
+        assert!(
+            lower.contains("authorization: basic"),
+            "{label}: basic auth"
+        );
     }
     for k in s.cred.auth.query.keys() {
-        assert!(query.contains(&format!("{k}=")), "{label}: auth query {k} in {query}");
+        assert!(
+            query.contains(&format!("{k}=")),
+            "{label}: auth query {k} in {query}"
+        );
     }
     for (k, v) in &s.headers {
-        assert!(lower.contains(&format!("{}: {}", k.to_lowercase(), v.to_lowercase())), "{label}: header {k}");
+        assert!(
+            lower.contains(&format!("{}: {}", k.to_lowercase(), v.to_lowercase())),
+            "{label}: header {k}"
+        );
     }
 
     let json_body: Option<Value> = serde_json::from_str(body).ok();
@@ -179,13 +230,23 @@ async fn run_op(s: &Spec, resource: &str, o: &OpSpec) {
         let Some(kind) = &p.send else { continue };
         let field = p.prop.clone().unwrap_or_else(|| p.name.clone());
         match kind.as_str() {
-            "query" => assert!(query.contains(&format!("{field}=")), "{label}: query {field} in {query}"),
-            "queryString" => assert!(query.contains(&format!("v_{}", p.name)), "{label}: raw query {query}"),
-            "header" => assert!(lower.contains(&format!("{}:", field.to_lowercase())), "{label}: header {field}"),
+            "query" => assert!(
+                query.contains(&format!("{field}=")),
+                "{label}: query {field} in {query}"
+            ),
+            "queryString" => assert!(
+                query.contains(&format!("v_{}", p.name)),
+                "{label}: raw query {query}"
+            ),
+            "header" => assert!(
+                lower.contains(&format!("{}:", field.to_lowercase())),
+                "{label}: header {field}"
+            ),
             _ if s.body_format.as_deref() == Some("form") => {
                 // `a.b` becomes `a[b]` in form encoding
                 let mut it = field.split('.');
-                let key = it.next().unwrap().to_owned() + &it.map(|k| format!("[{k}]")).collect::<String>();
+                let key = it.next().unwrap().to_owned()
+                    + &it.map(|k| format!("[{k}]")).collect::<String>();
                 let form = pct_decode(&body.replace('+', " "));
                 assert!(
                     form.split('&').any(|kv| kv.starts_with(&format!("{key}="))),
@@ -193,15 +254,24 @@ async fn run_op(s: &Spec, resource: &str, o: &OpSpec) {
                 );
             }
             _ => {
-                let b = json_body.as_ref().unwrap_or_else(|| panic!("{label}: no JSON body"));
+                let b = json_body
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("{label}: no JSON body"));
                 if field == "$" {
                     // the parameter *is* the body: its fields sit at the root
-                    assert!(b.get("a").is_some() || b.is_array(), "{label}: body should be the parsed parameter, got {b}");
+                    assert!(
+                        b.get("a").is_some() || b.is_array(),
+                        "{label}: body should be the parsed parameter, got {b}"
+                    );
                     continue;
                 }
-                let got = get_path(b, &field).unwrap_or_else(|| panic!("{label}: body field {field} in {b}"));
+                let got = get_path(b, &field)
+                    .unwrap_or_else(|| panic!("{label}: body field {field} in {b}"));
                 if p.ty.as_deref() == Some("json") {
-                    assert!(got.is_object() || got.is_array(), "{label}: {field} should be parsed JSON, got {got}");
+                    assert!(
+                        got.is_object() || got.is_array(),
+                        "{label}: {field} should be parsed JSON, got {got}"
+                    );
                 }
             }
         }

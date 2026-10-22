@@ -38,7 +38,10 @@ pub fn applies(data: &Map<String, Value>) -> bool {
 }
 
 /// Access token for `data` (from cache or the token endpoint).
-pub async fn access_token(client: &reqwest::Client, data: &Map<String, Value>) -> Result<String, String> {
+pub async fn access_token(
+    client: &reqwest::Client,
+    data: &Map<String, Value>,
+) -> Result<String, String> {
     // `{{$credentials.tenant}}` in the URL (Microsoft) renders from the same credential.
     let url = crate::template::render(&field(data, "tokenUrl"), data).map_err(|e| e.to_string())?;
     let id = field(data, "clientId");

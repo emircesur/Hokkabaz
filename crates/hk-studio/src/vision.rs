@@ -58,7 +58,7 @@ pub async fn grab_frames(
     {
         use std::process::Stdio;
         use tokio::io::AsyncReadExt;
-        let mut child = tokio::process::Command::new(&tools.ffmpeg)
+        let mut child = tokio::process::Command::new(hk_media::resolve_program(&tools.ffmpeg))
             .args([
                 "-hide_banner",
                 "-nostdin",

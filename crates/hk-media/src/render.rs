@@ -129,7 +129,7 @@ fn spawn(tools: &Tools, args: Vec<String>, total: f64, output: PathBuf) -> Resul
     use tokio::io::{AsyncBufReadExt, BufReader};
 
     const TAIL: usize = 40;
-    let bin = tools.ffmpeg.clone();
+    let bin = crate::tools::resolve_program(&tools.ffmpeg);
     tracing::debug!(bin = %bin.display(), "spawn render");
     let mut child = tokio::process::Command::new(&bin)
         .args(&args)

@@ -18,6 +18,8 @@ vision = ["dep:rustface"]
 [dependencies]
 async-trait = "0.1"
 futures = "0.3"
+hk-concat = { version = "0.0.0", path = "../hk-concat" }
+hk-deps = { version = "0.0.0", path = "../hk-deps" }
 hk-llm = { version = "0.0.0", path = "../hk-llm" }
 hk-local = { version = "0.0.0", path = "../hk-local" }
 hk-tools = { version = "0.0.0", path = "../hk-tools" }

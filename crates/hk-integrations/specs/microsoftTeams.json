@@ -1,0 +1,180 @@
+{
+ "name": "microsoftTeams",
+ "type": "n8n-nodes-base.microsoftTeams",
+ "display": "Microsoft Teams",
+ "description": "Teams, channels and messages",
+ "color": "#6264A7",
+ "versions": [
+  1,
+  2
+ ],
+ "base": "https://graph.microsoft.com/v1.0",
+ "cred": {
+  "name": "microsoftTeamsOAuth2Api",
+  "display": "Microsoft Teams OAuth2 API",
+  "oauth": {
+   "token_url": "https://login.microsoftonline.com/{{$credentials.tenant}}/oauth2/v2.0/token",
+   "scope": "offline_access ChannelMessage.Send Channel.ReadBasic.All Team.ReadBasic.All Chat.ReadWrite",
+   "tenant": true
+  },
+  "docs": "https://learn.microsoft.com/entra/identity-platform/v2-oauth2-auth-code-flow (register an app, sign in once, keep the refresh token)"
+ },
+ "resources": [
+  {
+   "name": "team",
+   "display": "Team",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/me/joinedTeams",
+     "action": "Get my teams",
+     "out": "value",
+     "list": true,
+     "page": {
+      "type": "nextUrl",
+      "nextPath": "@odata.nextLink"
+     }
+    }
+   ]
+  },
+  {
+   "name": "channel",
+   "display": "Channel",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/teams/{teamId}/channels",
+     "action": "Get channels",
+     "params": [
+      {
+       "name": "teamId",
+       "display": "Team ID",
+       "required": true
+      }
+     ],
+     "out": "value",
+     "list": true,
+     "page": {
+      "type": "nextUrl",
+      "nextPath": "@odata.nextLink"
+     }
+    }
+   ]
+  },
+  {
+   "name": "channelMessage",
+   "display": "Channel Message",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/teams/{teamId}/channels/{channelId}/messages",
+     "action": "Post to a channel",
+     "params": [
+      {
+       "name": "teamId",
+       "display": "Team ID",
+       "required": true
+      },
+      {
+       "name": "channelId",
+       "display": "Channel ID",
+       "required": true
+      },
+      {
+       "name": "message",
+       "display": "Message",
+       "required": true,
+       "send": "body",
+       "prop": "body.content"
+      },
+      {
+       "name": "contentType",
+       "display": "Content Type",
+       "send": "body",
+       "prop": "body.contentType",
+       "default": "text"
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/teams/{teamId}/channels/{channelId}/messages",
+     "action": "Get channel messages",
+     "params": [
+      {
+       "name": "teamId",
+       "display": "Team ID",
+       "required": true
+      },
+      {
+       "name": "channelId",
+       "display": "Channel ID",
+       "required": true
+      }
+     ],
+     "out": "value",
+     "list": true,
+     "page": {
+      "type": "nextUrl",
+      "nextPath": "@odata.nextLink"
+     }
+    }
+   ]
+  },
+  {
+   "name": "chatMessage",
+   "display": "Chat Message",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/chats/{chatId}/messages",
+     "action": "Send a chat message",
+     "params": [
+      {
+       "name": "chatId",
+       "display": "Chat ID",
+       "required": true
+      },
+      {
+       "name": "message",
+       "display": "Message",
+       "required": true,
+       "send": "body",
+       "prop": "body.content"
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/chats/{chatId}/messages",
+     "action": "Get chat messages",
+     "params": [
+      {
+       "name": "chatId",
+       "display": "Chat ID",
+       "required": true
+      }
+     ],
+     "out": "value",
+     "list": true,
+     "page": {
+      "type": "nextUrl",
+      "nextPath": "@odata.nextLink"
+     }
+    }
+   ]
+  }
+ ]
+}

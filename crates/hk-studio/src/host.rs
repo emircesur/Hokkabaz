@@ -231,6 +231,9 @@ pub struct StudioHost {
     pub store: Store,
     pub secrets: Arc<dyn SecretStore>,
     pub whisper: Arc<crate::whisper_models::WhisperModels>,
+    /// ffmpeg / Concat detection and in-app installs.
+    pub deps: hk_deps::Deps,
+    pub data_dir: PathBuf,
 }
 
 fn arg<T: serde::de::DeserializeOwned>(p: &Value, key: &str) -> Result<T> {
@@ -265,7 +268,17 @@ impl StudioHost {
             store,
             secrets,
             whisper: Arc::new(crate::whisper_models::WhisperModels::new(data_dir)),
+            deps: hk_deps::Deps::new(data_dir),
+            data_dir: data_dir.to_path_buf(),
         }
+    }
+
+    fn concat_binary(&self) -> Result<PathBuf> {
+        self.deps.concat_path().ok_or_else(|| {
+            StudioError::Invalid(
+                "Concat is not installed. Install it from Studio settings > Tools.".into(),
+            )
+        })
     }
 
     async fn project_value(&self, id: &str) -> Result<Value> {
@@ -320,6 +333,87 @@ impl StudioHost {
                 let key: Option<String> = opt(&p, "key")?;
                 put_secret(self.secrets.as_ref(), name, key.as_deref())?;
                 Ok(Value::Null)
+            }
+            "deps_status" => Ok(json!({
+                "tools": self.deps.status().await,
+                "remote_note": cfg!(target_os = "android"),
+            })),
+            "deps_install" => {
+                self.deps
+                    .install(&arg::<String>(&p, "id")?)
+                    .map_err(|e| StudioError::Invalid(e.to_string()))?;
+                Ok(Value::Null)
+            }
+            "deps_cancel" => {
+                self.deps.cancel(&arg::<String>(&p, "id")?);
+                Ok(Value::Null)
+            }
+            "concat_edit" => {
+                let (id, clip): (String, String) = (arg(&p, "id")?, arg(&p, "clip")?);
+                let open: bool = opt(&p, "open")?.unwrap_or(true);
+                let rebuild: bool = opt(&p, "rebuild")?.unwrap_or(false);
+                let bin = self.concat_binary()?;
+                let live = svc.open(&id).await?;
+                let snap = live.snapshot().await;
+                let pv = live.preview(&clip).await?;
+                let dir = crate::concat_bridge::prepare(
+                    &bin,
+                    &self.data_dir,
+                    &svc.work_dir(&id),
+                    &snap,
+                    &clip,
+                    &pv,
+                    rebuild,
+                )
+                .await?;
+                if open {
+                    crate::concat_bridge::open_window(&bin, &dir)?;
+                }
+                Ok(json!({"project": dir, "opened": open}))
+            }
+            "concat_render" => {
+                let (id, clip): (String, String) = (arg(&p, "id")?, arg(&p, "clip")?);
+                let bin = self.concat_binary()?;
+                let live = svc.open(&id).await?;
+                let dir = svc.work_dir(&id).join("concat").join(&clip);
+                if !dir.is_dir() {
+                    return Err(StudioError::Invalid(
+                        "open the clip in Concat first (Edit in Concat)".into(),
+                    ));
+                }
+                let out = svc
+                    .work_dir(&id)
+                    .join("renders")
+                    .join(format!("{clip}.mp4"));
+                let (svc2, data) = (svc.clone(), self.data_dir.clone());
+                let job = format!("c-{clip}");
+                let (live2, id2, clip2, out2) =
+                    (live.clone(), id.clone(), clip.clone(), out.clone());
+                tokio::spawn(async move {
+                    let ev = live2.clone();
+                    let c = clip2.clone();
+                    let r = crate::concat_bridge::export(&bin, &data, &dir, &out2, move |f| {
+                        ev.emit(crate::live::StudioEvent::RenderProgress {
+                            clip: c.clone(),
+                            fraction: f,
+                        });
+                    })
+                    .await;
+                    match r {
+                        Ok(()) => {
+                            svc2.set_render(&id2, &clip2, out2.clone()).await;
+                            live2.emit(crate::live::StudioEvent::RenderDone {
+                                clip: clip2,
+                                path: out2.to_string_lossy().into_owned(),
+                            });
+                        }
+                        Err(e) => live2.emit(crate::live::StudioEvent::RenderFailed {
+                            clip: clip2,
+                            error: e.to_string(),
+                        }),
+                    }
+                });
+                Ok(json!(job))
             }
             "whisper_status" => Ok(self.whisper.status()),
             "whisper_pull" => {
@@ -571,7 +665,7 @@ async fn check_tools() -> Value {
         }
         #[cfg(not(target_os = "android"))]
         {
-            tokio::process::Command::new(bin)
+            tokio::process::Command::new(hk_media::resolve_program(&bin))
                 .arg("-version")
                 .output()
                 .await

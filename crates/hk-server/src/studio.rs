@@ -87,11 +87,10 @@ fn studio(s: &AppState) -> Result<&Arc<dyn StudioApi>, ApiError> {
 fn scope_for(method: &str) -> Scope {
     match method {
         "projects" | "project" | "preview" | "history" | "templates" | "check_tools"
-        | "render_path" | "thumbnail" | "whisper_status" => Scope::Read,
+        | "render_path" | "thumbnail" | "whisper_status" | "deps_status" => Scope::Read,
         "get_settings" => Scope::Run,
-        "save_settings" | "set_key" | "whisper_pull" | "whisper_cancel" | "whisper_remove" => {
-            Scope::Admin
-        }
+        "save_settings" | "set_key" | "whisper_pull" | "whisper_cancel" | "whisper_remove"
+        | "deps_install" | "deps_cancel" => Scope::Admin,
         _ => Scope::Run,
     }
 }

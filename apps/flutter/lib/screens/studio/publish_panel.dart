@@ -162,6 +162,31 @@ class _PublishPanelState extends ConsumerState<PublishPanel> {
                     ),
                 ],
               ),
+              const SizedBox(height: HkTokens.s2),
+              Wrap(
+                spacing: HkTokens.s2,
+                runSpacing: HkTokens.s2,
+                children: [
+                  if (!studioRemote)
+                    OutlinedButton.icon(
+                      onPressed: s.busy.contains('concat') ? null : () => ctl.concatEdit(clip.id),
+                      icon: s.busy.contains('concat')
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.edit_note, size: 18),
+                      label: const Text('Edit in Concat'),
+                    ),
+                  OutlinedButton.icon(
+                    onPressed: rendering != null ? null : () => ctl.concatRender(clip.id),
+                    icon: const Icon(Icons.movie_filter_outlined, size: 18),
+                    label: const Text('Render with Concat'),
+                  ),
+                  if (!studioRemote)
+                    TextButton(
+                      onPressed: s.busy.contains('concat') ? null : () => ctl.concatEdit(clip.id, open: false, rebuild: true),
+                      child: const Text('Reset Concat project'),
+                    ),
+                ],
+              ),
               if (rendered != null) ...[
                 const SizedBox(height: HkTokens.s2),
                 OutlinedButton.icon(

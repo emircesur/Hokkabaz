@@ -25,4 +25,4 @@ pub use graph::{
 pub use probe::{MediaInfo, StreamInfo, StreamKind, probe};
 pub use render::{Progress, RenderHandle, RenderReport, render};
 pub use thumb::{proxy, thumbnail};
-pub use tools::{ENV_FFMPEG, ENV_FFPROBE, Tools};
+pub use tools::{ENV_FFMPEG, ENV_FFPROBE, Tools, managed_dir, resolve_program, set_managed_dir};

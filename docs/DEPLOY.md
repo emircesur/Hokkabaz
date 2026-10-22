@@ -58,3 +58,13 @@ widen it deliberately for workspaces it should edit.
   `cargo build --release --locked -p hk-daemon` and follow the systemd steps. Expect 20-40 minutes on a Pi 4.
 * A Pi 4/5 with 4 GB+ also runs small on-device models, but the headless daemon does not load them: use a provider
   (or Ollama on the LAN) for the daemon and the desktop/phone app for on-device inference.
+
+## Model providers on the instance
+
+`hokkabazd` serves every provider the app does. Set a key in the environment and the provider is enabled on first start:
+`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`,
+`MISTRAL_API_KEY`, `XAI_API_KEY`, `TOGETHER_API_KEY`, `FIREWORKS_API_KEY`, `CEREBRAS_API_KEY`; `OLLAMA_HOST` points at Ollama.
+Anything else (LM Studio, vLLM, llama.cpp server, private gateways) is added from the app: Models > Add endpoint, on a
+connected instance too (admin token). `HOKKABAZ_MODEL=provider/model` sets the default model. Build with
+`--features local-llm` to run GGUF models inside the daemon (`hokkabazd models pull <id>`).
+Local transcription needs the `hk-whisper` helper next to `hokkabazd` (`Dockerfile.studio` includes it).

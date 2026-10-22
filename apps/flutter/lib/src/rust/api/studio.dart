@@ -47,6 +47,37 @@ Future<void> studioWhisperCancel({required String id}) =>
 Future<void> studioWhisperRemove({required String id}) =>
     RustLib.instance.api.crateApiStudioStudioWhisperRemove(id: id);
 
+/// Tools Studio needs (`ffmpeg`, `concat`): `{tools: [{id, name, installed, path, version, source,
+/// can_install, note, installing, phase, progress: [done, total]|null, error}]}`.
+Future<String> studioDepsStatus() =>
+    RustLib.instance.api.crateApiStudioStudioDepsStatus();
+
+/// Download and install a missing tool where the Studio runs (poll `studio_deps_status`).
+Future<void> studioDepsInstall({required String id}) =>
+    RustLib.instance.api.crateApiStudioStudioDepsInstall(id: id);
+
+Future<void> studioDepsCancel({required String id}) =>
+    RustLib.instance.api.crateApiStudioStudioDepsCancel(id: id);
+
+/// Build the clip's Concat project from its current edit and (with `open`) start the Concat
+/// window on it. Returns `{project, opened}`. `rebuild` discards edits made in Concat.
+Future<String> studioConcatEdit({
+  required String id,
+  required String clip,
+  required bool open,
+  required bool rebuild,
+}) => RustLib.instance.api.crateApiStudioStudioConcatEdit(
+  id: id,
+  clip: clip,
+  open: open,
+  rebuild: rebuild,
+);
+
+/// Export the clip's Concat project with Concat's engine; progress and completion arrive on
+/// `studio_events` like a normal render, and the result becomes the clip's rendered video.
+Future<String> studioConcatRender({required String id, required String clip}) =>
+    RustLib.instance.api.crateApiStudioStudioConcatRender(id: id, clip: clip);
+
 /// Built-in templates and caption presets: `{templates: [...], caption_presets: [...]}`.
 Future<String> studioTemplates() =>
     RustLib.instance.api.crateApiStudioStudioTemplates();

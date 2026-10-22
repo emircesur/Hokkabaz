@@ -9,6 +9,7 @@
 
 pub mod broll;
 pub mod captions;
+pub mod concat_bridge;
 pub mod edit;
 pub mod edl;
 mod error;

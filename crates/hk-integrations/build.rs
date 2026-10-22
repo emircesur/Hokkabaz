@@ -18,7 +18,11 @@ fn main() {
     let mut out = String::from("pub const ALL: &[(&str, &str)] = &[\n");
     for f in files {
         let name = f.file_stem().unwrap().to_string_lossy().into_owned();
-        let _ = writeln!(out, "    ({name:?}, include_str!({:?})),", f.display().to_string());
+        let _ = writeln!(
+            out,
+            "    ({name:?}, include_str!({:?})),",
+            f.display().to_string()
+        );
     }
     out.push_str("];\n");
     std::fs::write(

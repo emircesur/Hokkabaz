@@ -1,0 +1,135 @@
+{
+ "name": "microsoftOneDrive",
+ "type": "n8n-nodes-base.microsoftOneDrive",
+ "display": "Microsoft OneDrive",
+ "description": "Browse and organize OneDrive (no upload/download yet)",
+ "color": "#0078D4",
+ "versions": [
+  1
+ ],
+ "base": "https://graph.microsoft.com/v1.0/me/drive",
+ "cred": {
+  "name": "microsoftOneDriveOAuth2Api",
+  "display": "Microsoft OneDrive OAuth2 API",
+  "oauth": {
+   "token_url": "https://login.microsoftonline.com/{{$credentials.tenant}}/oauth2/v2.0/token",
+   "scope": "offline_access Files.ReadWrite.All",
+   "tenant": true
+  },
+  "docs": "https://learn.microsoft.com/entra/identity-platform/v2-oauth2-auth-code-flow (register an app, sign in once, keep the refresh token)"
+ },
+ "resources": [
+  {
+   "name": "file",
+   "display": "File",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "List Folder",
+     "method": "GET",
+     "path": "/root/children",
+     "action": "List the root folder",
+     "out": "value",
+     "list": true,
+     "page": {
+      "type": "nextUrl",
+      "nextPath": "@odata.nextLink"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/items/{itemId}",
+     "action": "Get an item",
+     "params": [
+      {
+       "name": "itemId",
+       "display": "Item ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "search",
+     "display": "Search",
+     "method": "GET",
+     "path": "/root/search(q='{query}')",
+     "action": "Search",
+     "params": [
+      {
+       "name": "query",
+       "display": "Query",
+       "required": true
+      }
+     ],
+     "out": "value",
+     "list": true,
+     "page": {
+      "type": "nextUrl",
+      "nextPath": "@odata.nextLink"
+     }
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/items/{itemId}",
+     "action": "Delete an item",
+     "params": [
+      {
+       "name": "itemId",
+       "display": "Item ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "folder",
+   "display": "Folder",
+   "ops": [
+    {
+     "name": "getChildren",
+     "display": "Get Children",
+     "method": "GET",
+     "path": "/items/{itemId}/children",
+     "action": "List a folder",
+     "params": [
+      {
+       "name": "itemId",
+       "display": "Folder ID",
+       "required": true
+      }
+     ],
+     "out": "value",
+     "list": true,
+     "page": {
+      "type": "nextUrl",
+      "nextPath": "@odata.nextLink"
+     }
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/root/children",
+     "action": "Create a folder",
+     "params": [
+      {
+       "name": "name",
+       "display": "Name",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "body": {
+      "folder": {},
+      "@microsoft.graph.conflictBehavior": "rename"
+     }
+    }
+   ]
+  }
+ ]
+}

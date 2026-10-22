@@ -1,0 +1,109 @@
+{
+ "name": "googleSlides",
+ "type": "n8n-nodes-base.googleSlides",
+ "display": "Google Slides",
+ "description": "Presentations",
+ "color": "#F4B400",
+ "versions": [
+  1
+ ],
+ "base": "https://slides.googleapis.com/v1/presentations",
+ "cred": {
+  "name": "googleSlidesOAuth2Api",
+  "display": "Google Slides OAuth2 API",
+  "oauth": {
+   "token_url": "https://oauth2.googleapis.com/token",
+   "scope": "https://www.googleapis.com/auth/presentations"
+  },
+  "docs": "https://developers.google.com/oauthplayground (authorize the scope, copy the refresh token)"
+ },
+ "resources": [
+  {
+   "name": "presentation",
+   "display": "Presentation",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "https://slides.googleapis.com/v1/presentations",
+     "action": "Create a presentation",
+     "params": [
+      {
+       "name": "title",
+       "display": "Title",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/{presentationId}",
+     "action": "Get a presentation",
+     "params": [
+      {
+       "name": "presentationId",
+       "display": "Presentation ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "replaceText",
+     "display": "Replace Text",
+     "method": "POST",
+     "path": "/{presentationId}:batchUpdate",
+     "action": "Replace text everywhere",
+     "params": [
+      {
+       "name": "presentationId",
+       "display": "Presentation ID",
+       "required": true
+      },
+      {
+       "name": "text",
+       "display": "Text to Find",
+       "required": true
+      },
+      {
+       "name": "replaceText",
+       "display": "Replace With",
+       "required": true
+      }
+     ],
+     "body": {
+      "requests": "={{ [{\"replaceAllText\": {\"containsText\": {\"text\": $parameter[\"text\"], \"matchCase\": true}, \"replaceText\": $parameter[\"replaceText\"]}}] }}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "page",
+   "display": "Page",
+   "ops": [
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/{presentationId}/pages/{pageObjectId}",
+     "action": "Get a page",
+     "params": [
+      {
+       "name": "presentationId",
+       "display": "Presentation ID",
+       "required": true
+      },
+      {
+       "name": "pageObjectId",
+       "display": "Page ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

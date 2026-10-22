@@ -22,7 +22,9 @@ use serde_json::{Map, Value, json};
 use hk_flow::description::NodeTypeDescription;
 use hk_flow::{FlowError, NodeRegistry};
 
-use crate::credentials::{Authenticate, CredentialTest, CredentialType, CredentialTypes, GenericAuth};
+use crate::credentials::{
+    Authenticate, CredentialTest, CredentialType, CredentialTypes, GenericAuth,
+};
 use crate::describe::Prop;
 use crate::pathparam;
 use crate::rest::{RestBody, RestNode, RestRequest, RestSpec};
@@ -211,7 +213,8 @@ fn param_json(p: &ParamSpec, show: &Value) -> Value {
         v["displayOptions"] = json!({"show": show});
     }
     if let Some(kind) = p.send.as_deref().filter(|k| *k != "queryString") {
-        let mut send = json!({"type": kind, "property": p.prop.clone().unwrap_or_else(|| p.name.clone())});
+        let mut send =
+            json!({"type": kind, "property": p.prop.clone().unwrap_or_else(|| p.name.clone())});
         if ty == "json" {
             send["json"] = json!(true);
         }
@@ -274,8 +277,10 @@ impl Spec {
             if let Some(s) = &o.scope {
                 t = t.property(Prop::string("scope", "Scope").default(s.clone()));
             }
-            auth.headers
-                .insert("Authorization".into(), "=Bearer {{$credentials.accessToken}}".into());
+            auth.headers.insert(
+                "Authorization".into(),
+                "=Bearer {{$credentials.accessToken}}".into(),
+            );
         }
         if !auth.headers.is_empty() || !auth.qs.is_empty() || auth.basic.is_some() {
             t = t.authenticate(Authenticate::Generic(Box::new(auth)));
@@ -314,8 +319,10 @@ impl Spec {
                     props.push(param_json(p, &show));
                 }
                 if o.list {
-                    props.push(json!({"displayName": "Return All", "name": "returnAll", "type": "boolean",
-                        "default": false, "displayOptions": {"show": show}}));
+                    props.push(
+                        json!({"displayName": "Return All", "name": "returnAll", "type": "boolean",
+                        "default": false, "displayOptions": {"show": show}}),
+                    );
                     props.push(json!({"displayName": "Limit", "name": "limit", "type": "number", "default": 50,
                         "typeOptions": {"minValue": 1},
                         "displayOptions": {"show": {"resource": [r.name], "operation": [o.name], "returnAll": [false]}}}));
@@ -346,7 +353,8 @@ impl Spec {
         if let Some(i) = &self.icon {
             d["icon"] = json!(i);
         }
-        serde_json::from_value(d).unwrap_or_else(|e| panic!("spec {}: bad description: {e}", self.name))
+        serde_json::from_value(d)
+            .unwrap_or_else(|e| panic!("spec {}: bad description: {e}", self.name))
     }
 
     fn op_choice(&self, o: &OpSpec) -> Value {
@@ -406,9 +414,7 @@ impl Spec {
                 if let Some(h) = hook_fn {
                     h(req, ctx, i)?;
                 }
-                if form
-                    && let RestBody::Json(Value::Object(o)) = &req.body
-                {
+                if form && let RestBody::Json(Value::Object(o)) = &req.body {
                     let mut pairs = Vec::new();
                     flatten_form("", &Value::Object(o.clone()), &mut pairs);
                     req.body = RestBody::Form(pairs);
@@ -462,7 +468,7 @@ fn hook(name: &str) -> Option<Hook> {
 fn gmail(req: &mut RestRequest, ctx: &hk_flow::NodeContext, i: usize) -> Result<(), FlowError> {
     use base64::Engine as _;
     let draft = req.url.ends_with("/drafts");
-    if !draft && !req.url.ends_with("/messages/send") {
+    if req.method != "POST" || (!draft && !req.url.ends_with("/messages/send")) {
         return Ok(());
     }
     let get = |p: &str| -> Result<String, FlowError> {
@@ -482,7 +488,11 @@ fn gmail(req: &mut RestRequest, ctx: &hk_flow::NodeContext, i: usize) -> Result<
     }
     let html = get("emailType")? == "html";
     let mut msg = format!("To: {to}\r\n");
-    for (opt, header) in [("options.ccList", "Cc"), ("options.bccList", "Bcc"), ("options.replyTo", "Reply-To")] {
+    for (opt, header) in [
+        ("options.ccList", "Cc"),
+        ("options.bccList", "Bcc"),
+        ("options.replyTo", "Reply-To"),
+    ] {
         let v = clean(get(opt)?);
         if !v.is_empty() {
             msg.push_str(&format!("{header}: {v}\r\n"));
@@ -512,9 +522,7 @@ fn gmail(req: &mut RestRequest, ctx: &hk_flow::NodeContext, i: usize) -> Result<
 pub fn specs() -> Vec<Spec> {
     crate::specs::ALL
         .iter()
-        .map(|(file, raw)| {
-            Spec::parse(raw).unwrap_or_else(|e| panic!("specs/{file}: {e}"))
-        })
+        .map(|(file, raw)| Spec::parse(raw).unwrap_or_else(|e| panic!("specs/{file}: {e}")))
         .collect()
 }
 

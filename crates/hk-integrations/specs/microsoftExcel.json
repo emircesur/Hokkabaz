@@ -1,0 +1,136 @@
+{
+ "name": "microsoftExcel",
+ "type": "n8n-nodes-base.microsoftExcel",
+ "display": "Microsoft Excel 365",
+ "description": "Workbooks, tables and ranges",
+ "color": "#217346",
+ "versions": [
+  1,
+  2
+ ],
+ "base": "https://graph.microsoft.com/v1.0/me/drive/items",
+ "cred": {
+  "name": "microsoftExcelOAuth2Api",
+  "display": "Microsoft Excel OAuth2 API",
+  "oauth": {
+   "token_url": "https://login.microsoftonline.com/{{$credentials.tenant}}/oauth2/v2.0/token",
+   "scope": "offline_access Files.ReadWrite.All",
+   "tenant": true
+  },
+  "docs": "https://learn.microsoft.com/entra/identity-platform/v2-oauth2-auth-code-flow (register an app, sign in once, keep the refresh token)"
+ },
+ "resources": [
+  {
+   "name": "worksheet",
+   "display": "Sheet",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/{workbookId}/workbook/worksheets",
+     "action": "Get worksheets",
+     "params": [
+      {
+       "name": "workbookId",
+       "display": "Workbook ID",
+       "required": true
+      }
+     ],
+     "out": "value",
+     "list": true
+    },
+    {
+     "name": "getContent",
+     "display": "Get Content",
+     "method": "GET",
+     "path": "/{workbookId}/workbook/worksheets/{worksheetId}/usedRange",
+     "action": "Get used range",
+     "params": [
+      {
+       "name": "workbookId",
+       "display": "Workbook ID",
+       "required": true
+      },
+      {
+       "name": "worksheetId",
+       "display": "Worksheet Name or ID",
+       "required": true
+      }
+     ],
+     "out": "values",
+     "rows": true
+    }
+   ]
+  },
+  {
+   "name": "table",
+   "display": "Table",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/{workbookId}/workbook/tables",
+     "action": "Get tables",
+     "params": [
+      {
+       "name": "workbookId",
+       "display": "Workbook ID",
+       "required": true
+      }
+     ],
+     "out": "value",
+     "list": true
+    },
+    {
+     "name": "getRows",
+     "display": "Get Rows",
+     "method": "GET",
+     "path": "/{workbookId}/workbook/tables/{tableId}/rows",
+     "action": "Get rows",
+     "params": [
+      {
+       "name": "workbookId",
+       "display": "Workbook ID",
+       "required": true
+      },
+      {
+       "name": "tableId",
+       "display": "Table ID",
+       "required": true
+      }
+     ],
+     "out": "value",
+     "list": true
+    },
+    {
+     "name": "addRow",
+     "display": "Add Row",
+     "method": "POST",
+     "path": "/{workbookId}/workbook/tables/{tableId}/rows/add",
+     "action": "Add rows",
+     "params": [
+      {
+       "name": "workbookId",
+       "display": "Workbook ID",
+       "required": true
+      },
+      {
+       "name": "tableId",
+       "display": "Table ID",
+       "required": true
+      },
+      {
+       "name": "values",
+       "display": "Rows (JSON array of arrays)",
+       "type": "json",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

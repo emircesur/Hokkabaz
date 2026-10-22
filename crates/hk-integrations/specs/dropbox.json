@@ -1,0 +1,192 @@
+{
+ "name": "dropbox",
+ "type": "n8n-nodes-base.dropbox",
+ "display": "Dropbox",
+ "description": "Browse and organize Dropbox (no upload/download yet)",
+ "color": "#0061FF",
+ "versions": [
+  1,
+  2
+ ],
+ "base": "https://api.dropboxapi.com/2",
+ "cred": {
+  "name": "dropboxOAuth2Api",
+  "display": "Dropbox OAuth2 API",
+  "oauth": {
+   "token_url": "https://api.dropboxapi.com/oauth2/token"
+  },
+  "docs": "https://www.dropbox.com/developers/apps (use the offline access token_access_type to get a refresh token)"
+ },
+ "resources": [
+  {
+   "name": "folder",
+   "display": "Folder",
+   "ops": [
+    {
+     "name": "list",
+     "display": "List",
+     "method": "POST",
+     "path": "/files/list_folder",
+     "action": "List a folder",
+     "params": [
+      {
+       "name": "path",
+       "display": "Folder Path (empty = root)",
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "recursive",
+       "display": "Recursive",
+       "type": "boolean",
+       "send": "body"
+      }
+     ],
+     "out": "entries",
+     "list": true
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/files/create_folder_v2",
+     "action": "Create a folder",
+     "params": [
+      {
+       "name": "path",
+       "display": "Folder Path",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "out": "metadata"
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "POST",
+     "path": "/files/delete_v2",
+     "action": "Delete a folder",
+     "params": [
+      {
+       "name": "path",
+       "display": "Folder Path",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "out": "metadata"
+    }
+   ]
+  },
+  {
+   "name": "file",
+   "display": "File",
+   "ops": [
+    {
+     "name": "get",
+     "display": "Get Metadata",
+     "method": "POST",
+     "path": "/files/get_metadata",
+     "action": "Get file info",
+     "params": [
+      {
+       "name": "path",
+       "display": "Path",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "move",
+     "display": "Move",
+     "method": "POST",
+     "path": "/files/move_v2",
+     "action": "Move a file",
+     "params": [
+      {
+       "name": "from",
+       "display": "From Path",
+       "required": true,
+       "send": "body",
+       "prop": "from_path"
+      },
+      {
+       "name": "to",
+       "display": "To Path",
+       "required": true,
+       "send": "body",
+       "prop": "to_path"
+      }
+     ],
+     "out": "metadata"
+    },
+    {
+     "name": "copy",
+     "display": "Copy",
+     "method": "POST",
+     "path": "/files/copy_v2",
+     "action": "Copy a file",
+     "params": [
+      {
+       "name": "from",
+       "display": "From Path",
+       "required": true,
+       "send": "body",
+       "prop": "from_path"
+      },
+      {
+       "name": "to",
+       "display": "To Path",
+       "required": true,
+       "send": "body",
+       "prop": "to_path"
+      }
+     ],
+     "out": "metadata"
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "POST",
+     "path": "/files/delete_v2",
+     "action": "Delete a file",
+     "params": [
+      {
+       "name": "path",
+       "display": "Path",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "out": "metadata"
+    }
+   ]
+  },
+  {
+   "name": "search",
+   "display": "Search",
+   "ops": [
+    {
+     "name": "query",
+     "display": "Query",
+     "method": "POST",
+     "path": "/files/search_v2",
+     "action": "Search",
+     "params": [
+      {
+       "name": "query",
+       "display": "Query",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "out": "matches",
+     "list": true
+    }
+   ]
+  }
+ ]
+}

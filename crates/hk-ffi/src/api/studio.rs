@@ -86,6 +86,44 @@ pub async fn studio_whisper_remove(id: String) -> Result<(), HkError> {
     Ok(())
 }
 
+/// Tools Studio needs (`ffmpeg`, `concat`): `{tools: [{id, name, installed, path, version, source,
+/// can_install, note, installing, phase, progress: [done, total]|null, error}]}`.
+pub async fn studio_deps_status() -> Result<String, HkError> {
+    rpc_json("deps_status", json!({})).await
+}
+
+/// Download and install a missing tool where the Studio runs (poll `studio_deps_status`).
+pub async fn studio_deps_install(id: String) -> Result<(), HkError> {
+    rpc("deps_install", json!({"id": id})).await?;
+    Ok(())
+}
+
+pub async fn studio_deps_cancel(id: String) -> Result<(), HkError> {
+    rpc("deps_cancel", json!({"id": id})).await?;
+    Ok(())
+}
+
+/// Build the clip's Concat project from its current edit and (with `open`) start the Concat
+/// window on it. Returns `{project, opened}`. `rebuild` discards edits made in Concat.
+pub async fn studio_concat_edit(
+    id: String,
+    clip: String,
+    open: bool,
+    rebuild: bool,
+) -> Result<String, HkError> {
+    rpc_json(
+        "concat_edit",
+        json!({"id": id, "clip": clip, "open": open, "rebuild": rebuild}),
+    )
+    .await
+}
+
+/// Export the clip's Concat project with Concat's engine; progress and completion arrive on
+/// `studio_events` like a normal render, and the result becomes the clip's rendered video.
+pub async fn studio_concat_render(id: String, clip: String) -> Result<String, HkError> {
+    want(rpc("concat_render", json!({"id": id, "clip": clip})).await?)
+}
+
 /// Built-in templates and caption presets: `{templates: [...], caption_presets: [...]}`.
 pub async fn studio_templates() -> Result<String, HkError> {
     rpc_json("templates", json!({})).await

@@ -344,6 +344,19 @@ impl StudioService {
         Ok(job)
     }
 
+    /// Scratch folder of a project (proxies, renders, Concat projects).
+    pub fn work_dir(&self, id: &str) -> PathBuf {
+        self.studio.store.work_dir(id)
+    }
+
+    /// Record `path` as the clip's rendered video (an export made outside the Studio pipeline).
+    pub async fn set_render(&self, id: &str, clip: &str, path: PathBuf) {
+        self.renders
+            .lock()
+            .await
+            .insert((id.to_string(), clip.to_string()), path);
+    }
+
     pub async fn cancel_render(&self, job: &str) -> bool {
         match self.jobs.lock().await.remove(job) {
             Some(tx) => tx.send(()).is_ok(),

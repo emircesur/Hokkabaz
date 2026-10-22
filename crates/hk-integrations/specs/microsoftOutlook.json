@@ -1,0 +1,288 @@
+{
+ "name": "microsoftOutlook",
+ "type": "n8n-nodes-base.microsoftOutlook",
+ "display": "Microsoft Outlook",
+ "description": "Mail, folders, calendar and contacts through Microsoft Graph",
+ "color": "#0078D4",
+ "versions": [
+  1,
+  2
+ ],
+ "base": "https://graph.microsoft.com/v1.0/me",
+ "cred": {
+  "name": "microsoftOutlookOAuth2Api",
+  "display": "Microsoft Outlook OAuth2 API",
+  "oauth": {
+   "token_url": "https://login.microsoftonline.com/{{$credentials.tenant}}/oauth2/v2.0/token",
+   "scope": "offline_access Mail.ReadWrite Mail.Send Calendars.ReadWrite Contacts.ReadWrite",
+   "tenant": true
+  },
+  "docs": "https://learn.microsoft.com/entra/identity-platform/v2-oauth2-auth-code-flow (register an app, sign in once, keep the refresh token)"
+ },
+ "resources": [
+  {
+   "name": "message",
+   "display": "Message",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/messages",
+     "action": "Get many messages",
+     "extra": [
+      {
+       "name": "$filter",
+       "display": "Filter",
+       "send": "query"
+      },
+      {
+       "name": "$search",
+       "display": "Search",
+       "send": "query"
+      },
+      {
+       "name": "$select",
+       "display": "Fields",
+       "send": "query"
+      }
+     ],
+     "out": "value",
+     "list": true,
+     "page": {
+      "type": "nextUrl",
+      "nextPath": "@odata.nextLink"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/messages/{messageId}",
+     "action": "Get a message",
+     "params": [
+      {
+       "name": "messageId",
+       "display": "Message ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "send",
+     "display": "Send",
+     "method": "POST",
+     "path": "/sendMail",
+     "action": "Send a message",
+     "params": [
+      {
+       "name": "toRecipients",
+       "display": "To (comma separated)",
+       "required": true
+      },
+      {
+       "name": "subject",
+       "display": "Subject",
+       "required": true,
+       "send": "body",
+       "prop": "message.subject"
+      },
+      {
+       "name": "bodyContentType",
+       "display": "Body Type",
+       "type": "options",
+       "default": "Text",
+       "options": [
+        [
+         "Text",
+         "Text"
+        ],
+        [
+         "HTML",
+         "HTML"
+        ]
+       ]
+      },
+      {
+       "name": "bodyContent",
+       "display": "Body",
+       "required": true
+      }
+     ],
+     "body": {
+      "message": "={{ {\"subject\": $parameter[\"subject\"], \"body\": {\"contentType\": $parameter[\"bodyContentType\"], \"content\": $parameter[\"bodyContent\"]}, \"toRecipients\": String($parameter[\"toRecipients\"]).split(\",\").map(e => ({\"emailAddress\": {\"address\": e.trim()}}))} }}"
+     }
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/messages/{messageId}",
+     "action": "Delete a message",
+     "params": [
+      {
+       "name": "messageId",
+       "display": "Message ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "folder",
+   "display": "Folder",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/mailFolders",
+     "action": "Get mail folders",
+     "out": "value",
+     "list": true,
+     "page": {
+      "type": "nextUrl",
+      "nextPath": "@odata.nextLink"
+     }
+    }
+   ]
+  },
+  {
+   "name": "event",
+   "display": "Event",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/events",
+     "action": "Get many events",
+     "out": "value",
+     "list": true,
+     "page": {
+      "type": "nextUrl",
+      "nextPath": "@odata.nextLink"
+     }
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/events",
+     "action": "Create an event",
+     "params": [
+      {
+       "name": "subject",
+       "display": "Title",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "start",
+       "display": "Start (ISO 8601)",
+       "required": true,
+       "send": "body",
+       "prop": "start.dateTime"
+      },
+      {
+       "name": "end",
+       "display": "End (ISO 8601)",
+       "required": true,
+       "send": "body",
+       "prop": "end.dateTime"
+      },
+      {
+       "name": "tz",
+       "display": "Time Zone",
+       "send": "body",
+       "prop": "start.timeZone",
+       "default": "UTC"
+      }
+     ],
+     "extra": [
+      {
+       "name": "endTz",
+       "display": "End Time Zone",
+       "send": "body",
+       "prop": "end.timeZone"
+      },
+      {
+       "name": "location",
+       "display": "Location",
+       "send": "body",
+       "prop": "location.displayName"
+      },
+      {
+       "name": "body",
+       "display": "Description",
+       "send": "body",
+       "prop": "body.content"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/events/{eventId}",
+     "action": "Delete an event",
+     "params": [
+      {
+       "name": "eventId",
+       "display": "Event ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "contact",
+   "display": "Contact",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/contacts",
+     "action": "Get many contacts",
+     "out": "value",
+     "list": true,
+     "page": {
+      "type": "nextUrl",
+      "nextPath": "@odata.nextLink"
+     }
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/contacts",
+     "action": "Create a contact",
+     "params": [
+      {
+       "name": "givenName",
+       "display": "First Name",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "surname",
+       "display": "Last Name",
+       "send": "body"
+      },
+      {
+       "name": "emailAddresses",
+       "display": "Emails (JSON array)",
+       "type": "json",
+       "send": "body"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

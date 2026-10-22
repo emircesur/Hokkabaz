@@ -1,0 +1,350 @@
+{
+ "name": "gmail",
+ "type": "n8n-nodes-base.gmail",
+ "display": "Gmail",
+ "description": "Send, read and label mail",
+ "color": "#EA4335",
+ "versions": [
+  1,
+  2,
+  2.1
+ ],
+ "base": "https://gmail.googleapis.com/gmail/v1/users/me",
+ "cred": {
+  "name": "gmailOAuth2",
+  "display": "Gmail OAuth2 API",
+  "oauth": {
+   "token_url": "https://oauth2.googleapis.com/token",
+   "scope": "https://www.googleapis.com/auth/gmail.modify"
+  },
+  "docs": "https://developers.google.com/oauthplayground (authorize the scope, copy the refresh token)"
+ },
+ "resources": [
+  {
+   "name": "message",
+   "display": "Message",
+   "ops": [
+    {
+     "name": "send",
+     "display": "Send",
+     "method": "POST",
+     "path": "/messages/send",
+     "action": "Send a message",
+     "params": [
+      {
+       "name": "sendTo",
+       "display": "To",
+       "required": true
+      },
+      {
+       "name": "subject",
+       "display": "Subject"
+      },
+      {
+       "name": "emailType",
+       "display": "Email Type",
+       "type": "options",
+       "default": "text",
+       "options": [
+        [
+         "Text",
+         "text"
+        ],
+        [
+         "HTML",
+         "html"
+        ]
+       ]
+      },
+      {
+       "name": "message",
+       "display": "Message",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "ccList",
+       "display": "CC"
+      },
+      {
+       "name": "bccList",
+       "display": "BCC"
+      },
+      {
+       "name": "replyTo",
+       "display": "Reply To"
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/messages",
+     "action": "Get many messages",
+     "extra": [
+      {
+       "name": "q",
+       "display": "Search",
+       "send": "query",
+       "desc": "Gmail search syntax, e.g. from:a@b.c is:unread"
+      },
+      {
+       "name": "labelIds",
+       "display": "Label IDs",
+       "send": "query"
+      }
+     ],
+     "out": "messages",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "pageToken",
+      "nextPath": "nextPageToken",
+      "pageSize": 100,
+      "sizeParam": "maxResults"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/messages/{messageId}",
+     "action": "Get a message",
+     "params": [
+      {
+       "name": "messageId",
+       "display": "Message ID",
+       "required": true
+      }
+     ],
+     "qs": {
+      "format": "full"
+     }
+    },
+    {
+     "name": "markAsRead",
+     "display": "Mark as Read",
+     "method": "POST",
+     "path": "/messages/{messageId}/modify",
+     "action": "Mark as read",
+     "params": [
+      {
+       "name": "messageId",
+       "display": "Message ID",
+       "required": true
+      }
+     ],
+     "body": {
+      "removeLabelIds": [
+       "UNREAD"
+      ]
+     }
+    },
+    {
+     "name": "markAsUnread",
+     "display": "Mark as Unread",
+     "method": "POST",
+     "path": "/messages/{messageId}/modify",
+     "action": "Mark as unread",
+     "params": [
+      {
+       "name": "messageId",
+       "display": "Message ID",
+       "required": true
+      }
+     ],
+     "body": {
+      "addLabelIds": [
+       "UNREAD"
+      ]
+     }
+    },
+    {
+     "name": "trash",
+     "display": "Delete",
+     "method": "POST",
+     "path": "/messages/{messageId}/trash",
+     "action": "Move to trash",
+     "params": [
+      {
+       "name": "messageId",
+       "display": "Message ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "addLabels",
+     "display": "Add Label",
+     "method": "POST",
+     "path": "/messages/{messageId}/modify",
+     "action": "Add labels",
+     "params": [
+      {
+       "name": "messageId",
+       "display": "Message ID",
+       "required": true
+      },
+      {
+       "name": "labelIds",
+       "display": "Label IDs (JSON array)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "prop": "addLabelIds"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "draft",
+   "display": "Draft",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/drafts",
+     "action": "Create a draft",
+     "params": [
+      {
+       "name": "sendTo",
+       "display": "To"
+      },
+      {
+       "name": "subject",
+       "display": "Subject"
+      },
+      {
+       "name": "emailType",
+       "display": "Email Type",
+       "type": "options",
+       "default": "text",
+       "options": [
+        [
+         "Text",
+         "text"
+        ],
+        [
+         "HTML",
+         "html"
+        ]
+       ]
+      },
+      {
+       "name": "message",
+       "display": "Message"
+      }
+     ]
+    },
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/drafts",
+     "action": "Get many drafts",
+     "out": "drafts",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "pageToken",
+      "nextPath": "nextPageToken",
+      "pageSize": 100,
+      "sizeParam": "maxResults"
+     }
+    }
+   ]
+  },
+  {
+   "name": "label",
+   "display": "Label",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/labels",
+     "action": "Get many labels",
+     "out": "labels",
+     "list": true
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/labels",
+     "action": "Create a label",
+     "params": [
+      {
+       "name": "name",
+       "display": "Name",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/labels/{labelId}",
+     "action": "Delete a label",
+     "params": [
+      {
+       "name": "labelId",
+       "display": "Label ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "thread",
+   "display": "Thread",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/threads",
+     "action": "Get many threads",
+     "extra": [
+      {
+       "name": "q",
+       "display": "Search",
+       "send": "query"
+      }
+     ],
+     "out": "threads",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "pageToken",
+      "nextPath": "nextPageToken",
+      "pageSize": 100,
+      "sizeParam": "maxResults"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/threads/{threadId}",
+     "action": "Get a thread",
+     "params": [
+      {
+       "name": "threadId",
+       "display": "Thread ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "hook": "gmail"
+}

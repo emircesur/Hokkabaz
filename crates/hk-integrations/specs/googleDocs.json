@@ -1,0 +1,80 @@
+{
+ "name": "googleDocs",
+ "type": "n8n-nodes-base.googleDocs",
+ "display": "Google Docs",
+ "description": "Create and edit documents",
+ "color": "#4285F4",
+ "versions": [
+  1,
+  2
+ ],
+ "base": "https://docs.googleapis.com/v1/documents",
+ "cred": {
+  "name": "googleDocsOAuth2Api",
+  "display": "Google Docs OAuth2 API",
+  "oauth": {
+   "token_url": "https://oauth2.googleapis.com/token",
+   "scope": "https://www.googleapis.com/auth/documents"
+  },
+  "docs": "https://developers.google.com/oauthplayground (authorize the scope, copy the refresh token)"
+ },
+ "resources": [
+  {
+   "name": "document",
+   "display": "Document",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "https://docs.googleapis.com/v1/documents",
+     "action": "Create a document",
+     "params": [
+      {
+       "name": "title",
+       "display": "Title",
+       "required": true,
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/{documentId}",
+     "action": "Get a document",
+     "params": [
+      {
+       "name": "documentId",
+       "display": "Document ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "POST",
+     "path": "/{documentId}:batchUpdate",
+     "action": "Update a document",
+     "params": [
+      {
+       "name": "documentId",
+       "display": "Document ID",
+       "required": true
+      },
+      {
+       "name": "requests",
+       "display": "Requests (JSON array)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "default": "[{\"insertText\": {\"location\": {\"index\": 1}, \"text\": \"Hello\"}}]"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

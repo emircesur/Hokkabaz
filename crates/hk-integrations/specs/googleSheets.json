@@ -1,0 +1,213 @@
+{
+ "name": "googleSheets",
+ "type": "n8n-nodes-base.googleSheets",
+ "display": "Google Sheets",
+ "description": "Read and write Google Sheets (refresh-token credential)",
+ "color": "#34A853",
+ "versions": [
+  1,
+  2,
+  3,
+  4,
+  4.5
+ ],
+ "base": "https://sheets.googleapis.com/v4/spreadsheets",
+ "cred": {
+  "name": "googleSheetsOAuth2Api",
+  "display": "Google Sheets OAuth2 API",
+  "oauth": {
+   "token_url": "https://oauth2.googleapis.com/token",
+   "scope": "https://www.googleapis.com/auth/spreadsheets"
+  },
+  "docs": "https://developers.google.com/oauthplayground (authorize the scope, copy the refresh token)"
+ },
+ "resources": [
+  {
+   "name": "sheet",
+   "display": "Sheet Within Document",
+   "ops": [
+    {
+     "name": "read",
+     "display": "Get Row(s)",
+     "method": "GET",
+     "path": "/{documentId}/values/{+sheetName}",
+     "action": "Get rows",
+     "params": [
+      {
+       "name": "documentId",
+       "display": "Document ID",
+       "required": true
+      },
+      {
+       "name": "sheetName",
+       "display": "Sheet Name or Range",
+       "required": true
+      }
+     ],
+     "out": "values",
+     "rows": true
+    },
+    {
+     "name": "append",
+     "display": "Append Row",
+     "method": "POST",
+     "path": "/{documentId}/values/{+sheetName}:append",
+     "action": "Append rows",
+     "params": [
+      {
+       "name": "documentId",
+       "display": "Document ID",
+       "required": true
+      },
+      {
+       "name": "sheetName",
+       "display": "Sheet Name",
+       "required": true
+      },
+      {
+       "name": "values",
+       "display": "Rows (JSON array of arrays)",
+       "type": "json",
+       "required": true,
+       "send": "body",
+       "default": "[[\"a\", \"b\"]]"
+      }
+     ],
+     "qs": {
+      "valueInputOption": "USER_ENTERED",
+      "insertDataOption": "INSERT_ROWS"
+     }
+    },
+    {
+     "name": "update",
+     "display": "Update Row",
+     "method": "PUT",
+     "path": "/{documentId}/values/{+range}",
+     "action": "Update cells",
+     "params": [
+      {
+       "name": "documentId",
+       "display": "Document ID",
+       "required": true
+      },
+      {
+       "name": "range",
+       "display": "Range (A1 notation)",
+       "required": true
+      },
+      {
+       "name": "values",
+       "display": "Rows (JSON array of arrays)",
+       "type": "json",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "qs": {
+      "valueInputOption": "USER_ENTERED"
+     }
+    },
+    {
+     "name": "clear",
+     "display": "Clear",
+     "method": "POST",
+     "path": "/{documentId}/values/{+range}:clear",
+     "action": "Clear a range",
+     "params": [
+      {
+       "name": "documentId",
+       "display": "Document ID",
+       "required": true
+      },
+      {
+       "name": "range",
+       "display": "Range (A1 notation)",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/{documentId}:batchUpdate",
+     "action": "Add a sheet",
+     "params": [
+      {
+       "name": "documentId",
+       "display": "Document ID",
+       "required": true
+      },
+      {
+       "name": "title",
+       "display": "Sheet Title",
+       "required": true
+      }
+     ],
+     "body": {
+      "requests": "={{ [{\"addSheet\": {\"properties\": {\"title\": $parameter[\"title\"]}}}] }}"
+     }
+    },
+    {
+     "name": "remove",
+     "display": "Delete",
+     "method": "POST",
+     "path": "/{documentId}:batchUpdate",
+     "action": "Delete a sheet",
+     "params": [
+      {
+       "name": "documentId",
+       "display": "Document ID",
+       "required": true
+      },
+      {
+       "name": "sheetId",
+       "display": "Sheet ID",
+       "type": "number",
+       "required": true
+      }
+     ],
+     "body": {
+      "requests": "={{ [{\"deleteSheet\": {\"sheetId\": $parameter[\"sheetId\"]}}] }}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "spreadsheet",
+   "display": "Document",
+   "ops": [
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "https://sheets.googleapis.com/v4/spreadsheets",
+     "action": "Create a spreadsheet",
+     "params": [
+      {
+       "name": "title",
+       "display": "Title",
+       "required": true,
+       "send": "body",
+       "prop": "properties.title"
+      }
+     ]
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/{documentId}",
+     "action": "Get a spreadsheet",
+     "params": [
+      {
+       "name": "documentId",
+       "display": "Document ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,142 @@
+{
+ "name": "googleTasks",
+ "type": "n8n-nodes-base.googleTasks",
+ "display": "Google Tasks",
+ "description": "Task lists",
+ "color": "#4285F4",
+ "versions": [
+  1
+ ],
+ "base": "https://tasks.googleapis.com/tasks/v1",
+ "cred": {
+  "name": "googleTasksOAuth2Api",
+  "display": "Google Tasks OAuth2 API",
+  "oauth": {
+   "token_url": "https://oauth2.googleapis.com/token",
+   "scope": "https://www.googleapis.com/auth/tasks"
+  },
+  "docs": "https://developers.google.com/oauthplayground (authorize the scope, copy the refresh token)"
+ },
+ "resources": [
+  {
+   "name": "task",
+   "display": "Task",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/lists/{tasklist}/tasks",
+     "action": "Get many tasks",
+     "params": [
+      {
+       "name": "tasklist",
+       "display": "Task List ID",
+       "required": true,
+       "default": "@default"
+      }
+     ],
+     "out": "items",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "pageToken",
+      "nextPath": "nextPageToken",
+      "pageSize": 100,
+      "sizeParam": "maxResults"
+     }
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/lists/{tasklist}/tasks",
+     "action": "Create a task",
+     "params": [
+      {
+       "name": "tasklist",
+       "display": "Task List ID",
+       "required": true,
+       "default": "@default"
+      },
+      {
+       "name": "title",
+       "display": "Title",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "extra": [
+      {
+       "name": "notes",
+       "display": "Notes",
+       "send": "body"
+      },
+      {
+       "name": "due",
+       "display": "Due",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PATCH",
+     "path": "/lists/{tasklist}/tasks/{taskId}",
+     "action": "Update a task",
+     "params": [
+      {
+       "name": "tasklist",
+       "display": "Task List ID",
+       "required": true,
+       "default": "@default"
+      },
+      {
+       "name": "taskId",
+       "display": "Task ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "title",
+       "display": "Title",
+       "send": "body"
+      },
+      {
+       "name": "notes",
+       "display": "Notes",
+       "send": "body"
+      },
+      {
+       "name": "status",
+       "display": "Status",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/lists/{tasklist}/tasks/{taskId}",
+     "action": "Delete a task",
+     "params": [
+      {
+       "name": "tasklist",
+       "display": "Task List ID",
+       "required": true,
+       "default": "@default"
+      },
+      {
+       "name": "taskId",
+       "display": "Task ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

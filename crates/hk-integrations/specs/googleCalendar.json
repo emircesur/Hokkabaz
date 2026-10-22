@@ -1,0 +1,268 @@
+{
+ "name": "googleCalendar",
+ "type": "n8n-nodes-base.googleCalendar",
+ "display": "Google Calendar",
+ "description": "Events and availability",
+ "color": "#4285F4",
+ "versions": [
+  1,
+  1.1,
+  1.2,
+  1.3
+ ],
+ "base": "https://www.googleapis.com/calendar/v3",
+ "cred": {
+  "name": "googleCalendarOAuth2Api",
+  "display": "Google Calendar OAuth2 API",
+  "oauth": {
+   "token_url": "https://oauth2.googleapis.com/token",
+   "scope": "https://www.googleapis.com/auth/calendar"
+  },
+  "docs": "https://developers.google.com/oauthplayground (authorize the scope, copy the refresh token)"
+ },
+ "resources": [
+  {
+   "name": "event",
+   "display": "Event",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/calendars/{calendar}/events",
+     "action": "Get many events",
+     "params": [
+      {
+       "name": "calendar",
+       "display": "Calendar ID",
+       "required": true,
+       "default": "primary"
+      }
+     ],
+     "extra": [
+      {
+       "name": "timeMin",
+       "display": "After",
+       "send": "query"
+      },
+      {
+       "name": "timeMax",
+       "display": "Before",
+       "send": "query"
+      },
+      {
+       "name": "q",
+       "display": "Search",
+       "send": "query"
+      }
+     ],
+     "qs": {
+      "singleEvents": "true",
+      "orderBy": "startTime"
+     },
+     "out": "items",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "pageToken",
+      "nextPath": "nextPageToken",
+      "pageSize": 250,
+      "sizeParam": "maxResults"
+     }
+    },
+    {
+     "name": "get",
+     "display": "Get",
+     "method": "GET",
+     "path": "/calendars/{calendar}/events/{eventId}",
+     "action": "Get an event",
+     "params": [
+      {
+       "name": "calendar",
+       "display": "Calendar ID",
+       "required": true,
+       "default": "primary"
+      },
+      {
+       "name": "eventId",
+       "display": "Event ID",
+       "required": true
+      }
+     ]
+    },
+    {
+     "name": "create",
+     "display": "Create",
+     "method": "POST",
+     "path": "/calendars/{calendar}/events",
+     "action": "Create an event",
+     "params": [
+      {
+       "name": "calendar",
+       "display": "Calendar ID",
+       "required": true,
+       "default": "primary"
+      },
+      {
+       "name": "start",
+       "display": "Start (ISO 8601)",
+       "required": true,
+       "send": "body",
+       "prop": "start.dateTime"
+      },
+      {
+       "name": "end",
+       "display": "End (ISO 8601)",
+       "required": true,
+       "send": "body",
+       "prop": "end.dateTime"
+      }
+     ],
+     "extra": [
+      {
+       "name": "summary",
+       "display": "Title",
+       "send": "body"
+      },
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      },
+      {
+       "name": "location",
+       "display": "Location",
+       "send": "body"
+      },
+      {
+       "name": "attendees",
+       "display": "Attendees (JSON array)",
+       "type": "json",
+       "send": "body"
+      }
+     ]
+    },
+    {
+     "name": "update",
+     "display": "Update",
+     "method": "PATCH",
+     "path": "/calendars/{calendar}/events/{eventId}",
+     "action": "Update an event",
+     "params": [
+      {
+       "name": "calendar",
+       "display": "Calendar ID",
+       "required": true,
+       "default": "primary"
+      },
+      {
+       "name": "eventId",
+       "display": "Event ID",
+       "required": true
+      }
+     ],
+     "extra": [
+      {
+       "name": "summary",
+       "display": "Title",
+       "send": "body"
+      },
+      {
+       "name": "description",
+       "display": "Description",
+       "send": "body"
+      },
+      {
+       "name": "location",
+       "display": "Location",
+       "send": "body"
+      },
+      {
+       "name": "start",
+       "display": "Start",
+       "send": "body",
+       "prop": "start.dateTime"
+      },
+      {
+       "name": "end",
+       "display": "End",
+       "send": "body",
+       "prop": "end.dateTime"
+      }
+     ]
+    },
+    {
+     "name": "delete",
+     "display": "Delete",
+     "method": "DELETE",
+     "path": "/calendars/{calendar}/events/{eventId}",
+     "action": "Delete an event",
+     "params": [
+      {
+       "name": "calendar",
+       "display": "Calendar ID",
+       "required": true,
+       "default": "primary"
+      },
+      {
+       "name": "eventId",
+       "display": "Event ID",
+       "required": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "calendar",
+   "display": "Calendar",
+   "ops": [
+    {
+     "name": "getAll",
+     "display": "Get Many",
+     "method": "GET",
+     "path": "/users/me/calendarList",
+     "action": "Get calendars",
+     "out": "items",
+     "list": true,
+     "page": {
+      "type": "cursor",
+      "cursorParam": "pageToken",
+      "nextPath": "nextPageToken",
+      "pageSize": 250,
+      "sizeParam": "maxResults"
+     }
+    },
+    {
+     "name": "availability",
+     "display": "Availability",
+     "method": "POST",
+     "path": "/freeBusy",
+     "action": "Check availability",
+     "params": [
+      {
+       "name": "timeMin",
+       "display": "From",
+       "required": true,
+       "send": "body"
+      },
+      {
+       "name": "timeMax",
+       "display": "To",
+       "required": true,
+       "send": "body"
+      }
+     ],
+     "body": {
+      "items": [
+       {
+        "id": "primary"
+       }
+      ]
+     },
+     "out": "calendars"
+    }
+   ]
+  }
+ ]
+}

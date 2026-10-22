@@ -108,3 +108,26 @@ Run the instance with ffmpeg: `docker build -f Dockerfile.studio -t hokkabazd-st
 API: `POST /api/v1/studio/rpc/{method}`, `GET /api/v1/studio/events/{project}` (SSE), `PUT /api/v1/studio/upload?name=`,
 `POST /api/v1/studio/ticket`, `GET /api/v1/studio/media?path=&ticket=`. Media requests are limited to the Studio's own folder
 and the configured B-roll folder.
+
+## Tools installed from the app (`hk-deps`)
+
+Studio settings > **Tools** (and the banner on the Studio screen when ffmpeg is missing) lists what the Studio needs and
+downloads what is missing, on the machine that runs the Studio (this PC, or the connected instance):
+
+| Tool | Source | Where it goes |
+|---|---|---|
+| ffmpeg + ffprobe | BtbN static builds (Windows, Linux x86_64/arm64; SHA-256 checked), evermeet (macOS) | `<data>/tools/ffmpeg`, found before `PATH`, no restart needed |
+| Concat editor | latest GitHub release: AppImage (Linux), installer (Windows), `.app` into `~/Applications` (macOS) | `<data>/tools/concat` or the system install |
+| Speech models (whisper) | Hugging Face `ggerganov/whisper.cpp`, SHA-256 checked | `<data>/whisper` |
+
+Android cannot run downloaded executables: use a connected instance (it installs its own tools; the token needs `admin`).
+Behind a TLS-inspecting proxy set `HK_CA_BUNDLE` to the proxy's CA PEM.
+
+## Concat inside the Studio
+
+On a clip: **Edit in Concat** builds a Concat project from the clip's current edit (kept ranges, captions, reframe path,
+B-roll) under `<data>/studio/<project>/concat/<clip>` and opens the Concat window on it. Edit, save, close the window, then
+**Render with Concat**: Concat's engine exports the project and the result becomes the clip's rendered video (progress like a
+normal render; upload/export work as usual). **Reset Concat project** rebuilds it from the Studio edit and discards Concat
+edits. Concat refuses a project that is open in its window, so close it before rendering. "Edit in Concat" needs a desktop
+that can show the window, so it is hidden when the Studio runs on a remote instance; "Render with Concat" works remotely.
