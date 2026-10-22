@@ -7,6 +7,7 @@ import '../../theme/tokens.dart';
 import 'clips_pane.dart';
 import 'studio_models.dart';
 import 'studio_providers.dart';
+import 'studio_transfer.dart';
 
 const _criteriaLabels = {
   'hook': 'Hook',
@@ -47,6 +48,10 @@ class _PublishPanelState extends ConsumerState<PublishPanel> {
   }
 
   Future<void> _export(StudioController ctl, String clip) async {
+    if (studioRemote) {
+      await ctl.saveRendered(clip);
+      return;
+    }
     final dir = await FilePicker.getDirectoryPath(dialogTitle: 'Export folder');
     if (dir == null) return;
     await ctl.export(clip, dir);
@@ -153,7 +158,7 @@ class _PublishPanelState extends ConsumerState<PublishPanel> {
                     OutlinedButton.icon(
                       onPressed: () => _export(ctl, clip.id),
                       icon: const Icon(Icons.ios_share, size: 18),
-                      label: const Text('Export package'),
+                      label: Text(studioRemote ? 'Save clip' : 'Export package'),
                     ),
                 ],
               ),

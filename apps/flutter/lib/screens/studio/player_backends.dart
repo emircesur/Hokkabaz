@@ -39,7 +39,7 @@ class VideoPlayerBackend with _Extrapolate implements PlayerBackend {
 
   @override
   Future<void> open(String path) async {
-    final c = VideoPlayerController.file(File(path));
+    final c = path.startsWith('http') ? VideoPlayerController.networkUrl(Uri.parse(path)) : VideoPlayerController.file(File(path));
     await c.initialize();
     await c.setLooping(false);
     c.addListener(() {

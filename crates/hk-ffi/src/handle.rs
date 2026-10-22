@@ -88,6 +88,58 @@ pub trait CoreHandle: Send + Sync + 'static {
         active: bool,
     ) -> Result<bool, HkError>;
 
+    // ------------------------------------------------------------------ Studio
+
+    /// Run a Studio method (see `hk_studio::host::StudioHost::call`). The local core runs it
+    /// in-process; a remote core forwards it to the instance that has ffmpeg.
+    async fn studio_rpc(
+        &self,
+        _method: &str,
+        _params: serde_json::Value,
+    ) -> Result<serde_json::Value, HkError> {
+        Err(HkError::new(
+            HkErrorKind::Unsupported,
+            "this core has no Video Studio",
+        ))
+    }
+
+    /// Live change feed of one project (JSON `StudioEvent`s).
+    async fn studio_events(&self, _id: &str) -> Result<BoxStream<'static, String>, HkError> {
+        Err(HkError::new(
+            HkErrorKind::Unsupported,
+            "this core has no Video Studio",
+        ))
+    }
+
+    /// Something a media player can open for a path found in a Studio result: the path itself on
+    /// this device, a short-lived URL for a remote instance.
+    async fn studio_media(&self, path: &str) -> Result<String, HkError> {
+        Ok(path.to_owned())
+    }
+
+    /// Copy a local video to where the Studio runs; returns the path to import. Local: identity.
+    /// `progress` gets `(sent, total)` bytes.
+    async fn studio_upload(
+        &self,
+        local_path: &str,
+        _progress: &(dyn Fn(u64, u64) + Send + Sync),
+    ) -> Result<String, HkError> {
+        Ok(local_path.to_owned())
+    }
+
+    /// Download a file produced by the Studio (render, export) to `dest` on this device.
+    async fn studio_download(&self, _server_path: &str, _dest: &str) -> Result<(), HkError> {
+        Err(HkError::new(
+            HkErrorKind::Unsupported,
+            "nothing to download from this core",
+        ))
+    }
+
+    /// True when the Studio runs on another machine (paths in results are not local).
+    fn studio_is_remote(&self) -> bool {
+        false
+    }
+
     /// Stop background work. Idempotent.
     async fn shutdown(&self);
 }

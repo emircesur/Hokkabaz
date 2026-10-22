@@ -197,7 +197,7 @@ impl LocalCore {
         let studio_svc = Arc::new(hk_studio::StudioService::new(
             data_dir.join("studio"),
             hk_media::Tools::from_env(),
-            Arc::new(crate::studio::FfiBackends {
+            Arc::new(crate::studio::AppBackends {
                 provider: reload.clone(),
                 secrets: secrets.clone(),
                 settings: studio_settings.clone(),
@@ -205,12 +205,12 @@ impl LocalCore {
             }),
         ));
         runtime.add_tools(hk_studio::studio_tools(studio_svc.clone()));
-        crate::studio::install(crate::studio::Ctx {
+        crate::studio::install(Arc::new(crate::studio::StudioHost {
             svc: studio_svc,
             settings: studio_settings,
             store: store.clone(),
             secrets: secrets.clone(),
-        });
+        }));
         crate::n8n_sync::install(creds.clone()).await?;
         crate::credentials::install(creds);
 
@@ -742,6 +742,27 @@ impl CoreHandle for LocalCore {
             HkErrorKind::Unsupported,
             "Activating a workflow needs a connected instance; this app only runs it on demand",
         ))
+    }
+
+    async fn studio_rpc(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value, HkError> {
+        crate::studio::host()?
+            .call(method, params)
+            .await
+            .map_err(crate::studio::studio_err)
+    }
+
+    async fn studio_events(
+        &self,
+        id: &str,
+    ) -> Result<futures::stream::BoxStream<'static, String>, HkError> {
+        crate::studio::host()?
+            .events(id)
+            .await
+            .map_err(crate::studio::studio_err)
     }
 
     async fn shutdown(&self) {

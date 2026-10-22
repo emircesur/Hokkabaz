@@ -266,8 +266,9 @@ async fn main() -> Result<()> {
         secrets,
         auth,
     } = opened;
+    let model_provider = provider(secrets.as_ref(), cli.base_url.as_deref());
     let runtime = LocalRuntime::new(LocalConfig {
-        provider: provider(secrets.as_ref(), cli.base_url.as_deref()),
+        provider: model_provider.clone(),
         sessions_dir: data.join("sessions"),
         spill_dir: data.join("spill"),
         default_model: cli.model,
@@ -283,17 +284,30 @@ async fn main() -> Result<()> {
         ..FlowConfig::default()
     };
     let pool = store.clone();
-    let a = assemble(
+    #[cfg(feature = "studio")]
+    let studio =
+        hk_daemon::studio_api::build(&data, store.clone(), secrets.clone(), model_provider).await?;
+    let runtime = Arc::new(runtime);
+    #[allow(unused_mut)]
+    let mut a = assemble(
         Opened {
             store,
             secrets,
             auth,
         },
-        Arc::new(runtime),
+        runtime.clone(),
         flow_cfg,
         &public_url,
     )
     .await?;
+    #[cfg(feature = "studio")]
+    {
+        use hk_server::AgentRuntime as _;
+        runtime.add_tools(hk_studio::studio_tools(studio.svc.clone()));
+        a.state = a
+            .state
+            .with_studio(Arc::new(hk_daemon::studio_api::Api(studio)));
+    }
 
     let listener = tokio::net::TcpListener::bind(cli.listen)
         .await

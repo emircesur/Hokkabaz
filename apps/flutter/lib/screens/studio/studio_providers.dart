@@ -7,6 +7,7 @@ import '../../ffi/ffi.dart' show rustInitErrorProvider;
 import '../../src/rust/api/studio.dart' as api;
 import '../chat/chat_providers.dart' show describeError;
 import 'studio_models.dart';
+import 'studio_transfer.dart';
 
 /// Project list + import / delete.
 class StudioList extends AsyncNotifier<List<ProjectSummary>> {
@@ -24,8 +25,10 @@ class StudioList extends AsyncNotifier<List<ProjectSummary>> {
   Future<void> refresh() async => state = AsyncData(await _load());
 
   /// Returns the new project id, or throws.
-  Future<String> import(String path, {String? name}) async {
-    final p = StudioProjectData.parse(await api.studioImport(path: path, name: name));
+  Future<String> import(String path, {String? name, void Function(double)? onProgress}) async {
+    // On a connected instance the video has to get there first.
+    final where = await studioUploadFor(path, onProgress: onProgress);
+    final p = StudioProjectData.parse(await api.studioImport(path: where, name: name ?? path.split(RegExp(r'[\\/]')).last));
     await refresh();
     return p.id;
   }
@@ -181,6 +184,12 @@ class StudioController extends Notifier<StudioState> {
       PreviewPlan? plan;
       if (selected != null) {
         plan = PreviewPlan.parse(await api.studioPreview(id: projectId, clip: selected));
+        if (studioRemote && plan.broll.isNotEmpty) {
+          // Stock images live on the instance: hand the player URLs.
+          plan = plan.withBroll([
+            for (final b in plan.broll) b.withAsset(b.asset.isEmpty ? '' : await studioMediaFor(b.asset)),
+          ]);
+        }
       }
       if (_disposed) return;
       final rendered = {...state.rendered};
@@ -298,6 +307,23 @@ class StudioController extends Notifier<StudioState> {
     if (url != null) _notice('Uploaded ($privacy): $url');
     return url;
   });
+
+  /// Remote Studio: fetch the rendered clip and let the user choose where to keep it.
+  Future<String?> saveRendered(String clip) async {
+    final server = state.rendered[clip];
+    if (server == null) {
+      _notice('Render the clip first');
+      return null;
+    }
+    try {
+      final out = await saveRemoteClip(server, 'clip-$clip.mp4');
+      if (out != null) state = state.copyWith(notice: 'Saved $out');
+      return out;
+    } catch (e) {
+      _notice(describeError(e));
+      return null;
+    }
+  }
 
   Future<String?> export(String clip, String dir) async {
     try {

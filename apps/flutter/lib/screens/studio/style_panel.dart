@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/tokens.dart';
 import 'caption_overlay.dart';
 import 'studio_providers.dart';
+import 'studio_transfer.dart';
 
 const _swatches = ['#FFFFFF', '#FFE600', '#39FF14', '#00E5FF', '#FF4081', '#FF9100', '#B388FF', '#000000'];
 
@@ -170,8 +171,12 @@ class StylePanel extends ConsumerWidget {
                   OutlinedButton.icon(
                     onPressed: () async {
                       final files = await FilePicker.pickFiles(type: FileType.audio, dialogTitle: 'Background music');
-                      final path = files.firstOrNull?.path;
+                      var path = files.firstOrNull?.path;
                       if (path == null) return;
+                      if (studioRemote && context.mounted) {
+                        final local = path;
+                        path = await withUploadDialog(context, 'Uploading music', (p) => studioUploadFor(local, onProgress: p));
+                      }
                       ctl.edit([
                         {
                           'op': 'set_music',

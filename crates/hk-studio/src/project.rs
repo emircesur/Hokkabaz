@@ -230,6 +230,10 @@ impl ProjectStore {
         Self { root: root.into() }
     }
 
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
     pub fn dir(&self, id: &str) -> PathBuf {
         self.root.join(id)
     }

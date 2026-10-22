@@ -21,6 +21,7 @@ use crate::runtime::{
     AgentRuntime, ApprovalDecision, CreateSession, SessionDetail, SessionInfo, TurnAccepted,
     TurnRequest,
 };
+use crate::studio::{self, StudioApi, Tickets};
 use crate::{n8n, openapi, webhook, ws};
 
 const DEFAULT_LIMIT: u32 = 50;
@@ -37,6 +38,9 @@ pub struct AppState {
     pub limiter: Arc<RateLimiter>,
     /// Device pairing (`/api/v1/pairing`). `None` leaves those routes unmounted.
     pub pairing: Option<Arc<Pairing>>,
+    /// Video Studio of this instance (`/api/v1/studio`). `None` leaves those routes unmounted.
+    pub studio: Option<Arc<dyn StudioApi>>,
+    pub tickets: Arc<Tickets>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -55,6 +59,8 @@ impl AppState {
             flow: None,
             limiter: Arc::new(RateLimiter::default()),
             pairing: None,
+            studio: None,
+            tickets: Arc::new(Tickets::default()),
         }
     }
 
@@ -69,6 +75,13 @@ impl AppState {
     #[must_use]
     pub fn with_pairing(mut self, p: Pairing) -> Self {
         self.pairing = Some(Arc::new(p));
+        self
+    }
+
+    /// Serve the Video Studio to remote apps.
+    #[must_use]
+    pub fn with_studio(mut self, studio: Arc<dyn StudioApi>) -> Self {
+        self.studio = Some(studio);
         self
     }
 
@@ -131,6 +144,18 @@ pub fn router(state: AppState) -> Router {
         v1 = v1
             .route("/pairing", get(pairing::issue))
             .route("/pairing/exchange", post(pairing::exchange));
+    }
+    if state.studio.is_some() {
+        v1 = v1
+            .route("/studio/rpc/{method}", post(studio::rpc))
+            .route("/studio/events/{id}", get(studio::events))
+            .route(
+                "/studio/upload",
+                axum::routing::put(studio::upload)
+                    .layer(axum::extract::DefaultBodyLimit::disable()),
+            )
+            .route("/studio/ticket", post(studio::ticket))
+            .route("/studio/media", get(studio::media));
     }
     app.nest("/api/v1", v1).with_state(state)
 }

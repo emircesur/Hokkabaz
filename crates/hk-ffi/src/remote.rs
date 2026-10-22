@@ -56,6 +56,9 @@ const FEED_BUFFER: usize = 256;
 const FEED_ATTACH_WAIT: Duration = Duration::from_secs(3);
 /// Id of the subscribe command whose ack marks the socket as filtered to one session.
 const SUB_ID: &str = "sub";
+/// Studio calls (transcribe, analyze, render setup) run for minutes.
+const STUDIO_RPC_TIMEOUT: Duration = Duration::from_secs(3600);
+const STUDIO_TICKET_REFRESH: Duration = Duration::from_secs(50 * 60);
 
 struct Inner {
     base: Url,
@@ -68,6 +71,8 @@ struct Inner {
     feeds: Mutex<Vec<(String, watch::Receiver<bool>)>>,
     /// App workflow id -> id of its copy on the instance (see [`Inner::ensure_workflow`]).
     flow_ids: Mutex<std::collections::HashMap<String, String>>,
+    /// Media ticket for Studio players (`/studio/media?ticket=`), renewed before it expires.
+    studio_ticket: Mutex<Option<(String, Instant)>>,
 }
 
 /// Remote [`CoreHandle`]. Cheap to share via `Arc`.
@@ -249,6 +254,7 @@ impl RemoteCore {
                 shutdown: CancellationToken::new(),
                 feeds: Mutex::default(),
                 flow_ids: Mutex::default(),
+                studio_ticket: Mutex::default(),
             }),
         }))
     }
@@ -277,6 +283,7 @@ pub async fn probe(id: &str, base_url: &str, token: Option<&Secret>) -> Instance
         shutdown: CancellationToken::new(),
         feeds: Mutex::default(),
         flow_ids: Mutex::default(),
+        studio_ticket: Mutex::default(),
     };
     let started = Instant::now();
     let health: Result<Value, HkError> = inner.json(inner.http.get(inner.url(&["health"]))).await;
@@ -336,6 +343,7 @@ pub async fn exchange_pairing(base_url: &str, pairing_token: &str) -> Result<Sec
         shutdown: CancellationToken::new(),
         feeds: Mutex::default(),
         flow_ids: Mutex::default(),
+        studio_ticket: Mutex::default(),
     };
     let rb = inner
         .http
@@ -640,6 +648,179 @@ impl CoreHandle for RemoteCore {
             .json(self.i.request(Method::POST, &["workflows", &rid, verb]))
             .await?;
         Ok(wf.get("active").and_then(Value::as_bool).unwrap_or(active))
+    }
+
+    // ------------------------------------------------------------------ Studio
+
+    fn studio_is_remote(&self) -> bool {
+        true
+    }
+
+    async fn studio_rpc(&self, method: &str, params: Value) -> Result<Value, HkError> {
+        let rb = self
+            .i
+            .request(Method::POST, &["studio", "rpc", method])
+            .timeout(STUDIO_RPC_TIMEOUT)
+            .json(&params);
+        let mut reply: Value = self.i.json(rb).await?;
+        Ok(reply
+            .get_mut("result")
+            .map(Value::take)
+            .unwrap_or(Value::Null))
+    }
+
+    async fn studio_events(&self, id: &str) -> Result<BoxStream<'static, String>, HkError> {
+        let (tx, rx) = mpsc::channel::<String>(FEED_BUFFER);
+        let (i, id) = (self.i.clone(), id.to_owned());
+        tokio::spawn(async move {
+            let mut backoff = BACKOFF_MIN;
+            loop {
+                let rb = i
+                    .request(Method::GET, &["studio", "events", &id])
+                    .timeout(Duration::from_secs(24 * 3600));
+                match rb.send().await.map_err(net_err) {
+                    Ok(res) if res.status().is_success() => {
+                        backoff = BACKOFF_MIN;
+                        let mut bytes = res.bytes_stream();
+                        let mut buf = String::new();
+                        while let Some(chunk) = tokio::select! { () = i.shutdown.cancelled() => None, c = bytes.next() => c }
+                        {
+                            let Ok(chunk) = chunk else { break };
+                            buf.push_str(&String::from_utf8_lossy(&chunk).replace("\r\n", "\n"));
+                            while let Some(end) = buf.find("\n\n") {
+                                let block: String = buf.drain(..end + 2).collect();
+                                let data: Vec<&str> = block
+                                    .lines()
+                                    .filter_map(|l| l.strip_prefix("data:"))
+                                    .map(str::trim_start)
+                                    .collect();
+                                if !data.is_empty() && tx.send(data.join("\n")).await.is_err() {
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    // The project is gone or the token is wrong: retrying will not help.
+                    Ok(res) if matches!(res.status().as_u16(), 401 | 403 | 404) => return,
+                    _ => {}
+                }
+                if i.shutdown.is_cancelled() {
+                    return;
+                }
+                // Events may have been missed while disconnected.
+                if tx.send(r#"{"kind":"resync"}"#.to_owned()).await.is_err() {
+                    return;
+                }
+                tokio::select! { () = i.shutdown.cancelled() => return, () = tokio::time::sleep(backoff) => {} }
+                backoff = (backoff * 2).min(BACKOFF_MAX);
+            }
+        });
+        Ok(stream::unfold(rx, |mut rx| async move { rx.recv().await.map(|m| (m, rx)) }).boxed())
+    }
+
+    async fn studio_media(&self, path: &str) -> Result<String, HkError> {
+        let cached = lock(&self.i.studio_ticket)
+            .clone()
+            .filter(|(_, at)| at.elapsed() < STUDIO_TICKET_REFRESH);
+        let ticket = match cached {
+            Some((t, _)) => t,
+            None => {
+                let reply: Value = self
+                    .i
+                    .json(self.i.request(Method::POST, &["studio", "ticket"]))
+                    .await?;
+                let t = reply
+                    .get("ticket")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| HkError::internal("instance sent no media ticket"))?
+                    .to_owned();
+                *lock(&self.i.studio_ticket) = Some((t.clone(), Instant::now()));
+                t
+            }
+        };
+        let mut url = self.i.url(&["studio", "media"]);
+        url.query_pairs_mut()
+            .append_pair("path", path)
+            .append_pair("ticket", &ticket);
+        Ok(url.into())
+    }
+
+    async fn studio_upload(
+        &self,
+        local_path: &str,
+        progress: &(dyn Fn(u64, u64) + Send + Sync),
+    ) -> Result<String, HkError> {
+        let meta = tokio::fs::metadata(local_path)
+            .await
+            .map_err(|e| HkError::invalid(format!("{local_path}: {e}")))?;
+        let total = meta.len();
+        let name = std::path::Path::new(local_path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("video")
+            .to_owned();
+        let file = tokio::fs::File::open(local_path)
+            .await
+            .map_err(|e| HkError::invalid(format!("{local_path}: {e}")))?;
+        let (tx, mut rx) = mpsc::unbounded_channel::<u64>();
+        let sent = std::sync::atomic::AtomicU64::new(0);
+        let body_stream =
+            tokio_util::io::ReaderStream::with_capacity(file, 256 * 1024).map(move |chunk| {
+                if let Ok(c) = &chunk {
+                    let n = sent.fetch_add(c.len() as u64, std::sync::atomic::Ordering::Relaxed)
+                        + c.len() as u64;
+                    let _ = tx.send(n);
+                }
+                chunk
+            });
+        let rb = self
+            .i
+            .request(Method::PUT, &["studio", "upload"])
+            .query(&[("name", name.as_str())])
+            .header(reqwest::header::CONTENT_LENGTH, total)
+            .timeout(Duration::from_secs(12 * 3600))
+            .body(reqwest::Body::wrap_stream(body_stream));
+        let fut = self.i.json::<Value>(rb);
+        tokio::pin!(fut);
+        let reply = loop {
+            tokio::select! {
+                r = &mut fut => break r?,
+                Some(n) = rx.recv() => progress(n, total),
+            }
+        };
+        progress(total, total);
+        reply
+            .get("path")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| HkError::internal("instance did not return an upload path"))
+    }
+
+    async fn studio_download(&self, server_path: &str, dest: &str) -> Result<(), HkError> {
+        use tokio::io::AsyncWriteExt;
+        let rb = self
+            .i
+            .request(Method::GET, &["studio", "media"])
+            .query(&[("path", server_path)])
+            .timeout(Duration::from_secs(12 * 3600));
+        let res = self.i.send(rb).await?;
+        let part = format!("{dest}.part");
+        let mut file = tokio::fs::File::create(&part)
+            .await
+            .map_err(|e| HkError::invalid(format!("{dest}: {e}")))?;
+        let mut bytes = res.bytes_stream();
+        while let Some(chunk) = bytes.next().await {
+            let chunk = chunk.map_err(net_err)?;
+            file.write_all(&chunk)
+                .await
+                .map_err(|e| HkError::internal(e.to_string()))?;
+        }
+        file.flush()
+            .await
+            .map_err(|e| HkError::internal(e.to_string()))?;
+        tokio::fs::rename(&part, dest)
+            .await
+            .map_err(|e| HkError::internal(e.to_string()))
     }
 
     async fn shutdown(&self) {

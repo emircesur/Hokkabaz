@@ -23,7 +23,9 @@ workspace = true
 integrations = ["dep:hk-integrations"]
 # WASM plugins installed in <data>/plugins (`hk plugin install`): tools, nodes, polling triggers
 plugins = ["integrations", "dep:hk-plugin", "dep:hk-tools"]
-default = ["integrations", "plugins"]
+# Video Studio for remote apps (`/api/v1/studio`); needs ffmpeg on the host.
+studio = ["dep:hk-studio", "dep:hk-media", "dep:futures"]
+default = ["integrations", "plugins", "studio"]
 
 [dependencies]
 anyhow = "1"
@@ -31,6 +33,9 @@ async-trait = "0.1"
 clap = { version = "4", features = ["derive", "env"] }
 hk-flow = { version = "0.0.0", path = "../../crates/hk-flow" }
 hk-integrations = { version = "0.0.0", path = "../../crates/hk-integrations", optional = true }
+hk-studio = { version = "0.0.0", path = "../../crates/hk-studio", optional = true }
+futures = { version = "0.3", optional = true }
+hk-media = { version = "0.0.0", path = "../../crates/hk-media", optional = true }
 hk-plugin = { version = "0.0.0", path = "../../crates/hk-plugin", optional = true }
 hk-tools = { version = "0.0.0", path = "../../crates/hk-tools", optional = true }
 hk-llm = { version = "0.0.0", path = "../../crates/hk-llm" }

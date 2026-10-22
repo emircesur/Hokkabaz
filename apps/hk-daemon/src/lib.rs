@@ -8,6 +8,8 @@ pub mod flow_runtime;
 pub mod plugins;
 pub mod scrub;
 pub mod secrets;
+#[cfg(feature = "studio")]
+pub mod studio_api;
 pub mod wait_store;
 
 pub use daemon::{Assembled, Opened, Unconfigured, assemble, open, open_with};

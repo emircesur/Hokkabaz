@@ -144,7 +144,9 @@ class _BrollOverlay extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             if (hit.isImage)
-              Image.file(File(hit.asset), fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black54))
+              (hit.asset.startsWith('http')
+                  ? Image.network(hit.asset, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black54))
+                  : Image.file(File(hit.asset), fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black54)))
             else
               const ColoredBox(color: Color(0xAA000000)),
             Align(

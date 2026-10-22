@@ -15,6 +15,7 @@ import 'source_strip.dart';
 import 'studio_models.dart';
 import 'studio_providers.dart';
 import 'studio_settings.dart';
+import 'studio_transfer.dart';
 import 'style_panel.dart';
 import 'transcript_editor.dart';
 import 'video_preview.dart';
@@ -39,7 +40,10 @@ class _ProjectsView extends ConsumerWidget {
     final path = files.firstOrNull?.path;
     if (path == null) return;
     try {
-      final id = await ref.read(studioListProvider.notifier).import(path);
+      final list = ref.read(studioListProvider.notifier);
+      final id = studioRemote
+          ? await withUploadDialog(context, 'Uploading to your instance', (p) => list.import(path, onProgress: p))
+          : await list.import(path);
       ref.read(selectedStudioProjectProvider.notifier).select(id);
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(describeError(e))));
@@ -163,7 +167,9 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
     if (_opened == path) return;
     _opened = path;
     try {
-      await _player.backend.open(path);
+      // A remote instance streams a small proxy, not the original.
+      final playable = studioRemote ? await studioProxyFor(widget.projectId) : path;
+      await _player.backend.open(await studioMediaFor(playable));
       if (mounted) setState(() => _playerError = null);
       _player.setPlan(ref.read(studioControllerProvider(widget.projectId)).plan);
     } catch (e) {

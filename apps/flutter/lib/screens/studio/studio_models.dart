@@ -305,6 +305,8 @@ class BrollItem {
   final String query;
   final String asset;
   final bool isImage;
+
+  BrollItem withAsset(String a) => BrollItem(start: start, end: end, query: query, asset: a, isImage: isImage);
 }
 
 class PreviewPlan {
@@ -338,6 +340,21 @@ class PreviewPlan {
     outW: _i((j['out_size'] as List?)?[0], 1920),
     outH: _i((j['out_size'] as List?)?[1], 1080),
     broll: _list(j['broll'], BrollItem.fromJson),
+  );
+
+  PreviewPlan withBroll(List<BrollItem> items) => PreviewPlan(
+    clipId: clipId,
+    srcStart: srcStart,
+    srcEnd: srcEnd,
+    duration: duration,
+    ranges: ranges,
+    words: words,
+    captions: captions,
+    captionStyle: captionStyle,
+    crop: crop,
+    outW: outW,
+    outH: outH,
+    broll: items,
   );
 
   final String clipId;

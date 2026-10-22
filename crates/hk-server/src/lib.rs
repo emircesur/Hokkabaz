@@ -36,10 +36,14 @@ mod ratelimit;
 mod runtime;
 #[cfg(feature = "server")]
 mod signature;
+#[cfg(feature = "server")]
+mod studio;
 #[cfg(all(test, feature = "server"))]
 mod tests;
 #[cfg(all(test, feature = "server"))]
 mod tests_flow;
+#[cfg(all(test, feature = "server"))]
+mod tests_studio;
 #[cfg(feature = "server")]
 mod webhook;
 #[cfg(feature = "server")]
@@ -71,6 +75,8 @@ pub use runtime::{
 };
 #[cfg(feature = "server")]
 pub use signature::{HmacAlgorithm, HmacPreset, HmacSpec, SigEncoding, SignatureError};
+#[cfg(feature = "server")]
+pub use studio::{StudioApi, Tickets};
 #[cfg(feature = "server")]
 pub use webhook::{
     ChannelSink, LastNodeData, ResponseMode, WebhookAuth, WebhookCall, WebhookHandler, WebhookMode,

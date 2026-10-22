@@ -13,6 +13,7 @@ pub mod edit;
 pub mod edl;
 mod error;
 pub mod highlights;
+pub mod host;
 pub mod live;
 pub mod llm;
 pub mod pipeline;
@@ -26,6 +27,7 @@ pub mod tools;
 pub mod vision;
 
 pub use error::{Result, StudioError};
+pub use host::{AppBackends, SharedSettings, StudioHost, StudioSettings};
 pub use live::{LiveStudio, StudioEvent};
 pub use pipeline::{PreviewPlan, PreviewWord, RenderOpts, Studio};
 pub use project::{Clip, ProjectStore, StudioProject};
