@@ -13,10 +13,13 @@ import 'workspace_files.dart';
 
 /// Composer: text field, mode + model chips, `/` commands, `@` file mentions.
 class Composer extends ConsumerStatefulWidget {
-  const Composer({super.key, required this.sessionId, required this.running});
+  const Composer({super.key, required this.sessionId, required this.running, this.promptPrefix});
 
   final String sessionId;
   final bool running;
+
+  /// Text added before every prompt (e.g. the Studio project the agent works on).
+  final String Function()? promptPrefix;
 
   @override
   ConsumerState<Composer> createState() => _ComposerState();
@@ -69,7 +72,7 @@ class _ComposerState extends ConsumerState<Composer> {
     ref
         .read(chatControllerProvider(widget.sessionId).notifier)
         .send(
-          t,
+          widget.promptPrefix == null ? t : '${widget.promptPrefix!()}\n$t',
           ref.read(chatModeProvider),
           model: ref.read(composerModelProvider),
         );

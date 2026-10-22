@@ -20,6 +20,12 @@ const destinations = <HkDestination>[
     Icons.account_tree,
   ),
   HkDestination('Runs', '/runs', Icons.play_circle_outline, Icons.play_circle),
+  HkDestination(
+    'Studio',
+    '/studio',
+    Icons.movie_creation_outlined,
+    Icons.movie_creation,
+  ),
   HkDestination('Models', '/models', Icons.memory_outlined, Icons.memory),
   HkDestination(
     'Plugins',

@@ -17,6 +17,7 @@ class ConversationPane extends ConsumerWidget {
     required this.sessionId,
     this.onBack,
     this.inspectorInline = false,
+    this.promptPrefix,
   });
 
   final String sessionId;
@@ -26,6 +27,9 @@ class ConversationPane extends ConsumerWidget {
 
   /// Inspector is a side column (header button toggles it) rather than a sheet.
   final bool inspectorInline;
+
+  /// Text added before every prompt the user sends from this pane.
+  final String Function()? promptPrefix;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -51,7 +55,7 @@ class ConversationPane extends ConsumerWidget {
               ? const Center(child: CircularProgressIndicator())
               : _MessageList(sessionId: sessionId, state: state),
         ),
-        Composer(sessionId: sessionId, running: state.running),
+        Composer(sessionId: sessionId, running: state.running, promptPrefix: promptPrefix),
       ],
     );
   }
