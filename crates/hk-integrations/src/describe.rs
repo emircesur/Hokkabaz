@@ -30,7 +30,7 @@ pub enum SendKind {
 /// `routing.send`: attach this parameter to the request.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Send {
+pub struct RouteSend {
     #[serde(rename = "type")]
     pub kind: SendKind,
     /// Field name; dotted for nested body objects (`topic.name`). Defaults to the
@@ -52,7 +52,7 @@ fn is_true(b: &bool) -> bool {
     *b
 }
 
-impl Send {
+impl RouteSend {
     pub fn body(property: &str) -> Self {
         Self::new(SendKind::Body, property)
     }
@@ -146,7 +146,7 @@ pub struct Routing {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request: Option<RouteRequest>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub send: Option<Send>,
+    pub send: Option<RouteSend>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output: Option<RouteOutput>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -165,7 +165,7 @@ impl Routing {
         }
     }
 
-    pub fn send(send: Send) -> Self {
+    pub fn send(send: RouteSend) -> Self {
         Self {
             send: Some(send),
             ..Self::default()
@@ -265,14 +265,12 @@ pub struct Prop(NodeProperty);
 
 impl Prop {
     pub fn new(name: &str, display_name: &str, ty: PropertyType) -> Self {
+        let default = ty_default(&ty).unwrap_or(Value::Null);
         Self(NodeProperty {
             display_name: display_name.to_owned(),
             name: name.to_owned(),
             prop_type: ty,
-            default: Some(match ty_default(&ty) {
-                Some(d) => d,
-                None => Value::Null,
-            }),
+            default: Some(default),
             description: None,
             hint: None,
             placeholder: None,
@@ -395,7 +393,7 @@ impl Prop {
     }
 
     /// Send this parameter in the request (shorthand for `routing(Routing::send(..))`).
-    pub fn send(self, s: Send) -> Self {
+    pub fn send(self, s: RouteSend) -> Self {
         self.routing(Routing::send(s))
     }
 
@@ -493,11 +491,10 @@ pub struct NodeBuilder(NodeTypeDescription);
 impl NodeBuilder {
     /// `name` is the full node type (`hokkabaz.ntfy`).
     pub fn new(name: &str, display_name: &str) -> Self {
-        let v = Version::new(1.0).unwrap_or_else(|| unreachable_version());
         Self(NodeTypeDescription {
             display_name: display_name.to_owned(),
             name: name.to_owned(),
-            version: NodeVersions::Single(v),
+            version: serde_json::from_value(json!(1)).unwrap_or(NodeVersions::Many(Vec::new())),
             default_version: None,
             description: String::new(),
             subtitle: None,
@@ -587,12 +584,6 @@ impl NodeBuilder {
     }
 }
 
-// 1.0 is finite; the branch exists only to avoid `expect` in a lib
-#[cold]
-fn unreachable_version() -> Version {
-    Version::new(1.0).unwrap_or_else(|| unreachable_version())
-}
-
 // ------------------------------------------------------------- display options
 
 /// n8n `displayOptions` evaluation against current parameter values. `lookup` resolves a
@@ -665,7 +656,7 @@ mod tests {
                 )
                 .show("resource", &["a"]),
             )
-            .property(Prop::string("id", "ID").required().send(Send::query("id")))
+            .property(Prop::string("id", "ID").required().send(RouteSend::query("id")))
             .build();
         let v = serde_json::to_value(&d).unwrap();
         assert_eq!(v["name"], "hokkabaz.demo");

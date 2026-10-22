@@ -28,5 +28,6 @@ Future<void> coreInit({
   profile: profile,
 );
 
-/// Stop the core: cancels running turns and ends every `session_events` stream. Idempotent.
+/// Stop every core (local and any connected remote): cancels running turns and ends every
+/// `session_events` stream. Idempotent.
 Future<void> coreShutdown() => RustLib.instance.api.crateApiCoreCoreShutdown();

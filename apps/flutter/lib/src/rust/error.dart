@@ -47,4 +47,13 @@ enum HkErrorKind {
 
   /// Provider or model misconfiguration (missing key, bad endpoint).
   provider,
+
+  /// The active core cannot do this (e.g. provider settings of a remote instance).
+  unsupported,
+
+  /// Remote instance rejected the token (missing, revoked or lacking scope).
+  unauthorized,
+
+  /// Remote instance unreachable (network down, wrong URL, daemon stopped).
+  unavailable,
 }

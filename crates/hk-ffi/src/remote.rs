@@ -11,7 +11,7 @@
 //! [`HkErrorKind::Unsupported`].
 
 use std::collections::VecDeque;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
@@ -25,7 +25,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::{self, Message};
@@ -49,6 +49,7 @@ const IDLE_LIMIT: Duration = Duration::from_secs(70);
 const BACKOFF_MIN: Duration = Duration::from_millis(500);
 const BACKOFF_MAX: Duration = Duration::from_secs(15);
 const FEED_BUFFER: usize = 256;
+const FEED_ATTACH_WAIT: Duration = Duration::from_secs(3);
 /// Id of the subscribe command whose ack marks the socket as filtered to one session.
 const SUB_ID: &str = "sub";
 
@@ -58,6 +59,9 @@ struct Inner {
     http: reqwest::Client,
     profile: CoreProfile,
     shutdown: CancellationToken,
+    /// Feeds still attaching, per session: commands wait for them so a turn submitted right after
+    /// `session_events` cannot start before the socket listens.
+    feeds: Mutex<Vec<(String, watch::Receiver<bool>)>>,
 }
 
 /// Remote [`CoreHandle`]. Cheap to share via `Arc`.
@@ -157,6 +161,27 @@ impl Inner {
         self.send(self.request(Method::POST, segments).json(body)).await
     }
 
+    fn register_feed(&self, sid: &str) -> watch::Sender<bool> {
+        let (tx, rx) = watch::channel(false);
+        let mut feeds = self.feeds.lock().unwrap_or_else(PoisonError::into_inner);
+        // A finished pump drops its sender; forget those.
+        feeds.retain(|(_, r)| r.has_changed().is_ok());
+        feeds.push((sid.to_owned(), rx));
+        tx
+    }
+
+    /// Wait (bounded) until every feed of `sid` is attached. Offline instance: the command
+    /// proceeds after the bound and reports its own error.
+    async fn feeds_ready(&self, sid: &str) {
+        let pending: Vec<_> = {
+            let feeds = self.feeds.lock().unwrap_or_else(PoisonError::into_inner);
+            feeds.iter().filter(|(s, r)| s == sid && !*r.borrow()).map(|(_, r)| r.clone()).collect()
+        };
+        for mut rx in pending {
+            let _ = tokio::time::timeout(FEED_ATTACH_WAIT, rx.wait_for(|ready| *ready)).await;
+        }
+    }
+
     async fn detail(&self, id: &str, after_seq: Option<u64>) -> Result<WireDetail, HkError> {
         let mut rb = self.request(Method::GET, &["sessions", id]);
         if let Some(n) = after_seq {
@@ -189,6 +214,7 @@ impl RemoteCore {
                 http: http_client(HTTP_TIMEOUT)?,
                 profile,
                 shutdown: CancellationToken::new(),
+                feeds: Mutex::default(),
             }),
         }))
     }
@@ -214,6 +240,7 @@ pub async fn probe(id: &str, base_url: &str, token: Option<&Secret>) -> Instance
         http,
         profile: CoreProfile::Desktop,
         shutdown: CancellationToken::new(),
+        feeds: Mutex::default(),
     };
     let started = Instant::now();
     let health: Result<Value, HkError> = inner.json(inner.http.get(inner.url(&["health"]))).await;
@@ -248,6 +275,7 @@ pub async fn exchange_pairing(base_url: &str, pairing_token: &str) -> Result<Sec
         http: http_client(HTTP_TIMEOUT)?,
         profile: CoreProfile::Desktop,
         shutdown: CancellationToken::new(),
+        feeds: Mutex::default(),
     };
     let rb = inner.http.post(inner.url(&["pairing", "exchange"])).json(&json!({ "token": pairing_token }));
     match inner.json::<Exchanged>(rb).await {
@@ -333,6 +361,7 @@ impl CoreHandle for RemoteCore {
         if req.prompt.trim().is_empty() {
             return Err(HkError::invalid("prompt must not be empty"));
         }
+        self.i.feeds_ready(session_id).await;
         let body = TurnRequest {
             prompt: req.prompt,
             mode: req.mode.map(|m| match m {
@@ -347,6 +376,7 @@ impl CoreHandle for RemoteCore {
     }
 
     async fn inject(&self, session_id: &str, text: String) -> Result<(), HkError> {
+        self.i.feeds_ready(session_id).await;
         self.i.post_json(&["sessions", session_id, "inject"], &json!({ "text": text })).await.map(drop)
     }
 
@@ -372,7 +402,8 @@ impl CoreHandle for RemoteCore {
         // Spawn now (not on first poll) so the socket is already subscribing while Dart goes
         // on to `submit_turn`.
         let (tx, rx) = mpsc::channel(FEED_BUFFER);
-        tokio::spawn(pump(self.i.clone(), session_id.to_owned(), tx));
+        let ready = self.i.register_feed(session_id);
+        tokio::spawn(pump(self.i.clone(), session_id.to_owned(), tx, ready));
         Ok(stream::unfold(rx, |mut rx| async move { rx.recv().await.map(|e| (e, rx)) }).boxed())
     }
 
@@ -412,7 +443,7 @@ enum Ended {
     Dropped { live: bool },
 }
 
-async fn pump(i: Arc<Inner>, sid: String, tx: mpsc::Sender<SessionEventDto>) {
+async fn pump(i: Arc<Inner>, sid: String, tx: mpsc::Sender<SessionEventDto>, ready: watch::Sender<bool>) {
     let mut cur = Cursor::default();
     let mut backoff = BACKOFF_MIN;
     let mut announced = false;
@@ -420,7 +451,7 @@ async fn pump(i: Arc<Inner>, sid: String, tx: mpsc::Sender<SessionEventDto>) {
         let ended = tokio::select! {
             () = i.shutdown.cancelled() => return,
             () = tx.closed() => return,
-            e = connection(&i, &sid, &tx, &mut cur) => e,
+            e = connection(&i, &sid, &tx, &mut cur, &ready) => e,
         };
         match ended {
             Ended::Closed => return,
@@ -468,7 +499,13 @@ fn jitter(d: Duration) -> Duration {
 }
 
 /// One socket lifetime: connect, subscribe, catch up, then forward frames.
-async fn connection(i: &Inner, sid: &str, tx: &mpsc::Sender<SessionEventDto>, cur: &mut Cursor) -> Ended {
+async fn connection(
+    i: &Inner,
+    sid: &str,
+    tx: &mpsc::Sender<SessionEventDto>,
+    cur: &mut Cursor,
+    ready: &watch::Sender<bool>,
+) -> Ended {
     let mut ws = match ws_connect(&i.base, &i.token).await {
         Ok(ws) => ws,
         Err(ConnectError::Auth(m)) => return Ended::Fatal(m),
@@ -504,7 +541,11 @@ async fn connection(i: &Inner, sid: &str, tx: &mpsc::Sender<SessionEventDto>, cu
                 let action = match name {
                     "command/ack" if frame.get("id").and_then(Value::as_str) == Some(SUB_ID) => {
                         live = true;
-                        sync(i, sid, tx, cur).await
+                        let r = sync(i, sid, tx, cur).await;
+                        if r.is_ok() {
+                            ready.send_replace(true);
+                        }
+                        r
                     }
                     "command/error" if frame.get("id").and_then(Value::as_str) == Some(SUB_ID) => {
                         let m = frame.pointer("/data/message").and_then(Value::as_str).unwrap_or("subscribe refused");

@@ -16,6 +16,115 @@ enum CoreProfile {
   mobile,
 }
 
+/// One entry of the instance book. The token is stored in the secret backend and never
+/// crosses FFI: only `has_token`.
+class InstanceDto {
+  /// `local` for this device, `inst_<hex>` for remotes.
+  final String id;
+  final String name;
+
+  /// `None` for the local entry.
+  final String? baseUrl;
+  final InstanceKindDto kind;
+
+  /// The core `chat::*` / `settings::*` talk to right now.
+  final bool connected;
+
+  /// Connected at the next app start.
+  final bool isDefault;
+  final bool hasToken;
+
+  const InstanceDto({
+    required this.id,
+    required this.name,
+    this.baseUrl,
+    required this.kind,
+    required this.connected,
+    required this.isDefault,
+    required this.hasToken,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      baseUrl.hashCode ^
+      kind.hashCode ^
+      connected.hashCode ^
+      isDefault.hashCode ^
+      hasToken.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is InstanceDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          baseUrl == other.baseUrl &&
+          kind == other.kind &&
+          connected == other.connected &&
+          isDefault == other.isDefault &&
+          hasToken == other.hasToken;
+}
+
+enum InstanceKindDto {
+  /// This device: the in-process core.
+  local,
+
+  /// A `hokkabazd` reached over REST + WS.
+  remote,
+}
+
+enum InstanceStateDto {
+  online,
+
+  /// Reachable, but the token is missing, revoked or lacks the `read` scope.
+  unauthorized,
+  unreachable,
+}
+
+class InstanceStatusDto {
+  final String id;
+  final InstanceStateDto state;
+
+  /// Daemon version from `/health`.
+  final String? version;
+
+  /// Round trip of the health request.
+  final PlatformInt64? latencyMs;
+
+  /// Why it is not online.
+  final String? message;
+
+  const InstanceStatusDto({
+    required this.id,
+    required this.state,
+    this.version,
+    this.latencyMs,
+    this.message,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      state.hashCode ^
+      version.hashCode ^
+      latencyMs.hashCode ^
+      message.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is InstanceStatusDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          state == other.state &&
+          version == other.version &&
+          latencyMs == other.latencyMs &&
+          message == other.message;
+}
+
 /// One message of the history the model would see.
 class MessageDto {
   final RoleDto role;

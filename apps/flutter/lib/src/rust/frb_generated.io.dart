@@ -6,6 +6,7 @@
 import 'api/chat.dart';
 import 'api/core.dart';
 import 'api/flows.dart';
+import 'api/instances.dart';
 import 'api/settings.dart';
 
 import 'dart:async';
@@ -86,7 +87,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
+  InstanceDto dco_decode_instance_dto(dynamic raw);
+
+  @protected
+  InstanceKindDto dco_decode_instance_kind_dto(dynamic raw);
+
+  @protected
+  InstanceStateDto dco_decode_instance_state_dto(dynamic raw);
+
+  @protected
+  InstanceStatusDto dco_decode_instance_status_dto(dynamic raw);
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<InstanceDto> dco_decode_list_instance_dto(dynamic raw);
 
   @protected
   List<MessageDto> dco_decode_list_message_dto(dynamic raw);
@@ -279,7 +295,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
+  InstanceDto sse_decode_instance_dto(SseDeserializer deserializer);
+
+  @protected
+  InstanceKindDto sse_decode_instance_kind_dto(SseDeserializer deserializer);
+
+  @protected
+  InstanceStateDto sse_decode_instance_state_dto(SseDeserializer deserializer);
+
+  @protected
+  InstanceStatusDto sse_decode_instance_status_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<InstanceDto> sse_decode_list_instance_dto(SseDeserializer deserializer);
 
   @protected
   List<MessageDto> sse_decode_list_message_dto(SseDeserializer deserializer);
@@ -496,7 +529,34 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
 
   @protected
+  void sse_encode_instance_dto(InstanceDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_instance_kind_dto(
+    InstanceKindDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_instance_state_dto(
+    InstanceStateDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_instance_status_dto(
+    InstanceStatusDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_instance_dto(
+    List<InstanceDto> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_message_dto(

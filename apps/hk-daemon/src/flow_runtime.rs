@@ -84,6 +84,8 @@ impl FlowRuntime {
     pub fn start(api: FlowApi, cfg: FlowConfig) -> Result<Arc<Self>, FlowError> {
         let mut nodes = NodeRegistry::new();
         register_core_nodes(&mut nodes)?;
+        #[cfg(feature = "integrations")]
+        hk_integrations::register_integrations(&mut nodes, &hk_integrations::CredentialTypes::with_builtins())?;
         let exec_cfg = ExecutorConfig {
             mode: "trigger".into(),
             env_allowlist: cfg.env_allowlist,
