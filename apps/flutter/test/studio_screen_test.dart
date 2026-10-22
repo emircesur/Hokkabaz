@@ -104,7 +104,7 @@ Widget app(Size size) {
   final state = fakeState();
   return ProviderScope(
     overrides: [
-      studioControllerProvider.overrideWith(() => FakeController('p1', state)),
+      studioControllerProvider.overrideWith2((id) => FakeController(id, state)),
       studioCatalogProvider.overrideWith((ref) async => {
         'templates': [
           {'name': 'shorts-karaoke', 'description': 'd'},
