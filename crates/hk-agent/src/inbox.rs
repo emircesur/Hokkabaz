@@ -29,6 +29,7 @@ struct Shared {
     cancel: Mutex<TurnCancel>,
     running: AtomicBool,
     pause: AtomicBool,
+    images: Mutex<Vec<hk_llm::ImagePart>>,
     gate: Arc<Gate>,
 }
 
@@ -43,6 +44,7 @@ impl AgentHandle {
             cancel: Mutex::default(),
             running: AtomicBool::new(false),
             pause: AtomicBool::new(false),
+            images: Mutex::default(),
             gate,
         }))
     }
@@ -51,6 +53,20 @@ impl AgentHandle {
     /// running it waits for the next one (`run_until_idle` picks it up).
     pub fn submit(&self, text: impl Into<String>) {
         self.queues().queued.push_back(text.into());
+    }
+
+    /// Queue a user message with images (vision models); they attach to the next turn.
+    pub fn submit_with_images(&self, text: impl Into<String>, images: Vec<hk_llm::ImagePart>) {
+        self.0
+            .images
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend(images);
+        self.submit(text);
+    }
+
+    pub(crate) fn take_images(&self) -> Vec<hk_llm::ImagePart> {
+        std::mem::take(&mut *self.0.images.lock().unwrap_or_else(PoisonError::into_inner))
     }
 
     /// Steer the running turn: logged as a user message before its next step, and keeps the

@@ -131,7 +131,7 @@ impl AgentRunner for RuntimeAgentRunner {
         };
         rt.submit(
             &id,
-            TurnRequest {
+            TurnRequest { images: Vec::new(),
                 prompt,
                 mode: Some(mode),
                 model: req.model,

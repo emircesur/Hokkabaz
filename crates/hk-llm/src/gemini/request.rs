@@ -157,7 +157,13 @@ pub(super) fn build_body(req: &ChatRequest, store: &SignatureStore) -> Value {
                 } else {
                     &m.content
                 };
-                push_content(&mut contents, "user", vec![json!({ "text": text })]);
+                let mut parts: Vec<Value> = m
+                    .images
+                    .iter()
+                    .map(|i| json!({ "inlineData": { "mimeType": i.mime, "data": i.data } }))
+                    .collect();
+                parts.push(json!({ "text": text }));
+                push_content(&mut contents, "user", parts);
             }
             Role::Assistant => {
                 push_content(
@@ -241,7 +247,7 @@ mod tests {
     use crate::{ToolCall, ToolSpec};
 
     fn msg(role: Role, content: &str) -> Message {
-        Message {
+        Message { images: Vec::new(),
             role,
             content: content.into(),
             reasoning: Some("hidden thoughts".into()),

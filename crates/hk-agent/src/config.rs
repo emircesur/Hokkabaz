@@ -87,6 +87,8 @@ pub struct AgentConfig {
     pub sampling: hk_llm::SamplingParams,
     /// Approval overrides keyed `tool:mode` (`build`/`plan`) → `allow` | `ask` | `deny`.
     pub policy: std::collections::BTreeMap<String, String>,
+    /// Dry run: tools that are not read-only report what they would do instead of running.
+    pub dry_run: bool,
 }
 
 impl AgentConfig {
@@ -106,6 +108,7 @@ impl AgentConfig {
             compaction: None,
             sampling: hk_llm::SamplingParams::default(),
             policy: std::collections::BTreeMap::new(),
+            dry_run: false,
         }
     }
 }

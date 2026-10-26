@@ -513,7 +513,7 @@ async fn local_runtime_runs_a_turn_and_feeds_events() {
     assert!(matches!(
         rt.submit(
             "missing",
-            TurnRequest {
+            TurnRequest { images: Vec::new(),
                 prompt: "x".into(),
                 mode: None,
                 model: None
@@ -525,7 +525,7 @@ async fn local_runtime_runs_a_turn_and_feeds_events() {
 
     rt.submit(
         &s.id,
-        TurnRequest {
+        TurnRequest { images: Vec::new(),
             prompt: "ping".into(),
             mode: Some(TurnMode::Plan),
             model: None,

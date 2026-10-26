@@ -530,7 +530,7 @@ async fn crash_leftovers_are_repaired_on_next_turn() {
         EventKind::TurnStart {
             turn_id: "t0".into(),
         },
-        EventKind::UserMessage {
+        EventKind::UserMessage { images: Vec::new(),
             content: "x".into(),
         },
         EventKind::AssistantMessage {
@@ -1020,7 +1020,7 @@ mod p2 {
         // parent log carries the answer, not the child's messages
         assert!(
             !log.iter().any(
-                |e| matches!(&e.kind, EventKind::UserMessage { content } if content == "find x")
+                |e| matches!(&e.kind, EventKind::UserMessage { content, .. } if content == "find x")
             )
         );
         // parent's second request is replayable from its own log
@@ -1300,7 +1300,7 @@ mod p2 {
         assert_eq!((s.reason, s.steps), (TurnEndReason::Completed, 4));
         let log = e.store.read(&e.id).unwrap();
         let reminder = log.iter().position(|ev| {
-            matches!(&ev.kind, EventKind::UserMessage { content } if content.contains("identical arguments"))
+            matches!(&ev.kind, EventKind::UserMessage { content, .. } if content.contains("identical arguments"))
         });
         // logged before the 4th request, which therefore carries it
         assert!(reminder.is_some());

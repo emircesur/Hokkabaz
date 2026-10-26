@@ -64,7 +64,7 @@ pub(crate) fn spawn(runtime: LocalRuntime, store: Store, stop: CancellationToken
                         let r = runtime
                             .submit(
                                 &s.id,
-                                TurnRequest {
+                                TurnRequest { images: Vec::new(),
                                     prompt,
                                     mode: None,
                                     model,

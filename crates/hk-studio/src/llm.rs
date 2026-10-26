@@ -56,7 +56,7 @@ impl ProviderLlm {
 }
 
 fn msg(role: Role, content: &str) -> Message {
-    Message {
+    Message { images: Vec::new(),
         role,
         content: content.to_string(),
         reasoning: None,

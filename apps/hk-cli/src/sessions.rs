@@ -59,7 +59,7 @@ pub fn show(store: &SessionStore, prefix: &str) -> Result<()> {
                 title.as_deref().unwrap_or("-"),
             )),
             EventKind::SessionTitle { title } => out(&format!("-- title: {title}\n")),
-            EventKind::UserMessage { content } => out(&format!("you> {content}\n")),
+            EventKind::UserMessage { content, .. } => out(&format!("you> {content}\n")),
             EventKind::AssistantMessage { content, .. } if !content.is_empty() => {
                 out(&format!("{content}\n"));
             }

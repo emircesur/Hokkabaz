@@ -54,6 +54,9 @@ pub struct TurnRequest {
     /// Switch model from this turn on (provider-local id or `provider/model`).
     #[serde(default)]
     pub model: Option<String>,
+    /// Images for vision models (base64 + mime).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<hk_llm::ImagePart>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

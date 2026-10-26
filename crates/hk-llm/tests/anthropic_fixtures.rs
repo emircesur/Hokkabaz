@@ -76,7 +76,7 @@ fn adapter(base: String, retries: u32) -> Anthropic {
 }
 
 fn user(text: &str) -> Message {
-    Message {
+    Message { images: Vec::new(),
         role: Role::User,
         content: text.into(),
         reasoning: None,

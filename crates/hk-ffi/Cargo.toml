@@ -22,6 +22,7 @@ vision = ["hk-studio/vision"]
 # Must stay android-safe: no landlock/acp/stdio-spawn deps here. hk-server is pulled with
 # default-features off (`runtime` only), so axum never compiles into the app.
 [dependencies]
+base64 = "0.22"
 async-trait = "0.1"
 flutter_rust_bridge = "=2.11.1"
 futures = "0.3"

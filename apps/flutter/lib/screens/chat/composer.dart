@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,7 +14,12 @@ import 'workspace_files.dart';
 
 /// Composer: text field, mode + model chips, `/` commands, `@` file mentions.
 class Composer extends ConsumerStatefulWidget {
-  const Composer({super.key, required this.sessionId, required this.running, this.promptPrefix});
+  const Composer({
+    super.key,
+    required this.sessionId,
+    required this.running,
+    this.promptPrefix,
+  });
 
   final String sessionId;
   final bool running;
@@ -65,8 +71,29 @@ class _ComposerState extends ConsumerState<Composer> {
     }
   }
 
+  /// Image files attached to the next message.
+  final List<String> _images = [];
+
+  Future<void> _attach() async {
+    final r = await FilePicker.pickFiles(
+      type: FileType.image,
+      dialogTitle: 'Attach an image',
+    );
+    final p = r.firstOrNull?.path;
+    if (p != null) setState(() => _images.add(p));
+  }
+
   void _send() {
     final t = _text.text;
+    if (_images.isNotEmpty) {
+      final imgs = List<String>.of(_images);
+      setState(_images.clear);
+      _text.clear();
+      ref
+          .read(chatControllerProvider(widget.sessionId).notifier)
+          .sendWithImages(t, imgs, model: ref.read(composerModelProvider));
+      return;
+    }
     if (t.trim().isEmpty) return;
     _text.clear();
     ref
@@ -251,10 +278,30 @@ class _ComposerState extends ConsumerState<Composer> {
                     ),
                 ],
               ),
+              if (_images.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: HkTokens.s2),
+                  child: Wrap(
+                    spacing: 6,
+                    children: [
+                      for (final p in List<String>.of(_images))
+                        InputChip(
+                          avatar: const Icon(Icons.image_outlined, size: 16),
+                          label: Text(p.split(RegExp(r'[\\/]')).last),
+                          onDeleted: () => setState(() => _images.remove(p)),
+                        ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: HkTokens.s2),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  IconButton(
+                    tooltip: 'Attach image (vision models)',
+                    icon: const Icon(Icons.add_photo_alternate_outlined),
+                    onPressed: _attach,
+                  ),
                   Expanded(
                     child: CallbackShortcuts(
                       bindings: bindings,

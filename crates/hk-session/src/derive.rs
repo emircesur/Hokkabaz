@@ -22,8 +22,10 @@ pub fn derive_messages(events: &[SessionEvent]) -> Vec<Message> {
             EventKind::SystemMessage { content } => {
                 out.push((ev.seq, msg(Role::System, content)));
             }
-            EventKind::UserMessage { content } => {
-                out.push((ev.seq, msg(Role::User, content)));
+            EventKind::UserMessage { content, images } => {
+                let mut m = msg(Role::User, content);
+                m.images.clone_from(images);
+                out.push((ev.seq, m));
             }
             EventKind::AssistantMessage { content, reasoning } => {
                 let mut m = msg(Role::Assistant, content);
@@ -94,7 +96,7 @@ pub fn derive_messages(events: &[SessionEvent]) -> Vec<Message> {
 }
 
 fn msg(role: Role, content: &str) -> Message {
-    Message {
+    Message { images: Vec::new(),
         role,
         content: content.to_owned(),
         reasoning: None,

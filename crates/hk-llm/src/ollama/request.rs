@@ -151,6 +151,10 @@ fn message(m: &Message, before: &[Message]) -> Value {
     };
     let mut v = json!({ "role": role, "content": m.content });
     let obj = v.as_object_mut().expect("json! object");
+    if !m.images.is_empty() {
+        let imgs: Vec<Value> = m.images.iter().map(|i| Value::String(i.data.clone())).collect();
+        obj.insert("images".into(), Value::Array(imgs));
+    }
     if !m.tool_calls.is_empty() {
         let calls: Vec<Value> = m
             .tool_calls
@@ -182,7 +186,7 @@ mod tests {
     use crate::{ReasoningEffort, ToolCall, ToolSpec};
 
     fn msg(role: Role, content: &str) -> Message {
-        Message {
+        Message { images: Vec::new(),
             role,
             content: content.into(),
             reasoning: None,

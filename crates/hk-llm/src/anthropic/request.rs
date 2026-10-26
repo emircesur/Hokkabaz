@@ -318,6 +318,12 @@ fn convert(
         match m.role {
             Role::System => system.extend(text_block(&m.content)),
             Role::User => {
+                for i in &m.images {
+                    user.other.push(json!({
+                        "type": "image",
+                        "source": {"type": "base64", "media_type": i.mime, "data": i.data},
+                    }));
+                }
                 // Never drop a user turn: keep alternation valid.
                 user.other.push(
                     text_block(&m.content)
@@ -389,7 +395,7 @@ mod tests {
     use crate::{ToolCall, ToolSpec};
 
     fn msg(role: Role, content: &str) -> Message {
-        Message {
+        Message { images: Vec::new(),
             role,
             content: content.into(),
             reasoning: None,

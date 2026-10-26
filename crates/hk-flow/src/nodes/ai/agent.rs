@@ -171,7 +171,7 @@ pub(crate) async fn run_loop(
 }
 
 fn msg(role: Role, content: String) -> Message {
-    Message {
+    Message { images: Vec::new(),
         role,
         content,
         reasoning: None,

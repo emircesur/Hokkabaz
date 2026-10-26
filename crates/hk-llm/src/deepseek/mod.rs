@@ -29,6 +29,18 @@ const DEFAULT_BASE_URL: &str = "https://api.deepseek.com";
 /// - `stream_options.include_usage` is always on: usage + cache-hit counters
 ///   arrive in a trailing chunk.
 pub fn build_body(req: &ChatRequest) -> Value {
+    // DeepSeek's chat API has no vision input: drop images, leave a note the model can see.
+    if req.messages.iter().any(|m| !m.images.is_empty()) {
+        let mut r = req.clone();
+        for m in &mut r.messages {
+            if !m.images.is_empty() {
+                m.content
+                    .push_str(&format!("\n[{} image(s) omitted: this model cannot see images]", m.images.len()));
+                m.images.clear();
+            }
+        }
+        return build_body_with(&r, &body_options());
+    }
     build_body_with(req, &body_options())
 }
 
@@ -179,7 +191,7 @@ mod tests {
 
     #[test]
     fn reasoner_body_shape() {
-        let asst = Message {
+        let asst = Message { images: Vec::new(),
             role: Role::Assistant,
             content: String::new(),
             reasoning: Some("think".into()),

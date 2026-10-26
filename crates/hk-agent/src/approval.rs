@@ -6,7 +6,7 @@
 //! order, before the tool result.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use hk_core::Verdict;
@@ -45,6 +45,7 @@ struct Answer {
 pub(crate) struct Gate {
     mode: Mutex<Mode>,
     policy: Mutex<std::collections::BTreeMap<String, String>>,
+    dry_run: AtomicBool,
     pending: Mutex<HashMap<String, oneshot::Sender<Answer>>>,
     tx: mpsc::UnboundedSender<GateEvent>,
     next: AtomicU64,
@@ -64,6 +65,7 @@ impl Gate {
         let gate = Arc::new(Self {
             mode: Mutex::new(mode),
             policy: Mutex::default(),
+            dry_run: AtomicBool::new(false),
             pending: Mutex::default(),
             tx,
             next: AtomicU64::new(0),
@@ -77,6 +79,10 @@ impl Gate {
 
     pub(crate) fn set_policy(&self, p: std::collections::BTreeMap<String, String>) {
         *self.policy.lock().unwrap_or_else(PoisonError::into_inner) = p;
+    }
+
+    pub(crate) fn set_dry_run(&self, on: bool) {
+        self.dry_run.store(on, Ordering::Relaxed);
     }
 
     pub(crate) fn set_mode(&self, m: Mode) {
@@ -114,7 +120,14 @@ impl Gate {
 
     /// The interceptor body.
     pub(crate) async fn check(&self, e: ToolPreExecute) -> Verdict<ToolPreExecute> {
-        let mode = match self.mode() {
+        if self.dry_run.load(Ordering::Relaxed) && e.risk != Risk::Safe {
+            return Verdict::Reject(format!(
+                "dry run: `{}` was not executed. It would have run with {}",
+                e.tool,
+                detail(&e.args).unwrap_or_else(|| "no arguments".into())
+            ));
+        }
+                let mode = match self.mode() {
             Mode::Plan => "plan",
             _ => "build",
         };

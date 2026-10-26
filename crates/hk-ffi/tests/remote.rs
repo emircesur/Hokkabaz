@@ -374,7 +374,7 @@ async fn feed_resumes_after_link_drop() {
     d.runtime
         .submit(
             &s.id,
-            TurnRequest {
+            TurnRequest { images: Vec::new(),
                 prompt: "b".into(),
                 mode: None,
                 model: None,

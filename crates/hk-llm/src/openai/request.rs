@@ -153,6 +153,15 @@ fn message(m: &Message, echo_reasoning: bool) -> Value {
     };
     let mut v = json!({ "role": role, "content": m.content });
     let obj = v.as_object_mut().expect("json! object");
+    if m.role == Role::User && !m.images.is_empty() {
+        let mut parts = vec![json!({"type": "text", "text": m.content})];
+        parts.extend(
+            m.images
+                .iter()
+                .map(|i| json!({"type": "image_url", "image_url": {"url": i.data_url()}})),
+        );
+        obj.insert("content".into(), Value::Array(parts));
+    }
     if m.role == Role::Assistant && !m.tool_calls.is_empty() {
         if m.content.is_empty() {
             obj.insert("content".into(), Value::Null);
@@ -187,7 +196,7 @@ mod tests {
     use crate::{ToolCall, ToolSpec};
 
     fn msg(role: Role, content: &str) -> Message {
-        Message {
+        Message { images: Vec::new(),
             role,
             content: content.into(),
             reasoning: None,

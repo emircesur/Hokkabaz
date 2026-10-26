@@ -65,7 +65,7 @@ fn adapter(base: String) -> Ollama {
 fn req() -> ChatRequest {
     let mut r = ChatRequest::new(
         "qwen3:8b",
-        vec![Message {
+        vec![Message { images: Vec::new(),
             role: Role::User,
             content: "hi".into(),
             reasoning: None,

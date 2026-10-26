@@ -17,7 +17,7 @@ fn internal(e: impl std::fmt::Display) -> HkError {
 }
 
 fn user(text: &str) -> Message {
-    Message {
+    Message { images: Vec::new(),
         role: Role::User,
         content: text.to_string(),
         reasoning: None,
@@ -55,6 +55,42 @@ pub(crate) async fn session(c: &Ctx<'_>, action: &str, p: Value) -> Result<Value
                 .filter_map(|r| r["tokens"].as_u64())
                 .sum::<u64>() as usize;
             Ok(json!({"messages": rows, "total_tokens": total}))
+        }
+        // Submit with attached images (P9.15): paths are read here and sent inline.
+        "submit" => {
+            use base64::Engine as _;
+            let mut images = Vec::new();
+            for path in p.get("images").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str) {
+                let bytes = tokio::fs::read(path).await.map_err(|e| bad(format!("{path}: {e}")))?;
+                if bytes.len() > 20 * 1024 * 1024 {
+                    return Err(bad(format!("{path} is larger than 20 MB")));
+                }
+                let ext = path.rsplit('.').next().unwrap_or_default().to_ascii_lowercase();
+                let mime = match ext.as_str() {
+                    "jpg" | "jpeg" => "image/jpeg",
+                    "webp" => "image/webp",
+                    "gif" => "image/gif",
+                    _ => "image/png",
+                };
+                images.push(hk_llm::ImagePart {
+                    mime: mime.into(),
+                    data: base64::engine::general_purpose::STANDARD.encode(bytes),
+                });
+            }
+            let r = c
+                .runtime
+                .submit(
+                    str_arg(&p, "session_id")?,
+                    hk_server::TurnRequest {
+                        prompt: str_arg(&p, "prompt")?.to_string(),
+                        mode: None,
+                        model: p.get("model").and_then(Value::as_str).map(str::to_string),
+                        images,
+                    },
+                )
+                .await
+                .map_err(internal)?;
+            Ok(json!(r))
         }
         _ => Err(bad(format!("unknown `session.{action}`"))),
     }
@@ -246,6 +282,38 @@ pub(crate) async fn call(
     p: Value,
 ) -> Result<Value, HkError> {
     match (domain, action) {
+        // Start a chat as a custom agent (P9.21): its model and system prompt.
+        ("agents", "start") => {
+            let id = str_arg(&p, "id")?;
+            let doc: Vec<Value> = c
+                .store
+                .get_setting("custom_agents")
+                .await
+                .map_err(internal)?
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default();
+            let a = doc
+                .into_iter()
+                .find(|a| a["id"] == id)
+                .ok_or_else(|| bad(format!("unknown agent `{id}`")))?;
+            let model = a["model"].as_str().filter(|m| !m.is_empty() && !m.contains("{{")).map(str::to_string);
+            let info = c
+                .runtime
+                .create_session(hk_server::CreateSession {
+                    cwd: None,
+                    model,
+                    title: a["name"].as_str().map(|n| format!("🤖 {n}")),
+                })
+                .await
+                .map_err(internal)?;
+            let mut system = vec![a["system_prompt"].as_str().unwrap_or_default().to_string()];
+            if let Some(tools) = a["tools"].as_array().filter(|t| !t.is_empty()) {
+                let names: Vec<&str> = tools.iter().filter_map(Value::as_str).collect();
+                system.push(format!("Prefer these tools for this role: {}.", names.join(", ")));
+            }
+            c.runtime.set_session_system(&info.id, system).map_err(internal)?;
+            Ok(json!(info))
+        }
         ("usage", "summary") => {
             usage_summary(c, p.get("days").and_then(Value::as_i64).unwrap_or(30)).await
         }

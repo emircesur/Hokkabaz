@@ -241,7 +241,7 @@ fn adapter(base: String, retries: u32) -> DeepSeek {
 fn req() -> ChatRequest {
     ChatRequest::new(
         "deepseek-chat",
-        vec![Message {
+        vec![Message { images: Vec::new(),
             role: Role::User,
             content: "hi".into(),
             reasoning: None,

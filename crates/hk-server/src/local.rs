@@ -67,6 +67,7 @@ pub struct AiDefaults {
     pub max_output_tokens: Option<u64>,
     pub reasoning_effort: Option<hk_llm::ReasoningEffort>,
     pub policy: std::collections::BTreeMap<String, String>,
+    pub dry_run: bool,
 }
 
 impl AiDefaults {
@@ -77,6 +78,7 @@ impl AiDefaults {
         if c.sampling == hk_llm::SamplingParams::default() {
             c.sampling = self.sampling.clone();
         }
+        c.dry_run |= self.dry_run;
         for (k, v) in &self.policy {
             c.policy.entry(k.clone()).or_insert_with(|| v.clone());
         }
@@ -150,6 +152,13 @@ impl LocalRuntime {
             jobs: hk_core::JobRegistry::new(),
             defaults: Arc::default(),
         })))
+    }
+
+    /// Give a session its own system prompt (custom agents); applies from its next turn.
+    pub fn set_session_system(&self, id: &str, system: Vec<String>) -> Result<(), ApiError> {
+        let live = self.ensure_live(id)?;
+        lock(&live.cfg).system = system;
+        Ok(())
     }
 
     /// Replace the instance-wide AI defaults; applies from the next turn of every session.
@@ -430,7 +439,11 @@ impl AgentRuntime for LocalRuntime {
             }
         }
         let queued = live.handle.is_running();
-        live.handle.submit(req.prompt);
+        if req.images.is_empty() {
+            live.handle.submit(req.prompt);
+        } else {
+            live.handle.submit_with_images(req.prompt, req.images);
+        }
         live.wake.notify_one();
         Ok(TurnAccepted {
             session_id: id.to_owned(),

@@ -148,6 +148,9 @@ pub enum EventKind {
     UserMessage {
         /// Text.
         content: String,
+        /// Attached images (vision models); logged so the request stays reconstructable.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        images: Vec<hk_llm::ImagePart>,
     },
     /// Finished assistant text. Its tool calls follow as `tool/call` events.
     #[serde(rename = "assistant/message")]

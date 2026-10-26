@@ -158,7 +158,7 @@ pub(crate) async fn call(c: &Ctx<'_>, method: &str, p: Value) -> Result<Value, H
             _ => Err(bad(format!("unknown `{method}`"))),
         },
         "prompts" => list_doc(c.store, "prompt_library", action, &p).await,
-        "agents" => list_doc(c.store, "custom_agents", action, &p).await,
+        "agents" if action != "start" => list_doc(c.store, "custom_agents", action, &p).await,
         "schedules" => list_doc(c.store, "agent_schedules", action, &p).await,
         _ => crate::features::call(c, domain, action, p).await,
     }
@@ -200,9 +200,9 @@ pub(crate) async fn apply_ai_defaults(rt: &LocalRuntime, store: &Store) {
     // Reuse the provider-facing mapping so UI fields and wire fields never drift.
     let mut probe = hk_llm::ChatRequest::new(String::new(), Vec::new());
     probe.apply_settings(&settings);
-    let policy: std::collections::BTreeMap<String, String> = doc_get(store, "approval_policy")
-        .await
-        .unwrap_or(Value::Null)
+    let approvals = doc_get(store, "approval_policy").await.unwrap_or(Value::Null);
+    let dry_run = approvals.get("dry_run").and_then(Value::as_bool).unwrap_or(false);
+    let policy: std::collections::BTreeMap<String, String> = approvals
         .get("rules")
         .cloned()
         .and_then(|r| serde_json::from_value(r).ok())
@@ -213,5 +213,6 @@ pub(crate) async fn apply_ai_defaults(rt: &LocalRuntime, store: &Store) {
         max_output_tokens: probe.max_output_tokens,
         reasoning_effort: probe.reasoning_effort,
         policy,
+        dry_run,
     });
 }

@@ -46,6 +46,25 @@ pub struct Message {
     /// For [`Role::Tool`]: id of the call this answers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
+    /// Images attached to a user message (vision models).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<ImagePart>,
+}
+
+/// An inline image (base64), e.g. a pasted screenshot or a camera photo.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImagePart {
+    /// `image/png`, `image/jpeg`, …
+    pub mime: String,
+    /// Base64 (standard alphabet, no data: prefix).
+    pub data: String,
+}
+
+impl ImagePart {
+    /// `data:` URL form some APIs want.
+    pub fn data_url(&self) -> String {
+        format!("data:{};base64,{}", self.mime, self.data)
+    }
 }
 
 /// Tool schema offered to the model.

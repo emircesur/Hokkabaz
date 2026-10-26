@@ -683,7 +683,7 @@ mod tests {
     fn req(model: &str) -> ChatRequest {
         ChatRequest::new(
             model,
-            vec![Message {
+            vec![Message { images: Vec::new(),
                 role: Role::User,
                 content: "hello world".into(),
                 reasoning: None,

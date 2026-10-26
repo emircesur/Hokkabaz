@@ -1,10 +1,13 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../ffi/hk_gate.dart';
 import '../../theme/tokens.dart';
 import '../flows/flow_store.dart';
 import '../flows/model/workflow_model.dart';
+import '../chat/chat_providers.dart' show selectedSessionProvider;
 import 'ai_common.dart';
 
 /// Template gallery (P9.42): starter flows, agents, prompts, presets; install with inputs.
@@ -344,6 +347,25 @@ class AgentsSection extends StatelessWidget {
     ],
     describe: (a) =>
         '${a['model'] ?? ''} · ${(a['tools'] as List?)?.join(', ') ?? ''}',
+    extraActions: (context, a) => [
+      Consumer(
+        builder: (ctx, ref, _) => IconButton(
+          tooltip: 'Start a chat as this agent',
+          icon: const Icon(Icons.chat_outlined),
+          onPressed: () async {
+            final info = await guarded(
+              ctx,
+              () => hkMap('agents.start', {'id': a['id']}),
+            );
+            if (info == null || !ctx.mounted) return;
+            ref
+                .read(selectedSessionProvider.notifier)
+                .select(info['id'] as String?);
+            ctx.go('/chat');
+          },
+        ),
+      ),
+    ],
   );
 }
 

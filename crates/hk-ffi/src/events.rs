@@ -110,7 +110,7 @@ fn map_logged(kind: EventKind) -> Vec<Ev> {
             }),
             ..Ev::new(K::Usage)
         }),
-        EventKind::UserMessage { content } => one(text_ev(K::UserMessage, content)),
+        EventKind::UserMessage { content, .. } => one(text_ev(K::UserMessage, content)),
         EventKind::AssistantMessage { content, reasoning } => one(Ev {
             reasoning,
             ..text_ev(K::AssistantMessage, content)

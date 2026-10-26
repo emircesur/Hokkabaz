@@ -1,3 +1,5 @@
+import '../../ffi/hk_gate.dart' as gate;
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -121,7 +123,9 @@ class ChatController extends Notifier<ChatState> {
     for (final t in state.pendingApprovals) {
       final id = t.approval!.id;
       if (_alwaysAllow.contains(t.name) && _autoAnswered.add(id)) {
-        unawaited(respond(id, approved: true, reason: 'always allowed in this session'));
+        unawaited(
+          respond(id, approved: true, reason: 'always allowed in this session'),
+        );
       }
     }
   }
@@ -226,6 +230,25 @@ class ChatController extends Notifier<ChatState> {
           model: model,
         );
       }
+    } catch (e) {
+      _notice(describeError(e));
+    }
+  }
+
+  /// Send with attached images (vision models) through the generic gate.
+  Future<void> sendWithImages(
+    String prompt,
+    List<String> images, {
+    String? model,
+  }) async {
+    final text = prompt.trim().isEmpty ? 'Describe this image.' : prompt.trim();
+    try {
+      await gate.hk('session.submit', {
+        'session_id': sessionId,
+        'prompt': text,
+        'images': images,
+        'model': ?model,
+      });
     } catch (e) {
       _notice(describeError(e));
     }

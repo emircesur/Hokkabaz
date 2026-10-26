@@ -449,7 +449,7 @@ impl CoreHandle for LocalCore {
             .runtime
             .submit(
                 session_id,
-                TurnRequest {
+                TurnRequest { images: Vec::new(),
                     prompt: req.prompt,
                     mode: Some(match mode {
                         ModeDto::Build => TurnMode::Build,

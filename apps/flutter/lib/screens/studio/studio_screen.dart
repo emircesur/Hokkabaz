@@ -11,6 +11,7 @@ import 'source_strip.dart';
 import '../../app/activity.dart';
 import 'studio_ai_panels.dart';
 import 'studio_home.dart';
+import 'studio_timeline.dart';
 import 'studio_models.dart';
 import 'studio_providers.dart';
 import 'studio_settings.dart';
@@ -122,7 +123,10 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
     ref.listen(jobsProvider, (prev, next) {
       for (final j in next.values) {
         final before = prev?[j.id];
-        if (before != null && before.running && !j.running && j.meta['project'] == id) {
+        if (before != null &&
+            before.running &&
+            !j.running &&
+            j.meta['project'] == id) {
           ref.read(studioControllerProvider(id).notifier).reload();
           break;
         }
@@ -282,6 +286,16 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
                       ),
                     ),
                     Divider(height: 1, color: hk.border),
+                    if (s.clip != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: HkTokens.s3,
+                        ),
+                        child: MultiTrackTimeline(
+                          projectId: id,
+                          player: _player,
+                        ),
+                      ),
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: HkTokens.s3,
@@ -929,10 +943,16 @@ class _MotionPanelState extends ConsumerState<_MotionPanel> {
   }
 }
 
-
 /// Running jobs of one Studio project (transcribe, highlights, renders …), oldest first.
 List<Job> studioJobs(WidgetRef ref, String projectId) =>
-    ref.watch(jobsProvider).values.where((j) => j.running && j.parent == null && j.meta['project'] == projectId).toList()
+    ref
+        .watch(jobsProvider)
+        .values
+        .where(
+          (j) =>
+              j.running && j.parent == null && j.meta['project'] == projectId,
+        )
+        .toList()
       ..sort((a, b) => a.id.compareTo(b.id));
 
 /// Progress chip with percent, phase, ETA and a Stop button.
@@ -944,16 +964,26 @@ class _JobChip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final hk = context.hk;
     final p = job.progress;
-    final eta = job.etaMs == null ? '' : ' · ${(job.etaMs! / 1000).round()}s left';
-    final elapsed = ((DateTime.now().millisecondsSinceEpoch - job.startedMs) / 1000).round();
+    final eta = job.etaMs == null
+        ? ''
+        : ' · ${(job.etaMs! / 1000).round()}s left';
+    final elapsed =
+        ((DateTime.now().millisecondsSinceEpoch - job.startedMs) / 1000)
+            .round();
     return Container(
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.fromLTRB(10, 4, 2, 4),
-      decoration: BoxDecoration(border: Border.all(color: hk.border), borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        border: Border.all(color: hk.border),
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(width: 70, child: LinearProgressIndicator(value: p, minHeight: 4)),
+          SizedBox(
+            width: 70,
+            child: LinearProgressIndicator(value: p, minHeight: 4),
+          ),
           const SizedBox(width: 8),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 280),
@@ -968,7 +998,9 @@ class _JobChip extends ConsumerWidget {
             tooltip: 'Stop',
             visualDensity: VisualDensity.compact,
             icon: Icon(Icons.stop_circle_outlined, size: 18, color: hk.err),
-            onPressed: job.state == 'cancelling' ? null : () => ref.read(jobsProvider.notifier).cancel(job.id),
+            onPressed: job.state == 'cancelling'
+                ? null
+                : () => ref.read(jobsProvider.notifier).cancel(job.id),
           ),
         ],
       ),
