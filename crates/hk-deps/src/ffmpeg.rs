@@ -100,6 +100,7 @@ pub(crate) async fn install(d: &Deps, cancel: &CancellationToken) -> Result<Opti
     let out_dir: PathBuf = d.tools_dir().join("ffmpeg");
     let work = d.tools_dir().join(".downloads");
     tokio::fs::create_dir_all(&out_dir).await?;
+    crate::replace::cleanup_aside(&out_dir);
     let client = download::client()?;
     match build {
         FfmpegBuild::Archive { name, url, sums } => {

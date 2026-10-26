@@ -46,7 +46,15 @@ fn parse() -> Result<Cmd> {
         match k.as_str() {
             "--version" | "-V" => return Ok(Cmd::Version),
             "--info" => return Ok(Cmd::Info),
-            "--gpu" => a.gpu = Some(val("--gpu")?.parse().context("--gpu")?),
+            "--gpu" => {
+                let v = val("--gpu")?;
+                // `auto`: the discrete GPU with the most memory (never an iGPU over NVIDIA/AMD).
+                a.gpu = Some(if v == "auto" {
+                    devices::best().unwrap_or(0)
+                } else {
+                    v.parse().context("--gpu")?
+                });
+            }
             "--cpu" => a.gpu = None,
             "--model" => a.model = Some(val("--model")?.into()),
             "--audio" => a.audio = Some(val("--audio")?.into()),
@@ -67,8 +75,12 @@ fn run() -> Result<()> {
             return Ok(());
         }
         Cmd::Info => {
-            let info =
-                serde_json::json!({"version": env!("CARGO_PKG_VERSION"), "gpu": GPU_BACKEND});
+            let info = serde_json::json!({
+                "version": env!("CARGO_PKG_VERSION"),
+                "gpu": GPU_BACKEND,
+                "devices": if GPU_BACKEND.is_some() { devices::list() } else { Vec::new() },
+                "auto_device": devices::best(),
+            });
             println!("{info}");
             return Ok(());
         }
@@ -103,5 +115,59 @@ fn main() -> std::process::ExitCode {
             eprintln!("error: {e:#}");
             std::process::ExitCode::FAILURE
         }
+    }
+}
+
+/// ggml GPU devices as whisper.cpp counts them for `gpu_device` (GPU and iGPU, in order).
+#[allow(unsafe_code)]
+mod devices {
+    use std::ffi::CStr;
+
+    use whisper_rs_sys as sys;
+
+    pub(crate) fn list() -> Vec<serde_json::Value> {
+        let mut out = Vec::new();
+        // SAFETY: plain ggml registry queries; props strings are owned by the registry.
+        unsafe {
+            let mut pos = 0;
+            for i in 0..sys::ggml_backend_dev_count() {
+                let dev = sys::ggml_backend_dev_get(i);
+                let mut p: sys::ggml_backend_dev_props = std::mem::zeroed();
+                sys::ggml_backend_dev_get_props(dev, &raw mut p);
+                let integrated =
+                    p.type_ == sys::ggml_backend_dev_type_GGML_BACKEND_DEVICE_TYPE_IGPU;
+                if p.type_ != sys::ggml_backend_dev_type_GGML_BACKEND_DEVICE_TYPE_GPU && !integrated
+                {
+                    continue;
+                }
+                let s = |c: *const std::os::raw::c_char| {
+                    if c.is_null() {
+                        String::new()
+                    } else {
+                        CStr::from_ptr(c).to_string_lossy().into_owned()
+                    }
+                };
+                out.push(serde_json::json!({
+                    "device": pos,
+                    "name": s(p.name),
+                    "description": s(p.description),
+                    "memory_total": p.memory_total,
+                    "integrated": integrated,
+                }));
+                pos += 1;
+            }
+        }
+        out
+    }
+
+    /// Discrete GPU with the most memory, else the first GPU.
+    pub(crate) fn best() -> Option<i32> {
+        let all = list();
+        all.iter()
+            .filter(|d| d["integrated"] == false)
+            .max_by_key(|d| d["memory_total"].as_u64().unwrap_or(0))
+            .or_else(|| all.first())
+            .and_then(|d| d["device"].as_i64())
+            .map(|d| d as i32)
     }
 }

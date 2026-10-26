@@ -230,6 +230,7 @@ mod face {
     pub struct FaceFocus {
         tools: Tools,
         model: PathBuf,
+        opts: super::TrackingOpts,
     }
 
     impl FaceFocus {
@@ -237,14 +238,26 @@ mod face {
             Self {
                 tools,
                 model: model.into(),
+                opts: super::TrackingOpts::default(),
             }
         }
 
-        fn run(model: &Path, f: &Frames, motion: &[FocusPoint]) -> Result<Vec<FocusPoint>> {
+        /// Detector tuning (min face size, score threshold).
+        pub fn with_opts(mut self, opts: super::TrackingOpts) -> Self {
+            self.opts = opts;
+            self
+        }
+
+        fn run(
+            model: &Path,
+            f: &Frames,
+            motion: &[FocusPoint],
+            o: &super::TrackingOpts,
+        ) -> Result<Vec<FocusPoint>> {
             let mut det = rustface::create_detector(&model.to_string_lossy())
                 .map_err(|e| StudioError::Invalid(format!("face model: {e}")))?;
-            det.set_min_face_size(((f.width as f64 * 0.025) as u32).max(20));
-            det.set_score_thresh(2.0);
+            det.set_min_face_size(((f.width as f64 * o.min_face.clamp(0.005, 0.5)) as u32).max(20));
+            det.set_score_thresh(o.threshold.clamp(0.0, 10.0));
             det.set_pyramid_scale_factor(0.8);
             det.set_slide_window_step(4, 4);
             let mut out = Vec::with_capacity(f.data.len());
@@ -304,21 +317,65 @@ mod face {
                 grab_frames(&self.tools, video, start, end, 1.0 / step.max(0.1), 800).await?;
             let motion = MotionFocus::new(self.tools.clone()).points(&frames);
             let model = self.model.clone();
-            tokio::task::spawn_blocking(move || Self::run(&model, &frames, &motion))
+            let o = self.opts.clone();
+            tokio::task::spawn_blocking(move || Self::run(&model, &frames, &motion, &o))
                 .await
                 .map_err(|e| StudioError::Invalid(e.to_string()))?
         }
     }
 }
 
+/// Subject-tracking settings (Studio settings → Subject tracking).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct TrackingOpts {
+    /// `auto` (faces when a model is there, else motion) | `face` | `motion` | `center`.
+    pub method: String,
+    /// Own SeetaFace model file; empty = the downloaded default.
+    pub face_model: Option<PathBuf>,
+    /// Frames analysed per second.
+    pub fps: f64,
+    /// Smallest face, as a fraction of the frame width.
+    pub min_face: f64,
+    /// Detector score threshold (higher = fewer, surer faces).
+    pub threshold: f64,
+    /// Camera smoothing 0..1 (overrides the reframe spec when set).
+    pub smoothing: Option<f64>,
+    /// Extra zoom (overrides the reframe spec when set).
+    pub zoom: Option<f64>,
+}
+
+impl Default for TrackingOpts {
+    fn default() -> Self {
+        Self {
+            method: "auto".into(),
+            face_model: None,
+            fps: 2.0,
+            min_face: 0.025,
+            threshold: 2.0,
+            smoothing: None,
+            zoom: None,
+        }
+    }
+}
+
 /// Best tracker available: faces if a model path is given and `vision` is on, else motion.
 pub fn auto_focus(tools: Tools, face_model: Option<PathBuf>) -> Box<dyn FocusSource> {
+    auto_focus_with(tools, face_model, TrackingOpts::default())
+}
+
+/// [`auto_focus`] with detector settings.
+pub fn auto_focus_with(
+    tools: Tools,
+    face_model: Option<PathBuf>,
+    opts: TrackingOpts,
+) -> Box<dyn FocusSource> {
     #[cfg(feature = "vision")]
     if let Some(m) = face_model {
-        return Box::new(FaceFocus::new(tools, m));
+        return Box::new(FaceFocus::new(tools, m).with_opts(opts));
     }
     #[cfg(not(feature = "vision"))]
-    let _ = face_model;
+    let _ = (face_model, opts);
     Box::new(MotionFocus::new(tools))
 }
 

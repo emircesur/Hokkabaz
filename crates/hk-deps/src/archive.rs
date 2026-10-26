@@ -27,7 +27,7 @@ fn write_exe(dest: &Path, r: &mut impl Read) -> Result<()> {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755))?;
     }
-    std::fs::rename(&tmp, dest)?;
+    crate::replace::replace_file(&tmp, dest)?;
     Ok(())
 }
 

@@ -8,6 +8,7 @@ import 'player_backends.dart';
 import 'player_controller.dart';
 import 'publish_panel.dart';
 import 'source_strip.dart';
+import '../../app/activity.dart';
 import 'studio_ai_panels.dart';
 import 'studio_home.dart';
 import 'studio_models.dart';
@@ -115,6 +116,16 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
       if (path != null) _openSource(path);
       if (next.plan != prev?.plan && _playerError == null) {
         _player.setPlan(next.plan);
+      }
+    });
+    // A Studio job of this project finished (maybe started before this screen opened): reload.
+    ref.listen(jobsProvider, (prev, next) {
+      for (final j in next.values) {
+        final before = prev?[j.id];
+        if (before != null && before.running && !j.running && j.meta['project'] == id) {
+          ref.read(studioControllerProvider(id).notifier).reload();
+          break;
+        }
       }
     });
     final s = ref.watch(studioControllerProvider(id));
@@ -420,19 +431,23 @@ class _Header extends ConsumerWidget {
                 label: const Text('Agent edited'),
               ),
             ),
-          for (final b in state.busy)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Chip(
-                visualDensity: VisualDensity.compact,
-                avatar: const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+          // Long work runs as core jobs: progress, ETA and Stop survive leaving this screen.
+          for (final j in studioJobs(ref, projectId)) _JobChip(job: j),
+          // Fallback for work without a job (remote instance).
+          if (studioJobs(ref, projectId).isEmpty)
+            for (final b in state.busy)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Chip(
+                  visualDensity: VisualDensity.compact,
+                  avatar: const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  label: Text(b),
                 ),
-                label: Text(b),
               ),
-            ),
           IconButton(
             tooltip: 'Undo (Ctrl+Z)',
             onPressed: state.canUndo ? ctl.undo : null,
@@ -910,6 +925,53 @@ class _MotionPanelState extends ConsumerState<_MotionPanel> {
             ),
         ],
       ],
+    );
+  }
+}
+
+
+/// Running jobs of one Studio project (transcribe, highlights, renders …), oldest first.
+List<Job> studioJobs(WidgetRef ref, String projectId) =>
+    ref.watch(jobsProvider).values.where((j) => j.running && j.parent == null && j.meta['project'] == projectId).toList()
+      ..sort((a, b) => a.id.compareTo(b.id));
+
+/// Progress chip with percent, phase, ETA and a Stop button.
+class _JobChip extends ConsumerWidget {
+  const _JobChip({required this.job});
+  final Job job;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hk = context.hk;
+    final p = job.progress;
+    final eta = job.etaMs == null ? '' : ' · ${(job.etaMs! / 1000).round()}s left';
+    final elapsed = ((DateTime.now().millisecondsSinceEpoch - job.startedMs) / 1000).round();
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.fromLTRB(10, 4, 2, 4),
+      decoration: BoxDecoration(border: Border.all(color: hk.border), borderRadius: BorderRadius.circular(20)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(width: 70, child: LinearProgressIndicator(value: p, minHeight: 4)),
+          const SizedBox(width: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 280),
+            child: Text(
+              '${job.title}${job.phase != null ? ' · ${job.phase}' : ''} · ${p == null ? '${elapsed}s' : '${(p * 100).round()}%'}$eta',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Stop',
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.stop_circle_outlined, size: 18, color: hk.err),
+            onPressed: job.state == 'cancelling' ? null : () => ref.read(jobsProvider.notifier).cancel(job.id),
+          ),
+        ],
+      ),
     );
   }
 }

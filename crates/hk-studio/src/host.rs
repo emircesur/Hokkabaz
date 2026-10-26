@@ -50,9 +50,13 @@ pub struct StudioSettings {
     /// run falls back to the CPU on its own.
     pub whisper_gpu: Option<bool>,
     /// GPU index when there are several (0 = first).
+    /// 0/unset = auto (discrete GPU with the most memory); N = helper device N-1.
     pub gpu_device: Option<i32>,
     /// A folder of your own footage / images used as a B-roll source.
     pub broll_dir: Option<String>,
+    /// Subject tracking: method, own face model, detector tuning.
+    #[serde(default)]
+    pub tracking: Option<crate::vision::TrackingOpts>,
     /// Google OAuth client id for YouTube uploads (secret + refresh token are in the secret store).
     pub youtube_client_id: Option<String>,
 }
@@ -166,7 +170,10 @@ impl Backends for AppBackends {
             }
             cfg.model_path = path;
             if s.whisper_gpu != Some(false) {
-                cfg.gpu = Some(s.gpu_device.unwrap_or(0).max(0));
+                // Unset or negative = auto: the helper picks the discrete GPU, not device 0
+                // (often the Intel iGPU).
+                // 0/unset = auto; N = the helper's device N-1. Old installs saved 0 here.
+                cfg.gpu = Some(s.gpu_device.filter(|d| *d > 0).map_or(-1, |d| d - 1));
             }
         }
         if self.secret(KEY_STT).is_some() {
@@ -218,6 +225,10 @@ impl Backends for AppBackends {
 
     fn face_model_dir(&self) -> Option<PathBuf> {
         Some(self.data_dir.join("models"))
+    }
+
+    fn tracking(&self) -> crate::vision::TrackingOpts {
+        self.snapshot().tracking.unwrap_or_default()
     }
 }
 
@@ -298,7 +309,59 @@ impl StudioHost {
 
     /// Run one Studio method. `params` is a JSON object; unknown methods are `Invalid`.
     #[allow(clippy::too_many_lines)]
+    /// Run a command. Long ones (transcribe, highlights, tracking, B-roll, writeups, dubbing …)
+    /// run as jobs: visible with progress in the job tree, cancellable, and they keep going
+    /// when the UI that started them goes away.
     pub async fn call(&self, method: &str, p: Value) -> Result<Value> {
+        let Some((kind, label)) = long_op(method) else {
+            return self.call_inner(method, p).await;
+        };
+        let project = p
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let job = std::sync::Arc::new(self.svc.jobs().start(
+            hk_core::JobSpec::new(kind, label)
+                .key(format!("studio:{method}:{project}"))
+                .meta(serde_json::json!({"studio": true, "project": project, "op": method, "clip": p.get("clip")})),
+            None,
+        ));
+        job.phase(if method == "transcribe" {
+            "extracting audio"
+        } else {
+            "working"
+        });
+        let token = job.token().clone();
+        let j2 = job.clone();
+        let progress: hk_stt::ProgressFn = std::sync::Arc::new(move |done, total| {
+            j2.phase(format!(
+                "transcribing part {}/{total}",
+                (done + 1).min(total)
+            ));
+            j2.progress(hk_core::Progress::Determinate(
+                done as f32 / total.max(1) as f32 * 0.97,
+            ));
+        });
+        let work = hk_stt::with_progress(progress, self.call_inner(method, p));
+        let res = tokio::select! {
+            biased;
+            () = token.cancelled() => Err(StudioError::Invalid(format!("{label} cancelled"))),
+            r = work => r,
+        };
+        match std::sync::Arc::try_unwrap(job) {
+            Ok(j) => match &res {
+                Ok(_) => j.finish(),
+                Err(_) if j.is_cancelled() => j.cancelled(),
+                Err(e) => j.fail(e.to_string()),
+            },
+            // A progress callback still holds a clone; dropping marks it failed/cancelled.
+            Err(_) => {}
+        }
+        res
+    }
+
+    async fn call_inner(&self, method: &str, p: Value) -> Result<Value> {
         let svc = &self.svc;
         match method {
             "check_tools" => Ok(check_tools().await),
@@ -776,4 +839,26 @@ async fn check_tools() -> Value {
     };
     let (ff, fp) = (run(t.ffmpeg.clone()).await, run(t.ffprobe.clone()).await);
     json!({"ffmpeg": ff.is_some(), "ffprobe": fp.is_some(), "version": ff})
+}
+
+/// Commands that run as jobs, with their job kind and label.
+fn long_op(method: &str) -> Option<(hk_core::JobKind, &'static str)> {
+    use hk_core::JobKind as K;
+    let other = |s: &str| K::Other(s.to_string());
+    Some(match method {
+        "transcribe" => (K::Transcribe, "Transcribe"),
+        "analyze" => (other("highlights"), "Find highlights"),
+        "reframe" => (other("reframe"), "Track subject"),
+        "broll" => (other("broll"), "Add B-roll"),
+        "social" => (other("social"), "Write post copy"),
+        "diarize" => (other("speakers"), "Label speakers"),
+        "dub" => (other("dub"), "Voice dubbing"),
+        "translate_captions" => (other("translate"), "Translate captions"),
+        "chapters" => (other("chapters"), "YouTube chapters"),
+        "longform" => (other("writeup"), "Write from video"),
+        "hook" => (other("hook"), "Hook review"),
+        "thumbnails" => (other("thumbnails"), "Thumbnails"),
+        "analytics" => (other("analytics"), "YouTube analytics"),
+        _ => return None,
+    })
 }

@@ -35,7 +35,8 @@ class LocalOverview {
       models = (j['models'] as List).map((m) => LocalModel((m as Map).cast())).toList(),
       custom = (j['custom'] as List).map((m) => (m as Map).cast<String, dynamic>()).toList(),
       gpuBackend = (j['gpu'] as Map?)?['backend'] as String?,
-      gpu = (((j['gpu'] as Map?)?['settings'] as Map?) ?? const {'enabled': true, 'device': 0}).cast<String, dynamic>();
+      gpu = (((j['gpu'] as Map?)?['settings'] as Map?) ?? const {'enabled': true, 'device': 0}).cast<String, dynamic>(),
+      gpuDevices = [for (final d in ((j['gpu'] as Map?)?['devices'] as List? ?? const [])) (d as Map).cast<String, dynamic>()];
   final bool engine;
 
   /// `vulkan` | `cuda` | `metal`, or null when local models run on the CPU only.
@@ -43,6 +44,9 @@ class LocalOverview {
 
   /// `{enabled, device, layers}` (layers null = all).
   final Map<String, dynamic> gpu;
+
+  /// `[{position, description, memory_total, integrated}]` from the llama.cpp backend.
+  final List<Map<String, dynamic>> gpuDevices;
   final int totalRam;
   final String? recommended, fallback;
   final List<LocalModel> models;
@@ -398,11 +402,22 @@ class _GpuCardState extends State<_GpuCard> {
               Row(
                 children: [
                   SizedBox(
-                    width: 140,
+                    width: 280,
                     child: DropdownButtonFormField<int>(
-                      initialValue: device.clamp(0, 3),
+                      initialValue: o.gpuDevices.any((d) => d['position'] == device) ? device : 0,
+                      isExpanded: true,
                       decoration: const InputDecoration(labelText: 'GPU', isDense: true),
-                      items: [for (var i = 0; i < 4; i++) DropdownMenuItem(value: i, child: Text(i == 0 ? 'First (0)' : 'GPU $i'))],
+                      items: [
+                        const DropdownMenuItem(value: 0, child: Text('Auto (best discrete GPU)')),
+                        for (final d in o.gpuDevices)
+                          DropdownMenuItem(
+                            value: (d['position'] as num).toInt(),
+                            child: Text(
+                              '${d['description'] ?? d['name']}${d['integrated'] == true ? ' (integrated)' : ''}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
                       onChanged: (v) => widget.onChanged(enabled, v ?? 0, layers()),
                     ),
                   ),

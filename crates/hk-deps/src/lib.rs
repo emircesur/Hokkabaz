@@ -13,6 +13,7 @@ mod archive;
 mod concat;
 mod download;
 mod ffmpeg;
+pub mod replace;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

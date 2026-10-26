@@ -145,7 +145,7 @@ pub(crate) async fn install(d: &Deps, cancel: &CancellationToken) -> Result<Opti
     match os {
         "linux" => {
             let target = dir.join("Concat.AppImage");
-            tokio::fs::rename(&dest, &target).await?;
+            crate::replace::replace_file(&dest, &target)?;
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;

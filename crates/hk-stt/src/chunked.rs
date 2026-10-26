@@ -184,6 +184,22 @@ impl std::fmt::Debug for ChunkedTranscriber {
 
 static DIR_SEQ: AtomicU64 = AtomicU64::new(0);
 
+/// Chunk progress callback: (chunks done, chunks total).
+pub type ProgressFn = Arc<dyn Fn(usize, usize) + Send + Sync>;
+
+tokio::task_local! {
+    static PROGRESS: ProgressFn;
+}
+
+/// Run `f` with a chunk-progress callback that [`ChunkedTranscriber`] reports to.
+pub async fn with_progress<F: std::future::Future>(cb: ProgressFn, f: F) -> F::Output {
+    PROGRESS.scope(cb, f).await
+}
+
+fn report(done: usize, total: usize) {
+    let _ = PROGRESS.try_with(|p| p(done, total));
+}
+
 impl ChunkedTranscriber {
     /// Wrap `inner`.
     pub fn new(
@@ -224,7 +240,9 @@ impl Transcriber for ChunkedTranscriber {
             .len();
         let fits = self.limit().is_none_or(|l| size <= l);
         if duration <= o.chunk_secs && fits {
+            report(0, 1);
             let mut t = self.inner.transcribe(audio_path, opts).await?;
+            report(1, 1);
             t.duration = t.duration.max(duration);
             return Ok(t);
         }
@@ -245,6 +263,10 @@ impl Transcriber for ChunkedTranscriber {
                 source,
             })?;
         tracing::debug!(chunks = plan.len(), duration, "chunked transcription");
+        let total = plan.len();
+        let done = std::sync::atomic::AtomicUsize::new(0);
+        report(0, total);
+        let done = &done;
 
         let res: Result<Vec<ChunkResult>> = stream::iter(plan.into_iter().enumerate())
             .map(|(i, span)| {
@@ -255,6 +277,7 @@ impl Transcriber for ChunkedTranscriber {
                         .await?;
                     let transcript = self.inner.transcribe(&out, opts).await;
                     let _ = tokio::fs::remove_file(&out).await;
+                    report(done.fetch_add(1, Ordering::Relaxed) + 1, total);
                     Ok(ChunkResult {
                         start: span.start,
                         end: span.end,

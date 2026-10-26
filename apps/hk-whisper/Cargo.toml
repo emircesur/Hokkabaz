@@ -18,6 +18,8 @@ path = "src/main.rs"
 anyhow = "1"
 hk-stt = { version = "0.0.0", path = "../../crates/hk-stt", features = ["whisper"] }
 serde_json = "1"
+# ggml device listing (pick the discrete GPU, not the iGPU).
+whisper-rs-sys = "0.15"
 tokio = { version = "1", features = ["rt", "macros"] }
 
 [features]

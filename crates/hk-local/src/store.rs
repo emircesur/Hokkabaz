@@ -332,7 +332,10 @@ impl ModelStore {
             let _ = tokio::fs::remove_file(&part).await;
             return Err(LocalError::Checksum(entry.id.clone()));
         }
-        tokio::fs::rename(&part, final_path).await?;
+        let (part2, fin) = (part.clone(), final_path.to_path_buf());
+        tokio::task::spawn_blocking(move || crate::replace::replace_file(&part2, &fin))
+            .await
+            .map_err(|e| std::io::Error::other(e.to_string()))??;
         Ok(())
     }
 }

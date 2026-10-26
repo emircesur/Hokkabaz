@@ -22,7 +22,7 @@ use crate::pipeline::{RenderOpts, Studio};
 use crate::project::{Clip, StudioProject, new_id};
 use crate::reframe::{FocusSource, ReframeMode, ReframeSpec};
 use crate::social::{Platform, SocialOpts, write_social};
-use crate::vision::{MotionFocus, auto_focus};
+use crate::vision::MotionFocus;
 
 /// What the host app provides: models, keys, stock accounts.
 #[async_trait]
@@ -45,6 +45,10 @@ pub trait Backends: Send + Sync + std::fmt::Debug {
     /// Where the face model lives; `None` = motion tracking only.
     fn face_model_dir(&self) -> Option<PathBuf> {
         None
+    }
+    /// Subject-tracking method and detector tuning.
+    fn tracking(&self) -> crate::vision::TrackingOpts {
+        crate::vision::TrackingOpts::default()
     }
 }
 
@@ -87,6 +91,14 @@ pub struct StudioService {
 }
 
 impl StudioService {
+    /// The job tree long Studio work reports to (shared with the app when [`Self::set_jobs`]
+    /// ran first, else a private one).
+    pub fn jobs(&self) -> hk_core::JobRegistry {
+        self.job_registry
+            .get_or_init(hk_core::JobRegistry::new)
+            .clone()
+    }
+
     /// Report renders as jobs in `reg` (first call wins).
     pub fn set_jobs(&self, reg: hk_core::JobRegistry) {
         let _ = self.job_registry.set(reg);
@@ -192,7 +204,9 @@ impl StudioService {
             .face_model_dir()
             .map(|d| d.join("seeta_fd_frontal_v1.0.bin"))
             .filter(|p| p.is_file());
-        auto_focus(self.studio.tools.clone(), model)
+        let t = self.backends.tracking();
+        let model = t.face_model.clone().filter(|p| p.is_file()).or(model);
+        crate::vision::auto_focus_with(self.studio.tools.clone(), model, t)
     }
 
     /// Download the face model into the configured dir (once).
@@ -210,11 +224,22 @@ impl StudioService {
         let snap = live.snapshot().await;
         let clip = snap.clip(clip_id)?.clone();
         let src = snap.source.path.clone();
-        let points = match self
-            .focus_source()
-            .detect(&src, clip.start, clip.end, 0.5)
-            .await
-        {
+        let t = self.backends.tracking();
+        let step = 1.0 / t.fps.clamp(0.25, 10.0);
+        let detected = match t.method.as_str() {
+            "center" => Ok(Vec::new()),
+            "motion" => {
+                MotionFocus::new(self.studio.tools.clone())
+                    .detect(&src, clip.start, clip.end, step)
+                    .await
+            }
+            _ => {
+                self.focus_source()
+                    .detect(&src, clip.start, clip.end, step)
+                    .await
+            }
+        };
+        let points = match detected {
             Ok(p) => p,
             Err(e) => {
                 tracing::warn!(error = %e, "tracking failed, using motion");
@@ -229,8 +254,18 @@ impl StudioService {
             .clone()
             .or(base)
             .unwrap_or_else(ReframeSpec::vertical);
-        spec.mode = ReframeMode::Track;
+        spec.mode = if t.method == "center" {
+            ReframeMode::Center
+        } else {
+            ReframeMode::Track
+        };
         spec.focus = points;
+        if let Some(s) = t.smoothing {
+            spec.smoothing = s.clamp(0.0, 1.0);
+        }
+        if let Some(z) = t.zoom {
+            spec.zoom = z.clamp(1.0, 3.0);
+        }
         let cid = clip_id.to_string();
         live.mutate(move |p| {
             if let Ok(c) = p.clip_mut(&cid) {

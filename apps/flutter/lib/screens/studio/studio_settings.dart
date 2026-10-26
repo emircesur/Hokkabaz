@@ -55,7 +55,7 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
 
   @override
   void dispose() {
-    for (final c in [_sttUrl, _sttModel, _sttLang, _whisperPath, _sttKey, _pexels, _pixabay, _brollDir, _ytId, _ytSecret, _ytRefresh, _gpuDevice]) {
+    for (final c in [_sttUrl, _sttModel, _sttLang, _whisperPath, _sttKey, _pexels, _pixabay, _brollDir, _ytId, _ytSecret, _ytRefresh, _gpuDevice, _faceModelPath]) {
       c.dispose();
     }
     super.dispose();
@@ -66,6 +66,10 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
       try {
         final w = jsonDecode(await api.studioWhisperStatus()) as Map;
         _whisperBackend = w['gpu'] as String?;
+        final gd = w['gpu_devices'];
+        if (gd is Map && gd['devices'] is List) {
+          _gpuDevices = [for (final d in gd['devices'] as List) (d as Map).cast<String, dynamic>()];
+        }
       } catch (_) {}
       final j = jsonDecode(await api.studioGetSettings()) as Map;
       final s = (j['settings'] as Map).cast<String, dynamic>();
@@ -80,6 +84,14 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
         _whisperGpu = s['whisper_gpu'] != false;
         _gpuDevice.text = '${(s['gpu_device'] as num?)?.toInt() ?? 0}';
         _brollDir.text = (s['broll_dir'] as String?) ?? '';
+        final tr = (s['tracking'] as Map?)?.cast<String, dynamic>() ?? const {};
+        _trackMethod = (tr['method'] as String?) ?? 'auto';
+        _faceModelPath.text = (tr['face_model'] as String?) ?? '';
+        _trackFps = (tr['fps'] as num?)?.toDouble() ?? 2;
+        _minFace = (tr['min_face'] as num?)?.toDouble() ?? 0.025;
+        _faceThreshold = (tr['threshold'] as num?)?.toDouble() ?? 2;
+        _trackSmoothing = (tr['smoothing'] as num?)?.toDouble();
+        _trackZoom = (tr['zoom'] as num?)?.toDouble();
         _ytId.text = (s['youtube_client_id'] as String?) ?? '';
         _hasYtSecret = j['has_youtube_secret'] == true;
         _hasYtRefresh = j['has_youtube_refresh'] == true;
@@ -96,8 +108,20 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
     }
   }
 
+  // Subject tracking (Studio settings `tracking`).
+  String _trackMethod = 'auto';
+  final _faceModelPath = TextEditingController();
+  double _trackFps = 2;
+  double _minFace = 0.025;
+  double _faceThreshold = 2;
+  double? _trackSmoothing;
+  double? _trackZoom;
+
   /// GPU backend of the whisper helper (`vulkan`, ...), from the whisper status.
   String? _whisperBackend;
+
+  /// GPUs the whisper helper sees (`device` is 0-based; settings store device+1, 0 = auto).
+  List<Map<String, dynamic>> _gpuDevices = const [];
 
   String _gpuNote() => _whisperBackend == null
       ? 'This install transcribes on the CPU (the helper has no GPU backend).'
@@ -123,6 +147,15 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
           'whisper_gpu': _whisperGpu,
           'gpu_device': int.tryParse(_gpuDevice.text.trim()) ?? 0,
           'broll_dir': _n(_brollDir),
+          'tracking': {
+            'method': _trackMethod,
+            'face_model': _n(_faceModelPath),
+            'fps': _trackFps,
+            'min_face': _minFace,
+            'threshold': _faceThreshold,
+            'smoothing': _trackSmoothing,
+            'zoom': _trackZoom,
+          },
           'youtube_client_id': _n(_ytId),
         }),
       );
@@ -197,7 +230,29 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
                               onChanged: (v) => setState(() => _whisperGpu = v),
                             ),
                           ),
-                          if (_whisperGpu) SizedBox(width: 90, child: _Field(_gpuDevice, 'GPU #', '0')),
+                          if (_whisperGpu)
+                            SizedBox(
+                              width: 260,
+                              child: DropdownButtonFormField<String>(
+                                initialValue: _gpuDevice.text.isEmpty ? '0' : _gpuDevice.text,
+                                isExpanded: true,
+                                decoration: const InputDecoration(labelText: 'GPU', isDense: true, border: OutlineInputBorder()),
+                                items: [
+                                  const DropdownMenuItem(value: '0', child: Text('Auto (best discrete GPU)')),
+                                  for (final d in _gpuDevices)
+                                    DropdownMenuItem(
+                                      value: '${(d['device'] as num).toInt() + 1}',
+                                      child: Text(
+                                        '${d['description'] ?? d['name']}${d['integrated'] == true ? ' (integrated)' : ''}',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  if (_gpuDevices.isEmpty && _gpuDevice.text != '0')
+                                    DropdownMenuItem(value: _gpuDevice.text, child: Text('Device ${_gpuDevice.text}')),
+                                ],
+                                onChanged: (v) => setState(() => _gpuDevice.text = v ?? '0'),
+                              ),
+                            ),
                         ],
                       ),
                     ],
@@ -242,6 +297,43 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
                         Expanded(child: Text(_faceStatus ?? 'Without it, framing follows motion.', style: TextStyle(color: hk.textMuted))),
                       ],
                     ),
+                    const SizedBox(height: HkTokens.s2),
+                    DropdownButtonFormField<String>(
+                      initialValue: _trackMethod,
+                      decoration: const InputDecoration(labelText: 'Tracking method', isDense: true, border: OutlineInputBorder()),
+                      items: const [
+                        DropdownMenuItem(value: 'auto', child: Text('Auto (faces when the model is there, else motion)')),
+                        DropdownMenuItem(value: 'face', child: Text('Faces (SeetaFace model)')),
+                        DropdownMenuItem(value: 'motion', child: Text('Motion (no model)')),
+                        DropdownMenuItem(value: 'center', child: Text('Fixed center crop')),
+                      ],
+                      onChanged: (v) => setState(() => _trackMethod = v ?? 'auto'),
+                    ),
+                    const SizedBox(height: HkTokens.s2),
+                    Row(
+                      children: [
+                        Expanded(child: _Field(_faceModelPath, 'Own face model file (optional)', 'SeetaFace .bin; empty = downloaded default')),
+                        IconButton(
+                          tooltip: 'Choose model file',
+                          icon: const Icon(Icons.folder_open),
+                          onPressed: () async {
+                            final r = await FilePicker.pickFiles(type: FileType.any, dialogTitle: 'Face model');
+                            final path = r.firstOrNull?.path;
+                            if (path != null) setState(() => _faceModelPath.text = path);
+                          },
+                        ),
+                      ],
+                    ),
+                    Text('Frames analysed per second: ${_trackFps.toStringAsFixed(1)} (higher = follows faster, slower to compute)'),
+                    Slider(value: _trackFps.clamp(0.5, 8), min: 0.5, max: 8, divisions: 15, onChanged: (v) => setState(() => _trackFps = v)),
+                    Text('Smallest face: ${(_minFace * 100).toStringAsFixed(1)}% of frame width'),
+                    Slider(value: _minFace.clamp(0.01, 0.2), min: 0.01, max: 0.2, onChanged: (v) => setState(() => _minFace = v)),
+                    Text('Detection threshold: ${_faceThreshold.toStringAsFixed(1)} (higher = fewer false faces)'),
+                    Slider(value: _faceThreshold.clamp(0.5, 6), min: 0.5, max: 6, onChanged: (v) => setState(() => _faceThreshold = v)),
+                    Text('Camera smoothing: ${_trackSmoothing == null ? 'per clip' : _trackSmoothing!.toStringAsFixed(2)}'),
+                    Slider(value: (_trackSmoothing ?? 0.5).clamp(0, 1), onChanged: (v) => setState(() => _trackSmoothing = v)),
+                    Text('Zoom: ${_trackZoom == null ? 'per clip' : '${_trackZoom!.toStringAsFixed(2)}×'}'),
+                    Slider(value: (_trackZoom ?? 1).clamp(1, 2), min: 1, max: 2, onChanged: (v) => setState(() => _trackZoom = v)),
                     if (_error != null) Padding(padding: const EdgeInsets.only(top: HkTokens.s3), child: Text(_error!, style: TextStyle(color: hk.err))),
                   ],
                 ),

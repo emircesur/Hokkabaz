@@ -53,6 +53,32 @@ pub fn find_helper() -> Option<PathBuf> {
     })
 }
 
+/// GPUs the helper's backend sees (`[{device, description, memory_total, integrated}]`) and its
+/// auto pick, from `--info`; cached with [`helper_gpu`].
+pub fn helper_devices() -> serde_json::Value {
+    helper_info().map_or(
+        serde_json::Value::Null,
+        |v| serde_json::json!({"devices": v["devices"], "auto_device": v["auto_device"]}),
+    )
+}
+
+fn helper_info() -> Option<serde_json::Value> {
+    static INFO: std::sync::OnceLock<Option<serde_json::Value>> = std::sync::OnceLock::new();
+    INFO.get_or_init(|| {
+        let helper = find_helper()?;
+        let mut cmd = std::process::Command::new(helper);
+        cmd.arg("--info").stdin(Stdio::null()).stderr(Stdio::null());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt as _;
+            cmd.creation_flags(0x0800_0000);
+        }
+        let out = cmd.output().ok()?;
+        serde_json::from_slice(&out.stdout).ok()
+    })
+    .clone()
+}
+
 /// GPU backend compiled into the helper (`vulkan`, `cuda`, `metal`), from `--info`; cached.
 pub fn helper_gpu() -> Option<String> {
     static GPU: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
@@ -83,7 +109,8 @@ pub struct ExternalOptions {
     pub threads: Option<i32>,
     /// Language used when the call gives none; `None` = auto-detect.
     pub default_language: Option<String>,
-    /// GPU device; `None` = CPU. A failed GPU run is retried on the CPU, which then sticks.
+    /// GPU device; `None` = CPU, negative = auto (discrete GPU with the most memory). A failed
+    /// GPU run is retried on the CPU, which then sticks.
     pub gpu: Option<i32>,
 }
 
@@ -143,6 +170,7 @@ impl ExternalWhisper {
     ) -> Result<Transcript> {
         let mut cmd = Command::new(&self.opts.helper);
         match gpu {
+            Some(d) if d < 0 => cmd.arg("--gpu").arg("auto"),
             Some(d) => cmd.arg("--gpu").arg(d.to_string()),
             None => cmd.arg("--cpu"),
         };

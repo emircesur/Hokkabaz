@@ -101,10 +101,23 @@ impl Shared {
         let gpu = crate::gpu::get();
         let layers = gpu.effective_layers();
         let mut params = LlamaModelParams::default().with_n_gpu_layers(layers);
-        if layers > 0 && gpu.device > 0 {
-            params = params
-                .with_split_mode(LlamaSplitMode::None)
-                .with_main_gpu(gpu.device);
+        if layers > 0 {
+            // One device only: splitting layers onto an iGPU next to a discrete card is slower
+            // than the discrete card alone.
+            let devs = crate::gpu::devices();
+            if let Some(d) = crate::gpu::pick(&devs, gpu.device) {
+                tracing::info!(gpu = %d.description, "local model on GPU");
+                params = match params
+                    .with_split_mode(LlamaSplitMode::None)
+                    .with_devices(&[d.index])
+                {
+                    Ok(p) => p,
+                    Err(e) => {
+                        tracing::warn!(error = %e, "cannot select GPU; using the backend default");
+                        LlamaModelParams::default().with_n_gpu_layers(layers)
+                    }
+                };
+            }
         }
         let model = match LlamaModel::load_from_file(b, &m.path, &params) {
             Err(e) if layers > 0 => {

@@ -14,6 +14,7 @@ pub mod catalog;
 pub mod engine;
 mod error;
 pub mod gpu;
+pub mod replace;
 pub mod store;
 pub mod toolcall;
 pub mod whisper;
