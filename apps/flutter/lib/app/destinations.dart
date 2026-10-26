@@ -26,6 +26,7 @@ const destinations = <HkDestination>[
     Icons.movie_creation_outlined,
     Icons.movie_creation,
   ),
+  HkDestination('AI', '/ai', Icons.auto_awesome_outlined, Icons.auto_awesome),
   HkDestination('Models', '/models', Icons.memory_outlined, Icons.memory),
   HkDestination(
     'Plugins',

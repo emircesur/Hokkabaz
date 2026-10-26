@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../screens/ai/ai_hub_screen.dart';
 import '../screens/chat_screen.dart';
 import '../screens/flows/flows_screen.dart';
 import '../screens/instances/instances_screen.dart';
@@ -35,6 +36,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                     ? const RunsScreen()
                     : d.path == '/studio'
                     ? const StudioScreen()
+                    : d.path == '/ai'
+                    ? const AiHubScreen()
                     : d.path == '/instances'
                     ? const InstancesScreen()
                     : d.path == '/settings'

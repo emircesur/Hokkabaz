@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/activity.dart';
+import '../../ffi/hk_gate.dart' as gate;
+
 import '../../src/rust/dto.dart';
 import '../../theme/tokens.dart';
 import 'chat_model.dart';
@@ -55,7 +58,11 @@ class ConversationPane extends ConsumerWidget {
               ? const Center(child: CircularProgressIndicator())
               : _MessageList(sessionId: sessionId, state: state),
         ),
-        Composer(sessionId: sessionId, running: state.running, promptPrefix: promptPrefix),
+        Composer(
+          sessionId: sessionId,
+          running: state.running,
+          promptPrefix: promptPrefix,
+        ),
       ],
     );
   }
@@ -129,14 +136,35 @@ class _Header extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: HkTokens.s2),
+            Builder(
+              builder: (context) {
+                final live = ref.watch(sessionLiveProvider(sessionId));
+                return live == null
+                    ? const SizedBox()
+                    : Padding(
+                        padding: const EdgeInsets.only(right: HkTokens.s2),
+                        child: Text(
+                          liveLine(live),
+                          style: TextStyle(fontSize: 12, color: hk.textMuted),
+                        ),
+                      );
+              },
+            ),
+            IconButton(
+              tooltip: 'Pause after this step',
+              icon: const Icon(Icons.pause_circle_outline),
+              onPressed: () =>
+                  gate.hk('session.pause', {'session_id': sessionId}),
+            ),
             OutlinedButton.icon(
               onPressed: () =>
                   ref.read(chatControllerProvider(sessionId).notifier).cancel(),
               icon: const Icon(Icons.stop, size: 16),
-              label: const Text('Cancel'),
+              label: const Text('Stop'),
             ),
             const SizedBox(width: HkTokens.s2),
           ],
+          const ActivityButton(),
           IconButton(
             tooltip: 'Inspector',
             icon: Icon(

@@ -7,6 +7,7 @@ import '../ffi/notifications.dart';
 import '../screens/chat/approvals_inbox.dart';
 import '../screens/chat/chat_providers.dart';
 import '../theme/tokens.dart';
+import 'activity.dart';
 import 'breakpoints.dart';
 import 'command_palette.dart';
 import 'destinations.dart';
@@ -31,6 +32,25 @@ class AppShell extends ConsumerWidget {
         ScaffoldMessenger.maybeOf(context)
           ?..hideCurrentSnackBar()
           ..showSnackBar(SnackBar(content: Text(hint)));
+      }
+    });
+    // Long jobs finishing while the user is elsewhere (DESIGN §4.8).
+    ref.listen(jobsProvider, (prev, next) {
+      for (final j in next.values) {
+        final before = prev?[j.id];
+        if (j.parent != null || before == null || !before.running || j.running) continue;
+        if (DateTime.now().millisecondsSinceEpoch - j.startedMs < 10000) continue;
+        final msg = switch (j.state) {
+          'finished' => 'Done: ${j.title}',
+          'failed' => 'Failed: ${j.title}',
+          _ => 'Cancelled: ${j.title}',
+        };
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            action: SnackBarAction(label: 'Activity', onPressed: () => showActivity(context)),
+          ),
+        );
       }
     });
     final wide = !isNarrow(context);
@@ -60,6 +80,7 @@ class AppShell extends ConsumerWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        const ActivityButton(),
                         IconButton(
                           tooltip: 'Command palette (Ctrl+K)',
                           icon: const Icon(Icons.keyboard_command_key),
@@ -187,6 +208,15 @@ class AppShell extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            ListTile(
+              minTileHeight: 48,
+              leading: const Icon(Icons.timelapse),
+              title: const Text('Activity'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                showActivity(context);
+              },
+            ),
             for (final d in rest)
               ListTile(
                 minTileHeight: 48,
