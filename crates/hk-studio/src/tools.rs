@@ -34,6 +34,7 @@ pub fn studio_tools(svc: Arc<StudioService>) -> Vec<Arc<dyn Tool>> {
         Arc::new(Track(svc.clone())),
         Arc::new(Broll(svc.clone())),
         Arc::new(Social(svc.clone())),
+        Arc::new(Writeup(svc.clone())),
         Arc::new(Render(svc.clone())),
         Arc::new(Export(svc.clone())),
         Arc::new(Publish(svc)),
@@ -410,6 +411,65 @@ impl Tool for Broll {
             .await
             .map_err(|e| failed(T, e))?;
         out(&json!({"inserted": n}))
+    }
+}
+
+struct Writeup(Arc<StudioService>);
+
+#[async_trait]
+impl Tool for Writeup {
+    fn spec(&self) -> ToolSpec {
+        ToolSpec {
+            name: "studio_writeup".into(),
+            description: "Long-form outputs: YouTube chapters, blog/newsletter/thread/summary text,                 hook review of a clip opening, or translated captions (SRT)."
+                .into(),
+            parameters: json!({"type":"object","properties":{
+                "project":{"type":"string"},
+                "action":{"type":"string","enum":["chapters","blog","newsletter","thread","summary","hook","translate"]},
+                "clip":{"type":"string","description":"Required for hook."},
+                "language":{"type":"string","description":"Output language; target language for translate."}},
+                "required":["project","action"],"additionalProperties":false}),
+        }
+    }
+
+    async fn execute(&self, _ctx: ToolCtx, args: Value) -> Result<ToolOutput, ToolError> {
+        use crate::longform::LongformKind as K;
+        const T: &str = "studio_writeup";
+        let a = obj(T, &args)?;
+        let (id, action) = (s(T, a, "project")?, s(T, a, "action")?);
+        let lang = a.get("language").and_then(Value::as_str);
+        let v = match action {
+            "chapters" => {
+                let ch = self.0.chapters(id).await.map_err(|e| failed(T, e))?;
+                json!({"chapters": ch, "description_block": crate::longform::youtube_timestamps(&ch)})
+            }
+            "blog" | "newsletter" | "thread" | "summary" => {
+                let kind = match action {
+                    "blog" => K::Blog,
+                    "newsletter" => K::Newsletter,
+                    "thread" => K::Thread,
+                    _ => K::Summary,
+                };
+                json!({"text": self.0.longform(id, kind, lang).await.map_err(|e| failed(T, e))?})
+            }
+            "hook" => json!(
+                self.0
+                    .hook(id, s(T, a, "clip")?)
+                    .await
+                    .map_err(|e| failed(T, e))?
+            ),
+            "translate" => {
+                let target = lang.ok_or_else(|| bad(T, "translate needs `language`"))?;
+                let p = self
+                    .0
+                    .translate_captions(id, target)
+                    .await
+                    .map_err(|e| failed(T, e))?;
+                json!({"srt": p.to_string_lossy()})
+            }
+            other => return Err(bad(T, format!("unknown action `{other}`"))),
+        };
+        out(&v)
     }
 }
 

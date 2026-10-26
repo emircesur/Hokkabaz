@@ -17,6 +17,7 @@ pub mod highlights;
 pub mod host;
 pub mod live;
 pub mod llm;
+pub mod longform;
 pub mod pipeline;
 pub mod project;
 pub mod publish;

@@ -303,12 +303,68 @@ impl StudioService {
         Ok(())
     }
 
-    /// Start rendering in the background. Progress and completion arrive as events.
+    /// YouTube chapters for the whole source (empty when the video is too short for 3).
+    pub async fn chapters(&self, id: &str) -> Result<Vec<crate::longform::Chapter>> {
+        let snap = self.open(id).await?.snapshot().await;
+        let llm = self.backends.llm().await?;
+        crate::longform::chapters(llm.as_ref(), snap.transcript()?).await
+    }
+
+    /// Blog post / newsletter / thread / summary from the whole transcript.
+    pub async fn longform(
+        &self,
+        id: &str,
+        kind: crate::longform::LongformKind,
+        language: Option<&str>,
+    ) -> Result<String> {
+        let snap = self.open(id).await?.snapshot().await;
+        let llm = self.backends.llm().await?;
+        let tr = snap.transcript()?;
+        crate::longform::write_longform(llm.as_ref(), &snap.name, &tr.plain_text(), kind, language)
+            .await
+    }
+
+    /// Score and rewrite the opening of a clip.
+    pub async fn hook(&self, id: &str, clip_id: &str) -> Result<crate::longform::HookReport> {
+        let snap = self.open(id).await?.snapshot().await;
+        let clip = snap.clip(clip_id)?;
+        let tr = snap.transcript()?;
+        let map = OutputMap::new(kept_ranges(clip, tr));
+        let clip_words = words_for_clip(tr, clip, &map);
+        let words: Vec<(f64, &str)> = clip_words
+            .iter()
+            .map(|w| (w.start, w.text.as_str()))
+            .collect();
+        let llm = self.backends.llm().await?;
+        crate::longform::hook_doctor(llm.as_ref(), &clip.title, &words).await
+    }
+
+    /// Translated captions for the whole source as SRT under `<work>/captions/<lang>.srt`.
+    pub async fn translate_captions(&self, id: &str, target: &str) -> Result<PathBuf> {
+        let snap = self.open(id).await?.snapshot().await;
+        let llm = self.backends.llm().await?;
+        let lines = crate::longform::transcript_lines(snap.transcript()?);
+        let out = crate::longform::translate_lines(llm.as_ref(), &lines, target).await?;
+        let dir = self.work_dir(id).join("captions");
+        tokio::fs::create_dir_all(&dir).await?;
+        let safe: String = target
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+            .collect();
+        let path = dir.join(format!(
+            "{}.srt",
+            if safe.is_empty() { "translated" } else { &safe }
+        ));
+        tokio::fs::write(&path, crate::longform::to_srt(&out)).await?;
+        Ok(path)
+    }
+
     /// Render options from JSON (see [`RenderOpts::from_json`]); `encoder: "auto"` probes ffmpeg.
     pub async fn render_opts(&self, v: &serde_json::Value) -> RenderOpts {
         RenderOpts::from_json(v, &self.studio.tools).await
     }
 
+    /// Start rendering in the background. Progress and completion arrive as events.
     pub async fn start_render(&self, id: &str, clip_id: &str, opts: RenderOpts) -> Result<String> {
         let live = self.open(id).await?;
         let snap = live.snapshot().await;
