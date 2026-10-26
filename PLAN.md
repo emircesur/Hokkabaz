@@ -218,7 +218,7 @@ Design: DESIGN §3.14 (jobs/cancel), §3.15 (AI settings), §4.8 (Activity cente
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
-| P9.22 📜 | A | Layered settings resolver (global → provider → model → agent/mode → project → session → message) with provenance | P1.2 | M | unit (resolution) | "inherited from" reported correctly | todo |
+| P9.22 📜 | A | Layered settings resolver (global → provider → model → agent/mode → project → session → message) with provenance | P1.2 | M | unit (resolution) | "inherited from" reported correctly | done — hk-core::ai_settings: AiSettings (25 opt fields), Scope ranks, SettingsStack::resolve w/ per-field provenance, 4 presets, ModelCapsLike filter; 6 unit tests |
 | P9.23 | B | Sampling + reasoning params mapped per provider (temperature, top_p/k, min_p, penalties, seed, stops, logit bias, effort/thinking budget, keep-reasoning), capability-aware | P9.22 | M | fixture | unsupported params dropped, logged | todo |
 | P9.24 | C | AI settings UI: capability-aware controls, per-scope overrides, named presets ("Precise coder", "Cheap & fast", "Offline phone"), import/export | P9.22, P9.23 | M | none | – | todo |
 | P9.25 | B | Local runtime tuning: ctx length, GPU layers, threads, batch, KV quant, flash attn, mmap/mlock, keep-alive; per-model profiles; benchmark → suggested settings | P6.7 | M | none | benchmark shows tok/s and applies profile | todo |
