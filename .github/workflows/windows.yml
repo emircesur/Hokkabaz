@@ -5,7 +5,7 @@ on:
   push:
     tags: ["v*"]
     # Runs on every push of the working branch so a Windows build is always waiting in Actions.
-    branches: ["claude/amazing-fermat-ykjmuh"]
+    branches: ["claude/amazing-fermat-ykjmuh", "claude/youthful-johnson-5f01t5"]
 
 concurrency:
   group: windows-${{ github.ref }}

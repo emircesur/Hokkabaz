@@ -4,7 +4,7 @@ name: android
 # can change the Android .so / APK changes.
 on:
   push:
-    branches: [main]
+    branches: [main, "claude/youthful-johnson-5f01t5"]
     paths:
       - "crates/**"
       - "apps/flutter/**"
