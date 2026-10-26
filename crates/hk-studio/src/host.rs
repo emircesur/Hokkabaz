@@ -582,6 +582,10 @@ impl StudioHost {
                 .await?;
                 Ok(Value::Null)
             }
+            "analytics" => {
+                let pairs: Vec<(String, String)> = arg(&p, "pairs")?;
+                Ok(svc.analytics(&arg::<String>(&p, "id")?, &pairs).await?)
+            }
             "diarize" => Ok(json!(svc.diarize(&arg::<String>(&p, "id")?).await?)),
             "dub" => {
                 let tts: hk_genai::TtsConfig = arg(&p, "tts")?;

@@ -241,7 +241,7 @@ Design: DESIGN §3.14 (jobs/cancel), §3.15 (AI settings), §4.8 (Activity cente
 | P9.37 | A | Batch mode: folder → shorts pipeline, render queue priorities, HW encoder selection (NVENC/VAAPI/QSV/VideoToolbox/MediaCodec) | P8.1, P9.1 | M | unit (encoder args) | 10 videos queued, progress per job | done — HW encoders + Export panel + batch folder job (transcribe → highlights → render top N) |
 | P9.38 | A | Multicam / podcast: sync angles by audio cross-correlation, auto-switch to active speaker | P9.29 | L | unit (sync offset) | – | partial — audio envelope cross-correlation sync (`Tools::sync_offset`, rpc `sync_offset`); multi-angle projects + active-speaker switching pending |
 | P9.39 | E | Publish calendar + more platforms (TikTok, Instagram, X, LinkedIn official APIs), per-platform export presets | P8.8 | L | fixture | scheduled post fires | partial — publish calendar (YouTube, scheduler) + UI; other platforms pending |
-| P9.40 | E | Analytics loop: pull YouTube Analytics retention/views, calibrate virality rubric weights | P8.8 | M | fixture | – | pending — analytics loop not started |
+| P9.40 | E | Analytics loop: pull YouTube Analytics retention/views, calibrate virality rubric weights | P8.8 | M | fixture | – | done — YouTube Data API stats + Pearson-based rubric weight suggestions (Studio rail → Analytics) |
 
 ### 9E — Templates
 

@@ -719,3 +719,101 @@ class ExportPanel extends ConsumerWidget {
     );
   }
 }
+
+/// Analytics loop: pull YouTube stats for published clips, suggest rubric weights.
+class AnalyticsPanel extends ConsumerStatefulWidget {
+  const AnalyticsPanel({super.key, required this.projectId});
+  final String projectId;
+  @override
+  ConsumerState<AnalyticsPanel> createState() => _AnalyticsPanelState();
+}
+
+class _AnalyticsPanelState extends ConsumerState<AnalyticsPanel> {
+  final Map<String, TextEditingController> _ids = {};
+  Map<String, dynamic>? _out;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    for (final c in _ids.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final clips =
+        ref.watch(studioControllerProvider(widget.projectId)).project?.clips ??
+        const [];
+    final weights =
+        (_out?['suggested_weights'] as Map?)?.cast<String, dynamic>() ??
+        const {};
+    final videos = [
+      for (final v in (_out?['videos'] as List? ?? const []))
+        (v as Map).cast<String, dynamic>(),
+    ];
+    return ListView(
+      padding: const EdgeInsets.all(HkTokens.s3),
+      children: [
+        const _Head(
+          'Analytics',
+          subtitle: 'YouTube video id per published clip → views, likes, and rubric weights that match what performed.',
+        ),
+        for (final c in clips)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: TextField(
+              controller: _ids.putIfAbsent(c.id, TextEditingController.new),
+              decoration: InputDecoration(
+                labelText: c.title,
+                hintText: 'YouTube video id',
+                isDense: true,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ),
+        FilledButton.icon(
+          onPressed: _busy
+              ? null
+              : () async {
+                  final pairs = [
+                    for (final e in _ids.entries)
+                      if (e.value.text.trim().isNotEmpty)
+                        [e.key, e.value.text.trim()],
+                  ];
+                  setState(() => _busy = true);
+                  final r = await guarded(
+                    context,
+                    () => studioCall('analytics', {
+                      'id': widget.projectId,
+                      'pairs': pairs,
+                    }),
+                  );
+                  if (mounted) {
+                    setState(() {
+                      _busy = false;
+                      if (r is Map) _out = r.cast<String, dynamic>();
+                    });
+                  }
+                },
+          icon: const Icon(Icons.insights_outlined),
+          label: Text(_busy ? 'Fetching…' : 'Fetch stats'),
+        ),
+        for (final v in videos)
+          ListTile(
+            dense: true,
+            title: Text(v['title']?.toString() ?? ''),
+            subtitle: Text(
+              '${v['views']} views · ${v['likes']} likes · ${v['comments']} comments',
+            ),
+          ),
+        if (weights.isNotEmpty) ...[
+          const _Head('Suggested rubric weights'),
+          for (final e in weights.entries)
+            Text('${e.key}: ${((e.value as num) * 100).toStringAsFixed(1)}%'),
+        ],
+      ],
+    );
+  }
+}

@@ -101,6 +101,45 @@ impl Youtube {
         self
     }
 
+    /// Views/likes/comments per video id (YouTube Data API `videos.list`, P9.40).
+    pub async fn video_stats(&self, ids: &[String]) -> Result<Vec<serde_json::Value>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let token = self.access_token().await?;
+        let url = format!(
+            "{}/youtube/v3/videos?part=statistics,snippet&id={}",
+            self.upload_base,
+            ids.join(",")
+        );
+        let v: serde_json::Value = self
+            .client
+            .get(url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|e| StudioError::Http(format!("youtube stats: {e}")))?
+            .json()
+            .await
+            .map_err(|e| StudioError::Http(format!("youtube stats: {e}")))?;
+        Ok(v["items"]
+            .as_array()
+            .map(|items| {
+                items
+                    .iter()
+                    .map(|i| {
+                        let st = &i["statistics"];
+                        let n = |k: &str| st[k].as_str().and_then(|x| x.parse::<u64>().ok()).unwrap_or(0);
+                        serde_json::json!({
+                            "id": i["id"], "title": i["snippet"]["title"],
+                            "views": n("viewCount"), "likes": n("likeCount"), "comments": n("commentCount"),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
     async fn access_token(&self) -> Result<String> {
         if let Some((t, exp)) = self
             .cached
@@ -439,5 +478,70 @@ mod tests {
                 .is_err()
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+}
+
+/// Analytics loop (P9.40): Pearson correlation of each virality criterion with log(views)
+/// across published clips, turned into suggested rubric weights (negatives clamp to a floor).
+pub fn calibrate_weights(
+    rows: &[(std::collections::BTreeMap<String, f64>, u64)],
+) -> std::collections::BTreeMap<String, f64> {
+    let mut out = std::collections::BTreeMap::new();
+    if rows.len() < 3 {
+        return out;
+    }
+    let ys: Vec<f64> = rows.iter().map(|(_, v)| ((*v as f64) + 1.0).ln()).collect();
+    let my = ys.iter().sum::<f64>() / ys.len() as f64;
+    let keys: Vec<String> = rows[0].0.keys().cloned().collect();
+    let mut raw = std::collections::BTreeMap::new();
+    for k in keys {
+        let xs: Vec<f64> = rows
+            .iter()
+            .map(|(c, _)| c.get(&k).copied().unwrap_or(0.0))
+            .collect();
+        let mx = xs.iter().sum::<f64>() / xs.len() as f64;
+        let (mut sxy, mut sxx, mut syy) = (0.0, 0.0, 0.0);
+        for (x, y) in xs.iter().zip(&ys) {
+            sxy += (x - mx) * (y - my);
+            sxx += (x - mx).powi(2);
+            syy += (y - my).powi(2);
+        }
+        let r = if sxx > 0.0 && syy > 0.0 {
+            sxy / (sxx.sqrt() * syy.sqrt())
+        } else {
+            0.0
+        };
+        raw.insert(k, r.max(0.05));
+    }
+    let total: f64 = raw.values().sum();
+    for (k, v) in raw {
+        out.insert(k, (v / total * 1000.0).round() / 1000.0);
+    }
+    out
+}
+
+#[cfg(test)]
+mod calibrate_tests {
+    use super::*;
+
+    #[test]
+    fn weights_follow_views() {
+        let row = |hook: f64, pacing: f64, views: u64| {
+            (
+                std::collections::BTreeMap::from([
+                    ("hook".to_string(), hook),
+                    ("pacing".to_string(), pacing),
+                ]),
+                views,
+            )
+        };
+        let w = calibrate_weights(&[
+            row(90.0, 50.0, 100_000),
+            row(40.0, 55.0, 1_000),
+            row(70.0, 45.0, 20_000),
+            row(20.0, 60.0, 300),
+        ]);
+        assert!(w["hook"] > w["pacing"]);
+        assert!((w.values().sum::<f64>() - 1.0).abs() < 0.01);
     }
 }

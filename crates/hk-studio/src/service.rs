@@ -555,6 +555,44 @@ impl StudioService {
         Some(id)
     }
 
+    /// Stats for published videos and suggested rubric weights (P9.40). `pairs` maps clip ids
+    /// of this project to YouTube video ids.
+    pub async fn analytics(
+        &self,
+        id: &str,
+        pairs: &[(String, String)],
+    ) -> Result<serde_json::Value> {
+        let creds = self.backends.youtube().ok_or_else(|| {
+            StudioError::Invalid("YouTube is not set up (Studio settings)".into())
+        })?;
+        let yt = crate::publish::Youtube::new(creds);
+        let ids: Vec<String> = pairs.iter().map(|(_, v)| v.clone()).collect();
+        let stats = yt.video_stats(&ids).await?;
+        let snap = self.open(id).await?.snapshot().await;
+        let mut rows = Vec::new();
+        for (clip, vid) in pairs {
+            let views = stats
+                .iter()
+                .find(|s| s["id"] == vid.as_str())
+                .and_then(|s| s["views"].as_u64())
+                .unwrap_or(0);
+            if let Ok(c) = snap.clip(clip)
+                && let Some(score) = &c.score
+                && let Ok(serde_json::Value::Object(m)) = serde_json::to_value(score)
+            {
+                let crit: std::collections::BTreeMap<String, f64> = m
+                    .into_iter()
+                    .filter(|(k, _)| k != "total")
+                    .filter_map(|(k, v)| v.as_f64().map(|f| (k, f)))
+                    .collect();
+                rows.push((crit, views));
+            }
+        }
+        Ok(
+            serde_json::json!({"videos": stats, "suggested_weights": crate::publish::calibrate_weights(&rows)}),
+        )
+    }
+
     /// Render options from JSON (see [`RenderOpts::from_json`]); `encoder: "auto"` probes ffmpeg.
     pub async fn render_opts(&self, v: &serde_json::Value) -> RenderOpts {
         RenderOpts::from_json(v, &self.studio.tools).await

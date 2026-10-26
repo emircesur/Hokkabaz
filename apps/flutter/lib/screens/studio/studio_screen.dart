@@ -77,6 +77,7 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
     'text' => WriteupPanel(projectId: id),
     'thumbs' => ThumbnailsPanel(projectId: id),
     'publish' => PublishPanel(projectId: id),
+    'stats' => AnalyticsPanel(projectId: id),
     'export' => ExportPanel(projectId: id),
     'agent' => AgentPanel(projectId: id),
     _ => ClipsPane(projectId: id),
@@ -641,6 +642,7 @@ class _ToolRail extends StatelessWidget {
     ('text', 'Text', Icons.text_fields),
     ('thumbs', 'Thumbs', Icons.photo_library_outlined),
     ('publish', 'Publish', Icons.ios_share),
+    ('stats', 'Analytics', Icons.insights_outlined),
     ('export', 'Export', Icons.file_download_outlined),
     ('agent', 'Agent', Icons.smart_toy_outlined),
   ];
