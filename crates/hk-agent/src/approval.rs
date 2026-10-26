@@ -44,6 +44,7 @@ struct Answer {
 #[derive(Debug)]
 pub(crate) struct Gate {
     mode: Mutex<Mode>,
+    policy: Mutex<std::collections::BTreeMap<String, String>>,
     pending: Mutex<HashMap<String, oneshot::Sender<Answer>>>,
     tx: mpsc::UnboundedSender<GateEvent>,
     next: AtomicU64,
@@ -62,6 +63,7 @@ impl Gate {
         let (tx, rx) = mpsc::unbounded_channel();
         let gate = Arc::new(Self {
             mode: Mutex::new(mode),
+            policy: Mutex::default(),
             pending: Mutex::default(),
             tx,
             next: AtomicU64::new(0),
@@ -71,6 +73,10 @@ impl Gate {
 
     pub(crate) fn mode(&self) -> Mode {
         *self.mode.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub(crate) fn set_policy(&self, p: std::collections::BTreeMap<String, String>) {
+        *self.policy.lock().unwrap_or_else(PoisonError::into_inner) = p;
     }
 
     pub(crate) fn set_mode(&self, m: Mode) {
@@ -108,7 +114,25 @@ impl Gate {
 
     /// The interceptor body.
     pub(crate) async fn check(&self, e: ToolPreExecute) -> Verdict<ToolPreExecute> {
-        match self.mode().decide(&e.tool, e.risk) {
+        let mode = match self.mode() {
+            Mode::Plan => "plan",
+            _ => "build",
+        };
+        let rule = self
+            .policy
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&format!("{}:{mode}", e.tool))
+            .cloned();
+        let decision = match rule.as_deref() {
+            Some("allow") => Decision::Allow,
+            Some("ask") => Decision::Ask,
+            Some("deny") => {
+                Decision::Deny(format!("`{}` is denied by your approval policy", e.tool))
+            }
+            _ => self.mode().decide(&e.tool, e.risk),
+        };
+        match decision {
             Decision::Allow => Verdict::Continue,
             Decision::Deny(reason) => Verdict::Reject(reason),
             Decision::Ask => self.ask(&e).await,

@@ -277,6 +277,7 @@ impl Agent {
     /// Replace settings between turns (mode or model switch).
     pub fn set_config(&mut self, cfg: AgentConfig) {
         self.gate.set_mode(cfg.mode);
+        self.gate.set_policy(cfg.policy.clone());
         self.cfg = cfg;
     }
 
@@ -662,6 +663,7 @@ impl Agent {
         request.temperature = self.cfg.temperature;
         request.max_output_tokens = self.cfg.max_output_tokens;
         request.reasoning_effort = self.cfg.reasoning_effort;
+        request.sampling = self.cfg.sampling.clone();
 
         let ev = AgentRequest {
             turn_id: turn_id.to_owned(),

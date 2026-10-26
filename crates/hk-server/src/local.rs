@@ -58,8 +58,34 @@ impl std::fmt::Debug for LocalConfig {
     }
 }
 
+/// Instance-wide AI defaults (layered settings, approval policy); a session's own
+/// values win.
+#[derive(Debug, Clone, Default)]
+pub struct AiDefaults {
+    pub sampling: hk_llm::SamplingParams,
+    pub temperature: Option<f32>,
+    pub max_output_tokens: Option<u64>,
+    pub reasoning_effort: Option<hk_llm::ReasoningEffort>,
+    pub policy: std::collections::BTreeMap<String, String>,
+}
+
+impl AiDefaults {
+    fn apply(&self, c: &mut AgentConfig) {
+        c.temperature = c.temperature.or(self.temperature);
+        c.max_output_tokens = c.max_output_tokens.or(self.max_output_tokens);
+        c.reasoning_effort = c.reasoning_effort.or(self.reasoning_effort);
+        if c.sampling == hk_llm::SamplingParams::default() {
+            c.sampling = self.sampling.clone();
+        }
+        for (k, v) in &self.policy {
+            c.policy.entry(k.clone()).or_insert_with(|| v.clone());
+        }
+    }
+}
+
 struct Live {
     handle: AgentHandle,
+    defaults: Arc<Mutex<AiDefaults>>,
     /// Applied to the agent before each turn.
     cfg: Mutex<AgentConfig>,
     /// New work queued.
@@ -76,6 +102,7 @@ struct Inner {
     /// Registered next to the builtins in every session created after they are added.
     extra_tools: Mutex<Vec<Arc<dyn Tool>>>,
     jobs: hk_core::JobRegistry,
+    defaults: Arc<Mutex<AiDefaults>>,
 }
 
 /// Agent runtime for the daemon and the desktop app's embedded server.
@@ -121,7 +148,13 @@ impl LocalRuntime {
             live: Mutex::default(),
             extra_tools: Mutex::new(memory_tools(&data_dir)),
             jobs: hk_core::JobRegistry::new(),
+            defaults: Arc::default(),
         })))
+    }
+
+    /// Replace the instance-wide AI defaults; applies from the next turn of every session.
+    pub fn set_ai_defaults(&self, d: AiDefaults) {
+        *lock(&self.0.defaults) = d;
     }
 
     fn info(&self, s: &SessionSummary) -> SessionInfo {
@@ -202,6 +235,7 @@ impl LocalRuntime {
 
         let live = Arc::new(Live {
             handle: agent.handle(),
+            defaults: self.0.defaults.clone(),
             cfg: Mutex::new(cfg),
             wake: Notify::new(),
             flush: Notify::new(),
@@ -259,7 +293,9 @@ async fn drive(
     loop {
         live.wake.notified().await;
         loop {
-            agent.set_config(lock(&live.cfg).clone());
+            let mut c = lock(&live.cfg).clone();
+            lock(&live.defaults).apply(&mut c);
+            agent.set_config(c);
             let res = {
                 let turn = agent.run_turn();
                 tokio::pin!(turn);

@@ -83,6 +83,10 @@ pub struct AgentConfig {
     pub guards: Guards,
     /// Automatic summarization of old history; `None` = never compact on its own.
     pub compaction: Option<CompactionConfig>,
+    /// Remaining sampling / reasoning / output knobs (layered AI settings).
+    pub sampling: hk_llm::SamplingParams,
+    /// Approval overrides keyed `tool:mode` (`build`/`plan`) → `allow` | `ask` | `deny`.
+    pub policy: std::collections::BTreeMap<String, String>,
 }
 
 impl AgentConfig {
@@ -100,6 +104,8 @@ impl AgentConfig {
             mode: Mode::Build,
             guards: Guards::default(),
             compaction: None,
+            sampling: hk_llm::SamplingParams::default(),
+            policy: std::collections::BTreeMap::new(),
         }
     }
 }

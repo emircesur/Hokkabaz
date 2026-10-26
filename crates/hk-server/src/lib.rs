@@ -62,7 +62,7 @@ pub use error::ApiError;
 pub use flow::{BuiltinCredentialSchemas, CredentialSchemas, FlowApi, WorkflowActivator};
 #[cfg(feature = "server")]
 pub use flow_tools::{FlowToolHost, TestRun, flow_tools};
-pub use local::{LocalConfig, LocalRuntime};
+pub use local::{AiDefaults, LocalConfig, LocalRuntime};
 #[cfg(feature = "server")]
 pub use n8n::workflow_json;
 #[cfg(feature = "server")]

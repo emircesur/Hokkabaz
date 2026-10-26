@@ -125,22 +125,26 @@ pub(crate) async fn call(c: &Ctx<'_>, method: &str, p: Value) -> Result<Value, H
         "settings" => match action {
             "ai.get" => doc_get(c.store, "ai_settings").await,
             "ai.save" => {
-                doc_set(
+                let v = doc_set(
                     c.store,
                     "ai_settings",
                     p.get("settings").unwrap_or(&Value::Null),
                 )
-                .await
+                .await?;
+                apply_ai_defaults(c.runtime, c.store).await;
+                Ok(v)
             }
             "ai.presets" => Ok(json!(hk_core::builtin_presets())),
             "approvals.get" => doc_get(c.store, "approval_policy").await,
             "approvals.save" => {
-                doc_set(
+                let v = doc_set(
                     c.store,
                     "approval_policy",
                     p.get("policy").unwrap_or(&Value::Null),
                 )
-                .await
+                .await?;
+                apply_ai_defaults(c.runtime, c.store).await;
+                Ok(v)
             }
             "local.get" => doc_get(c.store, "local_runtime_profiles").await,
             "local.save" => {
@@ -183,4 +187,31 @@ pub(crate) fn events(
         }
         other => Err(bad(format!("unknown topic `{other}`"))),
     }
+}
+
+/// Push the stored global AI settings and approval policy into the agent runtime.
+pub(crate) async fn apply_ai_defaults(rt: &LocalRuntime, store: &Store) {
+    let ai = doc_get(store, "ai_settings").await.unwrap_or(Value::Null);
+    let settings: hk_core::AiSettings = ai
+        .get("global")
+        .cloned()
+        .and_then(|g| serde_json::from_value(g).ok())
+        .unwrap_or_default();
+    // Reuse the provider-facing mapping so UI fields and wire fields never drift.
+    let mut probe = hk_llm::ChatRequest::new(String::new(), Vec::new());
+    probe.apply_settings(&settings);
+    let policy: std::collections::BTreeMap<String, String> = doc_get(store, "approval_policy")
+        .await
+        .unwrap_or(Value::Null)
+        .get("rules")
+        .cloned()
+        .and_then(|r| serde_json::from_value(r).ok())
+        .unwrap_or_default();
+    rt.set_ai_defaults(hk_server::AiDefaults {
+        sampling: probe.sampling,
+        temperature: probe.temperature,
+        max_output_tokens: probe.max_output_tokens,
+        reasoning_effort: probe.reasoning_effort,
+        policy,
+    });
 }

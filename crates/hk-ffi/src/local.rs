@@ -204,6 +204,7 @@ impl LocalCore {
             store.clone(),
             core.i.shutdown.clone(),
         );
+        crate::gate::apply_ai_defaults(&core.i.runtime, &store).await;
         {
             let hub = core.i.hub.clone();
             local_ctx.set_rebuild(Arc::new(move || {
