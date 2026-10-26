@@ -187,7 +187,7 @@ Design: DESIGN §3.14 (jobs/cancel), §3.15 (AI settings), §4.8 (Activity cente
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
-| P9.1 📜 | A | `hk-core::jobs`: Job tree, phases, determinate/indeterminate progress, ETA, cancel token, grace-then-force, `job/*` events; adapters for agent turn/step/tool, subagent, flow execution, studio render/transcribe, model download, indexing | P1.9, P4.2 | L | unit (cancel tree, grace/force) | cancelling a parent stops all children within grace period | todo |
+| P9.1 📜 | A | `hk-core::jobs`: Job tree, phases, determinate/indeterminate progress, ETA, cancel token, grace-then-force, `job/*` events; adapters for agent turn/step/tool, subagent, flow execution, studio render/transcribe, model download, indexing | P1.9, P4.2 | L | unit (cancel tree, grace/force) | cancelling a parent stops all children within grace period | wip — core + agent adapter done; flow/studio/download adapters pending |
 | P9.2 | A | Cancel-safe logging: partial assistant text → `assistant/attempt` (cancelled), synthetic `tool/result` for in-flight tools, flow execution status `canceled` with runData kept; replay stays valid | P9.1 | M | unit (replay after cancel) | cancelled session reloads and continues | todo |
 | P9.3 | B | LLM live telemetry: TTFT, tokens/s, in/out/reasoning/cached tokens, running cost, context fill %, retry/backoff state, emitted as `job/progress` | P9.1, P2.5 | M | fixture | values appear during fixture stream | todo |
 | P9.4 | A | Cancel levels: stop generation, skip current tool, cancel turn, cancel subagent subtree, cancel all; process-group kill for bash/ffmpeg | P9.1 | M | unit | each level leaves session consistent | todo |

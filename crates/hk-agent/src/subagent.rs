@@ -10,7 +10,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use hk_core::{Effect, EventBus};
+use hk_core::{Effect, EventBus, JobKind, JobRegistry, JobSpec};
 use hk_llm::Provider;
 use hk_session::{EventKind, NewSession, ParentRef, SessionStore, TurnEndReason};
 use hk_tools::{
@@ -19,7 +19,7 @@ use hk_tools::{
 use serde_json::{Value, json};
 use tokio::sync::Semaphore;
 
-use crate::agent::Agent;
+use crate::agent::{Agent, tool_job_key};
 use crate::config::AgentConfig;
 use crate::events::ApprovalRequest;
 use crate::mode::Mode;
@@ -50,6 +50,7 @@ pub struct SubagentRunner {
     base: AgentConfig,
     permits: Arc<Semaphore>,
     approvals: ChildApprovals,
+    jobs: Option<JobRegistry>,
 }
 
 impl std::fmt::Debug for SubagentRunner {
@@ -79,6 +80,7 @@ impl SubagentRunner {
             base,
             permits: Arc::new(Semaphore::new(DEFAULT_PARALLEL)),
             approvals: ChildApprovals::default(),
+            jobs: None,
         }
     }
 
@@ -93,6 +95,14 @@ impl SubagentRunner {
     #[must_use]
     pub fn approvals(mut self, a: ChildApprovals) -> Self {
         self.approvals = a;
+        self
+    }
+
+    /// Report each child run as a `subagent` job under the spawning tool call's job, with the
+    /// child's turns nested inside, so cancelling the call or the parent turn reaches them.
+    #[must_use]
+    pub fn jobs(mut self, reg: JobRegistry) -> Self {
+        self.jobs = Some(reg);
         self
     }
 
@@ -138,6 +148,19 @@ impl SubagentRunner {
             .clone()
             .ok_or_else(|| fail("no parent session in tool context"))?;
 
+        let job = self.jobs.as_ref().map(|reg| {
+            let under = reg.find_key(&tool_job_key(&parent, &ctx.call_id));
+            let spec = JobSpec::new(
+                JobKind::Subagent,
+                title.clone().unwrap_or_else(|| "subagent".to_owned()),
+            )
+            .meta(json!({"parent_session": parent, "call_id": ctx.call_id}));
+            reg.start(spec, under)
+        });
+        if let Some(j) = &job {
+            j.phase("queued");
+        }
+
         // Queued tasks hold no session until a slot frees up.
         let _slot = self
             .permits
@@ -171,6 +194,11 @@ impl SubagentRunner {
         let (pipeline, _tools) = self.child_pipeline(bus.clone())?;
         let mut agent =
             Agent::new(self.provider.clone(), pipeline, bus.clone(), cfg, writer).map_err(fail)?;
+        if let Some(j) = &job {
+            j.phase("running");
+            j.log(format!("child session {child_id}"));
+            agent.set_jobs(j.registry().clone(), Some(j.id()));
+        }
         let handle = agent.handle();
         let allow = self.approvals == ChildApprovals::Allow;
         // Emitted after the request is logged, so answering here is safe.
@@ -192,6 +220,14 @@ impl SubagentRunner {
             _ => None,
         });
         let last = turns.last();
+        if let Some(j) = job {
+            match last.map(|t| t.reason) {
+                Some(TurnEndReason::Completed) => j.finish(),
+                Some(TurnEndReason::Cancelled) => j.cancelled(),
+                Some(r) => j.fail(format!("subagent ended early ({r:?})")),
+                None => j.fail("subagent ran no turn"),
+            }
+        }
         Ok(match last.map(|t| (t.reason, t.error.clone())) {
             Some((TurnEndReason::Completed, _)) => ToolOutput::ok(format!(
                 "{}\n\n[subagent session {child_id}]",

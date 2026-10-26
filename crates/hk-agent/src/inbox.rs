@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
+use hk_core::{JobId, JobRegistry};
 use hk_llm::CancellationToken;
 
 use crate::approval::Gate;
@@ -14,10 +15,18 @@ struct Queues {
     injected: VecDeque<String>,
 }
 
+/// Cancel target of the running turn: its token, plus its job when jobs are wired, so a
+/// cancel also goes through the job tree (events, grace) instead of around it.
+#[derive(Debug, Default)]
+struct TurnCancel {
+    token: CancellationToken,
+    job: Option<(JobRegistry, JobId)>,
+}
+
 #[derive(Debug)]
 struct Shared {
     queues: Mutex<Queues>,
-    cancel: Mutex<CancellationToken>,
+    cancel: Mutex<TurnCancel>,
     running: AtomicBool,
     gate: Arc<Gate>,
 }
@@ -30,7 +39,7 @@ impl AgentHandle {
     pub(crate) fn new(gate: Arc<Gate>) -> Self {
         Self(Arc::new(Shared {
             queues: Mutex::default(),
-            cancel: Mutex::new(CancellationToken::new()),
+            cancel: Mutex::default(),
             running: AtomicBool::new(false),
             gate,
         }))
@@ -51,11 +60,17 @@ impl AgentHandle {
     /// Cancel the running turn (no-op when idle). In-flight request and tool calls are
     /// aborted; calls without a result get an error result so the log stays replayable.
     pub fn cancel(&self) {
-        self.0
-            .cancel
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .cancel();
+        // Under the lock so a concurrent `adopt_job` sees it. The job goes first so
+        // `job/cancel-requested` precedes the turn noticing the token.
+        let c = self.turn_cancel();
+        if let Some((reg, id)) = &c.job {
+            reg.cancel(*id);
+        }
+        c.token.cancel();
+    }
+
+    fn turn_cancel(&self) -> std::sync::MutexGuard<'_, TurnCancel> {
+        self.0.cancel.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Answer a pending approval (`ApprovalRequest::approval_id`). Returns `false` when the id
@@ -81,12 +96,35 @@ impl AgentHandle {
     /// Fresh token for a new turn; `cancel()` targets it from now on.
     pub(crate) fn begin_turn(&self) -> CancellationToken {
         let tok = CancellationToken::new();
-        *self.0.cancel.lock().unwrap_or_else(PoisonError::into_inner) = tok.clone();
+        *self.turn_cancel() = TurnCancel {
+            token: tok.clone(),
+            job: None,
+        };
         self.0.running.store(true, Ordering::SeqCst);
         tok
     }
 
+    /// Make the turn job's token the turn token. A cancel that already hit the
+    /// `begin_turn` token is carried over (under the lock, so none slips between).
+    pub(crate) fn adopt_job(
+        &self,
+        token: CancellationToken,
+        reg: JobRegistry,
+        id: JobId,
+    ) -> CancellationToken {
+        let mut c = self.turn_cancel();
+        if c.token.is_cancelled() {
+            reg.cancel(id);
+        }
+        *c = TurnCancel {
+            token: token.clone(),
+            job: Some((reg, id)),
+        };
+        token
+    }
+
     pub(crate) fn end_turn(&self) {
+        self.turn_cancel().job = None;
         self.0.running.store(false, Ordering::SeqCst);
     }
 
