@@ -12,7 +12,8 @@ use hk_llm::{ChatRequest, Message, Role, anthropic, deepseek, gemini, ollama, op
 use serde_json::{Value, json};
 
 fn msg(role: Role, content: &str) -> Message {
-    Message { images: Vec::new(),
+    Message {
+        images: Vec::new(),
         role,
         content: content.into(),
         reasoning: None,

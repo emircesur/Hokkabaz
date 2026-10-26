@@ -70,7 +70,8 @@ fn adapter(base: String, retries: u32) -> OpenAiCompat {
 fn req() -> ChatRequest {
     ChatRequest::new(
         "gpt-4o-mini",
-        vec![Message { images: Vec::new(),
+        vec![Message {
+            images: Vec::new(),
             role: Role::User,
             content: "hi".into(),
             reasoning: None,

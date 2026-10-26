@@ -32,7 +32,8 @@ pub use registry::{
     ProviderRegistry, RegistryError, RouteConfig, build_router,
 };
 pub use request::{
-    ChatRequest, ImagePart, Message, ReasoningEffort, Role, SamplingParams, ToolCall, ToolChoice, ToolSpec,
+    ChatRequest, ImagePart, Message, ReasoningEffort, Role, SamplingParams, ToolCall, ToolChoice,
+    ToolSpec,
 };
 pub use router::{AutoRoutes, Budget, Meter, Projection, Route, RouteTotals, Router, TaskKind};
 pub use tokio_util::sync::CancellationToken;

@@ -95,28 +95,6 @@ impl Tools {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn finds_known_lag() {
-        // Pseudo-random bursts; b is a delayed by 1.23 s.
-        let mut x: u32 = 12345;
-        let a: Vec<f32> = (0..3000)
-            .map(|_| {
-                x = x.wrapping_mul(1_103_515_245).wrapping_add(12345);
-                ((x >> 16) & 0x7fff) as f32 / 32768.0
-            })
-            .collect();
-        let mut b = vec![0.0f32; 123];
-        b.extend_from_slice(&a);
-        let (off, peak) = best_offset(&a, &b, 3.0);
-        assert!((off - 1.23).abs() < 1e-9, "{off}");
-        assert!(peak > 0.99);
-    }
-}
-
 impl Tools {
     /// Mix audio files placed at output times (seconds) into one track (`amix`, no
     /// normalization). Used for dubbing tracks built from per-line TTS clips.
@@ -333,5 +311,27 @@ mod switch_tests {
         assert_eq!(shots[1].angle, 1);
         assert!((shots[1].start - 10.0).abs() < 0.51);
         assert!((shots[1].end - 20.0).abs() < 1e-9);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_known_lag() {
+        // Pseudo-random bursts; b is a delayed by 1.23 s.
+        let mut x: u32 = 12345;
+        let a: Vec<f32> = (0..3000)
+            .map(|_| {
+                x = x.wrapping_mul(1_103_515_245).wrapping_add(12345);
+                ((x >> 16) & 0x7fff) as f32 / 32768.0
+            })
+            .collect();
+        let mut b = vec![0.0f32; 123];
+        b.extend_from_slice(&a);
+        let (off, peak) = best_offset(&a, &b, 3.0);
+        assert!((off - 1.23).abs() < 1e-9, "{off}");
+        assert!(peak > 0.99);
     }
 }

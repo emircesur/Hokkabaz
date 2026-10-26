@@ -73,7 +73,8 @@ fn adapter(base: String, retries: u32) -> Gemini {
 }
 
 fn user(text: &str) -> Message {
-    Message { images: Vec::new(),
+    Message {
+        images: Vec::new(),
         role: Role::User,
         content: text.into(),
         reasoning: None,

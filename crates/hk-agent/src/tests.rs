@@ -530,7 +530,8 @@ async fn crash_leftovers_are_repaired_on_next_turn() {
         EventKind::TurnStart {
             turn_id: "t0".into(),
         },
-        EventKind::UserMessage { images: Vec::new(),
+        EventKind::UserMessage {
+            images: Vec::new(),
             content: "x".into(),
         },
         EventKind::AssistantMessage {
@@ -1018,11 +1019,9 @@ mod p2 {
         assert!(reqs[1].tools.iter().all(|t| t.name != "task"));
         assert!(reqs[0].tools.iter().any(|t| t.name == "task"));
         // parent log carries the answer, not the child's messages
-        assert!(
-            !log.iter().any(
-                |e| matches!(&e.kind, EventKind::UserMessage { content, .. } if content == "find x")
-            )
-        );
+        assert!(!log.iter().any(
+            |e| matches!(&e.kind, EventKind::UserMessage { content, .. } if content == "find x")
+        ));
         // parent's second request is replayable from its own log
         assert_eq!(reqs[2].messages.last().unwrap().role, Role::Tool);
     }

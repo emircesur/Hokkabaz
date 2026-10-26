@@ -127,7 +127,7 @@ impl Gate {
                 detail(&e.args).unwrap_or_else(|| "no arguments".into())
             ));
         }
-                let mode = match self.mode() {
+        let mode = match self.mode() {
             Mode::Plan => "plan",
             _ => "build",
         };

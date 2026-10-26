@@ -396,7 +396,11 @@ impl Agent {
         let mut images = self.handle.take_images();
         let last = msgs.len().saturating_sub(1);
         for (i, m) in msgs.into_iter().enumerate() {
-            let images = if i == last { std::mem::take(&mut images) } else { Vec::new() };
+            let images = if i == last {
+                std::mem::take(&mut images)
+            } else {
+                Vec::new()
+            };
             self.log(EventKind::UserMessage { content: m, images })?;
         }
 
@@ -447,7 +451,10 @@ impl Agent {
             }
 
             for m in self.handle.claim_injected() {
-                self.log(EventKind::UserMessage { images: Vec::new(), content: m })?;
+                self.log(EventKind::UserMessage {
+                    images: Vec::new(),
+                    content: m,
+                })?;
             }
             let pre = self
                 .bus
@@ -460,14 +467,20 @@ impl Agent {
             match pre {
                 Ok(p) => {
                     for r in p.reminders {
-                        self.log(EventKind::UserMessage { images: Vec::new(), content: r })?;
+                        self.log(EventKind::UserMessage {
+                            images: Vec::new(),
+                            content: r,
+                        })?;
                     }
                 }
                 Err(r) => return Ok((TurnEndReason::Failed, Some(r.to_string()))),
             }
             match self.repeat.check(&self.cfg.guards) {
                 RepeatAction::None => {}
-                RepeatAction::Remind(m) => self.log(EventKind::UserMessage { images: Vec::new(), content: m })?,
+                RepeatAction::Remind(m) => self.log(EventKind::UserMessage {
+                    images: Vec::new(),
+                    content: m,
+                })?,
                 RepeatAction::Abort(m) => return self.guard_stop(step, m),
             }
 

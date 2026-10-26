@@ -73,7 +73,8 @@ pub fn schema_errors(schema: &jsonschema::Validator, v: &Value) -> Option<String
 }
 
 fn msg(role: Role, content: String) -> Message {
-    Message { images: Vec::new(),
+    Message {
+        images: Vec::new(),
         role,
         content,
         reasoning: None,

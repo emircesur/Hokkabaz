@@ -467,21 +467,24 @@ mod tests {
         let mut req = ChatRequest::new(
             "m",
             vec![
-                Message { images: Vec::new(),
+                Message {
+                    images: Vec::new(),
                     role: Role::System,
                     content: "be brief".into(),
                     reasoning: None,
                     tool_calls: vec![],
                     tool_call_id: None,
                 },
-                Message { images: Vec::new(),
+                Message {
+                    images: Vec::new(),
                     role: Role::User,
                     content: "hi".into(),
                     reasoning: None,
                     tool_calls: vec![],
                     tool_call_id: None,
                 },
-                Message { images: Vec::new(),
+                Message {
+                    images: Vec::new(),
                     role: Role::Tool,
                     content: "42".into(),
                     reasoning: None,

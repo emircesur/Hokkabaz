@@ -456,7 +456,8 @@ impl TuiState {
     fn submit_cmd(&self, session_id: String, prompt: String) -> Cmd {
         Cmd::Submit {
             session_id,
-            req: TurnRequest { images: Vec::new(),
+            req: TurnRequest {
+                images: Vec::new(),
                 prompt,
                 mode: Some(self.mode),
                 model: Some(self.model.clone()).filter(|m| !m.is_empty()),
@@ -1263,13 +1264,15 @@ mod tests {
         // Event lands mid-load, also present in the snapshot.
         s.update(ev(
             1,
-            EventKind::UserMessage { images: Vec::new(),
+            EventKind::UserMessage {
+                images: Vec::new(),
                 content: "q".into(),
             },
         ));
         s.update(ev(
             2,
-            EventKind::UserMessage { images: Vec::new(),
+            EventKind::UserMessage {
+                images: Vec::new(),
                 content: "later".into(),
             },
         ));
@@ -1278,7 +1281,8 @@ mod tests {
             events: vec![SessionEvent {
                 seq: 1,
                 ts_ms: 0,
-                kind: EventKind::UserMessage { images: Vec::new(),
+                kind: EventKind::UserMessage {
+                    images: Vec::new(),
                     content: "q".into(),
                 },
             }],
@@ -1359,7 +1363,8 @@ mod tests {
         let log = SessionEvent {
             seq: 7,
             ts_ms: 1,
-            kind: EventKind::UserMessage { images: Vec::new(),
+            kind: EventKind::UserMessage {
+                images: Vec::new(),
                 content: "hi".into(),
             },
         };

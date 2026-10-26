@@ -709,7 +709,8 @@ mod tests {
         log(
             &mut st,
             1,
-            EventKind::UserMessage { images: Vec::new(),
+            EventKind::UserMessage {
+                images: Vec::new(),
                 content: "fix the bug".into(),
             },
         );

@@ -247,7 +247,8 @@ mod tests {
     use crate::{ToolCall, ToolSpec};
 
     fn msg(role: Role, content: &str) -> Message {
-        Message { images: Vec::new(),
+        Message {
+            images: Vec::new(),
             role,
             content: content.into(),
             reasoning: Some("hidden thoughts".into()),

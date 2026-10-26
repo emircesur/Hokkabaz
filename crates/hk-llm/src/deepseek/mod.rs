@@ -34,8 +34,10 @@ pub fn build_body(req: &ChatRequest) -> Value {
         let mut r = req.clone();
         for m in &mut r.messages {
             if !m.images.is_empty() {
-                m.content
-                    .push_str(&format!("\n[{} image(s) omitted: this model cannot see images]", m.images.len()));
+                m.content.push_str(&format!(
+                    "\n[{} image(s) omitted: this model cannot see images]",
+                    m.images.len()
+                ));
                 m.images.clear();
             }
         }
@@ -191,7 +193,8 @@ mod tests {
 
     #[test]
     fn reasoner_body_shape() {
-        let asst = Message { images: Vec::new(),
+        let asst = Message {
+            images: Vec::new(),
             role: Role::Assistant,
             content: String::new(),
             reasoning: Some("think".into()),

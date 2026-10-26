@@ -52,7 +52,8 @@ impl SessionMapper {
             EventKind::TurnStart {
                 turn_id: self.turn_id.clone(),
             },
-            EventKind::UserMessage { images: Vec::new(),
+            EventKind::UserMessage {
+                images: Vec::new(),
                 content: prompt.to_owned(),
             },
             EventKind::StepStart {

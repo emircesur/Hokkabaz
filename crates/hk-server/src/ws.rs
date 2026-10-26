@@ -252,7 +252,8 @@ async fn run(
             s.runtime
                 .submit(
                     &session_id,
-                    TurnRequest { images: Vec::new(),
+                    TurnRequest {
+                        images: Vec::new(),
                         prompt,
                         mode,
                         model,

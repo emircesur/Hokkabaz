@@ -19,7 +19,8 @@ use crate::node::{FlowNode, NodeContext, NodeOutput};
 use crate::nodes::util::*;
 
 fn msg(role: Role, content: String) -> Message {
-    Message { images: Vec::new(),
+    Message {
+        images: Vec::new(),
         role,
         content,
         reasoning: None,

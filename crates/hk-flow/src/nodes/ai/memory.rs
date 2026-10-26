@@ -40,7 +40,8 @@ impl Memory for BufferWindowMemory {
         let from = all.len().saturating_sub(keep);
         all[from..]
             .iter()
-            .map(|e| Message { images: Vec::new(),
+            .map(|e| Message {
+                images: Vec::new(),
                 role: if e.role == "assistant" {
                     Role::Assistant
                 } else {

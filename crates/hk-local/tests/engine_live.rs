@@ -10,7 +10,8 @@ use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
 fn msg(role: Role, content: &str) -> Message {
-    Message { images: Vec::new(),
+    Message {
+        images: Vec::new(),
         role,
         content: content.into(),
         reasoning: None,

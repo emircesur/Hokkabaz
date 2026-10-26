@@ -110,7 +110,8 @@ pub(crate) fn plan_cut(events: &[SessionEvent], keep_recent_steps: usize) -> Opt
 }
 
 pub(crate) fn user(text: &str) -> Message {
-    Message { images: Vec::new(),
+    Message {
+        images: Vec::new(),
         role: Role::User,
         content: text.to_owned(),
         reasoning: None,
