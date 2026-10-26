@@ -303,6 +303,77 @@ impl StudioService {
         Ok(())
     }
 
+    /// A/B thumbnail variants for a clip: one best frame per window, each with a headline
+    /// (`texts`, cycling; default the clip title then its hook). Returns file paths.
+    pub async fn thumbnails(
+        &self,
+        id: &str,
+        clip_id: &str,
+        variants: usize,
+        texts: &[String],
+    ) -> Result<Vec<PathBuf>> {
+        let snap = self.open(id).await?.snapshot().await;
+        let clip = snap.clip(clip_id)?;
+        let mut heads: Vec<String> = texts
+            .iter()
+            .filter(|t| !t.trim().is_empty())
+            .cloned()
+            .collect();
+        if heads.is_empty() {
+            heads.push(clip.title.clone());
+            heads.extend(clip.hook.clone());
+        }
+        let n = variants.clamp(1, 6);
+        let win = (clip.end - clip.start) / n as f64;
+        let dir = self.work_dir(id).join("thumbs");
+        tokio::fs::create_dir_all(&dir).await?;
+        let mut out = Vec::with_capacity(n);
+        for i in 0..n {
+            let dst = dir.join(format!("{}_{i}.jpg", clip.id));
+            self.studio
+                .tools
+                .poster(
+                    &snap.source.path,
+                    clip.start + win * i as f64,
+                    win,
+                    &dst,
+                    1280,
+                    Some(heads[i % heads.len()].as_str()),
+                )
+                .await?;
+            out.push(dst);
+        }
+        Ok(out)
+    }
+
+    /// Set or clear auto punch-in for a clip.
+    pub async fn set_punch_in(
+        &self,
+        id: &str,
+        clip_id: &str,
+        punch: Option<crate::reframe::PunchIn>,
+    ) -> Result<()> {
+        let cid = clip_id.to_string();
+        self.open(id)
+            .await?
+            .mutate(move |p| {
+                if let Ok(c) = p.clip_mut(&cid) {
+                    c.punch_in = punch;
+                }
+            })
+            .await?;
+        Ok(())
+    }
+
+    /// Set or clear the project's brand kit.
+    pub async fn set_brand(&self, id: &str, brand: Option<crate::brand::BrandKit>) -> Result<()> {
+        self.open(id)
+            .await?
+            .mutate(move |p| p.brand = brand)
+            .await?;
+        Ok(())
+    }
+
     /// YouTube chapters for the whole source (empty when the video is too short for 3).
     pub async fn chapters(&self, id: &str) -> Result<Vec<crate::longform::Chapter>> {
         let snap = self.open(id).await?.snapshot().await;

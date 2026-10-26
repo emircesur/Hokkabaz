@@ -7,6 +7,7 @@
 //! * [`highlights`]: LLM highlight detection and virality scoring.
 //! * [`pipeline`]: import, transcribe, analyze, preview, render (ffmpeg via `hk-media`).
 
+pub mod brand;
 pub mod broll;
 pub mod captions;
 pub mod concat_bridge;

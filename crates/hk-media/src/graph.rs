@@ -234,7 +234,7 @@ impl CropPath {
     }
 
     /// Interpolated window at output time `t` (clamped outside the key range).
-    fn at(&self, t: f64) -> CropKey {
+    pub fn at(&self, t: f64) -> CropKey {
         let ks = &self.keys;
         if t <= ks[0].t {
             return CropKey { t, ..ks[0] };

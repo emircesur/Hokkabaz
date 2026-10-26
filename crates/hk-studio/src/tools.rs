@@ -425,8 +425,9 @@ impl Tool for Writeup {
                 .into(),
             parameters: json!({"type":"object","properties":{
                 "project":{"type":"string"},
-                "action":{"type":"string","enum":["chapters","blog","newsletter","thread","summary","hook","translate"]},
-                "clip":{"type":"string","description":"Required for hook."},
+                "action":{"type":"string","enum":["chapters","blog","newsletter","thread","summary","hook","translate","thumbnails"]},
+                "texts":{"type":"array","items":{"type":"string"},"description":"Headlines for thumbnails (A/B variants)."},
+                "clip":{"type":"string","description":"Required for hook and thumbnails."},
                 "language":{"type":"string","description":"Output language; target language for translate."}},
                 "required":["project","action"],"additionalProperties":false}),
         }
@@ -466,6 +467,18 @@ impl Tool for Writeup {
                     .await
                     .map_err(|e| failed(T, e))?;
                 json!({"srt": p.to_string_lossy()})
+            }
+            "thumbnails" => {
+                let texts: Vec<String> = a
+                    .get("texts")
+                    .and_then(|v| serde_json::from_value(v.clone()).ok())
+                    .unwrap_or_default();
+                let paths = self
+                    .0
+                    .thumbnails(id, s(T, a, "clip")?, texts.len().max(3), &texts)
+                    .await
+                    .map_err(|e| failed(T, e))?;
+                json!({"thumbnails": paths.iter().map(|p| p.to_string_lossy()).collect::<Vec<_>>()})
             }
             other => return Err(bad(T, format!("unknown action `{other}`"))),
         };

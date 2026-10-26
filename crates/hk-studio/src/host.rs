@@ -573,6 +573,66 @@ impl StudioHost {
                 )
                 .await?
             )),
+            "set_punch_in" => {
+                svc.set_punch_in(
+                    &arg::<String>(&p, "id")?,
+                    &arg::<String>(&p, "clip")?,
+                    opt(&p, "punch_in")?,
+                )
+                .await?;
+                Ok(Value::Null)
+            }
+            "sync_offset" => {
+                let (a, b): (String, String) = (arg(&p, "a")?, arg(&p, "b")?);
+                let window: f64 = opt(&p, "window_s")?.unwrap_or(120.0);
+                let (offset, confidence) = svc
+                    .studio()
+                    .tools
+                    .sync_offset(Path::new(&a), Path::new(&b), window, 30.0)
+                    .await?;
+                Ok(json!({"offset_s": offset, "confidence": confidence}))
+            }
+            "thumbnails" => {
+                let texts: Vec<String> = opt(&p, "texts")?.unwrap_or_default();
+                let n: usize = opt(&p, "variants")?.unwrap_or(3);
+                let paths = svc
+                    .thumbnails(
+                        &arg::<String>(&p, "id")?,
+                        &arg::<String>(&p, "clip")?,
+                        n,
+                        &texts,
+                    )
+                    .await?;
+                Ok(json!(
+                    paths
+                        .iter()
+                        .map(|p| p.to_string_lossy())
+                        .collect::<Vec<_>>()
+                ))
+            }
+            "set_brand" => {
+                svc.set_brand(&arg::<String>(&p, "id")?, opt(&p, "brand")?)
+                    .await?;
+                Ok(Value::Null)
+            }
+            "chapters" => Ok(json!(svc.chapters(&arg::<String>(&p, "id")?).await?)),
+            "longform" => Ok(json!(
+                svc.longform(
+                    &arg::<String>(&p, "id")?,
+                    arg(&p, "kind")?,
+                    opt::<String>(&p, "language")?.as_deref()
+                )
+                .await?
+            )),
+            "hook" => Ok(json!(
+                svc.hook(&arg::<String>(&p, "id")?, &arg::<String>(&p, "clip")?)
+                    .await?
+            )),
+            "translate_captions" => Ok(json!(
+                svc.translate_captions(&arg::<String>(&p, "id")?, &arg::<String>(&p, "language")?)
+                    .await?
+                    .to_string_lossy()
+            )),
             "cancel_render" => Ok(json!(svc.cancel_render(&arg::<String>(&p, "job")?).await)),
             "render_path" => Ok(json!(
                 svc.render_path(&arg::<String>(&p, "id")?, &arg::<String>(&p, "clip")?)

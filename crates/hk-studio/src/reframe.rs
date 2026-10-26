@@ -352,3 +352,111 @@ mod tests {
         assert_eq!(pts.len(), 3);
     }
 }
+
+/// Auto punch-in on emphasis (P9.32): brief tighter crops on stressed words.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct PunchIn {
+    /// Extra zoom at the peak, e.g. 1.15.
+    pub zoom: f64,
+    /// Seconds held at the peak.
+    pub hold: f64,
+    /// Cap so the effect stays a highlight.
+    pub max_per_minute: u32,
+}
+
+impl Default for PunchIn {
+    fn default() -> Self {
+        Self {
+            zoom: 1.15,
+            hold: 0.8,
+            max_per_minute: 6,
+        }
+    }
+}
+
+/// Output times of likely emphasis: `!`, ALL-CAPS words, or a word after a ≥ 0.6 s pause.
+pub fn emphasis_times(words: &[(f64, f64, &str)]) -> Vec<f64> {
+    let mut out = Vec::new();
+    for (i, &(start, _, text)) in words.iter().enumerate() {
+        let letters: String = text.chars().filter(|c| c.is_alphabetic()).collect();
+        let caps = letters.chars().count() > 2 && letters.chars().all(char::is_uppercase);
+        let pause = i > 0 && start - words[i - 1].1 >= 0.6;
+        if text.contains('!') || caps || pause {
+            out.push(start);
+        }
+    }
+    out
+}
+
+/// Insert zoom-in/hold/zoom-out keys around `times` into `path` (output timeline).
+pub fn apply_punch_in(path: &CropPath, times: &[f64], duration: f64, p: &PunchIn) -> CropPath {
+    if path.keys.is_empty() || p.zoom <= 1.0 {
+        return path.clone();
+    }
+    let ramp = 0.12;
+    let min_gap = 60.0 / f64::from(p.max_per_minute.max(1));
+    let mut chosen: Vec<f64> = Vec::new();
+    for &t in times {
+        if t > ramp
+            && t + p.hold + ramp < duration
+            && chosen.last().is_none_or(|&l| t - l >= min_gap)
+        {
+            chosen.push(t);
+        }
+    }
+    let mut keys = path.keys.clone();
+    for t in chosen {
+        let base = path.at(t);
+        let (w, h) = (base.w / p.zoom, base.h / p.zoom);
+        let zoomed = |kt: f64| CropKey {
+            t: kt,
+            x: base.x + (base.w - w) / 2.0,
+            y: base.y + (base.h - h) / 2.0,
+            w,
+            h,
+        };
+        let end = path.at(t + p.hold + ramp);
+        keys.retain(|k| k.t < t - ramp || k.t > t + p.hold + ramp);
+        keys.push(CropKey {
+            t: t - ramp,
+            ..base
+        });
+        keys.push(zoomed(t));
+        keys.push(zoomed(t + p.hold));
+        keys.push(CropKey {
+            t: t + p.hold + ramp,
+            ..end
+        });
+    }
+    keys.sort_by(|a, b| a.t.total_cmp(&b.t));
+    CropPath {
+        keys,
+        interp: path.interp,
+    }
+}
+
+#[cfg(test)]
+mod punch_tests {
+    use super::*;
+
+    #[test]
+    fn emphasis_and_keys() {
+        let w = [(0.0, 0.4, "so"), (0.5, 0.9, "THIS"), (2.0, 2.3, "works!")];
+        assert_eq!(emphasis_times(&w), vec![0.5, 2.0]);
+        let path = CropPath {
+            keys: vec![CropKey {
+                t: 0.0,
+                x: 100.0,
+                y: 0.0,
+                w: 600.0,
+                h: 1000.0,
+            }],
+            interp: Interp::Smooth,
+        };
+        let out = apply_punch_in(&path, &[0.5, 2.0], 10.0, &PunchIn::default());
+        // 2.0 is within the per-minute gap of 0.5, so one punch-in only.
+        assert_eq!(out.keys.len(), 5);
+        let peak = out.keys.iter().find(|k| (k.t - 0.5).abs() < 1e-9).unwrap();
+        assert!((peak.w - 600.0 / 1.15).abs() < 1e-6 && peak.x > 100.0);
+    }
+}

@@ -41,6 +41,33 @@ pub(crate) async fn run_capture(bin: &Path, args: &[String]) -> Result<Captured>
     Ok(Captured { stdout, stderr })
 }
 
+/// Like [`run_capture`] but returns raw stdout bytes (PCM etc.).
+#[cfg(not(target_os = "android"))]
+pub(crate) async fn run_bytes(bin: &Path, args: &[String]) -> Result<Vec<u8>> {
+    use std::process::Stdio;
+
+    let out = tokio::process::Command::new(crate::tools::resolve_program(bin))
+        .args(args)
+        .stdin(Stdio::null())
+        .kill_on_drop(true)
+        .output()
+        .await
+        .map_err(|e| spawn_err(bin, e))?;
+    if !out.status.success() {
+        return Err(crate::error::MediaError::Failed {
+            bin: bin.display().to_string(),
+            code: out.status.code(),
+            stderr_tail: tail_lines(&String::from_utf8_lossy(&out.stderr), 30),
+        });
+    }
+    Ok(out.stdout)
+}
+
+#[cfg(target_os = "android")]
+pub(crate) async fn run_bytes(_bin: &Path, _args: &[String]) -> Result<Vec<u8>> {
+    Err(crate::error::MediaError::Unsupported)
+}
+
 #[cfg(not(target_os = "android"))]
 pub(crate) fn spawn_err(bin: &Path, e: std::io::Error) -> crate::error::MediaError {
     if e.kind() == std::io::ErrorKind::NotFound {

@@ -14,6 +14,7 @@ mod graph;
 mod probe;
 mod proc;
 mod render;
+mod sync;
 mod thumb;
 mod tools;
 
@@ -26,5 +27,6 @@ pub use graph::{
 };
 pub use probe::{MediaInfo, StreamInfo, StreamKind, probe};
 pub use render::{Progress, RenderHandle, RenderReport, render};
+pub use sync::{ENV_RATE, best_offset, envelope};
 pub use thumb::{proxy, thumbnail};
 pub use tools::{ENV_FFMPEG, ENV_FFPROBE, Tools, managed_dir, resolve_program, set_managed_dir};

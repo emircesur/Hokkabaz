@@ -95,11 +95,22 @@ pub fn preview(p: &StudioProject, clip_id: &str) -> Result<PreviewPlan> {
         captions = words_for_clip(t, clip, &map);
     }
     let (sw, sh) = (p.source.width, p.source.height);
+    let duration = map.duration();
     let (crop, out_size) = match &clip.reframe {
-        Some(r) => (Some(plan_crop(sw, sh, r, &map, &[])), r.size),
+        Some(r) => {
+            let mut path = plan_crop(sw, sh, r, &map, &[]);
+            if let Some(pi) = &clip.punch_in {
+                let ws: Vec<(f64, f64, &str)> = captions
+                    .iter()
+                    .map(|w| (w.start, w.end, w.text.as_str()))
+                    .collect();
+                let times = crate::reframe::emphasis_times(&ws);
+                path = crate::reframe::apply_punch_in(&path, &times, duration, pi);
+            }
+            (Some(path), r.size)
+        }
         None => (None, (sw, sh)),
     };
-    let duration = map.duration();
     let broll = clip
         .broll
         .iter()
@@ -246,7 +257,12 @@ pub async fn build_render(
     }
     if opts.burn_captions && !plan.captions.is_empty() {
         if let Some(style) = &clip.captions {
-            let ass = to_ass(&plan.captions, style, plan.out_size);
+            let branded = p.brand.as_ref().map(|b| b.style_captions(style));
+            let ass = to_ass(
+                &plan.captions,
+                branded.as_ref().unwrap_or(style),
+                plan.out_size,
+            );
             let dir = work.join("captions");
             tokio::fs::create_dir_all(&dir).await?;
             let path = dir.join(format!("{}.ass", clip.id));
@@ -269,6 +285,13 @@ pub async fn build_render(
             width: Some(plan.out_size.0),
             opacity: None,
         });
+    }
+    if let Some(o) = p
+        .brand
+        .as_ref()
+        .and_then(|b| b.logo_overlay(plan.out_size, plan.duration))
+    {
+        spec.overlays.push(o);
     }
     if let Some(m) = &clip.music {
         spec.music = Some(MusicMix {

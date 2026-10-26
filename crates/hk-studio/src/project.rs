@@ -87,6 +87,9 @@ pub struct Clip {
     /// Template this clip was styled from.
     #[serde(default)]
     pub template: Option<String>,
+    /// Auto zoom on emphasis words; needs `reframe`.
+    #[serde(default)]
+    pub punch_in: Option<crate::reframe::PunchIn>,
 }
 
 impl Clip {
@@ -108,6 +111,7 @@ impl Clip {
             score: None,
             social: None,
             template: None,
+            punch_in: None,
         }
     }
 
@@ -128,6 +132,9 @@ pub struct StudioProject {
     pub transcript: Option<Transcript>,
     #[serde(default)]
     pub clips: Vec<Clip>,
+    /// Applied to every render (logo, colors, font, intro/outro).
+    #[serde(default)]
+    pub brand: Option<crate::brand::BrandKit>,
 }
 
 pub fn now_ms() -> u64 {
@@ -156,6 +163,7 @@ impl StudioProject {
             source,
             transcript: None,
             clips: Vec::new(),
+            brand: None,
         }
     }
 
