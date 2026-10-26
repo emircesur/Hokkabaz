@@ -229,7 +229,7 @@ Design: DESIGN §3.14 (jobs/cancel), §3.15 (AI settings), §4.8 (Activity cente
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
-| P9.28 | C | Multi-track timeline: video, audio, captions, B-roll, music; drag/trim/split, snapping, JKL shuttle, zoom | P8.10 | L | unit (timeline model) | edit on timeline renders identically | partial — multi-track view (video/captions/B-roll/music), zoom, split at playhead, B-roll remove; no drag-trim/JKL |
+| P9.28 | C | Multi-track timeline: video, audio, captions, B-roll, music; drag/trim/split, snapping, JKL shuttle, zoom | P8.10 | L | unit (timeline model) | edit on timeline renders identically | partial — multi-track view (video/captions/B-roll/music), zoom, split at playhead, B-roll remove, JKL/space/arrow transport; no drag-trim |
 | P9.29 | A | Speaker diarization; per-speaker caption colors/names; speaker-aware reframing | P8.2, P8.6 | M | fixture | 2-speaker clip colored per speaker | partial — LLM speaker labels + speakers.srt (AI enhance → Label speakers); audio diarization model pending |
 | P9.30 | E | AI translation + dubbing: translated captions in N languages, TTS dub aligned to segments, voice per speaker | P9.14, P9.29 | L | fixture (alignment) | EN → TR captions + dub track | done (core) — translation SRT + TTS dub track (per-line TTS, timed amix); UI in AI enhance |
 | P9.31 | A | Audio cleanup: denoise (arnndn/afftdn), EBU R128 loudness, auto music ducking, voice enhance presets | P8.1 | S | unit (filter args) | – | done — hk-media AudioCleanup (highpass, afftdn/arnndn, voice enhance, loudnorm), podcast/social presets; studio render opt `audio_cleanup` |

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../theme/tokens.dart';
@@ -109,6 +110,39 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
     }
   }
 
+  /// NLE transport keys (P9.28): J back 5 s, K pause, L play (again: forward 5 s),
+  /// space toggles, arrows step 1 s. Ignored while a text field has focus.
+  KeyEventResult _transportKey(FocusNode node, KeyEvent e) {
+    if (e is! KeyDownEvent && e is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final focused = FocusManager.instance.primaryFocus?.context;
+    if (focused != null &&
+        (focused.widget is EditableText ||
+            focused.findAncestorWidgetOfExactType<EditableText>() != null)) {
+      return KeyEventResult.ignored;
+    }
+    final p = _player;
+    final t = p.outTime.value;
+    switch (e.logicalKey) {
+      case LogicalKeyboardKey.keyJ:
+        p.seekOut(t - 5);
+      case LogicalKeyboardKey.keyK:
+        p.pause();
+      case LogicalKeyboardKey.keyL:
+        p.playing ? p.seekOut(t + 5) : p.play();
+      case LogicalKeyboardKey.space:
+        p.toggle();
+      case LogicalKeyboardKey.arrowLeft:
+        p.seekOut(t - 1);
+      case LogicalKeyboardKey.arrowRight:
+        p.seekOut(t + 1);
+      default:
+        return KeyEventResult.ignored;
+    }
+    return KeyEventResult.handled;
+  }
+
   @override
   Widget build(BuildContext context) {
     final id = widget.projectId;
@@ -163,237 +197,252 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
       source: project.source,
       playerError: _playerError,
     );
-    return Column(
-      children: [
-        header,
-        if (s.notice != null)
-          MaterialBanner(
-            content: Text(s.notice!),
-            dividerColor: Colors.transparent,
-            actions: [
-              TextButton(
-                onPressed: ctl.clearNotice,
-                child: const Text('Dismiss'),
-              ),
-            ],
-          ),
-        Divider(height: 1, color: hk.border),
-        Expanded(
-          child: wide
-              ? Column(
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 380,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.all(HkTokens.s2),
-                                  child: Row(
-                                    children: [
-                                      FilledButton.tonalIcon(
-                                        onPressed: () =>
-                                            setState(() => _tool = 'enhance'),
-                                        icon: const Icon(
-                                          Icons.auto_fix_high,
-                                          size: 18,
-                                        ),
-                                        label: const Text('Speech cleanup'),
-                                      ),
-                                      const Spacer(),
-                                      if (s.clip != null)
-                                        Flexible(
-                                          child: Text(
-                                            s.clip!.title,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: hk.textMuted,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  child: TranscriptEditor(
-                                    projectId: id,
-                                    player: _player,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          VerticalDivider(width: 1, color: hk.border),
-                          Expanded(
-                            child: Column(
-                              children: [
-                                _PreviewToolbar(projectId: id),
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(HkTokens.s2),
-                                    child: s.clip == null
-                                        ? Center(
-                                            child: FilledButton.icon(
-                                              onPressed: ctl.addWholeVideo,
-                                              icon: const Icon(
-                                                Icons.movie_edit,
-                                              ),
-                                              label: const Text(
-                                                'Edit the whole video',
-                                              ),
-                                            ),
-                                          )
-                                        : _playerError != null
-                                        ? Center(
-                                            child: Text(
-                                              _playerError!,
-                                              textAlign: TextAlign.center,
-                                            ),
-                                          )
-                                        : ListenableBuilder(
-                                            listenable: _player,
-                                            builder: (context, _) =>
-                                                VideoPreview(
-                                                  controller: _player,
-                                                  plan: s.plan,
-                                                  source: project.source,
-                                                ),
-                                          ),
-                                  ),
-                                ),
-                                TransportBar(controller: _player),
-                              ],
-                            ),
-                          ),
-                          VerticalDivider(width: 1, color: hk.border),
-                          SizedBox(
-                            width: 340,
-                            child: KeyedSubtree(
-                              key: ValueKey(_tool),
-                              child: _panel(id),
-                            ),
-                          ),
-                          VerticalDivider(width: 1, color: hk.border),
-                          _ToolRail(
-                            selected: _tool,
-                            onSelect: (t) => setState(() => _tool = t),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Divider(height: 1, color: hk.border),
-                    if (s.clip != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: HkTokens.s3,
-                        ),
-                        child: MultiTrackTimeline(
-                          projectId: id,
-                          player: _player,
-                        ),
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: HkTokens.s3,
-                        vertical: HkTokens.s2,
-                      ),
-                      child: _StripHost(
-                        player: _player,
-                        plan: s.plan,
-                        source: project.source,
-                        clips: project.clips,
-                        selected: s.selectedClip,
-                        onSelect: ctl.selectClip,
-                        onBounds: (cid, a, b) => ctl.edit([
-                          {
-                            'op': 'set_bounds',
-                            'clip': cid,
-                            'start': a,
-                            'end': b,
-                          },
-                        ]),
-                        onAddAt: (at) => ctl.edit([
-                          {
-                            'op': 'add_clip',
-                            'title': 'New clip',
-                            'start': at,
-                            'end': (at + 30).clamp(0, project.source.duration),
-                          },
-                        ]),
-                      ),
-                    ),
-                  ],
-                )
-              : DefaultTabController(
-                  length: 10,
-                  child: Column(
+    return Focus(
+      autofocus: true,
+      onKeyEvent: _transportKey,
+      child: Column(
+        children: [
+          header,
+          if (s.notice != null)
+            MaterialBanner(
+              content: Text(s.notice!),
+              dividerColor: Colors.transparent,
+              actions: [
+                TextButton(
+                  onPressed: ctl.clearNotice,
+                  child: const Text('Dismiss'),
+                ),
+              ],
+            ),
+          Divider(height: 1, color: hk.border),
+          Expanded(
+            child: wide
+                ? Column(
                     children: [
-                      const TabBar(
-                        isScrollable: true,
-                        tabAlignment: TabAlignment.start,
-                        tabs: [
-                          Tab(
-                            icon: Icon(Icons.video_library_outlined),
-                            text: 'Clips',
-                          ),
-                          Tab(icon: Icon(Icons.edit_outlined), text: 'Edit'),
-                          Tab(
-                            icon: Icon(Icons.palette_outlined),
-                            text: 'Style',
-                          ),
-                          Tab(icon: Icon(Icons.ios_share), text: 'Publish'),
-                          Tab(
-                            icon: Icon(Icons.smart_toy_outlined),
-                            text: 'Agent',
-                          ),
-                          Tab(icon: Icon(Icons.auto_fix_high), text: 'Enhance'),
-                          Tab(icon: Icon(Icons.article_outlined), text: 'Text'),
-                          Tab(
-                            icon: Icon(Icons.verified_outlined),
-                            text: 'Brand',
-                          ),
-                          Tab(
-                            icon: Icon(Icons.photo_library_outlined),
-                            text: 'Thumbs',
-                          ),
-                          Tab(
-                            icon: Icon(Icons.file_download_outlined),
-                            text: 'Export',
-                          ),
-                        ],
-                      ),
                       Expanded(
-                        child: TabBarView(
-                          physics: const NeverScrollableScrollPhysics(),
+                        child: Row(
                           children: [
-                            Builder(
-                              builder: (ctx) => ClipsPane(
-                                projectId: id,
-                                onPicked: () =>
-                                    DefaultTabController.of(ctx).animateTo(1),
+                            SizedBox(
+                              width: 380,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.all(HkTokens.s2),
+                                    child: Row(
+                                      children: [
+                                        FilledButton.tonalIcon(
+                                          onPressed: () =>
+                                              setState(() => _tool = 'enhance'),
+                                          icon: const Icon(
+                                            Icons.auto_fix_high,
+                                            size: 18,
+                                          ),
+                                          label: const Text('Speech cleanup'),
+                                        ),
+                                        const Spacer(),
+                                        if (s.clip != null)
+                                          Flexible(
+                                            child: Text(
+                                              s.clip!.title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: hk.textMuted,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: TranscriptEditor(
+                                      projectId: id,
+                                      player: _player,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            center,
-                            StylePanel(projectId: id),
-                            PublishPanel(projectId: id),
-                            AgentPanel(projectId: id),
-                            AiEnhancePanel(projectId: id),
-                            WriteupPanel(projectId: id),
-                            BrandPanel(projectId: id),
-                            ThumbnailsPanel(projectId: id),
-                            ExportPanel(projectId: id),
+                            VerticalDivider(width: 1, color: hk.border),
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  _PreviewToolbar(projectId: id),
+                                  Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(
+                                        HkTokens.s2,
+                                      ),
+                                      child: s.clip == null
+                                          ? Center(
+                                              child: FilledButton.icon(
+                                                onPressed: ctl.addWholeVideo,
+                                                icon: const Icon(
+                                                  Icons.movie_edit,
+                                                ),
+                                                label: const Text(
+                                                  'Edit the whole video',
+                                                ),
+                                              ),
+                                            )
+                                          : _playerError != null
+                                          ? Center(
+                                              child: Text(
+                                                _playerError!,
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            )
+                                          : ListenableBuilder(
+                                              listenable: _player,
+                                              builder: (context, _) =>
+                                                  VideoPreview(
+                                                    controller: _player,
+                                                    plan: s.plan,
+                                                    source: project.source,
+                                                  ),
+                                            ),
+                                    ),
+                                  ),
+                                  TransportBar(controller: _player),
+                                ],
+                              ),
+                            ),
+                            VerticalDivider(width: 1, color: hk.border),
+                            SizedBox(
+                              width: 340,
+                              child: KeyedSubtree(
+                                key: ValueKey(_tool),
+                                child: _panel(id),
+                              ),
+                            ),
+                            VerticalDivider(width: 1, color: hk.border),
+                            _ToolRail(
+                              selected: _tool,
+                              onSelect: (t) => setState(() => _tool = t),
+                            ),
                           ],
                         ),
                       ),
+                      Divider(height: 1, color: hk.border),
+                      if (s.clip != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: HkTokens.s3,
+                          ),
+                          child: MultiTrackTimeline(
+                            projectId: id,
+                            player: _player,
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: HkTokens.s3,
+                          vertical: HkTokens.s2,
+                        ),
+                        child: _StripHost(
+                          player: _player,
+                          plan: s.plan,
+                          source: project.source,
+                          clips: project.clips,
+                          selected: s.selectedClip,
+                          onSelect: ctl.selectClip,
+                          onBounds: (cid, a, b) => ctl.edit([
+                            {
+                              'op': 'set_bounds',
+                              'clip': cid,
+                              'start': a,
+                              'end': b,
+                            },
+                          ]),
+                          onAddAt: (at) => ctl.edit([
+                            {
+                              'op': 'add_clip',
+                              'title': 'New clip',
+                              'start': at,
+                              'end': (at + 30).clamp(
+                                0,
+                                project.source.duration,
+                              ),
+                            },
+                          ]),
+                        ),
+                      ),
                     ],
+                  )
+                : DefaultTabController(
+                    length: 10,
+                    child: Column(
+                      children: [
+                        const TabBar(
+                          isScrollable: true,
+                          tabAlignment: TabAlignment.start,
+                          tabs: [
+                            Tab(
+                              icon: Icon(Icons.video_library_outlined),
+                              text: 'Clips',
+                            ),
+                            Tab(icon: Icon(Icons.edit_outlined), text: 'Edit'),
+                            Tab(
+                              icon: Icon(Icons.palette_outlined),
+                              text: 'Style',
+                            ),
+                            Tab(icon: Icon(Icons.ios_share), text: 'Publish'),
+                            Tab(
+                              icon: Icon(Icons.smart_toy_outlined),
+                              text: 'Agent',
+                            ),
+                            Tab(
+                              icon: Icon(Icons.auto_fix_high),
+                              text: 'Enhance',
+                            ),
+                            Tab(
+                              icon: Icon(Icons.article_outlined),
+                              text: 'Text',
+                            ),
+                            Tab(
+                              icon: Icon(Icons.verified_outlined),
+                              text: 'Brand',
+                            ),
+                            Tab(
+                              icon: Icon(Icons.photo_library_outlined),
+                              text: 'Thumbs',
+                            ),
+                            Tab(
+                              icon: Icon(Icons.file_download_outlined),
+                              text: 'Export',
+                            ),
+                          ],
+                        ),
+                        Expanded(
+                          child: TabBarView(
+                            physics: const NeverScrollableScrollPhysics(),
+                            children: [
+                              Builder(
+                                builder: (ctx) => ClipsPane(
+                                  projectId: id,
+                                  onPicked: () =>
+                                      DefaultTabController.of(ctx).animateTo(1),
+                                ),
+                              ),
+                              center,
+                              StylePanel(projectId: id),
+                              PublishPanel(projectId: id),
+                              AgentPanel(projectId: id),
+                              AiEnhancePanel(projectId: id),
+                              WriteupPanel(projectId: id),
+                              BrandPanel(projectId: id),
+                              ThumbnailsPanel(projectId: id),
+                              ExportPanel(projectId: id),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 }
