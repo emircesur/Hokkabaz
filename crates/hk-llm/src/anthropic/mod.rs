@@ -18,7 +18,7 @@
 //!   matching changes in hk-session/hk-agent.
 // port: opencode packages/opencode/src/provider (anthropic), dsh packages/llm (shared wire plumbing)
 
-mod request;
+pub(crate) mod request;
 mod store;
 mod stream;
 

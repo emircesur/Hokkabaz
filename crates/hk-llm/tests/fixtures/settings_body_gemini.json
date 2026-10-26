@@ -1,0 +1,47 @@
+{
+  "contents": [
+    {
+      "parts": [
+        {
+          "text": "Hi"
+        }
+      ],
+      "role": "user"
+    }
+  ],
+  "generationConfig": {
+    "frequencyPenalty": 0.2,
+    "maxOutputTokens": 8192,
+    "presencePenalty": 0.1,
+    "responseJsonSchema": {
+      "properties": {
+        "answer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "answer"
+      ],
+      "type": "object"
+    },
+    "responseMimeType": "application/json",
+    "seed": 42,
+    "stopSequences": [
+      "</done>"
+    ],
+    "temperature": 0.5,
+    "thinkingConfig": {
+      "includeThoughts": true,
+      "thinkingBudget": 4096
+    },
+    "topK": 40,
+    "topP": 0.9
+  },
+  "systemInstruction": {
+    "parts": [
+      {
+        "text": "Be terse."
+      }
+    ]
+  }
+}

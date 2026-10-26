@@ -1,0 +1,45 @@
+{
+  "max_tokens": 8192,
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "Hi",
+          "type": "text"
+        }
+      ],
+      "role": "user"
+    }
+  ],
+  "model": "claude-sonnet-4-5",
+  "output_config": {
+    "format": {
+      "schema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "type": "json_schema"
+    }
+  },
+  "stop_sequences": [
+    "</done>"
+  ],
+  "stream": true,
+  "system": [
+    {
+      "text": "Be terse.",
+      "type": "text"
+    }
+  ],
+  "thinking": {
+    "budget_tokens": 4096,
+    "type": "enabled"
+  }
+}

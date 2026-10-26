@@ -24,18 +24,21 @@ const DEFAULT_BASE_URL: &str = "https://api.deepseek.com";
 /// - `reasoning_content` is sent back only on assistant messages that carry
 ///   tool calls (the API requires it within a tool-call sub-turn and drops or
 ///   rejects it elsewhere).
-/// - `deepseek-reasoner` ignores sampling params, so `temperature` is omitted.
+/// - `deepseek-reasoner` ignores sampling params, so they are omitted.
+/// - No `seed`, `logit_bias` or JSON Schema; JSON mode only.
 /// - `stream_options.include_usage` is always on: usage + cache-hit counters
 ///   arrive in a trailing chunk.
 pub fn build_body(req: &ChatRequest) -> Value {
     build_body_with(req, &body_options())
 }
 
-fn body_options() -> BodyOptions {
+pub(crate) fn body_options() -> BodyOptions {
     BodyOptions {
         echo_reasoning: true,
         send_reasoning_effort: false,
         no_temperature_models: vec!["deepseek-reasoner".into()],
+        // Not on DeepSeek's documented parameter list.
+        drop_params: vec!["seed".into(), "logit_bias".into(), "json_schema".into()],
         ..BodyOptions::default()
     }
 }

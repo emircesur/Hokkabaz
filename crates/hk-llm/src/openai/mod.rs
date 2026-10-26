@@ -9,7 +9,7 @@
 mod error;
 mod http;
 mod parse;
-mod request;
+pub(crate) mod request;
 mod retry;
 mod sse;
 

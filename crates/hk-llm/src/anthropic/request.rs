@@ -5,9 +5,10 @@
 //! message (parallel results share one message), `max_tokens` is mandatory,
 //! thinking has two dialects, and cache breakpoints are explicit.
 
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
 use super::store::{ReasoningStore, ThinkingBlock};
+use crate::params::retain_supported;
 use crate::{ChatRequest, Message, ReasoningEffort, Role, ToolChoice};
 
 /// How `reasoning_effort` maps onto Anthropic's thinking parameters.
@@ -110,9 +111,10 @@ fn replayable(messages: &[Message], store: &ReasoningStore) -> bool {
 }
 
 fn plan(req: &ChatRequest, style: ThinkingStyle, max_tokens: Option<u64>) -> Think {
-    let Some(effort) = req.reasoning_effort else {
+    let budget = req.sampling.thinking_budget;
+    if budget == Some(0) || (budget.is_none() && req.reasoning_effort.is_none()) {
         return Think::Off;
-    };
+    }
     // Thinking rejects forced tool choice.
     if !req.tools.is_empty()
         && matches!(req.tool_choice, ToolChoice::Required | ToolChoice::Named(_))
@@ -120,9 +122,14 @@ fn plan(req: &ChatRequest, style: ThinkingStyle, max_tokens: Option<u64>) -> Thi
         return Think::Off;
     }
     match style {
-        ThinkingStyle::Adaptive | ThinkingStyle::Auto => Think::Adaptive(effort_name(effort)),
+        ThinkingStyle::Adaptive | ThinkingStyle::Auto => match req.reasoning_effort {
+            Some(e) => Think::Adaptive(effort_name(e)),
+            None => Think::Off,
+        },
         ThinkingStyle::Budget => {
-            let mut b = budget_for(effort);
+            // An explicit budget wins over the effort preset.
+            let mut b =
+                budget.map_or_else(|| req.reasoning_effort.map_or(0, budget_for), u64::from);
             if let Some(cap) = max_tokens {
                 b = b.min(cap.saturating_sub(1));
             }
@@ -132,6 +139,32 @@ fn plan(req: &ChatRequest, style: ThinkingStyle, max_tokens: Option<u64>) -> Thi
                 Think::Budget(b)
             }
         }
+    }
+}
+
+/// Whether param `key` is sent for a model of (resolved) `style`. Budget-style
+/// models take sampling params only with thinking off; adaptive (4.6+) models
+/// reject sampling and `budget_tokens` outright. JSON goes through
+/// `output_config.format`, which needs a schema; bare JSON mode has no wire form.
+pub(crate) fn supports(style: ThinkingStyle, thinking: bool, key: &str) -> bool {
+    let budget = style == ThinkingStyle::Budget;
+    match key {
+        "max_output_tokens" | "stop" | "reasoning_effort" | "json_schema" => true,
+        "temperature" | "top_p" | "top_k" => budget && !thinking,
+        "thinking_budget" => budget,
+        _ => false,
+    }
+}
+
+/// [`supports`] for a request that does not ask for thinking (UI view).
+pub(crate) fn supports_static(model: &str, key: &str) -> bool {
+    supports(ThinkingStyle::Auto.resolve(model), false, key)
+}
+
+fn wants_thinking(req: &ChatRequest) -> bool {
+    match req.sampling.thinking_budget {
+        Some(b) => b > 0,
+        None => req.reasoning_effort.is_some(),
     }
 }
 
@@ -146,6 +179,8 @@ pub(crate) fn build_body(
 ) -> Value {
     let cache = req.prompt_cache.unwrap_or(opts.prompt_cache);
     let style = opts.thinking_style.resolve(&req.model);
+    let thinking = wants_thinking(req);
+    let req = &*retain_supported("anthropic", req, |k| supports(style, thinking, k));
 
     let mut think = plan(req, style, req.max_output_tokens);
     if !matches!(think, Think::Off) && !replayable(&req.messages, store) {
@@ -167,16 +202,29 @@ pub(crate) fn build_body(
     if !system.is_empty() {
         obj.insert("system".into(), Value::Array(system));
     }
+    // Sampling params survive `retain_supported` only for budget-style models
+    // without thinking requested.
+    if let Some(t) = req.temperature {
+        obj.insert("temperature".into(), json!(t));
+    }
+    if let Some(p) = req.sampling.top_p {
+        obj.insert("top_p".into(), json!(p));
+    }
+    if let Some(k) = req.sampling.top_k {
+        obj.insert("top_k".into(), json!(k));
+    }
+    if !req.sampling.stop.is_empty() {
+        obj.insert("stop_sequences".into(), json!(req.sampling.stop));
+    }
+    let mut output_config = Map::new();
+    if let Some(schema) = &req.sampling.json_schema {
+        output_config.insert(
+            "format".into(),
+            json!({ "type": "json_schema", "schema": schema }),
+        );
+    }
     match think {
-        Think::Off => {
-            // Newest models reject sampling params; only send when the style
-            // is known to accept them.
-            if let Some(t) = req.temperature
-                && style == ThinkingStyle::Budget
-            {
-                obj.insert("temperature".into(), json!(t));
-            }
-        }
+        Think::Off => {}
         Think::Budget(b) => {
             obj.insert(
                 "thinking".into(),
@@ -189,8 +237,11 @@ pub(crate) fn build_body(
                 "thinking".into(),
                 json!({ "type": "adaptive", "display": "summarized" }),
             );
-            obj.insert("output_config".into(), json!({ "effort": effort }));
+            output_config.insert("effort".into(), json!(effort));
         }
+    }
+    if !output_config.is_empty() {
+        obj.insert("output_config".into(), Value::Object(output_config));
     }
     if !req.tools.is_empty() {
         let n = req.tools.len();
@@ -463,6 +514,30 @@ mod tests {
             body(&fresh, &ReasoningStore::default())["thinking"]["budget_tokens"],
             24_576
         );
+    }
+
+    #[test]
+    fn anthropic_adaptive_merges_effort_and_format_drops_budget() {
+        let mut req = ChatRequest::new("claude-opus-5-5", vec![msg(Role::User, "hi")]);
+        req.reasoning_effort = Some(ReasoningEffort::High);
+        req.sampling.thinking_budget = Some(4096);
+        req.sampling.top_k = Some(5);
+        req.sampling.json_schema = Some(json!({"type": "object"}));
+        let b = body(&req, &ReasoningStore::default());
+        assert_eq!(b["thinking"]["type"], "adaptive");
+        assert_eq!(b["output_config"]["effort"], "high");
+        assert_eq!(b["output_config"]["format"]["type"], "json_schema");
+        assert!(b.get("top_k").is_none());
+
+        // Budget style without thinking keeps sampling; zero budget = off.
+        let mut req = ChatRequest::new("claude-sonnet-4-5", vec![msg(Role::User, "hi")]);
+        req.sampling.thinking_budget = Some(0);
+        req.sampling.top_k = Some(5);
+        req.temperature = Some(0.5);
+        let b = body(&req, &ReasoningStore::default());
+        assert!(b.get("thinking").is_none());
+        assert_eq!(b["top_k"], 5);
+        assert_eq!(b["temperature"], 0.5);
     }
 
     #[test]

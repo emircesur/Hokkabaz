@@ -8,7 +8,7 @@
 
 mod ndjson;
 mod parse;
-mod request;
+pub(crate) mod request;
 
 use std::fmt;
 use std::time::Duration;
