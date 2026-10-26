@@ -132,7 +132,10 @@ impl AiSettings {
 
     /// Model request parameters, in declaration order.
     pub fn model_params() -> impl Iterator<Item = &'static str> {
-        Self::FIELDS.iter().copied().filter(|f| Self::is_model_param(f))
+        Self::FIELDS
+            .iter()
+            .copied()
+            .filter(|f| Self::is_model_param(f))
     }
 
     /// Drop set model parameters the target model can't take. Harness fields always pass.
@@ -369,7 +372,10 @@ mod tests {
         ];
         let r = SettingsStack::resolve(&layers);
         assert_eq!(r.settings().temperature, Some(0.9));
-        assert_eq!(r.provenance("temperature"), Some(&Scope::Session("s1".into())));
+        assert_eq!(
+            r.provenance("temperature"),
+            Some(&Scope::Session("s1".into()))
+        );
 
         let mut stack = SettingsStack::new();
         stack
@@ -377,7 +383,10 @@ mod tests {
             .push(Scope::Message, temp(0.0))
             .push(Scope::Project("/p".into()), temp(0.7));
         assert_eq!(stack.resolved().settings().temperature, Some(0.0));
-        assert_eq!(stack.resolved().provenance("temperature"), Some(&Scope::Message));
+        assert_eq!(
+            stack.resolved().provenance("temperature"),
+            Some(&Scope::Message)
+        );
     }
 
     #[test]
@@ -413,7 +422,10 @@ mod tests {
             (Scope::Session("s".into()), session),
         ]);
         assert_eq!(r.provenance("temperature"), Some(&Scope::Global));
-        assert_eq!(r.provenance("seed"), Some(&Scope::Provider("deepseek".into())));
+        assert_eq!(
+            r.provenance("seed"),
+            Some(&Scope::Provider("deepseek".into()))
+        );
         assert_eq!(r.provenance("stream"), Some(&Scope::Session("s".into())));
         assert_eq!(r.provenance("top_p"), None);
         assert_eq!(r.provenance("nonexistent"), None);
@@ -425,7 +437,12 @@ mod tests {
     #[test]
     fn preset_merge_explicit_overrides_win() {
         assert_eq!(builtin_presets().len(), 4);
-        for name in ["Precise coder", "Creative writer", "Cheap & fast", "Offline phone"] {
+        for name in [
+            "Precise coder",
+            "Creative writer",
+            "Cheap & fast",
+            "Offline phone",
+        ] {
             assert!(Preset::builtin(name).is_some(), "{name}");
         }
         let p = Preset::builtin("Cheap & fast").unwrap();
@@ -451,7 +468,10 @@ mod tests {
             ),
         ]);
         assert_eq!(r.settings().temperature, Some(0.3));
-        assert_eq!(r.provenance("temperature"), Some(&Scope::Session("s".into())));
+        assert_eq!(
+            r.provenance("temperature"),
+            Some(&Scope::Session("s".into()))
+        );
         assert_eq!(r.settings().rag_top_k, Some(9));
         assert_eq!(r.provenance("rag_top_k"), Some(&Scope::Message));
     }

@@ -428,6 +428,18 @@ impl JobRegistry {
         v
     }
 
+    /// Cancel every unfinished root job (and so every subtree). Returns how many were hit.
+    pub fn cancel_all(&self) -> usize {
+        let roots: Vec<JobId> = self
+            .lock()
+            .jobs
+            .values()
+            .filter(|e| e.info.parent.is_none() && !e.info.state.is_terminal())
+            .map(|e| e.info.id)
+            .collect();
+        roots.into_iter().filter(|id| self.cancel(*id)).count()
+    }
+
     /// Newest unfinished job started with `key`.
     pub fn find_key(&self, key: &str) -> Option<JobId> {
         self.lock()

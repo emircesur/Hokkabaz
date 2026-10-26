@@ -86,7 +86,8 @@ impl Tool for BashTool {
             Ok(r) => r,
             Err(e) => return fail(format!("cannot read pty: {e}")),
         };
-        let mut killer = child.clone_killer();
+        // Dropping the call (turn cancelled / tool skipped) must not leave the process running.
+        let mut killer = KillOnDrop(Some(child.clone_killer()));
 
         let read = tokio::task::spawn_blocking(move || {
             let mut buf = Vec::new();
@@ -110,10 +111,11 @@ impl Tool for BashTool {
                 Err(e) => return fail(format!("wait failed: {e}")),
             },
             Err(_) => {
-                let _ = killer.kill();
+                killer.kill();
                 (None, true)
             }
         };
+        killer.0 = None;
         // Grandchildren may keep the pty open; don't hang on them.
         let buf = match tokio::time::timeout(Duration::from_secs(1), read).await {
             Ok(joined) => joined.map_err(|e| join_err("bash", e))?,
@@ -159,4 +161,21 @@ fn clean(s: &str) -> String {
         }
     }
     out.trim_end().to_owned()
+}
+
+/// Kills the child when dropped while armed.
+struct KillOnDrop(Option<Box<dyn portable_pty::ChildKiller + Send + Sync>>);
+
+impl KillOnDrop {
+    fn kill(&mut self) {
+        if let Some(k) = self.0.as_mut() {
+            let _ = k.kill();
+        }
+    }
+}
+
+impl Drop for KillOnDrop {
+    fn drop(&mut self) {
+        self.kill();
+    }
 }

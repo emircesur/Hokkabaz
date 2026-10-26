@@ -44,6 +44,8 @@ pub enum TurnEndReason {
     Failed,
     /// Step cap reached.
     MaxSteps,
+    /// User asked to pause after the current step; resumes on the next message.
+    Paused,
 }
 
 /// What a model request carried besides the messages (which derive from the

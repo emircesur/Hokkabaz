@@ -28,6 +28,7 @@ struct Shared {
     queues: Mutex<Queues>,
     cancel: Mutex<TurnCancel>,
     running: AtomicBool,
+    pause: AtomicBool,
     gate: Arc<Gate>,
 }
 
@@ -41,6 +42,7 @@ impl AgentHandle {
             queues: Mutex::default(),
             cancel: Mutex::default(),
             running: AtomicBool::new(false),
+            pause: AtomicBool::new(false),
             gate,
         }))
     }
@@ -71,6 +73,16 @@ impl AgentHandle {
 
     fn turn_cancel(&self) -> std::sync::MutexGuard<'_, TurnCancel> {
         self.0.cancel.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// End the running turn cleanly after its current step (tool results included); when
+    /// idle, the next turn pauses after its first step. A later `submit` resumes.
+    pub fn pause_after_step(&self) {
+        self.0.pause.store(true, Ordering::SeqCst);
+    }
+
+    pub(crate) fn take_pause(&self) -> bool {
+        self.0.pause.swap(false, Ordering::SeqCst)
     }
 
     /// Answer a pending approval (`ApprovalRequest::approval_id`). Returns `false` when the id
@@ -125,6 +137,7 @@ impl AgentHandle {
 
     pub(crate) fn end_turn(&self) {
         self.turn_cancel().job = None;
+        self.0.pause.store(false, Ordering::SeqCst);
         self.0.running.store(false, Ordering::SeqCst);
     }
 

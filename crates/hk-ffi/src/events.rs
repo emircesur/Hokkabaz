@@ -171,5 +171,7 @@ pub fn end_reason(r: TurnEndReason) -> TurnEndReasonDto {
         TurnEndReason::Cancelled => TurnEndReasonDto::Cancelled,
         TurnEndReason::Failed => TurnEndReasonDto::Failed,
         TurnEndReason::MaxSteps => TurnEndReasonDto::MaxSteps,
+        // A paused turn ended cleanly; the UI treats it as completed.
+        TurnEndReason::Paused => TurnEndReasonDto::Completed,
     }
 }

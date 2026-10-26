@@ -1471,6 +1471,41 @@ mod jobs {
     }
 
     #[tokio::test]
+    async fn jobs_skip_tool_keeps_turn_going() {
+        let mut e = env(vec![call("s1", "slow", "{}"), text("done")]);
+        let reg = JobRegistry::new();
+        e.agent.set_jobs(reg.clone(), None);
+        let mut rx = reg.subscribe();
+        let r = reg.clone();
+        tokio::spawn(async move {
+            while let Ok(ev) = rx.recv().await {
+                if let JobEvent::Started { job } = &ev
+                    && job.kind == JobKind::Tool
+                {
+                    r.cancel(job.id);
+                    break;
+                }
+            }
+        });
+        e.agent.handle().submit("go");
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!(s.reason, TurnEndReason::Completed);
+        assert_paired(&e);
+        assert_eq!(by_kind(&reg, &JobKind::Tool)[0].state, JobState::Cancelled);
+    }
+
+    #[tokio::test]
+    async fn pause_after_step_ends_turn_cleanly() {
+        let mut e = env(vec![call("e1", "echo", r#"{"text":"x"}"#), text("done")]);
+        e.agent.handle().pause_after_step();
+        e.agent.handle().submit("go");
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!(s.reason, TurnEndReason::Paused);
+        assert_eq!(s.steps, 1);
+        assert_paired(&e);
+    }
+
+    #[tokio::test]
     async fn jobs_handle_cancel_goes_through_job_tree() {
         let partial = vec![Ok(StreamEvent::TextDelta { text: "p".into() })];
         let mut e = env_with(Fake::with_hang(vec![(partial, true)]), |_| {});

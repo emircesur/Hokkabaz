@@ -25,6 +25,9 @@ use crate::inbox::AgentHandle;
 use crate::subagent::TASK_TOOL;
 
 const CANCELLED_RESULT: &str = "tool call cancelled before it produced a result";
+const SKIPPED_RESULT: &str = "tool call skipped by the user; continue without its result";
+/// `assistant/attempt` error of a generation stopped by the user (partial text is kept).
+pub const STOPPED_BY_USER: &str = "stopped by user";
 const INTERRUPTED_RESULT: &str = "tool call interrupted: no result was recorded";
 
 /// Job key of a tool call, so the tool (e.g. `task`) can nest its own jobs under it.
@@ -41,6 +44,10 @@ fn end_job(job: JobHandle, reason: TurnEndReason, error: Option<&str>) {
             job.finish();
         }
         TurnEndReason::Cancelled => job.cancelled(),
+        TurnEndReason::Paused => {
+            job.log("paused by user");
+            job.finish();
+        }
         TurnEndReason::Failed => job.fail(error.unwrap_or("turn failed")),
     }
 }
@@ -95,7 +102,8 @@ fn parallel_tool(name: &str) -> bool {
 
 /// How one batch of tool calls ended.
 enum BatchEnd {
-    Done(Vec<std::result::Result<ToolOutput, ToolError>>),
+    /// `None` = skipped by the user.
+    Done(Vec<Option<std::result::Result<ToolOutput, ToolError>>>),
     Cancelled,
     /// Per-call timeout: the calls get error results, the turn goes on.
     ToolTimeout(&'static str),
@@ -437,6 +445,9 @@ impl Agent {
                 Some(Stop::Failed(e)) => return Ok((TurnEndReason::Failed, Some(e))),
                 None => {}
             }
+            if self.handle.take_pause() {
+                return Ok((TurnEndReason::Paused, None));
+            }
             // A steer that arrived while the model was finishing must not be dropped.
             if out.calls.is_empty() && !self.handle.has_injected() {
                 return Ok((TurnEndReason::Completed, None));
@@ -715,7 +726,14 @@ impl Agent {
         e: Fail,
     ) -> Result<(StepOut, Option<Stop>)> {
         let msg = match e {
-            Fail::Llm(LlmError::Cancelled) => return Ok((out, Some(Stop::Cancelled))),
+            Fail::Llm(LlmError::Cancelled) => {
+                self.log(EventKind::AssistantAttempt {
+                    step,
+                    attempt: 1,
+                    error: Some(STOPPED_BY_USER.to_owned()),
+                })?;
+                return Ok((out, Some(Stop::Cancelled)));
+            }
             Fail::Llm(e) => e.to_string(),
             Fail::Timeout(what) => format!("{what} exceeded"),
         };
@@ -840,13 +858,28 @@ impl Agent {
                     self.start_job(spec, step_job)
                 })
                 .collect();
-            let run = futures::future::join_all(batch.iter().map(|call| {
+            // Cancelling one tool's job skips just that call; the turn goes on.
+            let skips: Vec<Option<CancellationToken>> = jobs
+                .iter()
+                .map(|j| j.as_ref().map(|j| j.token().clone()))
+                .collect();
+            let run = futures::future::join_all(batch.iter().zip(skips).map(|(call, skip)| {
                 let ctx = ToolCtx {
                     call_id: call.id.clone(),
                     session_id: Some(session_id.clone()),
                     cwd: cwd.clone(),
                 };
-                tools.run(ctx, &call.name, call.arguments.clone())
+                let fut = tools.run(ctx, &call.name, call.arguments.clone());
+                async move {
+                    match skip {
+                        Some(t) => tokio::select! {
+                            biased;
+                            () = t.cancelled() => None,
+                            r = fut => Some(r),
+                        },
+                        None => Some(fut.await),
+                    }
+                }
             }));
             tokio::pin!(run);
             let rearm = |d: Option<std::time::Duration>| d.map(|d| Instant::now() + d);
@@ -888,11 +921,18 @@ impl Agent {
                 BatchEnd::Done(rs) => {
                     for ((call, r), job) in batch.iter().zip(rs).zip(jobs) {
                         let failed = match r {
-                            Ok(o) => {
+                            None => {
+                                self.log_result(&call.id, SKIPPED_RESULT, true)?;
+                                if let Some(j) = job {
+                                    j.cancelled();
+                                }
+                                continue;
+                            }
+                            Some(Ok(o)) => {
                                 self.log_result(&call.id, o.content, o.is_error)?;
                                 o.is_error.then(|| "tool returned an error".to_owned())
                             }
-                            Err(e) => {
+                            Some(Err(e)) => {
                                 self.log_result(&call.id, e.to_output().content, true)?;
                                 Some(e.to_string())
                             }
