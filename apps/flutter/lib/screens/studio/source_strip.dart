@@ -37,9 +37,11 @@ class _SourceStripState extends State<SourceStrip> {
   double? _dragStart;
   double? _dragEnd;
 
-  double _t(double dx, double w) => (dx / w * widget.duration).clamp(0.0, widget.duration);
+  double _t(double dx, double w) =>
+      (dx / w * widget.duration).clamp(0.0, widget.duration);
 
-  StudioClip? get _selClip => widget.clips.where((c) => c.id == widget.selected).firstOrNull;
+  StudioClip? get _selClip =>
+      widget.clips.where((c) => c.id == widget.selected).firstOrNull;
 
   _Edge? _edgeAt(double dx, double w) {
     final c = _selClip;
@@ -61,7 +63,9 @@ class _SourceStripState extends State<SourceStrip> {
           behavior: HitTestBehavior.opaque,
           onTapUp: (d) {
             final t = _t(d.localPosition.dx, w);
-            final hit = widget.clips.where((c) => t >= c.start && t <= c.end).firstOrNull;
+            final hit = widget.clips
+                .where((c) => t >= c.start && t <= c.end)
+                .firstOrNull;
             if (hit != null) widget.onSelect(hit.id);
           },
           onLongPressStart: (d) => widget.onAddAt(_t(d.localPosition.dx, w)),
@@ -89,7 +93,10 @@ class _SourceStripState extends State<SourceStrip> {
           },
           onPanEnd: (_) {
             final c = _selClip;
-            if (_drag != null && c != null && _dragStart != null && _dragEnd != null) {
+            if (_drag != null &&
+                c != null &&
+                _dragStart != null &&
+                _dragEnd != null) {
               widget.onBounds(c.id, _dragStart!, _dragEnd!);
             }
             setState(() {
@@ -155,14 +162,31 @@ class _StripPainter extends CustomPainter {
     if (duration <= 0) return;
     final y0 = size.height * 0.25;
     final h = size.height * 0.5;
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, y0, size.width, h), const Radius.circular(4)), Paint()..color = track);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, y0, size.width, h),
+        const Radius.circular(4),
+      ),
+      Paint()..color = track,
+    );
     double x(double t) => t / duration * size.width;
     for (final c in clips) {
       final isSel = c.id == selected;
       final s = isSel && dragStart != null ? dragStart! : c.start;
       final e = isSel && dragEnd != null ? dragEnd! : c.end;
-      final r = Rect.fromLTRB(x(s), y0, x(e).clamp(x(s) + 2, size.width), y0 + h);
-      canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(4)), Paint()..color = (isSel ? selectedColor : clipColor).withValues(alpha: isSel ? 0.85 : 0.5));
+      final r = Rect.fromLTRB(
+        x(s),
+        y0,
+        x(e).clamp(x(s) + 2, size.width),
+        y0 + h,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(r, const Radius.circular(4)),
+        Paint()
+          ..color = (isSel ? selectedColor : clipColor).withValues(
+            alpha: isSel ? 0.85 : 0.5,
+          ),
+      );
       if (isSel) {
         final handle = Paint()..color = head;
         canvas.drawRect(Rect.fromLTWH(r.left - 1.5, y0 - 4, 3, h + 8), handle);
@@ -170,10 +194,21 @@ class _StripPainter extends CustomPainter {
       }
     }
     final ph = x(playhead.clamp(0.0, duration));
-    canvas.drawLine(Offset(ph, 0), Offset(ph, size.height), Paint()..color = head..strokeWidth = 2);
+    canvas.drawLine(
+      Offset(ph, 0),
+      Offset(ph, size.height),
+      Paint()
+        ..color = head
+        ..strokeWidth = 2,
+    );
   }
 
   @override
   bool shouldRepaint(_StripPainter old) =>
-      old.playhead != playhead || old.selected != selected || old.clips != clips || old.dragStart != dragStart || old.dragEnd != dragEnd || old.duration != duration;
+      old.playhead != playhead ||
+      old.selected != selected ||
+      old.clips != clips ||
+      old.dragStart != dragStart ||
+      old.dragEnd != dragEnd ||
+      old.duration != duration;
 }

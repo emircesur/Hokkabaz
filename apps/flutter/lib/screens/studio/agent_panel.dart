@@ -11,21 +11,36 @@ import 'studio_providers.dart';
 /// One agent conversation per project, kept for the app's lifetime.
 final _sessions = <String, String>{};
 
-final studioAgentSessionProvider = FutureProvider.autoDispose.family<String, String>((ref, projectId) async {
-  final known = _sessions[projectId];
-  if (known != null) return known;
-  final name = ref.read(studioControllerProvider(projectId)).project?.name ?? 'project';
-  final s = await chat.createSession(title: 'Studio: $name');
-  _sessions[projectId] = s.id;
-  ref.keepAlive();
-  return s.id;
-});
+final studioAgentSessionProvider = FutureProvider.autoDispose
+    .family<String, String>((ref, projectId) async {
+      final known = _sessions[projectId];
+      if (known != null) return known;
+      final name =
+          ref.read(studioControllerProvider(projectId)).project?.name ??
+          'project';
+      final s = await chat.createSession(title: 'Studio: $name');
+      _sessions[projectId] = s.id;
+      ref.keepAlive();
+      return s.id;
+    });
 
 const _quick = [
-  ('Make viral shorts', 'Find the 5 best moments in this video, apply the shorts-karaoke template, and tell me which one is strongest and why.'),
-  ('Tighten this clip', 'Tighten the selected clip: cut filler words and long pauses, keep the meaning. Tell me what you removed.'),
-  ('Captions + vertical', 'Make the selected clip vertical 9:16 following the speaker, with bold karaoke captions.'),
-  ('Write post copy', 'Write titles, descriptions and hashtags for the selected clip for YouTube Shorts, TikTok and Instagram Reels.'),
+  (
+    'Make viral shorts',
+    'Find the 5 best moments in this video, apply the shorts-karaoke template, and tell me which one is strongest and why.',
+  ),
+  (
+    'Tighten this clip',
+    'Tighten the selected clip: cut filler words and long pauses, keep the meaning. Tell me what you removed.',
+  ),
+  (
+    'Captions + vertical',
+    'Make the selected clip vertical 9:16 following the speaker, with bold karaoke captions.',
+  ),
+  (
+    'Write post copy',
+    'Write titles, descriptions and hashtags for the selected clip for YouTube Shorts, TikTok and Instagram Reels.',
+  ),
   ('Render it', 'Render the selected clip and tell me where the file is.'),
 ];
 
@@ -51,7 +66,11 @@ class AgentPanel extends ConsumerWidget {
               const SizedBox(height: HkTokens.s2),
               Text(describeError(e), textAlign: TextAlign.center),
               const SizedBox(height: HkTokens.s2),
-              OutlinedButton(onPressed: () => ref.invalidate(studioAgentSessionProvider(projectId)), child: const Text('Retry')),
+              OutlinedButton(
+                onPressed: () =>
+                    ref.invalidate(studioAgentSessionProvider(projectId)),
+                child: const Text('Retry'),
+              ),
             ],
           ),
         ),
@@ -68,21 +87,28 @@ class AgentPanel extends ConsumerWidget {
               height: 44,
               child: ListView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: HkTokens.s2, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: HkTokens.s2,
+                  vertical: 6,
+                ),
                 children: [
                   for (final q in _quick)
                     Padding(
                       padding: const EdgeInsets.only(right: 6),
                       child: ActionChip(
                         label: Text(q.$1),
-                        onPressed: () => ref.read(chatControllerProvider(sid).notifier).send('${prefix()}\n${q.$2}', ModeDto.build),
+                        onPressed: () => ref
+                            .read(chatControllerProvider(sid).notifier)
+                            .send('${prefix()}\n${q.$2}', ModeDto.build),
                       ),
                     ),
                 ],
               ),
             ),
             Divider(height: 1, color: hk.border),
-            Expanded(child: ConversationPane(sessionId: sid, promptPrefix: prefix)),
+            Expanded(
+              child: ConversationPane(sessionId: sid, promptPrefix: prefix),
+            ),
           ],
         );
       },

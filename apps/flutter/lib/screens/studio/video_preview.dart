@@ -11,7 +11,12 @@ import 'studio_models.dart';
 /// The live preview: source video cropped by the reframing path, captions on
 /// top, exactly as the render will look. Edits show up the moment the plan changes.
 class VideoPreview extends StatelessWidget {
-  const VideoPreview({super.key, required this.controller, required this.plan, required this.source});
+  const VideoPreview({
+    super.key,
+    required this.controller,
+    required this.plan,
+    required this.source,
+  });
 
   final EdlPlayerController controller;
   final PreviewPlan? plan;
@@ -20,7 +25,9 @@ class VideoPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = plan;
-    final aspect = p == null || p.crop == null ? source.width / (source.height == 0 ? 1 : source.height) : p.aspect;
+    final aspect = p == null || p.crop == null
+        ? source.width / (source.height == 0 ? 1 : source.height)
+        : p.aspect;
     final lines = groupCaptionLines(p?.captions ?? const [], p?.captionStyle);
     return Center(
       child: AspectRatio(
@@ -32,9 +39,17 @@ class VideoPreview extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                _CroppedVideo(controller: controller, crop: p?.crop, source: source),
+                _CroppedVideo(
+                  controller: controller,
+                  crop: p?.crop,
+                  source: source,
+                ),
                 _BrollOverlay(plan: p, time: controller.outTime),
-                CaptionOverlay(lines: lines, style: p?.captionStyle, time: controller.outTime),
+                CaptionOverlay(
+                  lines: lines,
+                  style: p?.captionStyle,
+                  time: controller.outTime,
+                ),
               ],
             ),
           ),
@@ -45,7 +60,11 @@ class VideoPreview extends StatelessWidget {
 }
 
 class _CroppedVideo extends StatelessWidget {
-  const _CroppedVideo({required this.controller, required this.crop, required this.source});
+  const _CroppedVideo({
+    required this.controller,
+    required this.crop,
+    required this.source,
+  });
 
   final EdlPlayerController controller;
   final CropPath? crop;
@@ -56,7 +75,14 @@ class _CroppedVideo extends StatelessWidget {
     final view = backendView(controller.backend);
     final path = crop;
     if (path == null || path.keys.isEmpty || source.width == 0) {
-      return FittedBox(fit: BoxFit.contain, child: SizedBox(width: source.width.toDouble().clamp(2, 1e5), height: source.height.toDouble().clamp(2, 1e5), child: view));
+      return FittedBox(
+        fit: BoxFit.contain,
+        child: SizedBox(
+          width: source.width.toDouble().clamp(2, 1e5),
+          height: source.height.toDouble().clamp(2, 1e5),
+          child: view,
+        ),
+      );
     }
     return LayoutBuilder(
       builder: (context, box) => ValueListenableBuilder<double>(
@@ -75,7 +101,11 @@ class _CroppedVideo extends StatelessWidget {
               maxHeight: double.infinity,
               child: Transform.translate(
                 offset: Offset(-k.x * s, -k.y * s),
-                child: SizedBox(width: source.width * s, height: source.height * s, child: view),
+                child: SizedBox(
+                  width: source.width * s,
+                  height: source.height * s,
+                  child: view,
+                ),
               ),
             ),
           );
@@ -104,7 +134,12 @@ class TransportBar extends StatelessWidget {
               IconButton(
                 tooltip: controller.playing ? 'Pause (Space)' : 'Play (Space)',
                 onPressed: d == 0 ? null : controller.toggle,
-                icon: Icon(controller.playing ? Icons.pause_circle_filled : Icons.play_circle_fill, size: 36),
+                icon: Icon(
+                  controller.playing
+                      ? Icons.pause_circle_filled
+                      : Icons.play_circle_fill,
+                  size: 36,
+                ),
               ),
               Text(formatTime(t), style: Theme.of(context).textTheme.bodySmall),
               Expanded(
@@ -145,15 +180,29 @@ class _BrollOverlay extends StatelessWidget {
           children: [
             if (hit.isImage)
               (hit.asset.startsWith('http')
-                  ? Image.network(hit.asset, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black54))
-                  : Image.file(File(hit.asset), fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black54)))
+                  ? Image.network(
+                      hit.asset,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) =>
+                          const ColoredBox(color: Colors.black54),
+                    )
+                  : Image.file(
+                      File(hit.asset),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) =>
+                          const ColoredBox(color: Colors.black54),
+                    ))
             else
               const ColoredBox(color: Color(0xAA000000)),
             Align(
               alignment: Alignment.topLeft,
               child: Padding(
                 padding: const EdgeInsets.all(8),
-                child: Chip(visualDensity: VisualDensity.compact, avatar: const Icon(Icons.movie_filter_outlined, size: 14), label: Text('B-roll: ${hit.query}')),
+                child: Chip(
+                  visualDensity: VisualDensity.compact,
+                  avatar: const Icon(Icons.movie_filter_outlined, size: 14),
+                  label: Text('B-roll: ${hit.query}'),
+                ),
               ),
             ),
           ],

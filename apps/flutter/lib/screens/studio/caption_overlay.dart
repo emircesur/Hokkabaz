@@ -12,7 +12,10 @@ Color hexColor(String? hex, Color fallback) {
 
 /// Lines of caption words, grouped like the renderer does (pauses, word and
 /// character limits, sentence ends) so the preview matches the burned-in result.
-List<List<CaptionWord>> groupCaptionLines(List<CaptionWord> words, Map<String, dynamic>? style) {
+List<List<CaptionWord>> groupCaptionLines(
+  List<CaptionWord> words,
+  Map<String, dynamic>? style,
+) {
   final maxWords = (style?['max_words'] as num?)?.toInt() ?? 7;
   final maxChars = (style?['max_chars'] as num?)?.toInt() ?? 38;
   final maxGap = (style?['max_gap'] as num?)?.toDouble() ?? 0.8;
@@ -22,7 +25,8 @@ List<List<CaptionWord>> groupCaptionLines(List<CaptionWord> words, Map<String, d
   for (final w in words) {
     if (cur.isNotEmpty) {
       final p = cur.last;
-      final breaks = w.start - p.end > maxGap ||
+      final breaks =
+          w.start - p.end > maxGap ||
           cur.length >= (maxWords < 1 ? 1 : maxWords) ||
           chars + 1 + w.text.runes.length > (maxChars < 1 ? 1 : maxChars) ||
           p.text.endsWith('.') ||
@@ -42,7 +46,10 @@ List<List<CaptionWord>> groupCaptionLines(List<CaptionWord> words, Map<String, d
 }
 
 /// What to show at output time [t]: the line and which word is active.
-({List<CaptionWord> line, int active})? captionAt(List<List<CaptionWord>> lines, double t) {
+({List<CaptionWord> line, int active})? captionAt(
+  List<List<CaptionWord>> lines,
+  double t,
+) {
   for (final l in lines) {
     final start = l.first.start;
     final end = l.last.end;
@@ -60,7 +67,12 @@ List<List<CaptionWord>> groupCaptionLines(List<CaptionWord> words, Map<String, d
 
 /// Burned-in caption preview, positioned and styled like the render.
 class CaptionOverlay extends StatelessWidget {
-  const CaptionOverlay({super.key, required this.lines, required this.style, required this.time});
+  const CaptionOverlay({
+    super.key,
+    required this.lines,
+    required this.style,
+    required this.time,
+  });
 
   final List<List<CaptionWord>> lines;
   final Map<String, dynamic>? style;
@@ -97,7 +109,15 @@ class CaptionOverlay extends StatelessWidget {
               fontSize: size.clamp(8, 400),
               fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
               color: c,
-              shadows: [for (final o in const [Offset(1, 1), Offset(-1, -1), Offset(1, -1), Offset(-1, 1)]) Shadow(color: outline, offset: o * (size / 28).clamp(1, 4))],
+              shadows: [
+                for (final o in const [
+                  Offset(1, 1),
+                  Offset(-1, -1),
+                  Offset(1, -1),
+                  Offset(-1, 1),
+                ])
+                  Shadow(color: outline, offset: o * (size / 28).clamp(1, 4)),
+              ],
             );
             final spans = <InlineSpan>[];
             if (mode == 'word_by_word') {
@@ -106,14 +126,27 @@ class CaptionOverlay extends StatelessWidget {
             } else {
               for (var i = 0; i < hit.line.length; i++) {
                 final on = mode == 'karaoke' && i == hit.active;
-                spans.add(TextSpan(text: '${i == 0 ? '' : ' '}${tx(hit.line[i].text)}', style: base(on ? highlight : primary)));
+                spans.add(
+                  TextSpan(
+                    text: '${i == 0 ? '' : ' '}${tx(hit.line[i].text)}',
+                    style: base(on ? highlight : primary),
+                  ),
+                );
               }
             }
             return Align(
               alignment: align,
               child: Padding(
-                padding: EdgeInsets.only(left: box.maxWidth * 0.06, right: box.maxWidth * 0.06, bottom: pos == 'bottom' ? margin : 0, top: pos == 'top' ? margin : 0),
-                child: Text.rich(TextSpan(children: spans), textAlign: TextAlign.center),
+                padding: EdgeInsets.only(
+                  left: box.maxWidth * 0.06,
+                  right: box.maxWidth * 0.06,
+                  bottom: pos == 'bottom' ? margin : 0,
+                  top: pos == 'top' ? margin : 0,
+                ),
+                child: Text.rich(
+                  TextSpan(children: spans),
+                  textAlign: TextAlign.center,
+                ),
               ),
             );
           },
@@ -122,5 +155,3 @@ class CaptionOverlay extends StatelessWidget {
     );
   }
 }
-
-

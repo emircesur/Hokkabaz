@@ -20,6 +20,7 @@ pub mod live;
 pub mod llm;
 pub mod longform;
 pub mod pipeline;
+pub mod platforms;
 pub mod project;
 pub mod publish;
 pub mod reframe;

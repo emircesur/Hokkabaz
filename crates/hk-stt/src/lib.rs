@@ -17,8 +17,8 @@ mod transcript;
 pub mod whisper;
 
 pub use chunked::{
-    AudioSplitter, ChunkOpts, ChunkResult, ChunkedTranscriber, ProgressFn, plan_chunks, stitch,
-    with_progress,
+    AudioSplitter, ChunkOpts, ChunkResult, ChunkedTranscriber, ProgressFn, plan_chunks,
+    report as report_progress, stitch, with_progress,
 };
 pub use config::{SttConfig, SttProvider, build_chunked_transcriber, build_transcriber};
 pub use error::{Result, SttError};

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ffi/ffi.dart' show rustInitErrorProvider;
+import '../../ffi/hk_gate.dart';
 import '../../src/rust/api/studio.dart' as api;
 import '../chat/chat_providers.dart' show describeError;
 import 'studio_models.dart';
@@ -25,10 +26,19 @@ class StudioList extends AsyncNotifier<List<ProjectSummary>> {
   Future<void> refresh() async => state = AsyncData(await _load());
 
   /// Returns the new project id, or throws.
-  Future<String> import(String path, {String? name, void Function(double)? onProgress}) async {
+  Future<String> import(
+    String path, {
+    String? name,
+    void Function(double)? onProgress,
+  }) async {
     // On a connected instance the video has to get there first.
     final where = await studioUploadFor(path, onProgress: onProgress);
-    final p = StudioProjectData.parse(await api.studioImport(path: where, name: name ?? path.split(RegExp(r'[\\/]')).last));
+    final p = StudioProjectData.parse(
+      await api.studioImport(
+        path: where,
+        name: name ?? path.split(RegExp(r'[\\/]')).last,
+      ),
+    );
     await refresh();
     return p.id;
   }
@@ -39,7 +49,8 @@ class StudioList extends AsyncNotifier<List<ProjectSummary>> {
   }
 }
 
-final studioListProvider = AsyncNotifierProvider<StudioList, List<ProjectSummary>>(StudioList.new);
+final studioListProvider =
+    AsyncNotifierProvider<StudioList, List<ProjectSummary>>(StudioList.new);
 
 class SelectedStudioProject extends Notifier<String?> {
   @override
@@ -47,7 +58,8 @@ class SelectedStudioProject extends Notifier<String?> {
   void select(String? id) => state = id;
 }
 
-final selectedStudioProjectProvider = NotifierProvider<SelectedStudioProject, String?>(SelectedStudioProject.new);
+final selectedStudioProjectProvider =
+    NotifierProvider<SelectedStudioProject, String?>(SelectedStudioProject.new);
 
 class StudioState {
   const StudioState({
@@ -129,7 +141,9 @@ class StudioController extends Notifier<StudioState> {
       _debounce?.cancel();
       _sub?.cancel();
     });
-    _sub = api.studioEvents(id: projectId).listen(_onEvent, onError: (Object e) => _notice(describeError(e)));
+    _sub = api
+        .studioEvents(id: projectId)
+        .listen(_onEvent, onError: (Object e) => _notice(describeError(e)));
     Future.microtask(reload);
     return const StudioState();
   }
@@ -155,7 +169,12 @@ class StudioController extends Notifier<StudioState> {
       case 'clips_changed' || 'transcribed' || 'resync':
         _scheduleReload();
       case 'render_progress':
-        state = state.copyWith(renderProgress: {...state.renderProgress, ev.clip ?? '': ev.fraction ?? 0});
+        state = state.copyWith(
+          renderProgress: {
+            ...state.renderProgress,
+            ev.clip ?? '': ev.fraction ?? 0,
+          },
+        );
       case 'render_done':
         final progress = {...state.renderProgress}..remove(ev.clip);
         state = state.copyWith(
@@ -166,7 +185,11 @@ class StudioController extends Notifier<StudioState> {
         );
       case 'render_failed':
         final progress = {...state.renderProgress}..remove(ev.clip);
-        state = state.copyWith(renderProgress: progress, busy: {...state.busy}..remove('render'), notice: 'Render failed: ${ev.error}');
+        state = state.copyWith(
+          renderProgress: progress,
+          busy: {...state.busy}..remove('render'),
+          notice: 'Render failed: ${ev.error}',
+        );
     }
   }
 
@@ -177,17 +200,24 @@ class StudioController extends Notifier<StudioState> {
 
   Future<void> reload() async {
     try {
-      final project = StudioProjectData.parse(await api.studioProject(id: projectId));
+      final project = StudioProjectData.parse(
+        await api.studioProject(id: projectId),
+      );
       var selected = state.selectedClip;
-      if (project.clip(selected) == null) selected = project.clips.firstOrNull?.id;
+      if (project.clip(selected) == null) {
+        selected = project.clips.firstOrNull?.id;
+      }
       final h = jsonDecode(await api.studioHistory(id: projectId)) as Map;
       PreviewPlan? plan;
       if (selected != null) {
-        plan = PreviewPlan.parse(await api.studioPreview(id: projectId, clip: selected));
+        plan = PreviewPlan.parse(
+          await api.studioPreview(id: projectId, clip: selected),
+        );
         if (studioRemote && plan.broll.isNotEmpty) {
           // Stock images live on the instance: hand the player URLs.
           plan = plan.withBroll([
-            for (final b in plan.broll) b.withAsset(b.asset.isEmpty ? '' : await studioMediaFor(b.asset)),
+            for (final b in plan.broll)
+              b.withAsset(b.asset.isEmpty ? '' : await studioMediaFor(b.asset)),
           ]);
         }
       }
@@ -214,12 +244,18 @@ class StudioController extends Notifier<StudioState> {
         lastEditBy: state.lastEditBy,
       );
     } catch (e) {
-      if (!_disposed) state = state.copyWith(loading: false, notice: describeError(e));
+      if (!_disposed) {
+        state = state.copyWith(loading: false, notice: describeError(e));
+      }
     }
   }
 
   Future<void> selectClip(String? id) async {
-    state = state.copyWith(selectedClip: id, clearClip: id == null, clearPlan: true);
+    state = state.copyWith(
+      selectedClip: id,
+      clearClip: id == null,
+      clearPlan: true,
+    );
     await reload();
   }
 
@@ -265,78 +301,181 @@ class StudioController extends Notifier<StudioState> {
     }
   }
 
-  Future<T?> _job<T>(String name, Future<T> Function() fn, {String? done}) async {
+  Future<T?> _job<T>(
+    String name,
+    Future<T> Function() fn, {
+    String? done,
+  }) async {
     if (state.busy.contains(name)) return null;
     state = state.copyWith(busy: {...state.busy, name}, clearNotice: true);
     try {
       final out = await fn();
-      if (!_disposed) state = state.copyWith(busy: {...state.busy}..remove(name), notice: done);
+      if (!_disposed) {
+        state = state.copyWith(
+          busy: {...state.busy}..remove(name),
+          notice: done,
+        );
+      }
       await reload();
       return out;
     } catch (e) {
-      if (!_disposed) state = state.copyWith(busy: {...state.busy}..remove(name), notice: describeError(e));
+      if (!_disposed) {
+        state = state.copyWith(
+          busy: {...state.busy}..remove(name),
+          notice: describeError(e),
+        );
+      }
       return null;
     }
   }
 
-  Future<void> transcribe() => _job('transcribe', () => api.studioTranscribe(id: projectId), done: 'Transcript ready');
-
-  Future<List<String>?> analyze({int count = 8, double minSecs = 15, double maxSecs = 75, String? brief, String? template}) => _job(
-    'analyze',
-    () async {
-      final raw = await api.studioAnalyze(id: projectId, count: count, minSecs: minSecs, maxSecs: maxSecs, brief: brief, template: template);
-      return (jsonDecode(raw) as List).cast<String>();
-    },
-    done: 'Highlights added',
+  Future<void> transcribe() => _job(
+    'transcribe',
+    () => api.studioTranscribe(id: projectId),
+    done: 'Transcript ready',
   );
 
-  Future<void> reframe(String clip, {bool square = false}) => _job('reframe', () => api.studioReframe(id: projectId, clip: clip, square: square), done: 'Subject tracked');
+  Future<List<String>?> analyze({
+    int count = 8,
+    double minSecs = 15,
+    double maxSecs = 75,
+    String? brief,
+    String? template,
+  }) => _job('analyze', () async {
+    final raw = await api.studioAnalyze(
+      id: projectId,
+      count: count,
+      minSecs: minSecs,
+      maxSecs: maxSecs,
+      brief: brief,
+      template: template,
+    );
+    return (jsonDecode(raw) as List).cast<String>();
+  }, done: 'Highlights added');
 
-  Future<void> broll(String clip, {int max = 4}) => _job('broll', () => api.studioBroll(id: projectId, clip: clip, max: max), done: 'B-roll added');
+  Future<void> reframe(String clip, {bool square = false}) => _job(
+    'reframe',
+    () => api.studioReframe(id: projectId, clip: clip, square: square),
+    done: 'Subject tracked',
+  );
 
-  Future<void> social(String clip, {List<String> platforms = const [], String? tone, String? language}) => _job(
+  Future<void> broll(String clip, {int max = 4}) => _job(
+    'broll',
+    () => api.studioBroll(id: projectId, clip: clip, max: max),
+    done: 'B-roll added',
+  );
+
+  Future<void> social(
+    String clip, {
+    List<String> platforms = const [],
+    String? tone,
+    String? language,
+  }) => _job(
     'social',
-    () => api.studioSocial(id: projectId, clip: clip, platformsJson: jsonEncode(platforms), tone: tone, language: language),
+    () => api.studioSocial(
+      id: projectId,
+      clip: clip,
+      platformsJson: jsonEncode(platforms),
+      tone: tone,
+      language: language,
+    ),
     done: 'Post copy ready',
   );
 
   Future<void> render(String clip) async {
     if (state.busy.contains('render')) return;
-    state = state.copyWith(busy: {...state.busy, 'render'}, renderProgress: {...state.renderProgress, clip: 0}, clearNotice: true);
+    state = state.copyWith(
+      busy: {...state.busy, 'render'},
+      renderProgress: {...state.renderProgress, clip: 0},
+      clearNotice: true,
+    );
     try {
       await api.studioRender(id: projectId, clip: clip);
     } catch (e) {
-      state = state.copyWith(busy: {...state.busy}..remove('render'), notice: describeError(e));
+      state = state.copyWith(
+        busy: {...state.busy}..remove('render'),
+        notice: describeError(e),
+      );
     }
   }
 
   /// Build the clip's Concat project from the current edit and open the Concat window on it.
-  Future<void> concatEdit(String clip, {bool open = true, bool rebuild = false}) => _job(
+  Future<void> concatEdit(
+    String clip, {
+    bool open = true,
+    bool rebuild = false,
+  }) => _job(
     'concat',
-    () => api.studioConcatEdit(id: projectId, clip: clip, open: open, rebuild: rebuild),
-    done: open ? 'Concat is open. Edit there, save, close the window, then press "Render with Concat".' : 'Concat project rebuilt from the Studio edit',
+    () => api.studioConcatEdit(
+      id: projectId,
+      clip: clip,
+      open: open,
+      rebuild: rebuild,
+    ),
+    done: open
+        ? 'Concat is open. Edit there, save, close the window, then press "Render with Concat".'
+        : 'Concat project rebuilt from the Studio edit',
   );
 
   /// Export the clip's Concat project with Concat's engine; progress arrives like a normal render.
   Future<void> concatRender(String clip) async {
     if (state.busy.contains('render')) return;
-    state = state.copyWith(busy: {...state.busy, 'render'}, renderProgress: {...state.renderProgress, clip: 0}, clearNotice: true);
+    state = state.copyWith(
+      busy: {...state.busy, 'render'},
+      renderProgress: {...state.renderProgress, clip: 0},
+      clearNotice: true,
+    );
     try {
-      await api.studioConcatEdit(id: projectId, clip: clip, open: false, rebuild: false);
+      await api.studioConcatEdit(
+        id: projectId,
+        clip: clip,
+        open: false,
+        rebuild: false,
+      );
       await api.studioConcatRender(id: projectId, clip: clip);
     } catch (e) {
-      state = state.copyWith(busy: {...state.busy}..remove('render'), renderProgress: {...state.renderProgress}..remove(clip), notice: describeError(e));
+      state = state.copyWith(
+        busy: {...state.busy}..remove('render'),
+        renderProgress: {...state.renderProgress}..remove(clip),
+        notice: describeError(e),
+      );
     }
   }
 
   /// Upload to YouTube; returns the video URL.
-  Future<String?> publishYoutube(String clip, {String privacy = 'private'}) => _job(
-    'publish',
-    () => api.studioPublishYoutube(id: projectId, clip: clip, privacy: privacy),
-  ).then((url) {
-    if (url != null) _notice('Uploaded ($privacy): $url');
-    return url;
-  });
+  Future<String?> publishYoutube(String clip, {String privacy = 'private'}) =>
+      _job(
+        'publish',
+        () => api.studioPublishYoutube(
+          id: projectId,
+          clip: clip,
+          privacy: privacy,
+        ),
+      ).then((url) {
+        if (url != null) _notice('Uploaded ($privacy): $url');
+        return url;
+      });
+
+  /// Publish via the platform's official API (TikTok, Instagram, X, LinkedIn, YouTube).
+  Future<String?> publishTo(
+    String clip,
+    String platform, {
+    String privacy = 'private',
+  }) =>
+      _job(
+        'publish',
+        () async =>
+            ((await hk('studio.publish', {
+                  'id': projectId,
+                  'clip': clip,
+                  'platform': platform,
+                  'privacy': privacy,
+                })) as Map)['url']
+                as String?,
+      ).then((url) {
+        if (url != null) _notice('Published to $platform ($privacy): $url');
+        return url;
+      });
 
   /// Remote Studio: fetch the rendered clip and let the user choose where to keep it.
   Future<String?> saveRendered(String clip) async {
@@ -367,16 +506,19 @@ class StudioController extends Notifier<StudioState> {
   }
 }
 
-final studioControllerProvider = NotifierProvider.autoDispose.family<StudioController, StudioState, String>(StudioController.new);
+final studioControllerProvider = NotifierProvider.autoDispose
+    .family<StudioController, StudioState, String>(StudioController.new);
 
 /// Templates, caption presets and platforms.
 final studioCatalogProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   if (ref.watch(rustInitErrorProvider) != null) return const {};
-  return (jsonDecode(await api.studioTemplates()) as Map).cast<String, dynamic>();
+  return (jsonDecode(await api.studioTemplates()) as Map)
+      .cast<String, dynamic>();
 });
 
 /// `{ffmpeg: bool, ...}`; the screen warns when ffmpeg is missing.
 final studioToolsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   if (ref.watch(rustInitErrorProvider) != null) return const {};
-  return (jsonDecode(await api.studioCheckTools()) as Map).cast<String, dynamic>();
+  return (jsonDecode(await api.studioCheckTools()) as Map)
+      .cast<String, dynamic>();
 });

@@ -30,6 +30,10 @@ pub const KEY_PEXELS: &str = "studio/pexels_key";
 pub const KEY_PIXABAY: &str = "studio/pixabay_key";
 pub const KEY_YT_SECRET: &str = "studio/youtube_secret";
 pub const KEY_YT_REFRESH: &str = "studio/youtube_refresh";
+/// `studio/<platform>_token` for TikTok, Instagram, X, LinkedIn.
+fn platform_key(p: &str) -> String {
+    format!("studio/{p}_token")
+}
 
 /// Studio preferences (keys are in the secret store, never here).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -59,6 +63,10 @@ pub struct StudioSettings {
     pub tracking: Option<crate::vision::TrackingOpts>,
     /// Google OAuth client id for YouTube uploads (secret + refresh token are in the secret store).
     pub youtube_client_id: Option<String>,
+    /// Instagram business account id (Graph API `ig-user-id`).
+    pub instagram_user_id: Option<String>,
+    /// LinkedIn author URN, e.g. `urn:li:person:abc` or `urn:li:organization:123`.
+    pub linkedin_author: Option<String>,
 }
 
 impl StudioSettings {
@@ -223,6 +231,18 @@ impl Backends for AppBackends {
         })
     }
 
+    fn platform_creds(&self, platform: &str) -> Option<crate::platforms::PlatformCreds> {
+        let s = self.snapshot();
+        Some(crate::platforms::PlatformCreds {
+            token: self.secret(&platform_key(platform))?,
+            account: match platform {
+                "instagram_reels" => s.instagram_user_id,
+                "linkedin" => s.linkedin_author,
+                _ => None,
+            },
+        })
+    }
+
     fn face_model_dir(&self) -> Option<PathBuf> {
         Some(self.data_dir.join("models"))
     }
@@ -335,10 +355,7 @@ impl StudioHost {
         let token = job.token().clone();
         let j2 = job.clone();
         let progress: hk_stt::ProgressFn = std::sync::Arc::new(move |done, total| {
-            j2.phase(format!(
-                "transcribing part {}/{total}",
-                (done + 1).min(total)
-            ));
+            j2.phase(format!("{label} {}/{total}", (done + 1).min(total)));
             j2.progress(hk_core::Progress::Determinate(
                 done as f32 / total.max(1) as f32 * 0.97,
             ));
@@ -349,14 +366,13 @@ impl StudioHost {
             () = token.cancelled() => Err(StudioError::Invalid(format!("{label} cancelled"))),
             r = work => r,
         };
-        match std::sync::Arc::try_unwrap(job) {
-            Ok(j) => match &res {
+        // If a progress callback still holds a clone, dropping marks it failed/cancelled.
+        if let Ok(j) = std::sync::Arc::try_unwrap(job) {
+            match &res {
                 Ok(_) => j.finish(),
                 Err(_) if j.is_cancelled() => j.cancelled(),
                 Err(e) => j.fail(e.to_string()),
-            },
-            // A progress callback still holds a clone; dropping marks it failed/cancelled.
-            Err(_) => {}
+            }
         }
         res
     }
@@ -376,6 +392,7 @@ impl StudioHost {
                     "settings": s,
                     "has_stt_key": has(KEY_STT), "has_pexels_key": has(KEY_PEXELS), "has_pixabay_key": has(KEY_PIXABAY),
                     "has_youtube_secret": has(KEY_YT_SECRET), "has_youtube_refresh": has(KEY_YT_REFRESH),
+                    "has_platform_token": crate::platforms::PLATFORMS.iter().map(|p| (p.to_string(), json!(has(&platform_key(p))))).collect::<serde_json::Map<_, _>>(),
                 }))
             }
             "save_settings" => {
@@ -399,6 +416,11 @@ impl StudioHost {
                     "pixabay" => KEY_PIXABAY,
                     "youtube_secret" => KEY_YT_SECRET,
                     "youtube_refresh" => KEY_YT_REFRESH,
+                    o if crate::platforms::PLATFORMS.contains(&o) => {
+                        let key: Option<String> = opt(&p, "key")?;
+                        put_secret(self.secrets.as_ref(), &platform_key(o), key.as_deref())?;
+                        return Ok(Value::Null);
+                    }
                     o => return Err(StudioError::Invalid(format!("unknown key `{o}`"))),
                 };
                 let key: Option<String> = opt(&p, "key")?;
@@ -650,6 +672,20 @@ impl StudioHost {
                 Ok(svc.analytics(&arg::<String>(&p, "id")?, &pairs).await?)
             }
             "diarize" => Ok(json!(svc.diarize(&arg::<String>(&p, "id")?).await?)),
+            "multicam" => {
+                let angles: Vec<PathBuf> = arg::<Vec<String>>(&p, "angles")?
+                    .into_iter()
+                    .map(PathBuf::from)
+                    .collect();
+                let (out, shots) = svc
+                    .multicam(
+                        &arg::<String>(&p, "id")?,
+                        &angles,
+                        opt(&p, "min_shot_s")?.unwrap_or(3.0),
+                    )
+                    .await?;
+                Ok(json!({"path": out.to_string_lossy(), "shots": shots}))
+            }
             "dub" => {
                 let tts: hk_genai::TtsConfig = arg(&p, "tts")?;
                 Ok(json!(
@@ -747,6 +783,22 @@ impl StudioHost {
                     .await?
                     .url
                 ))
+            }
+            "publish" => {
+                let privacy = match opt::<String>(&p, "privacy")?.as_deref() {
+                    Some("public") => crate::publish::Privacy::Public,
+                    Some("unlisted") => crate::publish::Privacy::Unlisted,
+                    _ => crate::publish::Privacy::Private,
+                };
+                let r = svc
+                    .publish_to(
+                        &arg::<String>(&p, "id")?,
+                        &arg::<String>(&p, "clip")?,
+                        &arg::<String>(&p, "platform")?,
+                        privacy,
+                    )
+                    .await?;
+                Ok(json!({"id": r.id, "url": r.url}))
             }
             "export" => {
                 let dir: String = arg(&p, "dir")?;
@@ -863,6 +915,8 @@ fn long_op(method: &str) -> Option<(hk_core::JobKind, &'static str)> {
         "hook" => (other("hook"), "Hook review"),
         "thumbnails" => (other("thumbnails"), "Thumbnails"),
         "analytics" => (other("analytics"), "YouTube analytics"),
+        "publish" | "publish_youtube" => (other("publish"), "Publish"),
+        "multicam" => (other("multicam"), "Multicam edit"),
         _ => return None,
     })
 }

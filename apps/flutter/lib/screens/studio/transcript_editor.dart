@@ -11,7 +11,11 @@ import 'transcript_logic.dart';
 /// Text-based editing: click a word to jump there, select words and delete them
 /// (the video skips them immediately), restore with another click.
 class TranscriptEditor extends ConsumerStatefulWidget {
-  const TranscriptEditor({super.key, required this.projectId, required this.player});
+  const TranscriptEditor({
+    super.key,
+    required this.projectId,
+    required this.player,
+  });
 
   final String projectId;
   final EdlPlayerController player;
@@ -45,21 +49,28 @@ class _TranscriptEditorState extends ConsumerState<TranscriptEditor> {
     super.dispose();
   }
 
-  List<PreviewWord> get _words => ref.read(studioControllerProvider(widget.projectId)).plan?.words ?? const [];
+  List<PreviewWord> get _words =>
+      ref.read(studioControllerProvider(widget.projectId)).plan?.words ??
+      const [];
 
   void _syncActive() {
     final pos = activeWordPos(_words, widget.player.outTime.value);
     if (pos != _active.value) _active.value = pos;
   }
 
-  StudioController get _ctl => ref.read(studioControllerProvider(widget.projectId).notifier);
+  StudioController get _ctl =>
+      ref.read(studioControllerProvider(widget.projectId).notifier);
 
   void _tap(int pos, bool extend) {
     final w = _words[pos];
     setState(() {
-      _sel = (extend || _extendMode) && _sel != null ? _sel!.extendTo(pos) : WordSelection(pos, pos);
+      _sel = (extend || _extendMode) && _sel != null
+          ? _sel!.extendTo(pos)
+          : WordSelection(pos, pos);
     });
-    if (w.outStart != null && !(extend || _extendMode)) widget.player.seekOut(w.outStart!);
+    if (w.outStart != null && !(extend || _extendMode)) {
+      widget.player.seekOut(w.outStart!);
+    }
     _focus.requestFocus();
   }
 
@@ -92,7 +103,9 @@ class _TranscriptEditorState extends ConsumerState<TranscriptEditor> {
   KeyEventResult _key(FocusNode node, KeyEvent e) {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
-    final ctrl = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
+    final ctrl =
+        HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
     final shift = HardwareKeyboard.instance.isShiftPressed;
     if (k == LogicalKeyboardKey.delete || k == LogicalKeyboardKey.backspace) {
       _deleteSelection();
@@ -134,11 +147,21 @@ class _TranscriptEditorState extends ConsumerState<TranscriptEditor> {
             const Text('No transcript yet.'),
             const SizedBox(height: HkTokens.s2),
             FilledButton.icon(
-              onPressed: state.busy.contains('transcribe') ? null : _ctl.transcribe,
+              onPressed: state.busy.contains('transcribe')
+                  ? null
+                  : _ctl.transcribe,
               icon: state.busy.contains('transcribe')
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Icon(Icons.subtitles_outlined),
-              label: Text(state.busy.contains('transcribe') ? 'Transcribing…' : 'Transcribe'),
+              label: Text(
+                state.busy.contains('transcribe')
+                    ? 'Transcribing…'
+                    : 'Transcribe',
+              ),
             ),
           ],
         ),
@@ -148,7 +171,10 @@ class _TranscriptEditorState extends ConsumerState<TranscriptEditor> {
     final paras = paragraphs(words);
     final sel = _sel;
     final canAct = sel != null && sel.hi < words.length;
-    final allDeleted = canAct && [for (var i = sel.lo; i <= sel.hi; i++) words[i]].every((w) => w.deleted);
+    final allDeleted =
+        canAct &&
+        [for (var i = sel.lo; i <= sel.hi; i++) words[i]]
+            .every((w) => w.deleted);
     return Focus(
       focusNode: _focus,
       onKeyEvent: _key,
@@ -156,7 +182,10 @@ class _TranscriptEditorState extends ConsumerState<TranscriptEditor> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: HkTokens.s2, vertical: HkTokens.s1),
+            padding: const EdgeInsets.symmetric(
+              horizontal: HkTokens.s2,
+              vertical: HkTokens.s1,
+            ),
             child: Wrap(
               spacing: HkTokens.s2,
               runSpacing: HkTokens.s1,
@@ -173,7 +202,9 @@ class _TranscriptEditorState extends ConsumerState<TranscriptEditor> {
                       isDense: true,
                       hintText: 'Find in transcript',
                       prefixIcon: const Icon(Icons.search, size: 18),
-                      suffixText: _hits.isEmpty ? null : '${_hit + 1}/${_hits.length}',
+                      suffixText: _hits.isEmpty
+                          ? null
+                          : '${_hit + 1}/${_hits.length}',
                       border: const OutlineInputBorder(),
                     ),
                     onSubmitted: (_) {
@@ -185,7 +216,10 @@ class _TranscriptEditorState extends ConsumerState<TranscriptEditor> {
                 ),
                 FilledButton.tonalIcon(
                   onPressed: canAct ? _deleteSelection : null,
-                  icon: Icon(allDeleted ? Icons.restore : Icons.delete_outline, size: 18),
+                  icon: Icon(
+                    allDeleted ? Icons.restore : Icons.delete_outline,
+                    size: 18,
+                  ),
                   label: Text(allDeleted ? 'Restore' : 'Delete'),
                 ),
                 OutlinedButton(
@@ -201,7 +235,8 @@ class _TranscriptEditorState extends ConsumerState<TranscriptEditor> {
                   label: const Text('Select range'),
                   selected: _extendMode,
                   onSelected: (v) => setState(() => _extendMode = v),
-                  tooltip: 'Tap to extend the selection (Shift+click on desktop)',
+                  tooltip:
+                      'Tap to extend the selection (Shift+click on desktop)',
                 ),
                 FilterChip(
                   label: const Text('Cut fillers'),
@@ -302,12 +337,18 @@ class _WordChip extends StatelessWidget {
         return Tooltip(
           message: word.deleted && !explicit ? 'Removed by "Cut fillers"' : '',
           child: GestureDetector(
-            onTap: () => onTap(HardwareKeyboard.instance.isShiftPressed || HardwareKeyboard.instance.isControlPressed),
+            onTap: () => onTap(
+              HardwareKeyboard.instance.isShiftPressed ||
+                  HardwareKeyboard.instance.isControlPressed,
+            ),
             child: MouseRegion(
               cursor: SystemMouseCursors.click,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(4),
+                ),
                 child: Text(
                   word.text,
                   style: TextStyle(
@@ -319,7 +360,9 @@ class _WordChip extends StatelessWidget {
                         ? TextDecoration.underline
                         : null,
                     decorationColor: word.deleted ? hk.err : hk.warn,
-                    decorationStyle: word.filler && !word.deleted ? TextDecorationStyle.dashed : null,
+                    decorationStyle: word.filler && !word.deleted
+                        ? TextDecorationStyle.dashed
+                        : null,
                   ),
                 ),
               ),

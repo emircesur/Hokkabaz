@@ -154,3 +154,184 @@ impl Tools {
             .map(drop)
     }
 }
+
+/// One stretch of the multicam edit: output `[start, end)` seconds shows `angle`.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Shot {
+    pub start: f64,
+    pub end: f64,
+    pub angle: usize,
+}
+
+/// Active-speaker switching over time-aligned envelopes (one per angle, at `ENV_RATE`).
+///
+/// Each angle's loudness is divided by its own mean so a hot mic doesn't win every window.
+/// A new angle takes over only when it beats the current one by `margin` and the current shot
+/// has lasted `min_shot_s`, which keeps the cut from flickering on crosstalk.
+pub fn switch_plan(envs: &[Vec<f32>], hop_s: f64, min_shot_s: f64, margin: f32) -> Vec<Shot> {
+    let len = envs.iter().map(Vec::len).min().unwrap_or(0);
+    if envs.is_empty() || len == 0 {
+        return Vec::new();
+    }
+    let rate = f64::from(ENV_RATE);
+    let hop = ((hop_s * rate) as usize).max(1);
+    let norm: Vec<f32> = envs
+        .iter()
+        .map(|e| (e[..len].iter().sum::<f32>() / len as f32).max(1e-6))
+        .collect();
+    let mut shots: Vec<Shot> = Vec::new();
+    let mut cur = 0usize;
+    let mut since = 0usize;
+    for (w, start) in (0..len).step_by(hop).enumerate() {
+        let end = (start + hop).min(len);
+        let score =
+            |a: usize| envs[a][start..end].iter().sum::<f32>() / (end - start) as f32 / norm[a];
+        let best = (0..envs.len())
+            .max_by(|&a, &b| score(a).total_cmp(&score(b)))
+            .unwrap_or(0);
+        if w == 0 {
+            cur = best;
+        } else if best != cur
+            && score(best) > score(cur) * margin
+            && (start - since) as f64 / rate >= min_shot_s
+        {
+            shots.push(Shot {
+                start: since as f64 / rate,
+                end: start as f64 / rate,
+                angle: cur,
+            });
+            cur = best;
+            since = start;
+        }
+    }
+    shots.push(Shot {
+        start: since as f64 / rate,
+        end: len as f64 / rate,
+        angle: cur,
+    });
+    shots
+}
+
+impl Tools {
+    /// Render a multicam edit: each shot is cut from its angle (shifted by that angle's sync
+    /// offset), normalized to 1080p30, joined with the concat demuxer, and laid over the
+    /// `audio` file's track. Per-shot encodes keep memory flat on hour-long podcasts.
+    pub async fn multicam_render(
+        &self,
+        angles: &[(std::path::PathBuf, f64)],
+        shots: &[Shot],
+        audio: &Path,
+        out: &Path,
+        progress: &(dyn Fn(usize, usize) + Send + Sync),
+    ) -> Result<()> {
+        if shots.is_empty() {
+            return Err(crate::MediaError::InvalidSpec("no shots".into()));
+        }
+        let work = out.with_extension("parts");
+        tokio::fs::create_dir_all(&work).await?;
+        let mut list = String::new();
+        for (i, s) in shots.iter().enumerate() {
+            progress(i, shots.len() + 1);
+            let (src, off) = angles
+                .get(s.angle)
+                .ok_or_else(|| crate::MediaError::InvalidSpec(format!("angle {}", s.angle)))?;
+            let part = work.join(format!("{i:05}.mp4"));
+            let args: Vec<String> = vec![
+                "-hide_banner".into(),
+                "-nostdin".into(),
+                "-y".into(),
+                "-loglevel".into(),
+                "error".into(),
+                "-ss".into(),
+                format!("{:.3}", (s.start + off).max(0.0)),
+                "-i".into(),
+                src.display().to_string(),
+                "-t".into(),
+                format!("{:.3}", s.end - s.start),
+                "-an".into(),
+                "-vf".into(),
+                "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30".into(),
+                "-c:v".into(),
+                "libx264".into(),
+                "-preset".into(),
+                "veryfast".into(),
+                "-crf".into(),
+                "20".into(),
+                "-pix_fmt".into(),
+                "yuv420p".into(),
+                part.display().to_string(),
+            ];
+            crate::proc::run_capture(&self.ffmpeg, &args).await?;
+            list.push_str(&format!(
+                "file '{}'\n",
+                part.display().to_string().replace('\'', "'\\''")
+            ));
+        }
+        progress(shots.len(), shots.len() + 1);
+        let list_path = work.join("list.txt");
+        tokio::fs::write(&list_path, list).await?;
+        let total = shots.last().map_or(0.0, |s| s.end);
+        let args: Vec<String> = vec![
+            "-hide_banner".into(),
+            "-nostdin".into(),
+            "-y".into(),
+            "-loglevel".into(),
+            "error".into(),
+            "-f".into(),
+            "concat".into(),
+            "-safe".into(),
+            "0".into(),
+            "-i".into(),
+            list_path.display().to_string(),
+            "-i".into(),
+            audio.display().to_string(),
+            "-map".into(),
+            "0:v".into(),
+            "-map".into(),
+            "1:a?".into(),
+            "-c:v".into(),
+            "copy".into(),
+            "-c:a".into(),
+            "aac".into(),
+            "-b:a".into(),
+            "192k".into(),
+            "-t".into(),
+            format!("{total:.3}"),
+            out.display().to_string(),
+        ];
+        let r = crate::proc::run_capture(&self.ffmpeg, &args)
+            .await
+            .map(drop);
+        let _ = tokio::fs::remove_dir_all(&work).await;
+        r
+    }
+}
+
+#[cfg(test)]
+mod switch_tests {
+    use super::*;
+
+    #[test]
+    fn switches_to_active_speaker_with_hysteresis() {
+        let r = ENV_RATE as usize;
+        // Angle 0 talks 0–10 s, angle 1 talks 10–20 s; angle 1's mic is 5x hotter overall.
+        let mut a = vec![0.2f32; 20 * r];
+        let mut b = vec![0.1f32; 20 * r];
+        for x in &mut a[..10 * r] {
+            *x = 1.0;
+        }
+        for x in &mut b[10 * r..] {
+            *x = 5.0;
+        }
+        // A 0.3 s blip on angle 1 inside angle 0's turn must not cut.
+        for x in &mut b[4 * r..4 * r + 30] {
+            *x = 5.0;
+        }
+        let shots = switch_plan(&[a, b], 0.5, 2.0, 1.3);
+        assert_eq!(shots.len(), 2, "{shots:?}");
+        assert_eq!(shots[0].angle, 0);
+        assert_eq!(shots[1].angle, 1);
+        assert!((shots[1].start - 10.0).abs() < 0.51);
+        assert!((shots[1].end - 20.0).abs() < 1e-9);
+    }
+}

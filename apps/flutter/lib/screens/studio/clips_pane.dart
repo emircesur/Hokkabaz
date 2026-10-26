@@ -20,7 +20,9 @@ class ClipsPane extends ConsumerWidget {
     final ctl = ref.read(studioControllerProvider(projectId).notifier);
     final project = s.project;
     final hk = context.hk;
-    if (project == null) return const Center(child: CircularProgressIndicator());
+    if (project == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -31,20 +33,42 @@ class ClipsPane extends ConsumerWidget {
             runSpacing: HkTokens.s2,
             children: [
               FilledButton.icon(
-                onPressed: !project.hasTranscript || s.busy.contains('analyze') ? null : () => _analyze(context, ctl),
+                onPressed: !project.hasTranscript || s.busy.contains('analyze')
+                    ? null
+                    : () => _analyze(context, ctl),
                 icon: s.busy.contains('analyze')
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Icon(Icons.auto_awesome, size: 18),
-                label: Text(s.busy.contains('analyze') ? 'Finding…' : 'Find highlights'),
+                label: Text(
+                  s.busy.contains('analyze') ? 'Finding…' : 'Find highlights',
+                ),
               ),
-              OutlinedButton.icon(onPressed: ctl.addWholeVideo, icon: const Icon(Icons.movie_edit, size: 18), label: const Text('Whole video')),
+              OutlinedButton.icon(
+                onPressed: ctl.addWholeVideo,
+                icon: const Icon(Icons.movie_edit, size: 18),
+                label: const Text('Whole video'),
+              ),
               if (!project.hasTranscript)
                 OutlinedButton.icon(
-                  onPressed: s.busy.contains('transcribe') ? null : ctl.transcribe,
+                  onPressed: s.busy.contains('transcribe')
+                      ? null
+                      : ctl.transcribe,
                   icon: s.busy.contains('transcribe')
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Icon(Icons.subtitles_outlined, size: 18),
-                  label: Text(s.busy.contains('transcribe') ? 'Transcribing…' : 'Transcribe'),
+                  label: Text(
+                    s.busy.contains('transcribe')
+                        ? 'Transcribing…'
+                        : 'Transcribe',
+                  ),
                 ),
             ],
           ),
@@ -76,7 +100,11 @@ class ClipsPane extends ConsumerWidget {
                       onPicked?.call();
                     },
                     onRename: (t) => ctl.edit([
-                      {'op': 'rename_clip', 'clip': project.clips[i].id, 'title': t},
+                      {
+                        'op': 'rename_clip',
+                        'clip': project.clips[i].id,
+                        'title': t,
+                      },
                     ]),
                     onRemove: () => ctl.edit([
                       {'op': 'remove_clip', 'clip': project.clips[i].id},
@@ -102,22 +130,52 @@ class ClipsPane extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: brief, decoration: const InputDecoration(labelText: 'Brief (optional)', hintText: 'e.g. only funny moments')),
+              TextField(
+                controller: brief,
+                decoration: const InputDecoration(
+                  labelText: 'Brief (optional)',
+                  hintText: 'e.g. only funny moments',
+                ),
+              ),
               Row(
                 children: [
-                  Expanded(child: TextField(controller: count, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Clips'))),
+                  Expanded(
+                    child: TextField(
+                      controller: count,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Clips'),
+                    ),
+                  ),
                   const SizedBox(width: 8),
-                  Expanded(child: TextField(controller: min, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Min s'))),
+                  Expanded(
+                    child: TextField(
+                      controller: min,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Min s'),
+                    ),
+                  ),
                   const SizedBox(width: 8),
-                  Expanded(child: TextField(controller: max, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Max s'))),
+                  Expanded(
+                    child: TextField(
+                      controller: max,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Max s'),
+                    ),
+                  ),
                 ],
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Find')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Find'),
+          ),
         ],
       ),
     );
@@ -133,7 +191,15 @@ class ClipsPane extends ConsumerWidget {
 }
 
 class _ClipTile extends StatelessWidget {
-  const _ClipTile({required this.clip, required this.selected, required this.rendering, required this.rendered, required this.onTap, required this.onRename, required this.onRemove});
+  const _ClipTile({
+    required this.clip,
+    required this.selected,
+    required this.rendering,
+    required this.rendered,
+    required this.onTap,
+    required this.onRename,
+    required this.onRemove,
+  });
 
   final StudioClip clip;
   final bool selected;
@@ -154,7 +220,10 @@ class _ClipTile extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 56),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: HkTokens.s3, vertical: HkTokens.s2),
+            padding: const EdgeInsets.symmetric(
+              horizontal: HkTokens.s3,
+              vertical: HkTokens.s2,
+            ),
             child: Row(
               children: [
                 ScoreBadge(score: clip.score?.total),
@@ -163,12 +232,23 @@ class _ClipTile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(clip.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: text.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                      Text(
+                        clip.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       Text(
                         '${formatTime(clip.start)} – ${formatTime(clip.end)}  ·  ${clip.duration.toStringAsFixed(0)}s${clip.deletedWords.isEmpty ? '' : '  ·  ${clip.deletedWords.length} cut'}',
                         style: text.bodySmall?.copyWith(color: hk.textMuted),
                       ),
-                      if (rendering != null) LinearProgressIndicator(value: rendering == 0 ? null : rendering, minHeight: 3),
+                      if (rendering != null)
+                        LinearProgressIndicator(
+                          value: rendering == 0 ? null : rendering,
+                          minHeight: 3,
+                        ),
                     ],
                   ),
                 ),
@@ -185,8 +265,15 @@ class _ClipTile extends StatelessWidget {
                           title: const Text('Rename clip'),
                           content: TextField(controller: c, autofocus: true),
                           actions: [
-                            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-                            FilledButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: const Text('Rename')),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () =>
+                                  Navigator.pop(ctx, c.text.trim()),
+                              child: const Text('Rename'),
+                            ),
                           ],
                         ),
                       );
@@ -233,8 +320,20 @@ class ScoreBadge extends StatelessWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            CircularProgressIndicator(value: s == null ? 0 : s / 100, strokeWidth: 3.5, color: color, backgroundColor: hk.border),
-            Text(s?.toString() ?? '–', style: TextStyle(fontSize: size * 0.32, fontWeight: FontWeight.w700, color: color)),
+            CircularProgressIndicator(
+              value: s == null ? 0 : s / 100,
+              strokeWidth: 3.5,
+              color: color,
+              backgroundColor: hk.border,
+            ),
+            Text(
+              s?.toString() ?? '–',
+              style: TextStyle(
+                fontSize: size * 0.32,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
           ],
         ),
       ),

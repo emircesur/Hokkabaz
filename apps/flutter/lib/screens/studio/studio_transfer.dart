@@ -19,11 +19,15 @@ bool get studioRemote {
 
 /// Something a player can open for [serverPath]: the path itself locally, a short-lived URL
 /// for a connected instance.
-Future<String> studioMediaFor(String serverPath) => studioRemote ? api.studioMedia(path: serverPath) : Future.value(serverPath);
+Future<String> studioMediaFor(String serverPath) =>
+    studioRemote ? api.studioMedia(path: serverPath) : Future.value(serverPath);
 
 /// Copies [localPath] to where the Studio runs (nothing to do when that is this device).
 /// [onProgress] gets 0..1.
-Future<String> studioUploadFor(String localPath, {void Function(double)? onProgress}) async {
+Future<String> studioUploadFor(
+  String localPath, {
+  void Function(double)? onProgress,
+}) async {
   if (!studioRemote) return localPath;
   String? out;
   await for (final ev in api.studioUpload(localPath: localPath)) {
@@ -39,31 +43,37 @@ Future<String> studioUploadFor(String localPath, {void Function(double)? onProgr
 }
 
 /// Runs [work] behind a blocking progress dialog (uploads can take minutes).
-Future<T> withUploadDialog<T>(BuildContext context, String title, Future<T> Function(void Function(double) progress) work) async {
+Future<T> withUploadDialog<T>(
+  BuildContext context,
+  String title,
+  Future<T> Function(void Function(double) progress) work,
+) async {
   final value = ValueNotifier<double?>(null);
   final nav = Navigator.of(context, rootNavigator: true);
-  unawaited(showDialog<void>(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => PopScope(
-      canPop: false,
-      child: AlertDialog(
-        title: Text(title),
-        content: ValueListenableBuilder<double?>(
-          valueListenable: value,
-          builder: (_, v, _) => Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              LinearProgressIndicator(value: v),
-              const SizedBox(height: 8),
-              Text(v == null ? 'Starting…' : '${(v * 100).round()}%'),
-            ],
+  unawaited(
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: Text(title),
+          content: ValueListenableBuilder<double?>(
+            valueListenable: value,
+            builder: (_, v, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                LinearProgressIndicator(value: v),
+                const SizedBox(height: 8),
+                Text(v == null ? 'Starting…' : '${(v * 100).round()}%'),
+              ],
+            ),
           ),
         ),
       ),
     ),
-  ));
+  );
   try {
     return await work((p) => value.value = p);
   } finally {
@@ -80,7 +90,11 @@ Future<String?> saveRemoteClip(String serverPath, String suggestedName) async {
   await api.studioDownload(serverPath: serverPath, dest: dest);
   final bytes = await File(dest).readAsBytes();
   try {
-    return (await FilePicker.saveFile(dialogTitle: 'Save clip', fileName: suggestedName, bytes: bytes))?.toString();
+    return (await FilePicker.saveFile(
+      dialogTitle: 'Save clip',
+      fileName: suggestedName,
+      bytes: bytes,
+    ))?.toString();
   } finally {
     unawaitedDelete(dest);
   }
@@ -91,4 +105,5 @@ void unawaitedDelete(String path) {
 }
 
 /// Low-res proxy of the source, made on the instance on first use.
-Future<String> studioProxyFor(String projectId) => api.studioProxy(id: projectId);
+Future<String> studioProxyFor(String projectId) =>
+    api.studioProxy(id: projectId);

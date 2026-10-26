@@ -196,7 +196,8 @@ pub async fn with_progress<F: std::future::Future>(cb: ProgressFn, f: F) -> F::O
     PROGRESS.scope(cb, f).await
 }
 
-fn report(done: usize, total: usize) {
+/// Report determinate progress to the caller's [`with_progress`] callback, if any.
+pub fn report(done: usize, total: usize) {
     let _ = PROGRESS.try_with(|p| p(done, total));
 }
 

@@ -92,15 +92,16 @@ pub fn builtin_templates() -> Vec<Template> {
 /// Genre presets derived from the base styles (P9.44).
 fn more_templates() -> Vec<Template> {
     // (name, description, captions, vertical?, cut silences, remove fillers, b-roll)
-    let rows: [(
-        &str,
-        &str,
+    type Row = (
+        &'static str,
+        &'static str,
         fn() -> CaptionStyle,
         Option<fn() -> ReframeSpec>,
         bool,
         bool,
         bool,
-    ); 15] = [
+    );
+    let rows: [Row; 15] = [
         (
             "podcast-clip",
             "Podcast clip: speaker-framed 9:16, karaoke captions, tight cuts",

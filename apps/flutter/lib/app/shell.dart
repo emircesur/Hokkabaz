@@ -8,6 +8,7 @@ import '../screens/chat/approvals_inbox.dart';
 import '../screens/chat/chat_providers.dart';
 import '../theme/tokens.dart';
 import 'activity.dart';
+import 'notifications.dart';
 import 'breakpoints.dart';
 import 'command_palette.dart';
 import 'destinations.dart';
@@ -35,20 +36,39 @@ class AppShell extends ConsumerWidget {
       }
     });
     // Long jobs finishing while the user is elsewhere (DESIGN §4.8).
+    JobNotifications.instance.onCancel ??= (id) =>
+        ref.read(jobsProvider.notifier).cancel(id);
     ref.listen(jobsProvider, (prev, next) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      for (final j in next.values) {
+        if (j.parent == null && j.running && now - j.startedMs > 5000) {
+          JobNotifications.instance.progress(j);
+        }
+      }
       for (final j in next.values) {
         final before = prev?[j.id];
-        if (j.parent != null || before == null || !before.running || j.running) continue;
-        if (DateTime.now().millisecondsSinceEpoch - j.startedMs < 10000) continue;
+        if (j.parent != null ||
+            before == null ||
+            !before.running ||
+            j.running) {
+          continue;
+        }
+        if (DateTime.now().millisecondsSinceEpoch - j.startedMs < 10000) {
+          continue;
+        }
         final msg = switch (j.state) {
           'finished' => 'Done: ${j.title}',
           'failed' => 'Failed: ${j.title}',
           _ => 'Cancelled: ${j.title}',
         };
+        JobNotifications.instance.finished(j, msg);
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(
             content: Text(msg),
-            action: SnackBarAction(label: 'Activity', onPressed: () => showActivity(context)),
+            action: SnackBarAction(
+              label: 'Activity',
+              onPressed: () => showActivity(context),
+            ),
           ),
         );
       }

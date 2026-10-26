@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'app/notifications.dart';
 import 'app/router.dart';
 import 'app/theme_mode.dart';
 import 'ffi/android_runtime.dart';
@@ -15,10 +16,15 @@ Future<void> main() async {
   final rustError = await initRust();
   final coreError = await initCore(rustError);
   await requestNotificationPermission();
+  await JobNotifications.instance.init();
   runApp(
     ProviderScope(
       overrides: [
-        if (Platform.isAndroid) approvalNotifierProvider.overrideWithValue(const AndroidApprovalNotifier()),
+        approvalNotifierProvider.overrideWithValue(
+          Platform.isAndroid
+              ? const AndroidApprovalNotifier()
+              : const DesktopApprovalNotifier(),
+        ),
         rustInitErrorProvider.overrideWithValue(rustError),
         coreInitErrorProvider.overrideWithValue(coreError),
       ],

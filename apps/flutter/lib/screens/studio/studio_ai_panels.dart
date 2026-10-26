@@ -208,6 +208,35 @@ class _AiEnhancePanelState extends ConsumerState<AiEnhancePanel> {
                     .join('\n');
               }),
         ),
+        _ActionRow(
+          icon: Icons.switch_video_outlined,
+          label: 'Multicam: auto-switch to active speaker',
+          busy: _busy.contains('multicam'),
+          onTap: () async {
+            final files = await FilePicker.pickFiles(
+              dialogTitle: 'Other camera angles (this video is angle 1)',
+              type: FileType.video,
+            );
+            final angles = [
+              for (final f in files)
+                if (f.path != null) f.path!,
+            ];
+            if (angles.isEmpty) return;
+            await _run(
+              'multicam',
+              () => studioCall('multicam', {
+                'id': id,
+                'angles': angles,
+                'min_shot_s': 3.0,
+              }),
+              (r) {
+                final shots = (r['shots'] as List).length;
+                return 'Multicam edit: $shots shots across ${angles.length + 1} angles\n${r['path']}\n'
+                    'Import it from Studio home to clip it.';
+              },
+            );
+          },
+        ),
         const _Head('Translate & dub'),
         TextField(
           controller: _lang,

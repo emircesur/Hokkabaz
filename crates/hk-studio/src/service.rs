@@ -42,6 +42,10 @@ pub trait Backends: Send + Sync + std::fmt::Debug {
     fn youtube(&self) -> Option<crate::publish::YoutubeCreds> {
         None
     }
+    /// Access token (+ account id) for TikTok / Instagram / X / LinkedIn publishing.
+    fn platform_creds(&self, _platform: &str) -> Option<crate::platforms::PlatformCreds> {
+        None
+    }
     /// Where the face model lives; `None` = motion tracking only.
     fn face_model_dir(&self) -> Option<PathBuf> {
         None
@@ -472,6 +476,50 @@ impl StudioService {
     }
 
     /// Speaker-labelled transcript lines; also writes `<work>/captions/speakers.srt`.
+    /// Multicam / podcast edit (P9.38): sync each extra angle to the project source by audio,
+    /// cut to whichever angle is loudest (active speaker), keep the source's audio track.
+    /// Angle 0 is the project source itself. Returns the rendered file.
+    pub async fn multicam(
+        &self,
+        id: &str,
+        angles: &[PathBuf],
+        min_shot_s: f64,
+    ) -> Result<(PathBuf, Vec<hk_media::Shot>)> {
+        let snap = self.open(id).await?.snapshot().await;
+        let main = snap.source.path.clone();
+        let tools = &self.studio().tools;
+        let dur = snap.source.duration.max(1.0);
+        let main_env = tools.audio_envelope(&main, dur).await?;
+        let mut cams: Vec<(PathBuf, f64)> = vec![(main.clone(), 0.0)];
+        let mut envs = vec![main_env.clone()];
+        for a in angles {
+            let env = tools.audio_envelope(a, dur + 30.0).await?;
+            let win = main_env.len().min(120 * hk_media::ENV_RATE as usize);
+            let (off, _) = hk_media::best_offset(&main_env[..win], &env, 30.0);
+            let lag = (off * f64::from(hk_media::ENV_RATE)).round() as isize;
+            // Align: aligned[i] = env[i + lag].
+            let aligned: Vec<f32> = (0..main_env.len() as isize)
+                .map(|i| {
+                    usize::try_from(i + lag)
+                        .ok()
+                        .and_then(|j| env.get(j))
+                        .copied()
+                        .unwrap_or(0.0)
+                })
+                .collect();
+            envs.push(aligned);
+            cams.push((a.clone(), off));
+        }
+        let shots = hk_media::switch_plan(&envs, 0.5, min_shot_s.max(0.5), 1.3);
+        let dir = self.work_dir(id).join("multicam");
+        tokio::fs::create_dir_all(&dir).await?;
+        let out = dir.join("multicam.mp4");
+        tools
+            .multicam_render(&cams, &shots, &main, &out, &hk_stt::report_progress)
+            .await?;
+        Ok((out, shots))
+    }
+
     pub async fn diarize(&self, id: &str) -> Result<Vec<serde_json::Value>> {
         let snap = self.open(id).await?.snapshot().await;
         let llm = self.backends.llm().await?;
@@ -780,6 +828,41 @@ impl StudioService {
                 hashtags: Vec::new(),
             });
         crate::publish::Youtube::new(creds)
+            .publish(&video, &post, privacy)
+            .await
+    }
+
+    /// Publish through a platform's official API (P9.39). `youtube_shorts` reuses the YouTube path.
+    pub async fn publish_to(
+        &self,
+        id: &str,
+        clip_id: &str,
+        platform: &str,
+        privacy: crate::publish::Privacy,
+    ) -> Result<crate::publish::Published> {
+        if platform == "youtube_shorts" || platform == "youtube" {
+            return self.publish_youtube(id, clip_id, privacy).await;
+        }
+        let creds = self.backends.platform_creds(platform).ok_or_else(|| {
+            StudioError::Invalid(format!(
+                "{platform} is not set up (Studio settings → Publishing)"
+            ))
+        })?;
+        let video = self.render_path(id, clip_id).await.ok_or_else(|| {
+            StudioError::NotFound("rendered video (render the clip first)".into())
+        })?;
+        let snap = self.open(id).await?.snapshot().await;
+        let clip = snap.clip(clip_id)?;
+        let post = clip
+            .social
+            .as_ref()
+            .and_then(|s| s.posts.get(platform).cloned())
+            .unwrap_or_else(|| crate::social::PlatformPost {
+                title: clip.title.clone(),
+                description: clip.hook.clone().unwrap_or_default(),
+                hashtags: Vec::new(),
+            });
+        crate::platforms::publisher(platform, creds)?
             .publish(&video, &post, privacy)
             .await
     }

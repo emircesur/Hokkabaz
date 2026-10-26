@@ -7,8 +7,9 @@ typedef Json = Map<String, dynamic>;
 
 double _d(Object? v, [double or = 0]) => v is num ? v.toDouble() : or;
 int _i(Object? v, [int or = 0]) => v is num ? v.toInt() : or;
-List<T> _list<T>(Object? v, T Function(Json) f) =>
-    (v as List? ?? const []).map((e) => f((e as Map).cast<String, dynamic>())).toList();
+List<T> _list<T>(Object? v, T Function(Json) f) => (v as List? ?? const [])
+    .map((e) => f((e as Map).cast<String, dynamic>()))
+    .toList();
 
 class ProjectSummary {
   const ProjectSummary({
@@ -54,9 +55,7 @@ class ViralScore {
 
   factory ViralScore.fromJson(Json j) => ViralScore(
     total: _i(j['total']),
-    criteria: {
-      for (final k in criteriaKeys) k: _i(j[k]),
-    },
+    criteria: {for (final k in criteriaKeys) k: _i(j[k])},
     summary: j['summary'] as String? ?? '',
     strengths: (j['strengths'] as List? ?? const []).cast<String>(),
     improvements: (j['improvements'] as List? ?? const []).cast<String>(),
@@ -106,13 +105,17 @@ class StudioClip {
     end: _d(j['end']),
     hook: j['hook'] as String?,
     reason: j['reason'] as String?,
-    deletedWords: ((j['deleted_words'] as List?) ?? const []).map((e) => (e as num).toInt()).toSet(),
+    deletedWords: ((j['deleted_words'] as List?) ?? const [])
+        .map((e) => (e as num).toInt())
+        .toSet(),
     removeFillers: j['remove_fillers'] == true,
     silence: (j['silence'] as Map?)?.cast<String, dynamic>(),
     captions: (j['captions'] as Map?)?.cast<String, dynamic>(),
     reframe: (j['reframe'] as Map?)?.cast<String, dynamic>(),
     brollCount: (j['broll'] as List?)?.length ?? 0,
-    score: j['score'] is Map ? ViralScore.fromJson((j['score'] as Map).cast()) : null,
+    score: j['score'] is Map
+        ? ViralScore.fromJson((j['score'] as Map).cast())
+        : null,
     social: ((j['social'] as Map?)?['posts'] as Map?)?.cast<String, dynamic>(),
     template: j['template'] as String?,
     music: (j['music'] as Map?)?.cast<String, dynamic>(),
@@ -191,7 +194,8 @@ class StudioProjectData {
     required this.hasTranscript,
   });
 
-  factory StudioProjectData.parse(String json) => StudioProjectData.fromJson((jsonDecode(json) as Map).cast());
+  factory StudioProjectData.parse(String json) =>
+      StudioProjectData.fromJson((jsonDecode(json) as Map).cast());
 
   factory StudioProjectData.fromJson(Json j) => StudioProjectData(
     id: j['id'] as String,
@@ -264,7 +268,11 @@ class CropPath {
   const CropPath(this.keys, {required this.smooth});
 
   factory CropPath.fromJson(Json j) => CropPath(
-    _list(j['keys'], (k) => CropKey(_d(k['t']), _d(k['x']), _d(k['y']), _d(k['w']), _d(k['h']))),
+    _list(
+      j['keys'],
+      (k) =>
+          CropKey(_d(k['t']), _d(k['x']), _d(k['y']), _d(k['w']), _d(k['h'])),
+    ),
     smooth: j['interp'] == 'smooth',
   );
 
@@ -290,7 +298,13 @@ class CropPath {
 }
 
 class BrollItem {
-  const BrollItem({required this.start, required this.end, required this.query, required this.asset, required this.isImage});
+  const BrollItem({
+    required this.start,
+    required this.end,
+    required this.query,
+    required this.asset,
+    required this.isImage,
+  });
 
   factory BrollItem.fromJson(Json j) => BrollItem(
     start: _d(j['start']),
@@ -306,7 +320,13 @@ class BrollItem {
   final String asset;
   final bool isImage;
 
-  BrollItem withAsset(String a) => BrollItem(start: start, end: end, query: query, asset: a, isImage: isImage);
+  BrollItem withAsset(String a) => BrollItem(
+    start: start,
+    end: end,
+    query: query,
+    asset: a,
+    isImage: isImage,
+  );
 }
 
 class PreviewPlan {
@@ -325,18 +345,27 @@ class PreviewPlan {
     this.broll = const [],
   });
 
-  factory PreviewPlan.parse(String json) => PreviewPlan.fromJson((jsonDecode(json) as Map).cast());
+  factory PreviewPlan.parse(String json) =>
+      PreviewPlan.fromJson((jsonDecode(json) as Map).cast());
 
   factory PreviewPlan.fromJson(Json j) => PreviewPlan(
     clipId: j['clip_id'] as String,
     srcStart: _d(j['src_start']),
     srcEnd: _d(j['src_end']),
     duration: _d(j['duration']),
-    ranges: ((j['ranges'] as List?) ?? const []).map((r) => (_d((r as List)[0]), _d(r[1]))).toList(),
+    ranges: ((j['ranges'] as List?) ?? const [])
+        .map((r) => (_d((r as List)[0]), _d(r[1])))
+        .toList(),
     words: _list(j['words'], PreviewWord.fromJson),
-    captions: _list(j['captions'], (c) => CaptionWord(c['text'] as String? ?? '', _d(c['start']), _d(c['end']))),
+    captions: _list(
+      j['captions'],
+      (c) =>
+          CaptionWord(c['text'] as String? ?? '', _d(c['start']), _d(c['end'])),
+    ),
     captionStyle: (j['caption_style'] as Map?)?.cast<String, dynamic>(),
-    crop: j['crop'] is Map ? CropPath.fromJson((j['crop'] as Map).cast()) : null,
+    crop: j['crop'] is Map
+        ? CropPath.fromJson((j['crop'] as Map).cast())
+        : null,
     outW: _i((j['out_size'] as List?)?[0], 1920),
     outH: _i((j['out_size'] as List?)?[1], 1080),
     broll: _list(j['broll'], BrollItem.fromJson),
@@ -420,7 +449,16 @@ class EdlClock {
 }
 
 class StudioEvent {
-  const StudioEvent(this.kind, {this.rev, this.clips = const [], this.by, this.clip, this.fraction, this.path, this.error});
+  const StudioEvent(
+    this.kind, {
+    this.rev,
+    this.clips = const [],
+    this.by,
+    this.clip,
+    this.fraction,
+    this.path,
+    this.error,
+  });
 
   factory StudioEvent.parse(String json) {
     final j = (jsonDecode(json) as Map).cast<String, dynamic>();

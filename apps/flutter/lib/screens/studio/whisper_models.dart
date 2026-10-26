@@ -10,7 +10,11 @@ import '../chat/chat_providers.dart' show describeError;
 /// Pick, download and delete the speech models behind "Local whisper.cpp". Downloads run where the
 /// Studio runs (this device, or the connected instance); the list polls while one is in flight.
 class WhisperModelsPicker extends StatefulWidget {
-  const WhisperModelsPicker({super.key, required this.selected, required this.onSelected});
+  const WhisperModelsPicker({
+    super.key,
+    required this.selected,
+    required this.onSelected,
+  });
   final String? selected;
   final ValueChanged<String> onSelected;
 
@@ -38,7 +42,8 @@ class _WhisperModelsPickerState extends State<WhisperModelsPicker> {
 
   Future<void> _refresh() async {
     try {
-      final j = jsonDecode(await api.studioWhisperStatus()) as Map<String, dynamic>;
+      final j =
+          jsonDecode(await api.studioWhisperStatus()) as Map<String, dynamic>;
       if (!mounted) return;
       final models = (j['models'] as List).cast<Map<String, dynamic>>();
       setState(() {
@@ -76,8 +81,13 @@ class _WhisperModelsPickerState extends State<WhisperModelsPicker> {
           Container(
             padding: const EdgeInsets.all(HkTokens.s2),
             margin: const EdgeInsets.only(bottom: HkTokens.s2),
-            decoration: BoxDecoration(color: hk.warn.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(HkTokens.radiusCard)),
-            child: const Text('This install has no hk-whisper helper, so it cannot transcribe on its own. Use "API / server", or run Studio on an instance that has it.'),
+            decoration: BoxDecoration(
+              color: hk.warn.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(HkTokens.radiusCard),
+            ),
+            child: const Text(
+              'This install has no hk-whisper helper, so it cannot transcribe on its own. Use "API / server", or run Studio on an instance that has it.',
+            ),
           ),
         for (final m in _models)
           RadioListTile<String>(
@@ -91,7 +101,12 @@ class _WhisperModelsPickerState extends State<WhisperModelsPicker> {
             title: Text('${m['name']}  ·  ${_mb(m['size_bytes'] as num)}'),
             subtitle: m['downloading'] == true
                 ? _progress(m)
-                : Text((m['error'] as String?) ?? (m['note'] as String), style: TextStyle(color: m['error'] != null ? hk.err : hk.textMuted)),
+                : Text(
+                    (m['error'] as String?) ?? (m['note'] as String),
+                    style: TextStyle(
+                      color: m['error'] != null ? hk.err : hk.textMuted,
+                    ),
+                  ),
             secondary: _action(m),
           ),
         if (_error != null) Text(_error!, style: TextStyle(color: hk.err)),
@@ -103,17 +118,31 @@ class _WhisperModelsPickerState extends State<WhisperModelsPicker> {
     final p = m['progress'] as Map<String, dynamic>?;
     final total = (p?['total'] as num?) ?? 0;
     final done = (p?['done'] as num?) ?? 0;
-    return LinearProgressIndicator(value: total > 0 ? (done / total).toDouble() : null);
+    return LinearProgressIndicator(
+      value: total > 0 ? (done / total).toDouble() : null,
+    );
   }
 
   Widget _action(Map<String, dynamic> m) {
     final id = m['id'] as String;
     if (m['downloading'] == true) {
-      return IconButton(tooltip: 'Cancel', icon: const Icon(Icons.close), onPressed: () => _do(() => api.studioWhisperCancel(id: id)));
+      return IconButton(
+        tooltip: 'Cancel',
+        icon: const Icon(Icons.close),
+        onPressed: () => _do(() => api.studioWhisperCancel(id: id)),
+      );
     }
     if (m['installed'] == true) {
-      return IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline), onPressed: () => _do(() => api.studioWhisperRemove(id: id)));
+      return IconButton(
+        tooltip: 'Delete',
+        icon: const Icon(Icons.delete_outline),
+        onPressed: () => _do(() => api.studioWhisperRemove(id: id)),
+      );
     }
-    return IconButton(tooltip: 'Download', icon: const Icon(Icons.download), onPressed: () => _do(() => api.studioWhisperPull(id: id)));
+    return IconButton(
+      tooltip: 'Download',
+      icon: const Icon(Icons.download),
+      onPressed: () => _do(() => api.studioWhisperPull(id: id)),
+    );
   }
 }

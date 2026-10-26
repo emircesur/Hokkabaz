@@ -11,7 +11,10 @@ import '../chat/chat_providers.dart' show describeError;
 import 'tools_panel.dart';
 import 'whisper_models.dart';
 
-Future<void> showStudioSettings(BuildContext context) => showDialog<void>(context: context, builder: (_) => const _StudioSettingsDialog());
+Future<void> showStudioSettings(BuildContext context) => showDialog<void>(
+  context: context,
+  builder: (_) => const _StudioSettingsDialog(),
+);
 
 class _StudioSettingsDialog extends ConsumerStatefulWidget {
   const _StudioSettingsDialog();
@@ -32,6 +35,13 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
   final _ytId = TextEditingController();
   final _ytSecret = TextEditingController();
   final _ytRefresh = TextEditingController();
+  final _igUser = TextEditingController();
+  final _liAuthor = TextEditingController();
+  final Map<String, TextEditingController> _tokens = {
+    for (final p in ['tiktok', 'instagram_reels', 'x', 'linkedin'])
+      p: TextEditingController(),
+  };
+  Map<String, dynamic> _hasToken = {};
   final _gpuDevice = TextEditingController(text: '0');
   bool _whisperGpu = true;
   bool _hasYtSecret = false;
@@ -55,7 +65,21 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
 
   @override
   void dispose() {
-    for (final c in [_sttUrl, _sttModel, _sttLang, _whisperPath, _sttKey, _pexels, _pixabay, _brollDir, _ytId, _ytSecret, _ytRefresh, _gpuDevice, _faceModelPath]) {
+    for (final c in [
+      _sttUrl,
+      _sttModel,
+      _sttLang,
+      _whisperPath,
+      _sttKey,
+      _pexels,
+      _pixabay,
+      _brollDir,
+      _ytId,
+      _ytSecret,
+      _ytRefresh,
+      _gpuDevice,
+      _faceModelPath,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -68,7 +92,10 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
         _whisperBackend = w['gpu'] as String?;
         final gd = w['gpu_devices'];
         if (gd is Map && gd['devices'] is List) {
-          _gpuDevices = [for (final d in gd['devices'] as List) (d as Map).cast<String, dynamic>()];
+          _gpuDevices = [
+            for (final d in gd['devices'] as List)
+              (d as Map).cast<String, dynamic>(),
+          ];
         }
       } catch (_) {}
       final j = jsonDecode(await api.studioGetSettings()) as Map;
@@ -95,6 +122,9 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
         _ytId.text = (s['youtube_client_id'] as String?) ?? '';
         _hasYtSecret = j['has_youtube_secret'] == true;
         _hasYtRefresh = j['has_youtube_refresh'] == true;
+        _hasToken = ((j['has_platform_token'] as Map?) ?? {}).cast();
+        _igUser.text = (s['instagram_user_id'] as String?) ?? '';
+        _liAuthor.text = (s['linkedin_author'] as String?) ?? '';
         _hasStt = j['has_stt_key'] == true;
         _hasPexels = j['has_pexels_key'] == true;
         _hasPixabay = j['has_pixabay_key'] == true;
@@ -127,7 +157,8 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
       ? 'This install transcribes on the CPU (the helper has no GPU backend).'
       : 'Runs on ${_whisperBackend!} when available; falls back to the CPU on its own.';
 
-  String? _n(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+  String? _n(TextEditingController c) =>
+      c.text.trim().isEmpty ? null : c.text.trim();
 
   Future<void> _save() async {
     setState(() {
@@ -157,10 +188,25 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
             'zoom': _trackZoom,
           },
           'youtube_client_id': _n(_ytId),
+          'instagram_user_id': _n(_igUser),
+          'linkedin_author': _n(_liAuthor),
         }),
       );
-      for (final (which, c) in [('stt', _sttKey), ('pexels', _pexels), ('pixabay', _pixabay), ('youtube_secret', _ytSecret), ('youtube_refresh', _ytRefresh)]) {
-        if (c.text.trim().isNotEmpty) await api.studioSetKey(which: which, key: c.text.trim());
+      for (final (which, c) in [
+        ('stt', _sttKey),
+        ('pexels', _pexels),
+        ('pixabay', _pixabay),
+        ('youtube_secret', _ytSecret),
+        ('youtube_refresh', _ytRefresh),
+      ]) {
+        if (c.text.trim().isNotEmpty) {
+          await api.studioSetKey(which: which, key: c.text.trim());
+        }
+      }
+      for (final e in _tokens.entries) {
+        if (e.value.text.trim().isNotEmpty) {
+          await api.studioSetKey(which: e.key, key: e.value.text.trim());
+        }
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -186,7 +232,10 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
       content: SizedBox(
         width: 520,
         child: !_loaded
-            ? const SizedBox(height: 120, child: Center(child: CircularProgressIndicator()))
+            ? const SizedBox(
+                height: 120,
+                child: Center(child: CircularProgressIndicator()),
+              )
             : SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -197,35 +246,76 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
                     DropdownButtonFormField<String>(
                       initialValue: refs.contains(_llm) ? _llm : null,
                       isExpanded: true,
-                      decoration: InputDecoration(border: const OutlineInputBorder(), isDense: true, hintText: refs.isEmpty ? 'Add a provider on the Models tab first' : 'Choose a model', helperText: _llm != null && !refs.contains(_llm) ? 'Saved: $_llm' : null),
-                      items: [for (final r in refs) DropdownMenuItem(value: r, child: Text(r, overflow: TextOverflow.ellipsis))],
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                        hintText: refs.isEmpty
+                            ? 'Add a provider on the Models tab first'
+                            : 'Choose a model',
+                        helperText: _llm != null && !refs.contains(_llm)
+                            ? 'Saved: $_llm'
+                            : null,
+                      ),
+                      items: [
+                        for (final r in refs)
+                          DropdownMenuItem(
+                            value: r,
+                            child: Text(r, overflow: TextOverflow.ellipsis),
+                          ),
+                      ],
                       onChanged: (v) => setState(() => _llm = v),
                     ),
                     const _H('Speech to text'),
                     SegmentedButton<String>(
                       showSelectedIcon: false,
                       segments: const [
-                        ButtonSegment(value: 'openai_compat', label: Text('API / server')),
-                        ButtonSegment(value: 'whisper_local', label: Text('Local whisper.cpp')),
+                        ButtonSegment(
+                          value: 'openai_compat',
+                          label: Text('API / server'),
+                        ),
+                        ButtonSegment(
+                          value: 'whisper_local',
+                          label: Text('Local whisper.cpp'),
+                        ),
                       ],
                       selected: {_sttProvider},
-                      onSelectionChanged: (v) => setState(() => _sttProvider = v.first),
+                      onSelectionChanged: (v) =>
+                          setState(() => _sttProvider = v.first),
                     ),
                     const SizedBox(height: HkTokens.s2),
                     if (_sttProvider == 'openai_compat') ...[
-                      _Field(_sttUrl, 'Base URL', 'https://api.openai.com/v1  (Groq, local servers work too)'),
+                      _Field(
+                        _sttUrl,
+                        'Base URL',
+                        'https://api.openai.com/v1  (Groq, local servers work too)',
+                      ),
                       _Field(_sttModel, 'Model', 'whisper-1'),
-                      _KeyField(controller: _sttKey, label: 'API key', isSet: _hasStt, onClear: () => _clearKey('stt')),
+                      _KeyField(
+                        controller: _sttKey,
+                        label: 'API key',
+                        isSet: _hasStt,
+                        onClear: () => _clearKey('stt'),
+                      ),
                     ] else ...[
-                      WhisperModelsPicker(selected: _whisperModel, onSelected: (v) => setState(() => _whisperModel = v)),
-                      _Field(_whisperPath, 'Or your own ggml file (optional)', '/path/to/ggml-base.bin'),
+                      WhisperModelsPicker(
+                        selected: _whisperModel,
+                        onSelected: (v) => setState(() => _whisperModel = v),
+                      ),
+                      _Field(
+                        _whisperPath,
+                        'Or your own ggml file (optional)',
+                        '/path/to/ggml-base.bin',
+                      ),
                       Row(
                         children: [
                           Expanded(
                             child: SwitchListTile(
                               contentPadding: EdgeInsets.zero,
                               title: const Text('Use the GPU'),
-                              subtitle: Text(_gpuNote(), style: TextStyle(color: hk.textMuted)),
+                              subtitle: Text(
+                                _gpuNote(),
+                                style: TextStyle(color: hk.textMuted),
+                              ),
                               value: _whisperGpu,
                               onChanged: (v) => setState(() => _whisperGpu = v),
                             ),
@@ -234,49 +324,136 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
                             SizedBox(
                               width: 260,
                               child: DropdownButtonFormField<String>(
-                                initialValue: _gpuDevice.text.isEmpty ? '0' : _gpuDevice.text,
+                                initialValue: _gpuDevice.text.isEmpty
+                                    ? '0'
+                                    : _gpuDevice.text,
                                 isExpanded: true,
-                                decoration: const InputDecoration(labelText: 'GPU', isDense: true, border: OutlineInputBorder()),
+                                decoration: const InputDecoration(
+                                  labelText: 'GPU',
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                ),
                                 items: [
-                                  const DropdownMenuItem(value: '0', child: Text('Auto (best discrete GPU)')),
+                                  const DropdownMenuItem(
+                                    value: '0',
+                                    child: Text('Auto (best discrete GPU)'),
+                                  ),
                                   for (final d in _gpuDevices)
                                     DropdownMenuItem(
-                                      value: '${(d['device'] as num).toInt() + 1}',
+                                      value:
+                                          '${(d['device'] as num).toInt() + 1}',
                                       child: Text(
                                         '${d['description'] ?? d['name']}${d['integrated'] == true ? ' (integrated)' : ''}',
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                  if (_gpuDevices.isEmpty && _gpuDevice.text != '0')
-                                    DropdownMenuItem(value: _gpuDevice.text, child: Text('Device ${_gpuDevice.text}')),
+                                  if (_gpuDevices.isEmpty &&
+                                      _gpuDevice.text != '0')
+                                    DropdownMenuItem(
+                                      value: _gpuDevice.text,
+                                      child: Text('Device ${_gpuDevice.text}'),
+                                    ),
                                 ],
-                                onChanged: (v) => setState(() => _gpuDevice.text = v ?? '0'),
+                                onChanged: (v) =>
+                                    setState(() => _gpuDevice.text = v ?? '0'),
                               ),
                             ),
                         ],
                       ),
                     ],
-                    _Field(_sttLang, 'Language (optional)', 'en, tr, … empty = detect'),
+                    _Field(
+                      _sttLang,
+                      'Language (optional)',
+                      'en, tr, … empty = detect',
+                    ),
                     const _H('B-roll sources'),
-                    _KeyField(controller: _pexels, label: 'Pexels API key', isSet: _hasPexels, onClear: () => _clearKey('pexels')),
-                    _KeyField(controller: _pixabay, label: 'Pixabay API key', isSet: _hasPixabay, onClear: () => _clearKey('pixabay')),
+                    _KeyField(
+                      controller: _pexels,
+                      label: 'Pexels API key',
+                      isSet: _hasPexels,
+                      onClear: () => _clearKey('pexels'),
+                    ),
+                    _KeyField(
+                      controller: _pixabay,
+                      label: 'Pixabay API key',
+                      isSet: _hasPixabay,
+                      onClear: () => _clearKey('pixabay'),
+                    ),
                     Row(
                       children: [
-                        Expanded(child: _Field(_brollDir, 'Your own footage folder', 'optional')),
+                        Expanded(
+                          child: _Field(
+                            _brollDir,
+                            'Your own footage folder',
+                            'optional',
+                          ),
+                        ),
                         IconButton(
                           tooltip: 'Choose folder',
                           icon: const Icon(Icons.folder_open),
                           onPressed: () async {
-                            final d = await FilePicker.getDirectoryPath(dialogTitle: 'B-roll folder');
+                            final d = await FilePicker.getDirectoryPath(
+                              dialogTitle: 'B-roll folder',
+                            );
                             if (d != null) setState(() => _brollDir.text = d);
                           },
                         ),
                       ],
                     ),
                     const _H('YouTube upload'),
-                    _Field(_ytId, 'OAuth client id', 'from Google Cloud Console (YouTube Data API v3)'),
-                    _KeyField(controller: _ytSecret, label: 'OAuth client secret', isSet: _hasYtSecret, onClear: () => _clearKey('youtube_secret')),
-                    _KeyField(controller: _ytRefresh, label: 'Refresh token', isSet: _hasYtRefresh, onClear: () => _clearKey('youtube_refresh')),
+                    _Field(
+                      _ytId,
+                      'OAuth client id',
+                      'from Google Cloud Console (YouTube Data API v3)',
+                    ),
+                    _KeyField(
+                      controller: _ytSecret,
+                      label: 'OAuth client secret',
+                      isSet: _hasYtSecret,
+                      onClear: () => _clearKey('youtube_secret'),
+                    ),
+                    _KeyField(
+                      controller: _ytRefresh,
+                      label: 'Refresh token',
+                      isSet: _hasYtRefresh,
+                      onClear: () => _clearKey('youtube_refresh'),
+                    ),
+                    const _H('Publishing (official APIs)'),
+                    _KeyField(
+                      controller: _tokens['tiktok']!,
+                      label: 'TikTok access token (video.publish)',
+                      isSet: _hasToken['tiktok'] == true,
+                      onClear: () => _clearKey('tiktok'),
+                    ),
+                    _KeyField(
+                      controller: _tokens['instagram_reels']!,
+                      label: 'Instagram Graph access token',
+                      isSet: _hasToken['instagram_reels'] == true,
+                      onClear: () => _clearKey('instagram_reels'),
+                    ),
+                    _Field(
+                      _igUser,
+                      'Instagram business account id',
+                      'ig-user-id from Graph API Explorer',
+                    ),
+                    _KeyField(
+                      controller: _tokens['x']!,
+                      label:
+                          'X OAuth 2.0 user token (tweet.write, media.write)',
+                      isSet: _hasToken['x'] == true,
+                      onClear: () => _clearKey('x'),
+                    ),
+                    _KeyField(
+                      controller: _tokens['linkedin']!,
+                      label: 'LinkedIn access token (w_member_social)',
+                      isSet: _hasToken['linkedin'] == true,
+                      onClear: () => _clearKey('linkedin'),
+                    ),
+                    _Field(
+                      _liAuthor,
+                      'LinkedIn author URN',
+                      'urn:li:person:… or urn:li:organization:…',
+                    ),
                     const _H('Speaker tracking'),
                     Row(
                       children: [
@@ -285,63 +462,150 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
                             setState(() => _faceStatus = 'Downloading…');
                             try {
                               final ok = await api.studioPrepareFaceModel();
-                              setState(() => _faceStatus = ok ? 'Face model ready' : 'Not available in this build');
+                              setState(
+                                () => _faceStatus = ok
+                                    ? 'Face model ready'
+                                    : 'Not available in this build',
+                              );
                             } catch (e) {
                               setState(() => _faceStatus = describeError(e));
                             }
                           },
-                          icon: const Icon(Icons.face_retouching_natural, size: 18),
+                          icon: const Icon(
+                            Icons.face_retouching_natural,
+                            size: 18,
+                          ),
                           label: const Text('Download face model'),
                         ),
                         const SizedBox(width: HkTokens.s2),
-                        Expanded(child: Text(_faceStatus ?? 'Without it, framing follows motion.', style: TextStyle(color: hk.textMuted))),
+                        Expanded(
+                          child: Text(
+                            _faceStatus ??
+                                'Without it, framing follows motion.',
+                            style: TextStyle(color: hk.textMuted),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: HkTokens.s2),
                     DropdownButtonFormField<String>(
                       initialValue: _trackMethod,
-                      decoration: const InputDecoration(labelText: 'Tracking method', isDense: true, border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                        labelText: 'Tracking method',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
                       items: const [
-                        DropdownMenuItem(value: 'auto', child: Text('Auto (faces when the model is there, else motion)')),
-                        DropdownMenuItem(value: 'face', child: Text('Faces (SeetaFace model)')),
-                        DropdownMenuItem(value: 'motion', child: Text('Motion (no model)')),
-                        DropdownMenuItem(value: 'center', child: Text('Fixed center crop')),
+                        DropdownMenuItem(
+                          value: 'auto',
+                          child: Text(
+                            'Auto (faces when the model is there, else motion)',
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'face',
+                          child: Text('Faces (SeetaFace model)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'motion',
+                          child: Text('Motion (no model)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'center',
+                          child: Text('Fixed center crop'),
+                        ),
                       ],
-                      onChanged: (v) => setState(() => _trackMethod = v ?? 'auto'),
+                      onChanged: (v) =>
+                          setState(() => _trackMethod = v ?? 'auto'),
                     ),
                     const SizedBox(height: HkTokens.s2),
                     Row(
                       children: [
-                        Expanded(child: _Field(_faceModelPath, 'Own face model file (optional)', 'SeetaFace .bin; empty = downloaded default')),
+                        Expanded(
+                          child: _Field(
+                            _faceModelPath,
+                            'Own face model file (optional)',
+                            'SeetaFace .bin; empty = downloaded default',
+                          ),
+                        ),
                         IconButton(
                           tooltip: 'Choose model file',
                           icon: const Icon(Icons.folder_open),
                           onPressed: () async {
-                            final r = await FilePicker.pickFiles(type: FileType.any, dialogTitle: 'Face model');
+                            final r = await FilePicker.pickFiles(
+                              type: FileType.any,
+                              dialogTitle: 'Face model',
+                            );
                             final path = r.firstOrNull?.path;
-                            if (path != null) setState(() => _faceModelPath.text = path);
+                            if (path != null) {
+                              setState(() => _faceModelPath.text = path);
+                            }
                           },
                         ),
                       ],
                     ),
-                    Text('Frames analysed per second: ${_trackFps.toStringAsFixed(1)} (higher = follows faster, slower to compute)'),
-                    Slider(value: _trackFps.clamp(0.5, 8), min: 0.5, max: 8, divisions: 15, onChanged: (v) => setState(() => _trackFps = v)),
-                    Text('Smallest face: ${(_minFace * 100).toStringAsFixed(1)}% of frame width'),
-                    Slider(value: _minFace.clamp(0.01, 0.2), min: 0.01, max: 0.2, onChanged: (v) => setState(() => _minFace = v)),
-                    Text('Detection threshold: ${_faceThreshold.toStringAsFixed(1)} (higher = fewer false faces)'),
-                    Slider(value: _faceThreshold.clamp(0.5, 6), min: 0.5, max: 6, onChanged: (v) => setState(() => _faceThreshold = v)),
-                    Text('Camera smoothing: ${_trackSmoothing == null ? 'per clip' : _trackSmoothing!.toStringAsFixed(2)}'),
-                    Slider(value: (_trackSmoothing ?? 0.5).clamp(0, 1), onChanged: (v) => setState(() => _trackSmoothing = v)),
-                    Text('Zoom: ${_trackZoom == null ? 'per clip' : '${_trackZoom!.toStringAsFixed(2)}×'}'),
-                    Slider(value: (_trackZoom ?? 1).clamp(1, 2), min: 1, max: 2, onChanged: (v) => setState(() => _trackZoom = v)),
-                    if (_error != null) Padding(padding: const EdgeInsets.only(top: HkTokens.s3), child: Text(_error!, style: TextStyle(color: hk.err))),
+                    Text(
+                      'Frames analysed per second: ${_trackFps.toStringAsFixed(1)} (higher = follows faster, slower to compute)',
+                    ),
+                    Slider(
+                      value: _trackFps.clamp(0.5, 8),
+                      min: 0.5,
+                      max: 8,
+                      divisions: 15,
+                      onChanged: (v) => setState(() => _trackFps = v),
+                    ),
+                    Text(
+                      'Smallest face: ${(_minFace * 100).toStringAsFixed(1)}% of frame width',
+                    ),
+                    Slider(
+                      value: _minFace.clamp(0.01, 0.2),
+                      min: 0.01,
+                      max: 0.2,
+                      onChanged: (v) => setState(() => _minFace = v),
+                    ),
+                    Text(
+                      'Detection threshold: ${_faceThreshold.toStringAsFixed(1)} (higher = fewer false faces)',
+                    ),
+                    Slider(
+                      value: _faceThreshold.clamp(0.5, 6),
+                      min: 0.5,
+                      max: 6,
+                      onChanged: (v) => setState(() => _faceThreshold = v),
+                    ),
+                    Text(
+                      'Camera smoothing: ${_trackSmoothing == null ? 'per clip' : _trackSmoothing!.toStringAsFixed(2)}',
+                    ),
+                    Slider(
+                      value: (_trackSmoothing ?? 0.5).clamp(0, 1),
+                      onChanged: (v) => setState(() => _trackSmoothing = v),
+                    ),
+                    Text(
+                      'Zoom: ${_trackZoom == null ? 'per clip' : '${_trackZoom!.toStringAsFixed(2)}×'}',
+                    ),
+                    Slider(
+                      value: (_trackZoom ?? 1).clamp(1, 2),
+                      min: 1,
+                      max: 2,
+                      onChanged: (v) => setState(() => _trackZoom = v),
+                    ),
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: HkTokens.s3),
+                        child: Text(_error!, style: TextStyle(color: hk.err)),
+                      ),
                   ],
                 ),
               ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(onPressed: _saving || !_loaded ? null : _save, child: Text(_saving ? 'Saving…' : 'Save')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _saving || !_loaded ? null : _save,
+          child: Text(_saving ? 'Saving…' : 'Save'),
+        ),
       ],
     );
   }
@@ -365,12 +629,25 @@ class _Field extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: HkTokens.s2),
-    child: TextField(controller: c, decoration: InputDecoration(labelText: label, hintText: hint, isDense: true, border: const OutlineInputBorder())),
+    child: TextField(
+      controller: c,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        isDense: true,
+        border: const OutlineInputBorder(),
+      ),
+    ),
   );
 }
 
 class _KeyField extends StatelessWidget {
-  const _KeyField({required this.controller, required this.label, required this.isSet, required this.onClear});
+  const _KeyField({
+    required this.controller,
+    required this.label,
+    required this.isSet,
+    required this.onClear,
+  });
   final TextEditingController controller;
   final String label;
   final bool isSet;
@@ -386,7 +663,13 @@ class _KeyField extends StatelessWidget {
         hintText: isSet ? 'Key set (type to replace)' : 'Not set',
         isDense: true,
         border: const OutlineInputBorder(),
-        suffixIcon: isSet ? IconButton(tooltip: 'Remove key', icon: const Icon(Icons.delete_outline), onPressed: onClear) : null,
+        suffixIcon: isSet
+            ? IconButton(
+                tooltip: 'Remove key',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: onClear,
+              )
+            : null,
       ),
     ),
   );

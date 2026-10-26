@@ -28,7 +28,9 @@ mixin _Extrapolate {
     }
   }
 
-  double get _now => _isPlaying ? (_base + _sw.elapsedMicroseconds / 1e6).clamp(0.0, _limit) : _base;
+  double get _now => _isPlaying
+      ? (_base + _sw.elapsedMicroseconds / 1e6).clamp(0.0, _limit)
+      : _base;
 }
 
 /// Engine for Android / iOS / macOS (official `video_player`).
@@ -39,7 +41,9 @@ class VideoPlayerBackend with _Extrapolate implements PlayerBackend {
 
   @override
   Future<void> open(String path) async {
-    final c = path.startsWith('http') ? VideoPlayerController.networkUrl(Uri.parse(path)) : VideoPlayerController.file(File(path));
+    final c = path.startsWith('http')
+        ? VideoPlayerController.networkUrl(Uri.parse(path))
+        : VideoPlayerController.file(File(path));
     await c.initialize();
     await c.setLooping(false);
     c.addListener(() {
@@ -47,7 +51,11 @@ class VideoPlayerBackend with _Extrapolate implements PlayerBackend {
       // Re-anchor only when the engine reports something the extrapolation did not predict.
       final p = v.position.inMicroseconds / 1e6;
       if ((p - _now).abs() > 0.08 || v.isPlaying != _isPlaying) {
-        _update(p, playing: v.isPlaying, limit: v.duration.inMicroseconds / 1e6);
+        _update(
+          p,
+          playing: v.isPlaying,
+          limit: v.duration.inMicroseconds / 1e6,
+        );
       }
     });
     _c = c;
@@ -132,7 +140,13 @@ class MediaKitBackend with _Extrapolate implements PlayerBackend {
   @override
   bool get playing => _isPlaying;
 
-  Widget view() => _vc == null ? const SizedBox.shrink() : mkv.Video(controller: _vc!, controls: mkv.NoVideoControls, fill: const Color(0x00000000));
+  Widget view() => _vc == null
+      ? const SizedBox.shrink()
+      : mkv.Video(
+          controller: _vc!,
+          controls: mkv.NoVideoControls,
+          fill: const Color(0x00000000),
+        );
 
   @override
   Future<void> dispose() async {
@@ -142,7 +156,9 @@ class MediaKitBackend with _Extrapolate implements PlayerBackend {
 }
 
 /// Best engine for this platform.
-PlayerBackend createBackend() => (Platform.isLinux || Platform.isWindows) ? MediaKitBackend() : VideoPlayerBackend();
+PlayerBackend createBackend() => (Platform.isLinux || Platform.isWindows)
+    ? MediaKitBackend()
+    : VideoPlayerBackend();
 
 /// Video surface of any backend created by [createBackend].
 Widget backendView(PlayerBackend b) => switch (b) {

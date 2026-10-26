@@ -20,7 +20,10 @@ abstract class PlayerBackend {
 /// Plays the kept ranges of a [PreviewPlan] back to back on top of a plain
 /// source-video player: the edit is visible and audible instantly, no render.
 class EdlPlayerController extends ChangeNotifier {
-  EdlPlayerController(this.backend, {this.tickEvery = const Duration(milliseconds: 33)});
+  EdlPlayerController(
+    this.backend, {
+    this.tickEvery = const Duration(milliseconds: 33),
+  });
 
   final PlayerBackend backend;
   final Duration tickEvery;
@@ -95,7 +98,9 @@ class EdlPlayerController extends ChangeNotifier {
 
   /// One clock step; public so tests can drive it without a timer.
   void tick() {
-    if (!_playing || _disposed || _plan == null || _clock.ranges.isEmpty) return;
+    if (!_playing || _disposed || _plan == null || _clock.ranges.isEmpty) {
+      return;
+    }
     final pos = backend.position;
     final r = _clock.ranges[_range];
     if (pos >= r.$2 - 0.02) {
@@ -110,7 +115,10 @@ class EdlPlayerController extends ChangeNotifier {
       }
       return;
     }
-    outTime.value = (_clock.rangeStartOut(_range) + (pos - r.$1)).clamp(0.0, _clock.duration);
+    outTime.value = (_clock.rangeStartOut(_range) + (pos - r.$1)).clamp(
+      0.0,
+      _clock.duration,
+    );
   }
 
   @override
