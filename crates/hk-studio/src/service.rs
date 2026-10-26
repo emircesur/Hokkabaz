@@ -296,6 +296,11 @@ impl StudioService {
     }
 
     /// Start rendering in the background. Progress and completion arrive as events.
+    /// Render options from JSON (see [`RenderOpts::from_json`]); `encoder: "auto"` probes ffmpeg.
+    pub async fn render_opts(&self, v: &serde_json::Value) -> RenderOpts {
+        RenderOpts::from_json(v, &self.studio.tools).await
+    }
+
     pub async fn start_render(&self, id: &str, clip_id: &str, opts: RenderOpts) -> Result<String> {
         let live = self.open(id).await?;
         let snap = live.snapshot().await;

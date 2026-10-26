@@ -7,6 +7,7 @@
 #![cfg_attr(target_os = "android", allow(dead_code))]
 
 mod audio;
+mod enhance;
 mod error;
 mod fmt;
 mod graph;
@@ -17,6 +18,7 @@ mod thumb;
 mod tools;
 
 pub use audio::{AudioChunk, AudioSpec, Range, extract_audio, plan_chunks, silencedetect};
+pub use enhance::{AudioCleanup, Denoise, HwEncoder, Loudness};
 pub use error::{MediaError, Result};
 pub use graph::{
     BuiltCommand, CropKey, CropPath, Ducking, Interp, MusicMix, Overlay, OverlayKind, RateControl,

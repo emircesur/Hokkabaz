@@ -232,13 +232,13 @@ Design: DESIGN §3.14 (jobs/cancel), §3.15 (AI settings), §4.8 (Activity cente
 | P9.28 | C | Multi-track timeline: video, audio, captions, B-roll, music; drag/trim/split, snapping, JKL shuttle, zoom | P8.10 | L | unit (timeline model) | edit on timeline renders identically | todo |
 | P9.29 | A | Speaker diarization; per-speaker caption colors/names; speaker-aware reframing | P8.2, P8.6 | M | fixture | 2-speaker clip colored per speaker | todo |
 | P9.30 | E | AI translation + dubbing: translated captions in N languages, TTS dub aligned to segments, voice per speaker | P9.14, P9.29 | L | fixture (alignment) | EN → TR captions + dub track | todo |
-| P9.31 | A | Audio cleanup: denoise (arnndn/afftdn), EBU R128 loudness, auto music ducking, voice enhance presets | P8.1 | S | unit (filter args) | – | todo |
+| P9.31 | A | Audio cleanup: denoise (arnndn/afftdn), EBU R128 loudness, auto music ducking, voice enhance presets | P8.1 | S | unit (filter args) | – | done — hk-media AudioCleanup (highpass, afftdn/arnndn, voice enhance, loudnorm), podcast/social presets; studio render opt `audio_cleanup` |
 | P9.32 | A | Auto-zoom & motion graphics: punch-in on emphasis words, animated titles, progress bar, emoji/sticker pops | P8.5 | M | unit | – | todo |
 | P9.33 | E | Long-form outputs: auto chapters (YouTube timestamps), summary, blog post / newsletter / thread from video | P8.4 | S | fixture | – | todo |
 | P9.34 | E | Thumbnail generator: best-frame picking by score, text overlay, optional image-gen, A/B variants | P9.16 | M | none | – | todo |
 | P9.35 | E | Hook doctor: score first 3 s, suggest/re-cut stronger hook, title card | P8.4 | S | fixture | – | todo |
 | P9.36 | E | Brand kit: logos, fonts, colors, watermark, intro/outro applied across templates | P8.7 | S | none | – | todo |
-| P9.37 | A | Batch mode: folder → shorts pipeline, render queue priorities, HW encoder selection (NVENC/VAAPI/QSV/VideoToolbox/MediaCodec) | P8.1, P9.1 | M | unit (encoder args) | 10 videos queued, progress per job | todo |
+| P9.37 | A | Batch mode: folder → shorts pipeline, render queue priorities, HW encoder selection (NVENC/VAAPI/QSV/VideoToolbox/MediaCodec) | P8.1, P9.1 | M | unit (encoder args) | 10 videos queued, progress per job | partial — HwEncoder (nvenc/qsv/vaapi/videotoolbox/mediacodec) + `ffmpeg -encoders` auto-detect, render opt `encoder`; batch folder mode + queue priorities pending |
 | P9.38 | A | Multicam / podcast: sync angles by audio cross-correlation, auto-switch to active speaker | P9.29 | L | unit (sync offset) | – | todo |
 | P9.39 | E | Publish calendar + more platforms (TikTok, Instagram, X, LinkedIn official APIs), per-platform export presets | P8.8 | L | fixture | scheduled post fires | todo |
 | P9.40 | E | Analytics loop: pull YouTube Analytics retention/views, calibrate virality rubric weights | P8.8 | M | fixture | – | todo |

@@ -15,7 +15,7 @@ use crate::broll::BrollOpts;
 use crate::edit::EditOp;
 use crate::highlights::HighlightOpts;
 use crate::live::StudioEvent;
-use crate::pipeline::{RenderOpts, preview};
+use crate::pipeline::preview;
 use crate::project::StudioProject;
 use crate::service::StudioService;
 use crate::social::{Platform, SocialOpts};
@@ -479,6 +479,8 @@ impl Tool for Render {
             parameters: json!({"type":"object","properties":{
                 "project":{"type":"string"},"clip":{"type":"string"},
                 "wait":{"type":"boolean","description":"Wait until done (default true)."},
+                "audio_cleanup":{"type":"string","enum":["none","podcast","social"],"description":"Voice cleanup + loudness preset."},
+                "encoder":{"type":"string","enum":["auto","software","nvenc","qsv","vaapi","videotoolbox","mediacodec"],"description":"Video encoder family (default software)."},
                 "timeout_secs":{"type":"integer","minimum":10,"maximum":1800}},
                 "required":["project","clip"],"additionalProperties":false}),
         }
@@ -492,7 +494,7 @@ impl Tool for Render {
         let mut rx = live.subscribe();
         let job = self
             .0
-            .start_render(id, clip, RenderOpts::default())
+            .start_render(id, clip, self.0.render_opts(&args).await)
             .await
             .map_err(|e| failed(T, e))?;
         if a.get("wait").and_then(Value::as_bool) == Some(false) {

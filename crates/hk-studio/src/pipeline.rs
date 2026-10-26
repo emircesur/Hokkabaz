@@ -129,6 +129,8 @@ pub struct RenderOpts {
     pub fps: Option<f64>,
     /// Output directory; default `<project>/renders`.
     pub out_dir: Option<PathBuf>,
+    pub audio_cleanup: Option<hk_media::AudioCleanup>,
+    pub encoder: hk_media::HwEncoder,
 }
 
 impl Default for RenderOpts {
@@ -139,7 +141,61 @@ impl Default for RenderOpts {
             burn_captions: true,
             fps: None,
             out_dir: None,
+            audio_cleanup: None,
+            encoder: hk_media::HwEncoder::Software,
         }
+    }
+}
+
+impl RenderOpts {
+    /// Overlay optional JSON keys on the defaults: `audio_cleanup` ("podcast" | "social" | object),
+    /// `encoder` ("auto" | "software" | "nvenc" | "qsv" | "videotoolbox" | "mediacodec" | "vaapi" | object),
+    /// `crf`, `codec`, `fps`, `burn_captions`. Unknown keys are ignored.
+    pub async fn from_json(v: &serde_json::Value, tools: &hk_media::Tools) -> Self {
+        let mut o = Self::default();
+        if let Some(c) = v.get("crf").and_then(|x| x.as_u64()) {
+            o.crf = c.min(51) as u8;
+        }
+        if let Some(c) = v
+            .get("codec")
+            .and_then(|x| serde_json::from_value(x.clone()).ok())
+        {
+            o.codec = c;
+        }
+        if let Some(f) = v.get("fps").and_then(|x| x.as_f64()) {
+            o.fps = Some(f);
+        }
+        if let Some(b) = v.get("burn_captions").and_then(|x| x.as_bool()) {
+            o.burn_captions = b;
+        }
+        o.audio_cleanup = match v.get("audio_cleanup") {
+            Some(serde_json::Value::String(p)) if p == "podcast" => {
+                Some(hk_media::AudioCleanup::podcast())
+            }
+            Some(serde_json::Value::String(p)) if p == "social" => {
+                Some(hk_media::AudioCleanup::social())
+            }
+            Some(x @ serde_json::Value::Object(_)) => serde_json::from_value(x.clone()).ok(),
+            _ => None,
+        };
+        o.encoder = match v.get("encoder") {
+            Some(serde_json::Value::String(e)) => match e.as_str() {
+                "auto" => tools.detect_encoder(o.codec).await,
+                "nvenc" => hk_media::HwEncoder::Nvenc,
+                "qsv" => hk_media::HwEncoder::Qsv,
+                "videotoolbox" => hk_media::HwEncoder::VideoToolbox,
+                "mediacodec" => hk_media::HwEncoder::MediaCodec,
+                "vaapi" => hk_media::HwEncoder::Vaapi {
+                    device: "/dev/dri/renderD128".into(),
+                },
+                _ => hk_media::HwEncoder::Software,
+            },
+            Some(x @ serde_json::Value::Object(_)) => {
+                serde_json::from_value(x.clone()).unwrap_or_default()
+            }
+            _ => hk_media::HwEncoder::Software,
+        };
+        o
     }
 }
 
@@ -179,6 +235,8 @@ pub async fn build_render(
     spec.codec = opts.codec;
     spec.rate = hk_media::RateControl::Crf(opts.crf);
     spec.fps = opts.fps;
+    spec.audio_cleanup = opts.audio_cleanup.clone();
+    spec.encoder = opts.encoder.clone();
     if plan.ranges.len() > 1 {
         spec.audio_crossfade = Some(0.03);
     }

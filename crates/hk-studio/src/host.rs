@@ -22,7 +22,7 @@ use crate::edit::EditOp;
 use crate::highlights::HighlightOpts;
 use crate::llm::{Llm, ProviderLlm};
 use crate::social::{Platform, SocialOpts};
-use crate::{Backends, RenderOpts, Result, StudioError, StudioService};
+use crate::{Backends, Result, StudioError, StudioService};
 
 pub const SETTINGS_KEY: &str = "studio.settings";
 pub const KEY_STT: &str = "studio/stt_key";
@@ -569,7 +569,7 @@ impl StudioHost {
                 svc.start_render(
                     &arg::<String>(&p, "id")?,
                     &arg::<String>(&p, "clip")?,
-                    RenderOpts::default()
+                    svc.render_opts(p.get("opts").unwrap_or(&Value::Null)).await
                 )
                 .await?
             )),

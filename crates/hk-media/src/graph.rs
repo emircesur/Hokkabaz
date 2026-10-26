@@ -154,6 +154,11 @@ pub struct RenderSpec {
     /// Encoder preset; defaults per codec.
     pub preset: Option<String>,
     pub audio_bitrate_kbps: u32,
+    /// Voice cleanup + loudness; `None` leaves audio untouched.
+    #[serde(default)]
+    pub audio_cleanup: Option<crate::AudioCleanup>,
+    #[serde(default)]
+    pub encoder: crate::HwEncoder,
     pub output: PathBuf,
 }
 
@@ -173,6 +178,8 @@ impl RenderSpec {
             rate: RateControl::default(),
             preset: None,
             audio_bitrate_kbps: 160,
+            audio_cleanup: None,
+            encoder: crate::HwEncoder::default(),
             output: output.into(),
         }
     }
@@ -443,6 +450,13 @@ impl RenderSpec {
                 steps.push(format!("{ins}concat=n={count}:v=1:a=0[vc]"));
             }
         }
+        if let (Some(a), Some(chain)) = (
+            &audio,
+            self.audio_cleanup.as_ref().and_then(|c| c.voice_chain()),
+        ) {
+            steps.push(format!("[{a}]{chain}[aclean]"));
+            audio = Some(s("aclean"));
+        }
         let mut cur = s("vc");
 
         // Crop, then size/fps.
@@ -575,6 +589,17 @@ impl RenderSpec {
             }
             audio = Some(s("amix"));
         }
+        if let (Some(a), Some(chain)) = (
+            &audio,
+            self.audio_cleanup.as_ref().and_then(|c| c.master_chain()),
+        ) {
+            steps.push(format!("[{a}]{chain}[aout]"));
+            audio = Some(s("aout"));
+        }
+        if let Some(up) = self.encoder.upload_filter() {
+            steps.push(format!("[{cur}]{up}[vhw]"));
+            cur = s("vhw");
+        }
 
         Ok(Graph {
             steps,
@@ -606,6 +631,7 @@ impl RenderSpec {
         .iter()
         .map(|x| s(x))
         .collect();
+        a.extend(self.encoder.input_args());
         let mut input = |path: &Path, pre: &[&str]| {
             a.extend(pre.iter().map(|x| s(x)));
             a.push(s("-i"));
@@ -651,25 +677,34 @@ impl RenderSpec {
     }
 
     fn codec_args(&self) -> Vec<String> {
-        let (enc, default_preset) = match self.codec {
-            VideoCodec::H264 => ("libx264", "medium"),
-            VideoCodec::Hevc => ("libx265", "medium"),
-            VideoCodec::Av1 => ("libsvtav1", "8"),
+        // Unsupported codec for the family falls back to software for that codec.
+        let (hw, enc) = match self.encoder.encoder_name(self.codec) {
+            Some(e) => (&self.encoder, e),
+            None => (
+                &crate::HwEncoder::Software,
+                crate::HwEncoder::Software
+                    .encoder_name(self.codec)
+                    .unwrap_or("libx264"),
+            ),
         };
-        let mut a = vec![
-            s("-c:v"),
-            s(enc),
-            s("-preset"),
-            self.preset.clone().unwrap_or_else(|| s(default_preset)),
-        ];
+        let mut a = vec![s("-c:v"), s(enc)];
+        if let Some(p) = self
+            .preset
+            .clone()
+            .or_else(|| hw.default_preset(self.codec).map(s))
+        {
+            a.extend([s("-preset"), p]);
+        }
         match self.rate {
-            RateControl::Crf(c) => a.extend([s("-crf"), c.to_string()]),
+            RateControl::Crf(c) => a.extend(hw.quality_args(c)),
             RateControl::BitrateKbps(k) => a.extend([s("-b:v"), format!("{k}k")]),
         }
         if self.codec == VideoCodec::Hevc {
             a.extend([s("-tag:v"), s("hvc1")]);
         }
-        a.extend([s("-pix_fmt"), s("yuv420p")]);
+        if hw.upload_filter().is_none() {
+            a.extend([s("-pix_fmt"), s("yuv420p")]);
+        }
         a.extend([
             s("-c:a"),
             s("aac"),
