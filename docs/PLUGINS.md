@@ -77,6 +77,7 @@ The default registry is `emircesur/hokkabaz-plugins`; the Plugins screen can poi
 
 * `hk plugin index-entry <archive> --url <asset url>` prints a ready entry.
 * `hk plugin verify-index index.json --download` is what the registry's CI runs.
+* Templates (flows, agents, prompts, bundles) are listed in the same index under `templates`; see `docs/TEMPLATES.md`.
 
 ## MCP servers
 

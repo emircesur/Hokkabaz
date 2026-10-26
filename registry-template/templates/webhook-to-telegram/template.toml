@@ -1,0 +1,30 @@
+id = "dev.hokkabaz.webhook-to-telegram"
+name = "Webhook to Telegram"
+version = "1.0.0"
+kind = "flow"
+description = "Forward every webhook call's `message` field to a Telegram chat."
+tags = ["webhook", "telegram", "notifications"]
+author = "Hokkabaz"
+min_hokkabaz_version = "0.0.0"
+payload = ["flow.json"]
+
+[[inputs]]
+key = "bot"
+label = "Telegram bot"
+kind = "credential"
+credential_type = "telegramApi"
+required = true
+help = "Bot token from @BotFather, stored as a credential."
+
+[[inputs]]
+key = "chat_id"
+label = "Chat ID"
+kind = "string"
+required = true
+help = "Numeric chat id or @channel name."
+
+[[inputs]]
+key = "path"
+label = "Webhook path"
+kind = "string"
+default = "notify"

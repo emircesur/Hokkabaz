@@ -1,0 +1,29 @@
+id = "dev.hokkabaz.code-reviewer"
+name = "Code reviewer"
+version = "1.0.0"
+kind = "agent"
+description = "Read-only agent that reviews diffs for bugs, then style."
+tags = ["coding", "review"]
+author = "Hokkabaz"
+min_hokkabaz_version = "0.0.0"
+payload = ["agent.json"]
+
+[[inputs]]
+key = "model"
+label = "Model"
+kind = "model"
+capabilities = ["tools"]
+required = true
+
+[[inputs]]
+key = "strictness"
+label = "Strictness"
+kind = "select"
+options = ["bugs-only", "bugs-and-style"]
+default = "bugs-only"
+
+[[inputs]]
+key = "max_steps"
+label = "Max steps per turn"
+kind = "number"
+default = 30

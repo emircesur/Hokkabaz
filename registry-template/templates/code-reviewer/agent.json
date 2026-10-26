@@ -1,0 +1,10 @@
+{
+  "name": "Code reviewer",
+  "model": "{{inputs.model}}",
+  "mode": "plan",
+  "max_steps": "{{inputs.max_steps}}",
+  "system": [
+    "You review code changes. Do not edit files.",
+    "Focus: {{inputs.strictness}}. Report each finding as file:line, severity, one-sentence reason."
+  ]
+}

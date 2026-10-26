@@ -11,6 +11,8 @@ pub enum PluginError {
     Plugin(String),
     #[error("capability denied: {0}")]
     Denied(String),
+    #[error("template: {0}")]
+    Template(String),
     #[error("registry: {0}")]
     Registry(String),
     #[error("not found: {0}")]
