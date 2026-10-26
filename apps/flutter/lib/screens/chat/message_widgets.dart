@@ -1,3 +1,5 @@
+import '../../ffi/voice.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../app/breakpoints.dart';
@@ -49,6 +51,27 @@ class AssistantBlock extends StatelessWidget {
         if (item.reasoning.isNotEmpty)
           _Reasoning(item: item, startOpen: item.streaming),
         if (item.text.isNotEmpty) SelectableText(item.text),
+        if (item.text.isNotEmpty && !item.streaming)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: IconButton(
+              tooltip: 'Read aloud',
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                Icons.volume_up_outlined,
+                size: 16,
+                color: hk.textMuted,
+              ),
+              onPressed: () => Voice.instance.speak(item.text).catchError((
+                Object e,
+              ) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text('Read aloud: $e')));
+                }
+              }),
+            ),
+          ),
         if (item.streaming && item.text.isEmpty && item.reasoning.isEmpty)
           Text('…', style: TextStyle(color: hk.textMuted)),
       ],

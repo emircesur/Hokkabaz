@@ -31,7 +31,7 @@ pub use checkpoint::{Checkpoint, CheckpointTool, Checkpoints};
 pub use edit::{EditError, EditTool, apply_edit};
 pub use glob::GlobTool;
 pub use grep::GrepTool;
-pub use knowledge::{KnowledgeBase, KnowledgeTool};
+pub use knowledge::{Embedder, KnowledgeBase, KnowledgeTool, set_embedder};
 pub use memory::{MemoryEntry, MemoryStore, MemoryTool};
 pub use read::ReadTool;
 pub use textindex::{bm25, tokenize};

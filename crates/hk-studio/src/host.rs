@@ -671,6 +671,10 @@ impl StudioHost {
                     opts,
                 )))
             }
+            "transcribe_file" => Ok(json!(
+                svc.transcribe_file(Path::new(&arg::<String>(&p, "path")?))
+                    .await?
+            )),
             "sync_offset" => {
                 let (a, b): (String, String) = (arg(&p, "a")?, arg(&p, "b")?);
                 let window: f64 = opt(&p, "window_s")?.unwrap_or(120.0);

@@ -17,7 +17,8 @@ fn internal(e: impl std::fmt::Display) -> HkError {
 }
 
 fn user(text: &str) -> Message {
-    Message { images: Vec::new(),
+    Message {
+        images: Vec::new(),
         role: Role::User,
         content: text.to_string(),
         reasoning: None,
@@ -60,12 +61,24 @@ pub(crate) async fn session(c: &Ctx<'_>, action: &str, p: Value) -> Result<Value
         "submit" => {
             use base64::Engine as _;
             let mut images = Vec::new();
-            for path in p.get("images").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str) {
-                let bytes = tokio::fs::read(path).await.map_err(|e| bad(format!("{path}: {e}")))?;
+            for path in p
+                .get("images")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+            {
+                let bytes = tokio::fs::read(path)
+                    .await
+                    .map_err(|e| bad(format!("{path}: {e}")))?;
                 if bytes.len() > 20 * 1024 * 1024 {
                     return Err(bad(format!("{path} is larger than 20 MB")));
                 }
-                let ext = path.rsplit('.').next().unwrap_or_default().to_ascii_lowercase();
+                let ext = path
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or_default()
+                    .to_ascii_lowercase();
                 let mime = match ext.as_str() {
                     "jpg" | "jpeg" => "image/jpeg",
                     "webp" => "image/webp",
@@ -103,6 +116,37 @@ pub(crate) async fn recall(
     p: Value,
 ) -> Result<Value, HkError> {
     use hk_tools::builtin::{KnowledgeBase, MemoryStore};
+    if domain == "knowledge" {
+        let kb = std::sync::Arc::new(KnowledgeBase::new(c.data_dir));
+        return match action {
+            "list" => Ok(json!(kb.list())),
+            "index" => {
+                let (files, chunks, embedded) = kb
+                    .index_hybrid(
+                        str_arg(&p, "name")?,
+                        std::path::Path::new(str_arg(&p, "path")?),
+                    )
+                    .await
+                    .map_err(internal)?;
+                Ok(json!({"files": files, "chunks": chunks, "embedded": embedded}))
+            }
+            "search" => {
+                let bases: Vec<String> = p
+                    .get("bases")
+                    .and_then(|v| serde_json::from_value(v.clone()).ok())
+                    .unwrap_or_default();
+                Ok(json!(
+                    kb.search_hybrid(str_arg(&p, "query")?, &bases, 10)
+                        .await
+                        .into_iter()
+                        .map(|(b, ch)| json!({"base": b, "cite": format!("{}:{}-{}", ch.file, ch.start_line, ch.end_line), "text": ch.text}))
+                        .collect::<Vec<_>>()
+                ))
+            }
+            "remove" => Ok(json!(kb.remove(str_arg(&p, "name")?))),
+            _ => Err(bad(format!("unknown `knowledge.{action}`"))),
+        };
+    }
     let dir = c.data_dir.to_path_buf();
     let action = action.to_string();
     let domain = domain.to_string();
@@ -117,40 +161,22 @@ pub(crate) async fn recall(
                         Some(pr) => format!("project:{pr}"),
                         None => "user".into(),
                     };
-                    Ok(json!(m.save(&scope, str_arg(&p, "text")?).map_err(internal)?))
+                    Ok(json!(
+                        m.save(&scope, str_arg(&p, "text")?).map_err(internal)?
+                    ))
                 }
                 "search" => Ok(json!(m.search(str_arg(&p, "query")?, project, 10))),
                 "delete" => {
-                    let id = p.get("id").and_then(Value::as_u64).ok_or_else(|| bad("missing `id`"))?;
+                    let id = p
+                        .get("id")
+                        .and_then(Value::as_u64)
+                        .ok_or_else(|| bad("missing `id`"))?;
                     Ok(json!(m.delete(id).map_err(internal)?))
                 }
                 _ => Err(bad(format!("unknown `memory.{action}`"))),
             };
         }
-        let kb = KnowledgeBase::new(&dir);
-        match action.as_str() {
-            "list" => Ok(json!(kb.list())),
-            "index" => {
-                let (files, chunks) = kb
-                    .index(str_arg(&p, "name")?, std::path::Path::new(str_arg(&p, "path")?))
-                    .map_err(internal)?;
-                Ok(json!({"files": files, "chunks": chunks}))
-            }
-            "search" => {
-                let bases: Vec<String> = p
-                    .get("bases")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok())
-                    .unwrap_or_default();
-                Ok(json!(
-                    kb.search(str_arg(&p, "query")?, &bases, 10)
-                        .into_iter()
-                        .map(|(b, ch)| json!({"base": b, "cite": format!("{}:{}-{}", ch.file, ch.start_line, ch.end_line), "text": ch.text}))
-                        .collect::<Vec<_>>()
-                ))
-            }
-            "remove" => Ok(json!(kb.remove(str_arg(&p, "name")?))),
-            _ => Err(bad(format!("unknown `knowledge.{action}`"))),
-        }
+        Err(bad("knowledge is handled above"))
     })
     .await
     .map_err(internal)?
@@ -296,7 +322,10 @@ pub(crate) async fn call(
                 .into_iter()
                 .find(|a| a["id"] == id)
                 .ok_or_else(|| bad(format!("unknown agent `{id}`")))?;
-            let model = a["model"].as_str().filter(|m| !m.is_empty() && !m.contains("{{")).map(str::to_string);
+            let model = a["model"]
+                .as_str()
+                .filter(|m| !m.is_empty() && !m.contains("{{"))
+                .map(str::to_string);
             let info = c
                 .runtime
                 .create_session(hk_server::CreateSession {
@@ -309,9 +338,14 @@ pub(crate) async fn call(
             let mut system = vec![a["system_prompt"].as_str().unwrap_or_default().to_string()];
             if let Some(tools) = a["tools"].as_array().filter(|t| !t.is_empty()) {
                 let names: Vec<&str> = tools.iter().filter_map(Value::as_str).collect();
-                system.push(format!("Prefer these tools for this role: {}.", names.join(", ")));
+                system.push(format!(
+                    "Prefer these tools for this role: {}.",
+                    names.join(", ")
+                ));
             }
-            c.runtime.set_session_system(&info.id, system).map_err(internal)?;
+            c.runtime
+                .set_session_system(&info.id, system)
+                .map_err(internal)?;
             Ok(json!(info))
         }
         ("usage", "summary") => {

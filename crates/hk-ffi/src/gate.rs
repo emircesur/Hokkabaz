@@ -200,8 +200,13 @@ pub(crate) async fn apply_ai_defaults(rt: &LocalRuntime, store: &Store) {
     // Reuse the provider-facing mapping so UI fields and wire fields never drift.
     let mut probe = hk_llm::ChatRequest::new(String::new(), Vec::new());
     probe.apply_settings(&settings);
-    let approvals = doc_get(store, "approval_policy").await.unwrap_or(Value::Null);
-    let dry_run = approvals.get("dry_run").and_then(Value::as_bool).unwrap_or(false);
+    let approvals = doc_get(store, "approval_policy")
+        .await
+        .unwrap_or(Value::Null);
+    let dry_run = approvals
+        .get("dry_run")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     let policy: std::collections::BTreeMap<String, String> = approvals
         .get("rules")
         .cloned()

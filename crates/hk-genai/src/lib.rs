@@ -338,3 +338,90 @@ mod tests {
         assert_eq!(g["6"]["inputs"]["text"], "a cat");
     }
 }
+
+/// Embedding engine for knowledge-base search (hybrid with BM25).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "engine", rename_all = "snake_case")]
+pub enum EmbedConfig {
+    /// `/embeddings` (OpenAI, many local servers).
+    OpenAi {
+        base_url: String,
+        #[serde(default)]
+        api_key: Option<String>,
+        #[serde(default = "default_embed_model")]
+        model: String,
+    },
+    /// Ollama `/api/embed`.
+    Ollama {
+        #[serde(default = "default_ollama_url")]
+        base_url: String,
+        #[serde(default = "default_ollama_embed")]
+        model: String,
+    },
+}
+
+fn default_embed_model() -> String {
+    "text-embedding-3-small".into()
+}
+fn default_ollama_url() -> String {
+    "http://127.0.0.1:11434".into()
+}
+fn default_ollama_embed() -> String {
+    "nomic-embed-text".into()
+}
+
+/// Embed `texts` (one vector per text, same order).
+pub async fn embed(cfg: &EmbedConfig, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+    if texts.is_empty() {
+        return Ok(Vec::new());
+    }
+    let vecs = |v: &Value, key: &str| -> Vec<Vec<f32>> {
+        v[key]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .map(|e| {
+                        let arr = if key == "data" { &e["embedding"] } else { e };
+                        arr.as_array()
+                            .map(|x| {
+                                x.iter()
+                                    .filter_map(Value::as_f64)
+                                    .map(|f| f as f32)
+                                    .collect()
+                            })
+                            .unwrap_or_default()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    match cfg {
+        EmbedConfig::OpenAi {
+            base_url,
+            api_key,
+            model,
+        } => {
+            let mut r = client()
+                .post(join(base_url, "embeddings"))
+                .json(&json!({"model": model, "input": texts}));
+            if let Some(k) = api_key {
+                r = r.bearer_auth(k);
+            }
+            let v: Value = check(r.send().await?).await?.json().await?;
+            Ok(vecs(&v, "data"))
+        }
+        EmbedConfig::Ollama { base_url, model } => {
+            let v: Value = check(
+                client()
+                    .post(join(base_url, "api/embed"))
+                    .json(&json!({"model": model, "input": texts}))
+                    .send()
+                    .await?,
+            )
+            .await?
+            .json()
+            .await?;
+            Ok(vecs(&v, "embeddings"))
+        }
+    }
+}

@@ -18,7 +18,10 @@ fn store() -> (tempfile::TempDir, SessionStore) {
 }
 
 fn user(c: &str) -> EventKind {
-    EventKind::UserMessage { images: Vec::new(), content: c.into() }
+    EventKind::UserMessage {
+        images: Vec::new(),
+        content: c.into(),
+    }
 }
 fn asst(c: &str) -> EventKind {
     EventKind::AssistantMessage {

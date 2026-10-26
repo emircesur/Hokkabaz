@@ -381,6 +381,12 @@ impl StudioService {
         Ok(out)
     }
 
+    /// Speech-to-text for one audio file (voice input in chat), with the Studio's STT engine.
+    pub async fn transcribe_file(&self, path: &Path) -> Result<String> {
+        let (t, opts) = self.backends.transcriber(self.studio.splitter()).await?;
+        Ok(t.transcribe(path, &opts).await?.plain_text())
+    }
+
     /// Set or clear auto punch-in for a clip.
     pub async fn set_punch_in(
         &self,

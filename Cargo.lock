@@ -3718,6 +3718,7 @@ name = "hk-ffi"
 version = "0.0.0"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
  "flutter_rust_bridge",
  "futures",
  "hk-core",
@@ -4064,6 +4065,7 @@ name = "hk-tools"
 version = "0.0.0"
 dependencies = [
  "async-trait",
+ "futures",
  "globset",
  "hk-core",
  "ignore",
@@ -4087,6 +4089,7 @@ dependencies = [
  "hk-stt",
  "serde_json",
  "tokio",
+ "whisper-rs-sys",
 ]
 
 [[package]]

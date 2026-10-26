@@ -12,6 +12,44 @@ use super::textindex::bm25;
 use super::{base_dir, fail, looks_binary, parse};
 use crate::tool::{Risk, Tool, ToolCtx, ToolError, ToolOutput, ToolSpec};
 
+/// Text embedder for hybrid search (set by the host from its generation settings).
+pub trait Embedder: Send + Sync {
+    fn embed(
+        &self,
+        texts: Vec<String>,
+    ) -> futures::future::BoxFuture<'_, Result<Vec<Vec<f32>>, String>>;
+}
+
+static EMBEDDER: std::sync::RwLock<Option<Arc<dyn Embedder>>> = std::sync::RwLock::new(None);
+
+/// Enable (or disable with `None`) embedding-based hybrid search for knowledge bases.
+pub fn set_embedder(e: Option<Arc<dyn Embedder>>) {
+    *EMBEDDER
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = e;
+}
+
+fn embedder() -> Option<Arc<dyn Embedder>> {
+    EMBEDDER
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+}
+
+fn cosine(a: &[f32], b: &[f32]) -> f32 {
+    let (mut d, mut na, mut nb) = (0f32, 0f32, 0f32);
+    for (x, y) in a.iter().zip(b) {
+        d += x * y;
+        na += x * x;
+        nb += y * y;
+    }
+    if na == 0.0 || nb == 0.0 {
+        0.0
+    } else {
+        d / (na.sqrt() * nb.sqrt())
+    }
+}
+
 const CHUNK_LINES: usize = 40;
 const OVERLAP: usize = 5;
 const MAX_FILE_BYTES: u64 = 1_000_000;
@@ -135,7 +173,92 @@ impl KnowledgeBase {
     }
 
     pub fn remove(&self, name: &str) -> bool {
+        let _ = std::fs::remove_file(self.vec_path(name));
         std::fs::remove_file(self.path(name)).is_ok()
+    }
+
+    fn vec_path(&self, name: &str) -> PathBuf {
+        self.dir.join(format!("{}.vec.json", safe_name(name)))
+    }
+
+    /// Index, then embed every chunk when an embedder is configured. Returns (files, chunks, embedded).
+    pub async fn index_hybrid(
+        self: &Arc<Self>,
+        name: &str,
+        root: &Path,
+    ) -> Result<(usize, usize, bool), String> {
+        let (kb, n, r) = (self.clone(), name.to_string(), root.to_path_buf());
+        let (files, chunks) = tokio::task::spawn_blocking(move || kb.index(&n, &r))
+            .await
+            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?;
+        let Some(emb) = embedder() else {
+            let _ = std::fs::remove_file(self.vec_path(name));
+            return Ok((files, chunks, false));
+        };
+        let base = self.load(name).ok_or("index vanished")?;
+        let mut vecs: Vec<Vec<f32>> = Vec::with_capacity(base.chunks.len());
+        for batch in base.chunks.chunks(32) {
+            let texts: Vec<String> = batch
+                .iter()
+                .map(|c| c.text.chars().take(2000).collect())
+                .collect();
+            vecs.extend(emb.embed(texts).await?);
+        }
+        std::fs::write(
+            self.vec_path(name),
+            serde_json::to_vec(&vecs).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+        Ok((files, chunks, true))
+    }
+
+    /// BM25 + cosine (when vectors and an embedder exist), else BM25 only.
+    pub async fn search_hybrid(
+        &self,
+        query: &str,
+        bases: &[String],
+        k: usize,
+    ) -> Vec<(String, Chunk)> {
+        let Some(emb) = embedder() else {
+            return self.search(query, bases, k);
+        };
+        let names: Vec<String> = if bases.is_empty() {
+            self.list()
+                .iter()
+                .filter_map(|v| v["name"].as_str().map(str::to_string))
+                .collect()
+        } else {
+            bases.to_vec()
+        };
+        let Ok(qv) = emb.embed(vec![query.to_string()]).await else {
+            return self.search(query, bases, k);
+        };
+        let Some(qv) = qv.into_iter().next() else {
+            return self.search(query, bases, k);
+        };
+        let mut scored: Vec<(f32, String, Chunk)> = Vec::new();
+        for n in names {
+            let Some(base) = self.load(&n) else { continue };
+            let vecs: Vec<Vec<f32>> = std::fs::read(self.vec_path(&n))
+                .ok()
+                .and_then(|b| serde_json::from_slice(&b).ok())
+                .unwrap_or_default();
+            let docs: Vec<&str> = base.chunks.iter().map(|c| c.text.as_str()).collect();
+            let lex = bm25(query, &docs, docs.len());
+            let max = lex.first().map_or(1.0, |x| x.1.max(1e-9));
+            let lex_of: std::collections::HashMap<usize, f64> = lex.into_iter().collect();
+            for (i, c) in base.chunks.iter().enumerate() {
+                let l = lex_of.get(&i).copied().unwrap_or(0.0) / max;
+                let v = vecs.get(i).map_or(0.0, |v| cosine(&qv, v));
+                let score = 0.5 * l as f32 + 0.5 * v.max(0.0);
+                if score > 0.05 {
+                    scored.push((score, n.clone(), c.clone()));
+                }
+            }
+        }
+        scored.sort_by(|a, b| b.0.total_cmp(&a.0));
+        scored.into_iter().take(k).map(|(_, n, c)| (n, c)).collect()
     }
 
     /// Top `k` chunks for `query` across `bases` (all when empty).
@@ -205,17 +328,18 @@ impl Tool for KnowledgeTool {
         let a: Args = parse("knowledge", args)?;
         let kb = self.0.clone();
         let root = base_dir(&ctx, a.path.as_deref());
-        let res = tokio::task::spawn_blocking(move || -> Result<Value, String> {
+        let res = async move {
             match a.action.as_str() {
                 "index" => {
                     let name = a.name.ok_or("index needs `name`")?;
-                    let (files, chunks) = kb.index(&name, &root).map_err(|e| e.to_string())?;
-                    Ok(json!({"name": name, "files": files, "chunks": chunks}))
+                    let (files, chunks, embedded) = kb.index_hybrid(&name, &root).await?;
+                    Ok(json!({"name": name, "files": files, "chunks": chunks, "embedded": embedded}))
                 }
                 "search" => {
                     let q = a.query.ok_or("search needs `query`")?;
                     let hits: Vec<Value> = kb
-                        .search(&q, &a.bases, a.k.unwrap_or(5))
+                        .search_hybrid(&q, &a.bases, a.k.unwrap_or(5))
+                        .await
                         .into_iter()
                         .map(|(b, c)| {
                             let snippet: String = c.text.chars().take(800).collect();
@@ -228,9 +352,8 @@ impl Tool for KnowledgeTool {
                 "remove" => Ok(json!({"removed": kb.remove(&a.name.ok_or("remove needs `name`")?)})),
                 other => Err(format!("unknown action `{other}`")),
             }
-        })
-        .await
-        .map_err(|e| super::join_err("knowledge", e))?;
+        }
+        .await;
         match res {
             Ok(v) => Ok(ToolOutput::ok(v.to_string())),
             Err(e) => fail(e),

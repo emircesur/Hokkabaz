@@ -538,7 +538,8 @@ impl CoreHandle for RemoteCore {
             return Err(HkError::invalid("prompt must not be empty"));
         }
         self.i.feeds_ready(session_id).await;
-        let body = TurnRequest { images: Vec::new(),
+        let body = TurnRequest {
+            images: Vec::new(),
             prompt: req.prompt,
             mode: req.mode.map(|m| match m {
                 ModeDto::Build => TurnMode::Build,

@@ -205,6 +205,7 @@ impl LocalCore {
             core.i.shutdown.clone(),
         );
         crate::gate::apply_ai_defaults(&core.i.runtime, &store).await;
+        crate::features2::apply_embedder(&store).await;
         {
             let hub = core.i.hub.clone();
             local_ctx.set_rebuild(Arc::new(move || {
@@ -449,7 +450,8 @@ impl CoreHandle for LocalCore {
             .runtime
             .submit(
                 session_id,
-                TurnRequest { images: Vec::new(),
+                TurnRequest {
+                    images: Vec::new(),
                     prompt: req.prompt,
                     mode: Some(match mode {
                         ModeDto::Build => TurnMode::Build,

@@ -80,6 +80,7 @@ pub(crate) async fn call(
                 .set_setting("genai_settings", &v.to_string())
                 .await
                 .map_err(internal)?;
+            apply_embedder(c.store).await;
             Ok(v)
         }
         ("tts", "speak") => {
@@ -262,6 +263,37 @@ pub(crate) async fn call(
         }
         _ => Err(bad(format!("unknown `{domain}.{action}`"))),
     }
+}
+
+struct GenEmbedder(hk_genai::EmbedConfig);
+
+impl hk_tools::builtin::Embedder for GenEmbedder {
+    fn embed(
+        &self,
+        texts: Vec<String>,
+    ) -> futures::future::BoxFuture<'_, Result<Vec<Vec<f32>>, String>> {
+        Box::pin(async move {
+            hk_genai::embed(&self.0, &texts)
+                .await
+                .map_err(|e| e.to_string())
+        })
+    }
+}
+
+/// Turn knowledge-base hybrid search on/off from `genai_settings.embed`.
+pub(crate) async fn apply_embedder(store: &hk_store::Store) {
+    let cfg: Option<hk_genai::EmbedConfig> = store
+        .get_setting("genai_settings")
+        .await
+        .ok()
+        .flatten()
+        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .and_then(|v| v.get("embed").cloned())
+        .filter(|v| !v.is_null())
+        .and_then(|v| serde_json::from_value(v).ok());
+    hk_tools::builtin::set_embedder(cfg.map(|c| {
+        std::sync::Arc::new(GenEmbedder(c)) as std::sync::Arc<dyn hk_tools::builtin::Embedder>
+    }));
 }
 
 pub(crate) fn now_ms() -> u64 {

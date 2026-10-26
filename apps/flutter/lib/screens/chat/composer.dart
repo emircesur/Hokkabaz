@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/breakpoints.dart';
 import '../../ffi/settings_providers.dart';
 import '../../src/rust/dto.dart';
+import '../../ffi/voice.dart';
 import '../../theme/tokens.dart';
 import 'chat_providers.dart';
 import 'composer_logic.dart';
@@ -73,6 +74,33 @@ class _ComposerState extends ConsumerState<Composer> {
 
   /// Image files attached to the next message.
   final List<String> _images = [];
+
+  /// Push-to-talk state: idle, recording, transcribing.
+  String _voice = 'idle';
+
+  Future<void> _toggleVoice() async {
+    try {
+      if (_voice == 'idle') {
+        await Voice.instance.start();
+        setState(() => _voice = 'recording');
+      } else if (_voice == 'recording') {
+        setState(() => _voice = 'transcribing');
+        final t = await Voice.instance.stopAndTranscribe();
+        if (t.isNotEmpty) {
+          final cur = _text.text;
+          _text.text = cur.isEmpty ? t : '$cur $t';
+          _text.selection = TextSelection.collapsed(offset: _text.text.length);
+        }
+        if (mounted) setState(() => _voice = 'idle');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _voice = 'idle');
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Voice: $e')));
+      }
+    }
+  }
 
   Future<void> _attach() async {
     final r = await FilePicker.pickFiles(
@@ -297,6 +325,24 @@ class _ComposerState extends ConsumerState<Composer> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  IconButton(
+                    tooltip: _voice == 'recording'
+                        ? 'Stop and transcribe'
+                        : 'Voice input (push to talk)',
+                    color: _voice == 'recording' ? Colors.red : null,
+                    icon: _voice == 'transcribing'
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            _voice == 'recording'
+                                ? Icons.stop_circle
+                                : Icons.mic_none,
+                          ),
+                    onPressed: _voice == 'transcribing' ? null : _toggleVoice,
+                  ),
                   IconButton(
                     tooltip: 'Attach image (vision models)',
                     icon: const Icon(Icons.add_photo_alternate_outlined),

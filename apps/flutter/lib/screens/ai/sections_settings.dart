@@ -443,6 +443,7 @@ class _GenTabState extends State<_GenTab> {
     'engine': 'open_ai',
     'base_url': 'https://api.openai.com/v1',
   };
+  Map<String, dynamic> _emb = {'engine': 'off'};
   Map<String, dynamic> _img = {
     'engine': 'open_ai',
     'base_url': 'https://api.openai.com/v1',
@@ -460,6 +461,9 @@ class _GenTabState extends State<_GenTab> {
             }
             if (v['image'] is Map) {
               _img = (v['image'] as Map).cast<String, dynamic>();
+            }
+            if (v['embed'] is Map) {
+              _emb = (v['embed'] as Map).cast<String, dynamic>();
             }
           });
         })
@@ -509,13 +513,43 @@ class _GenTabState extends State<_GenTab> {
               ],
       ),
       const SizedBox(height: HkTokens.s4),
+      Text('Embeddings (knowledge search)', style: Theme.of(context).textTheme.titleMedium),
+      const SizedBox(height: HkTokens.s1),
+      Text(
+        'With an embedding model, knowledge bases use hybrid search (keywords + meaning). Re-index after changing it.',
+        style: TextStyle(fontSize: 12, color: context.hk.textMuted),
+      ),
+      const SizedBox(height: HkTokens.s2),
+      _MapForm(
+        values: _emb,
+        onChanged: () => setState(() {}),
+        fields: switch (_emb['engine']) {
+          'ollama' => const [
+            ('engine', 'Engine', 'choice:off,open_ai,ollama'),
+            ('base_url', 'Ollama URL', 'text'),
+            ('model', 'Model (e.g. nomic-embed-text)', 'text'),
+          ],
+          'open_ai' => const [
+            ('engine', 'Engine', 'choice:off,open_ai,ollama'),
+            ('base_url', 'Base URL', 'text'),
+            ('api_key', 'API key', 'text'),
+            ('model', 'Model', 'text'),
+          ],
+          _ => const [('engine', 'Engine', 'choice:off,open_ai,ollama')],
+        },
+      ),
+      const SizedBox(height: HkTokens.s4),
       Align(
         alignment: Alignment.centerLeft,
         child: FilledButton(
           onPressed: () => guarded(
             context,
             () => hk('genai.save', {
-              'settings': {'tts': _tts, 'image': _img},
+              'settings': {
+                'tts': _tts,
+                'image': _img,
+                'embed': (_emb['engine'] == null || _emb['engine'] == 'off') ? null : _emb,
+              },
             }),
             ok: 'Saved',
           ),

@@ -96,7 +96,8 @@ pub fn derive_messages(events: &[SessionEvent]) -> Vec<Message> {
 }
 
 fn msg(role: Role, content: &str) -> Message {
-    Message { images: Vec::new(),
+    Message {
+        images: Vec::new(),
         role,
         content: content.to_owned(),
         reasoning: None,
