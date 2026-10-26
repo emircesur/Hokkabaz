@@ -54,6 +54,17 @@ pub struct Manifest {
     pub capabilities: Capabilities,
 }
 
+/// Registry item id rule shared by plugins and templates.
+pub(crate) fn valid_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 100
+        && id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '_' | '-'))
+        && !id.starts_with(['.', '-'])
+        && !id.contains("..")
+}
+
 impl Manifest {
     pub fn parse(text: &str) -> Result<Self> {
         let m: Manifest = toml::from_str(text).map_err(|e| PluginError::Manifest(e.to_string()))?;
@@ -67,14 +78,7 @@ impl Manifest {
 
     pub fn validate(&self) -> Result<()> {
         let bad = |m: &str| Err(PluginError::Manifest(m.to_string()));
-        if self.id.is_empty()
-            || self.id.len() > 100
-            || !self.id.chars().all(|c| {
-                c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '_' | '-')
-            })
-            || self.id.starts_with(['.', '-'])
-            || self.id.contains("..")
-        {
+        if !valid_id(&self.id) {
             return bad("`id` must be 1-100 chars of [a-z0-9._-] and not start with '.' or '-'");
         }
         if self.name.trim().is_empty() {

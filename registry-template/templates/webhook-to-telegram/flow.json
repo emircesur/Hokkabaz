@@ -1,0 +1,36 @@
+{
+  "name": "Webhook to Telegram",
+  "nodes": [
+    {
+      "id": "0b6f1c1e-0000-4000-8000-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "{{inputs.path}}",
+        "responseMode": "onReceived"
+      }
+    },
+    {
+      "id": "0b6f1c1e-0000-4000-8000-000000000002",
+      "name": "Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [240, 0],
+      "parameters": {
+        "chatId": "{{inputs.chat_id}}",
+        "text": "={{ $json.body.message }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "telegramApi": { "id": "{{inputs.bot}}", "name": "Telegram bot" }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Telegram", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
