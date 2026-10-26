@@ -232,6 +232,31 @@ Each integration = credential schema + nodes (actions/triggers) + optional agent
 
 ---
 
+### 3.14 Jobs, progress and cancellation
+
+Every long-running operation is a **Job** (`hk-core::jobs`, port of dsh `ctx.jobs` idea), so progress and cancel work the same everywhere: agent turns, LLM streams, tool calls, subagents, flow executions, renders, transcriptions, model downloads, indexing.
+
+- `Job { id, parent, kind, title, phase, progress: Determinate(f32) | Indeterminate, eta, started_at, cancel: CancellationToken, meta }`. Jobs form a tree (turn → step → tool → subagent turn …).
+- Events (live, plus durable `job/*` session events for turns): `job/started`, `job/phase`, `job/progress`, `job/log`, `job/cancel-requested`, `job/cancelled`, `job/finished`, `job/failed`.
+- **Cancel semantics**: cooperative first (token), then forced after grace period (default 5 s): HTTP stream dropped, subprocess process group killed, ffmpeg `q` then kill. Cancel of a parent cancels the subtree.
+- **What survives a cancel**: partial assistant text is logged as `assistant/attempt` (status `cancelled`) and stays visible; tool calls in flight get a synthetic `tool/result` ("cancelled by user") so the log stays replayable; flow executions end with status `canceled` and per-node runData kept.
+- **Cancel levels** exposed in UI: stop generation · skip current tool · cancel turn · cancel subagent subtree · cancel all on instance. Plus non-destructive controls: *pause after current step*, *steer* (inject a message into the running agent's inbox), *resume* (continue from last durable step, optionally on another model).
+- **Live telemetry** for LLM jobs: time to first token, tokens/s, input/output/reasoning/cached tokens, running cost, context-window fill %, current step n/max, current tool, retry/backoff state.
+- Remote: jobs stream over the instance WS; cancel is a scoped command (`chat` or `flows` scope). Android: active jobs mirrored in a persistent notification with Cancel action.
+
+### 3.15 AI settings model
+
+Settings resolve in layers (global → provider → model → agent/mode → project → session → single message), shown in UI with "inherited from …" hints.
+
+- **Sampling**: temperature, top_p, top_k, min_p, max output tokens, presence/frequency/repetition penalty, seed, stop sequences, logit bias (where supported). Controls hide when the model (models.dev capability) does not support them.
+- **Reasoning**: effort (low/medium/high) or thinking budget tokens; show/hide/collapse reasoning; keep reasoning in history on/off.
+- **Output**: JSON mode / JSON Schema structured output with auto-repair retries; streaming on/off.
+- **Context**: context limit override, compaction threshold and strategy, tool-output spill size, memory/RAG injection on/off and top-k.
+- **Local model runtime**: context length, GPU layers, threads, batch size, KV-cache quantization, flash attention, mmap/mlock, keep-alive; per-model profiles plus a one-click benchmark (tokens/s) that suggests settings.
+- **Cost and limits**: per-provider/model/project daily and monthly budgets; warn and hard-stop thresholds; per-turn cost cap.
+- **Safety**: per-tool approval policy matrix (allow / ask / deny × mode × path/network scope), dry-run mode, auto-approve rules with expiry.
+- Presets: named bundles of the above ("Precise coder", "Creative writer", "Cheap & fast", "Offline phone") shareable as templates.
+
 ## 4. UX design
 
 ### 4.1 Principles
@@ -253,9 +278,11 @@ Nav rail (desktop) / bottom bar (mobile, 4 tabs + "More"):
 | **Instances** | Local + remote instances, pairing, health |
 | **Plugins** | WASM plugins, MCP servers, integrations, credentials |
 | **Models** | Providers, API keys, local models, routing/fallbacks |
-| **Settings** | Profiles, sandbox policy, appearance, data |
+| **Studio** | Agentic video editing (docs/STUDIO.md) |
+| **Templates** | Gallery of flow, agent, prompt, studio templates and bundles (GitHub registry, D13) |
+| **Settings** | Profiles, AI settings (§3.15), sandbox policy, appearance, data |
 
-Top bar: instance switcher · model/mode quick picker · command palette (`Ctrl/Cmd+K`) · approvals inbox badge.
+Top bar: instance switcher · model/mode quick picker · command palette (`Ctrl/Cmd+K`) · approvals inbox badge · **activity indicator** (running jobs count, opens Activity center §4.8).
 
 ### 4.3 Chat screen
 
@@ -326,6 +353,24 @@ Cards: name, URL, version, status dot, active flows, queue depth. Actions: pair 
 
 ---
 
+### 4.8 Activity center (progress + cancel)
+
+```
+┌ Activity ───────────────────────────────────────────── [Cancel all] ┐
+│ ▼ Chat "fix webhook"   step 3/25  ⏱ 0:42   41 tok/s   $0.012  [■]  │
+│   ├ edit src/server.rs         ✓                                      │
+│   ├ bash cargo check           ███████░░ 70%  ETA 0:08   [skip] [■]   │
+│   └ subagent "search usages"   streaming…                  [■]        │
+│ ▼ Studio render "clip 2/5"     ████░░░░░ 44%  ETA 1:10   [⏸] [■]     │
+│ ▶ Flow "triage-bot" #1823      node 4/7 · Agent                [■]   │
+│ ▶ Download qwen3-4b-q4.gguf    ██████░░ 2.1/3.0 GB  12 MB/s   [■]    │
+└──────────────────────────────────────────────────────────────────────┘
+```
+- Opens as right drawer (desktop) or bottom sheet (mobile); `Ctrl+.` toggles; `Esc` in chat = stop generation, `Esc Esc` = cancel turn.
+- Chat composer turns into a **Stop** button while generating, with a live strip: phase (thinking / writing / running tool), tokens/s, elapsed, cost, context fill.
+- Each job row: progress bar or shimmer when indeterminate, ETA, expandable log tail, actions (cancel, pause, retry, open).
+- Finished jobs stay 24 h in history (Runs screen keeps them longer). Desktop toast / Android notification on finish, failure or approval needed.
+
 ## 5. Security model
 
 - API keys and credentials only via `hk-store::secrets`; redacted from logs, session events, executions.
@@ -356,6 +401,9 @@ Cards: name, URL, version, status dot, active flows, queue depth. Actions: pair 
 | D9 | DeepSeek is default provider and first adapter | User priority, cost | — |
 | D15 | Studio (OpusClip-class agentic video screen) is a v1 feature set: own pipeline on ffmpeg process + hk-llm/hk-stt; see docs/STUDIO.md | Owner requirement | Defer to v2 |
 | D16 | Concat (AGPL-3.0, https://github.com/jub0t/concat) is INCLUDED: git submodule `third_party/concat` (pinned SHA), used (a) in-process via cargo feature `engine` of crate `hk-concat` (path deps on concat-* crates) and (b) as external `concat --mcp` / JSON-RPC bridge; name/logo not used for modified builds (TRADEMARK.md) | Owner requirement; Concat is a ready Rust editor with captions, effects, export, MCP | Process-only bridge |
+| D17 | Unified Job model for progress/cancel across agent, flows, studio, downloads | One UI and one cancel path; partial work kept and logged | Per-feature cancel APIs |
+| D18 | Layered AI settings with capability-aware controls | Same knobs from global down to one message; no dead controls | Flat per-model settings |
+| D19 | Templates are registry items (flows, agents, prompts, studio, bundles) with declared inputs + install wizard | One gallery, one install path, shareable via GitHub | Separate ad-hoc import screens |
 | D10 | License: **AGPL-3.0-or-later** (was deferred) | Concat (AGPL-3.0-or-later) is included and linked in Studio builds, so the combined work is AGPL; MIT upstreams are compatible | Keep Concat process-only and relicense |
 
 ## 7. Open questions

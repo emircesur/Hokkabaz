@@ -16,6 +16,8 @@ Separate Flutter screen (`/studio`) + Rust crates for long-video → short-clip 
 | Social posting | LLM titles/descriptions/hashtags per platform; publish connectors as hk-integrations nodes (YouTube Data API first; others behind user-supplied tokens) so n8n flows can automate; manual "copy / export package" always available |
 | Fine editing / rich render | **Concat** included (see below): engine + MCP bridge, "Open in Concat", agent tool bridge |
 
+Studio v2 (PLAN Phase 9D, P9.28–P9.40): multi-track timeline, diarization, translation + dubbing, audio cleanup, auto-zoom/motion graphics, chapters/blog, thumbnails, hook doctor, brand kit, batch + HW encoders, multicam, publish calendar, analytics loop. All renders/transcribes run as Jobs with progress + cancel (DESIGN §3.14).
+
 ## Concat (included)
 
 Concat (https://github.com/jub0t/concat, Rust, AGPL-3.0-or-later, beta) is part of Hokkabaz: git submodule `third_party/concat` pinned to a SHA (see `docs/UPSTREAM.md`), crate `hk-concat` bridges it.

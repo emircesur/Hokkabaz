@@ -179,6 +179,81 @@ Design: `docs/STUDIO.md`. Concat (AGPL) is included as submodule + `hk-concat` b
 | P8.11 | A | Studio agent: tools (`media_probe`, `transcribe`, `find_highlights`, `score_clip`, `reframe`, `caption`, `add_broll`, `render`, `write_social`, `publish`) + agent panel in /studio reusing chat widgets; flow nodes `hokkabaz.studio*` for n8n automation | P8.4, P8.9 | M | fixture | "make 5 viral shorts from this video" end-to-end | done — 10 studio_* tools in hk-studio (tools.rs); edits show live in the editor; registration into LocalRuntime pending (hk-ffi step); n8n nodes hokkabaz.studio* NOT done |
 | P8.12 | B | `hk-concat`: bridge to included Concat (submodule `third_party/concat`): process bridge (`concat --mcp`/JSON-RPC via hk-mcp, typed wrapper), feature `engine` in-process path deps, EDL ↔ Concat project adapter, studio agent tool passthrough, CI job building with FFmpeg 7 dev libs | P8.1 | L | unit (adapter) | agent edits+exports a project through Concat | done — hk-concat process bridge + agent tools (hk-server feature `concat`), 25 tests vs fake; `engine` feature + real Concat binary UNVERIFIED (no FFmpeg 7 dev libs here) |
 
+## Phase 9 — Studio+, templates, AI features & settings, live progress/cancel  (milestone **M9: every long job visible + cancellable; template gallery; AI settings; Studio v2**)
+
+Design: DESIGN §3.14 (jobs/cancel), §3.15 (AI settings), §4.8 (Activity center), D17–D19; Studio items extend docs/STUDIO.md. 44 features. Order inside phase: 9A first (cross-cutting), then 9B–9E in parallel.
+
+### 9A — Live progress & cancellation (owner priority)
+
+| ID | Lane | Task | Deps | Size | Test | DoD | Status |
+|---|---|---|---|---|---|---|---|
+| P9.1 📜 | A | `hk-core::jobs`: Job tree, phases, determinate/indeterminate progress, ETA, cancel token, grace-then-force, `job/*` events; adapters for agent turn/step/tool, subagent, flow execution, studio render/transcribe, model download, indexing | P1.9, P4.2 | L | unit (cancel tree, grace/force) | cancelling a parent stops all children within grace period | todo |
+| P9.2 | A | Cancel-safe logging: partial assistant text → `assistant/attempt` (cancelled), synthetic `tool/result` for in-flight tools, flow execution status `canceled` with runData kept; replay stays valid | P9.1 | M | unit (replay after cancel) | cancelled session reloads and continues | todo |
+| P9.3 | B | LLM live telemetry: TTFT, tokens/s, in/out/reasoning/cached tokens, running cost, context fill %, retry/backoff state, emitted as `job/progress` | P9.1, P2.5 | M | fixture | values appear during fixture stream | todo |
+| P9.4 | A | Cancel levels: stop generation, skip current tool, cancel turn, cancel subagent subtree, cancel all; process-group kill for bash/ffmpeg | P9.1 | M | unit | each level leaves session consistent | todo |
+| P9.5 | A | Steer & pause: inject message into running agent inbox, pause after current step, resume from last durable step (optionally switch model) | P9.2 | M | unit (state machine) | steer changes next step without cancel | todo |
+| P9.6 | C | Activity center UI (drawer/sheet, job tree, progress, ETA, log tail, cancel/pause/retry), top-bar indicator, chat Stop button + live strip, `Esc`/`Ctrl+.` shortcuts | P9.1, P9.3 | L | none | DESIGN §4.8 works desktop + phone | todo |
+| P9.7 | F | Android persistent notification for active jobs with Cancel action; desktop toasts; ntfy push option for remote instance jobs | P9.6 | M | none | cancel from notification stops job | todo |
+| P9.8 | D | Remote jobs over instance WS (list, subscribe, cancel with scopes) + REST `/api/v1/jobs` | P9.1, P4.6 | M | unit (scopes) | phone cancels a daemon render | todo |
+
+### 9B — AI features
+
+| ID | Lane | Task | Deps | Size | Test | DoD | Status |
+|---|---|---|---|---|---|---|---|
+| P9.9 | B | Long-term memory: per-user/project facts (SQLite + embeddings), auto-extract (opt-in), editable memory panel, injection toggle | P1.12 | M | unit (retrieval) | fact from session A used in session B | todo |
+| P9.10 | B | Knowledge bases / local RAG: index folders (MD, PDF, code, docx) with local embeddings (fastembed / Ollama), hybrid BM25 (tantivy) + vector (sqlite-vec), citations in chat; backs n8n vector-store nodes | P9.9 | L | fixture | answer cites indexed file + line | todo |
+| P9.11 | C | Model arena: same prompt → N models side by side, latency/cost table, vote, "make default" | P2.5, P3.2 | M | none | 3-model compare in chat | todo |
+| P9.12 | B | Smart router v2: route by task type (code/vision/cheap/long-context), daily/monthly budgets, auto-escalate on failure, offline local fallback | P2.5, P6.7 | M | unit | budget hit → cheaper model, logged | todo |
+| P9.13 | C | Usage & cost dashboard: per provider/model/project/day, budget bars, export CSV | P9.12 | M | none | – | todo |
+| P9.14 | B | Voice mode: push-to-talk STT (hk-stt), TTS (Piper local + OpenAI-compatible), hands-free on Android, barge-in cancels TTS | P8.2 | L | none | voice round-trip on phone | todo |
+| P9.15 | B | Multimodal input: image/screenshot paste, PDF pages as images, Android camera, desktop screen-capture tool | P3.3 | M | none | vision model answers on pasted image | todo |
+| P9.16 | E | Image generation: OpenAI-compatible images, ComfyUI and SD WebUI (local OSS) as tools + n8n-compatible nodes | P5.4 | M | fixture | image generated from chat and flow | todo |
+| P9.17 | C | Structured output builder: JSON Schema editor UI, validation, auto-repair retries; usable in chat, agents and Extract nodes | P1.9 | M | unit (repair) | invalid JSON auto-repaired | todo |
+| P9.18 | C | Context inspector: prompt sections, tool schemas, files, memory, RAG chunks with token counts; pin/exclude; manual compact | P2.9 | M | none | – | todo |
+| P9.19 | A | Checkpoints & rewind: shadow-git snapshot of file changes per turn; rewind files + conversation to any turn | P1.8 | M | unit | rewind restores files | todo |
+| P9.20 | D | Scheduled / background agents: agent task on cron on instance, result to chat + notification | P4.4, P9.1 | M | none | nightly agent report delivered | todo |
+| P9.21 | C | Custom agent builder: compose prompt, model, tools, MCP, memory, settings preset; save/share as agent template | P9.24 | M | none | – | todo |
+
+### 9C — AI settings
+
+| ID | Lane | Task | Deps | Size | Test | DoD | Status |
+|---|---|---|---|---|---|---|---|
+| P9.22 📜 | A | Layered settings resolver (global → provider → model → agent/mode → project → session → message) with provenance | P1.2 | M | unit (resolution) | "inherited from" reported correctly | todo |
+| P9.23 | B | Sampling + reasoning params mapped per provider (temperature, top_p/k, min_p, penalties, seed, stops, logit bias, effort/thinking budget, keep-reasoning), capability-aware | P9.22 | M | fixture | unsupported params dropped, logged | todo |
+| P9.24 | C | AI settings UI: capability-aware controls, per-scope overrides, named presets ("Precise coder", "Cheap & fast", "Offline phone"), import/export | P9.22, P9.23 | M | none | – | todo |
+| P9.25 | B | Local runtime tuning: ctx length, GPU layers, threads, batch, KV quant, flash attn, mmap/mlock, keep-alive; per-model profiles; benchmark → suggested settings | P6.7 | M | none | benchmark shows tok/s and applies profile | todo |
+| P9.26 | C | Prompt library: versioned system/user prompts with variables, diff, per-project rules files (AGENTS.md / CLAUDE.md / .hokkabaz/rules) | P1.2 | M | none | – | todo |
+| P9.27 | C | Approval policy matrix UI (tool × mode × scope → allow/ask/deny), auto-approve rules with expiry, dry-run mode | P1.10 | M | none | – | todo |
+
+### 9D — Studio v2
+
+| ID | Lane | Task | Deps | Size | Test | DoD | Status |
+|---|---|---|---|---|---|---|---|
+| P9.28 | C | Multi-track timeline: video, audio, captions, B-roll, music; drag/trim/split, snapping, JKL shuttle, zoom | P8.10 | L | unit (timeline model) | edit on timeline renders identically | todo |
+| P9.29 | A | Speaker diarization; per-speaker caption colors/names; speaker-aware reframing | P8.2, P8.6 | M | fixture | 2-speaker clip colored per speaker | todo |
+| P9.30 | E | AI translation + dubbing: translated captions in N languages, TTS dub aligned to segments, voice per speaker | P9.14, P9.29 | L | fixture (alignment) | EN → TR captions + dub track | todo |
+| P9.31 | A | Audio cleanup: denoise (arnndn/afftdn), EBU R128 loudness, auto music ducking, voice enhance presets | P8.1 | S | unit (filter args) | – | todo |
+| P9.32 | A | Auto-zoom & motion graphics: punch-in on emphasis words, animated titles, progress bar, emoji/sticker pops | P8.5 | M | unit | – | todo |
+| P9.33 | E | Long-form outputs: auto chapters (YouTube timestamps), summary, blog post / newsletter / thread from video | P8.4 | S | fixture | – | todo |
+| P9.34 | E | Thumbnail generator: best-frame picking by score, text overlay, optional image-gen, A/B variants | P9.16 | M | none | – | todo |
+| P9.35 | E | Hook doctor: score first 3 s, suggest/re-cut stronger hook, title card | P8.4 | S | fixture | – | todo |
+| P9.36 | E | Brand kit: logos, fonts, colors, watermark, intro/outro applied across templates | P8.7 | S | none | – | todo |
+| P9.37 | A | Batch mode: folder → shorts pipeline, render queue priorities, HW encoder selection (NVENC/VAAPI/QSV/VideoToolbox/MediaCodec) | P8.1, P9.1 | M | unit (encoder args) | 10 videos queued, progress per job | todo |
+| P9.38 | A | Multicam / podcast: sync angles by audio cross-correlation, auto-switch to active speaker | P9.29 | L | unit (sync offset) | – | todo |
+| P9.39 | E | Publish calendar + more platforms (TikTok, Instagram, X, LinkedIn official APIs), per-platform export presets | P8.8 | L | fixture | scheduled post fires | todo |
+| P9.40 | E | Analytics loop: pull YouTube Analytics retention/views, calibrate virality rubric weights | P8.8 | M | fixture | – | todo |
+
+### 9E — Templates
+
+| ID | Lane | Task | Deps | Size | Test | DoD | Status |
+|---|---|---|---|---|---|---|---|
+| P9.41 📜 | E | Template format: kinds (flow, agent, prompt, studio, settings preset, bundle), declared inputs (credentials, models, params), versioning; hosted in GitHub registry (D13) | P5.3b | M | unit (manifest) | – | todo |
+| P9.42 | C | Templates screen: gallery, search, preview, install wizard (fill inputs, map credentials, pick models), "save as template" from any flow/agent/project | P9.41 | L | none | install → runnable in ≤ 3 clicks | todo |
+| P9.43 | D | Starter flow pack (≥ 25, n8n-compatible): issue triage, RSS → summary → Telegram, daily briefing, email draft replies, webhook classify & route, uptime alert summary, PR review bot, release notes, Matrix bot, site-change monitor, SearXNG research digest, meeting → action items, receipt extraction → CSV, podcast → shorts, YouTube upload → social posts, Home Assistant voice command, backup check, … | P9.41, P4.3c | L | fixture (smoke per flow) | all import + validate | todo |
+| P9.44 | E | Agent pack (≥ 12) + studio template pack (5 → 20) + settings presets: coder, reviewer, researcher, devops, data analyst, writer, translator, video editor, social manager, support triage, home automation, tutor; podcast, gaming, tutorial, interview split-screen, news, reaction, quote card, listicle, meme, … ; n8n.io template import by URL with credential-mapping wizard | P9.41 | L | none | gallery shows all packs | todo |
+
+Done criteria M9: P9.1–P9.8 done; ≥ 30 of P9.9–P9.44 done.
+
 ## Critical path
 
 `P0.1 → P1.1 → P1.3/P1.7 → P1.9 → P1.11 (M1) → P3.1 → P3.2 (M3) → P4.1 → P4.2 → P4.3 → P4.3c → P4.6 → P4.7 (M4) → P6.1 → P6.3/P6.7 (M6)`
@@ -204,4 +279,6 @@ Parallel early: B lane (P1.4–P1.6, P2.x adapters) and C lane (P0.4, P0.5) run 
 | n8n semantics large, partly undocumented (execution order, expression extensions) | Fixture corpus recorded from real n8n runs; coverage report; remote delegation fallback |
 | n8n Sustainable Use License | Clean-room from docs/JSON formats; no n8n source; legal check before shipping node descriptions |
 | QuickJS perf on heavy expressions | Cache compiled expressions; reuse context per execution |
+| Cancel leaves inconsistent state (half-written files, orphan processes) | Grace-then-force, process groups, synthetic tool results, checkpoints (P9.19) |
+| Phase 9 scope creep (44 features) | M9 needs 9A + any 30; lanes pick by user value; caveman reports |
 | Token spend during development | CLAUDE.md lean test policy, caveman comms, ≤3 parallel workers |
