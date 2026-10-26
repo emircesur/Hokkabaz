@@ -776,6 +776,7 @@ async fn execute(
                 RunStatus::Error => "error",
                 RunStatus::Waiting => "waiting",
                 RunStatus::Running => "running",
+                RunStatus::Canceled => "canceled",
             };
             let rd = serde_json::to_value(&res.run_data).unwrap_or_else(|_| json!({}));
             (

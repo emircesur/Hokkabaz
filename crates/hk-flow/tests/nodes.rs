@@ -617,3 +617,30 @@ async fn http_pagination_next_url_and_param() {
     assert!(s[1].starts_with("GET /list?page=2"), "{}", s[1]);
     assert!(s[2].starts_with("GET /list?page=3"), "{}", s[2]);
 }
+
+// -------------------------------------------------------------------- control
+
+#[tokio::test(flavor = "current_thread")]
+async fn control_reports_nodes_and_cancels() {
+    let wf = single("set", 3.4, expr_set(&[("a", "=1")]), json!({}), json!({}));
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let s = seen.clone();
+    let mut input = ExecuteInput::new("Trigger", items(json!([{}])));
+    input.control = Some(hk_flow::RunControl {
+        cancel: Default::default(),
+        on_node: Some(Arc::new(move |n: &str, runs, _| {
+            s.lock().unwrap().push((n.to_owned(), runs))
+        })),
+    });
+    let exec = Executor::new(registry());
+    let res = exec.execute(&wf, &input).await.unwrap();
+    assert_eq!(res.status, hk_flow::RunStatus::Success);
+    assert_eq!(seen.lock().unwrap().as_slice(), &[("N".to_owned(), 1)]);
+
+    let ctl = hk_flow::RunControl::default();
+    ctl.cancel.cancel();
+    input.control = Some(ctl);
+    let res = exec.execute(&wf, &input).await.unwrap();
+    assert_eq!(res.status, hk_flow::RunStatus::Canceled);
+    assert!(res.run_data.get("N").is_none());
+}

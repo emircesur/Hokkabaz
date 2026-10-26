@@ -130,7 +130,7 @@ pub async fn assemble(
             runtime.clone(),
         )));
     }
-    let base = FlowApi::new(o.store.clone(), o.secrets.clone());
+    let base = FlowApi::new(o.store.clone(), o.secrets.clone()).with_jobs(runtime.jobs());
     let flow = FlowRuntime::start(base.clone(), flow_cfg).context("start flow runtime")?;
     let api = base
         .with_webhooks(flow.webhook_handler())

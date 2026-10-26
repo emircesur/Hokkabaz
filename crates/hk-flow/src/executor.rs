@@ -157,6 +157,25 @@ impl Default for ExecutorConfig {
     }
 }
 
+/// Per-node progress hook: (node name, node runs so far, workflow node count).
+pub type NodeHook = Arc<dyn Fn(&str, usize, usize) + Send + Sync>;
+
+/// Live control of one execution: cancel between node runs and a per-node progress hook.
+#[derive(Clone, Default)]
+pub struct RunControl {
+    pub cancel: tokio_util::sync::CancellationToken,
+    /// Called before each node run with (node name, node runs so far, workflow node count).
+    pub on_node: Option<NodeHook>,
+}
+
+impl std::fmt::Debug for RunControl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RunControl")
+            .field("cancelled", &self.cancel.is_cancelled())
+            .finish_non_exhaustive()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ExecuteInput {
     /// Node that emits `start_items` (trigger). Not executed.
@@ -164,6 +183,7 @@ pub struct ExecuteInput {
     pub start_items: Vec<Item>,
     /// Defaults to a process-unique `exec-<n>`.
     pub execution_id: Option<String>,
+    pub control: Option<RunControl>,
 }
 
 impl ExecuteInput {
@@ -172,6 +192,7 @@ impl ExecuteInput {
             start_node: start_node.into(),
             start_items,
             execution_id: None,
+            control: None,
         }
     }
 }
@@ -312,6 +333,7 @@ impl Executor {
             next_index: 0,
             last_node: None,
             sub: SubNodeEnv::build(&self.registry, wf),
+            control: input.control.clone(),
         };
         let res = run.drive(input).await;
         self.release_expr(&id);
@@ -358,6 +380,7 @@ impl Executor {
             next_index,
             last_node,
             sub: SubNodeEnv::build(&self.registry, &wf),
+            control: None,
         };
         let res = run
             .continue_after_wait(suspended, suspended_at, reason)
@@ -543,6 +566,7 @@ struct Run<'a> {
     last_node: Option<String>,
     /// `ai_*` sub-node wiring, handed to every node context.
     sub: Option<Arc<SubNodeEnv>>,
+    control: Option<RunControl>,
 }
 
 enum Flow {
@@ -598,7 +622,20 @@ impl<'a> Run<'a> {
     async fn run_loop(&mut self) -> Result<ExecutionResult, FlowError> {
         let mut runs = 0usize;
         let mut failure = None;
+        let mut canceled = false;
         loop {
+            if self
+                .control
+                .as_ref()
+                .is_some_and(|c| c.cancel.is_cancelled())
+            {
+                canceled = true;
+                failure = Some(RunError {
+                    message: "execution canceled by user".into(),
+                    node: None,
+                });
+                break;
+            }
             let task = match self.stack.pop_front() {
                 Some(t) => t,
                 None => match self.take_waiting() {
@@ -607,6 +644,9 @@ impl<'a> Run<'a> {
                 },
             };
             runs += 1;
+            if let Some(f) = self.control.as_ref().and_then(|c| c.on_node.as_ref()) {
+                f(&task.node, runs, self.wf.nodes.len());
+            }
             if runs > self.exec.config.max_node_runs {
                 failure = Some(RunError {
                     message: format!(
@@ -627,7 +667,9 @@ impl<'a> Run<'a> {
             }
         }
 
-        let status = if failure.is_some() {
+        let status = if canceled {
+            RunStatus::Canceled
+        } else if failure.is_some() {
             RunStatus::Error
         } else {
             RunStatus::Success

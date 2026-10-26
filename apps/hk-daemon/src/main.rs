@@ -439,6 +439,9 @@ async fn main() -> Result<()> {
     #[cfg(feature = "studio")]
     {
         use hk_server::AgentRuntime as _;
+        if let Some(reg) = runtime.jobs() {
+            studio.svc.set_jobs(reg);
+        }
         runtime.add_tools(hk_studio::studio_tools(studio.svc.clone()));
         a.state = a
             .state

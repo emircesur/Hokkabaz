@@ -32,7 +32,7 @@ pub use description::{
 pub use error::FlowError;
 pub use executor::{
     ExecuteInput, ExecutionOrder, ExecutionResult, Executor, ExecutorConfig, ResumeReason,
-    WaitSnapshot,
+    RunControl, WaitSnapshot,
 };
 #[cfg(feature = "expr")]
 pub use expr::QuickJsEvaluator;

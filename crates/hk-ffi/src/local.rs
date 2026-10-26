@@ -162,6 +162,9 @@ impl LocalCore {
                 data_dir: data_dir.clone(),
             }),
         ));
+        if let Some(reg) = hk_server::AgentRuntime::jobs(&runtime) {
+            studio_svc.set_jobs(reg);
+        }
         runtime.add_tools(hk_studio::studio_tools(studio_svc.clone()));
         crate::studio::install(Arc::new(crate::studio::StudioHost::new(
             studio_svc,

@@ -308,6 +308,7 @@ impl FlowRuntime {
         }
         let mut input = ExecuteInput::new(start, items);
         input.execution_id = Some(exec_id.to_string());
+        input.control = self.api.execution_control(exec_id);
         match self
             .executor
             .clone()
@@ -349,6 +350,7 @@ impl FlowRuntime {
             RunStatus::Error => "error",
             RunStatus::Waiting => "waiting",
             RunStatus::Running => "running",
+            RunStatus::Canceled => "canceled",
         };
         let mut result = Map::new();
         match serde_json::to_value(&res.run_data) {

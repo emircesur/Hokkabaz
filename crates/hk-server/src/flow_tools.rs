@@ -1100,6 +1100,7 @@ fn summarize(res: &ExecutionResult, workflow_id: Option<&str>, warnings: &[Strin
         RunStatus::Error => "error",
         RunStatus::Waiting => "waiting",
         RunStatus::Running => "running",
+        RunStatus::Canceled => "canceled",
     };
     let mut out = json!({ "status": status, "execution_id": res.execution_id, "nodes": per_node.into_iter().map(|(_, v)| v).collect::<Vec<_>>() });
     if let Some(id) = workflow_id {

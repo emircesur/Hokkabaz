@@ -26,6 +26,8 @@ pub enum RunStatus {
     Error,
     /// Suspended in a durable Wait; resumes via `Executor::resume`.
     Waiting,
+    /// Stopped by the user (n8n `canceled`).
+    Canceled,
 }
 
 /// Where a run's input came from (n8n `source`). `previousNodeOutput` / `previousNodeRun`

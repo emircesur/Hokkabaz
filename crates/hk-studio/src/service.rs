@@ -82,9 +82,16 @@ pub struct StudioService {
     live: Mutex<HashMap<String, LiveStudio>>,
     jobs: Mutex<HashMap<String, oneshot::Sender<()>>>,
     renders: Arc<Mutex<HashMap<(String, String), PathBuf>>>,
+    /// Renders mirrored in the shared job tree (progress, ETA, cancel). Set once at startup.
+    job_registry: std::sync::OnceLock<hk_core::JobRegistry>,
 }
 
 impl StudioService {
+    /// Report renders as jobs in `reg` (first call wins).
+    pub fn set_jobs(&self, reg: hk_core::JobRegistry) {
+        let _ = self.job_registry.set(reg);
+    }
+
     pub fn new(root: impl Into<PathBuf>, tools: Tools, backends: Arc<dyn Backends>) -> Self {
         Self {
             studio: Studio::new(root, tools),
@@ -92,6 +99,7 @@ impl StudioService {
             live: Mutex::default(),
             jobs: Mutex::default(),
             renders: Arc::default(),
+            job_registry: std::sync::OnceLock::new(),
         }
     }
 
@@ -313,6 +321,15 @@ impl StudioService {
         let events = live.clone();
         let renders_key = (pid, cid.clone());
         let renders = self.renders.clone();
+        let jh = self.job_registry.get().map(|reg| {
+            reg.start(
+                hk_core::JobSpec::new(hk_core::JobKind::Render, format!("render {clip_id}"))
+                    .key(format!("render:{job}"))
+                    .meta(serde_json::json!({ "project": id, "clip": clip_id, "render_job": job })),
+                None,
+            )
+        });
+        let job_cancel = jh.as_ref().map(|j| j.token().clone()).unwrap_or_default();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -322,6 +339,9 @@ impl StudioService {
                         }
                         let p = *progress.borrow();
                         events.emit(StudioEvent::RenderProgress { clip: cid.clone(), fraction: p.fraction });
+                        if let Some(j) = &jh {
+                            j.progress(hk_core::Progress::Determinate(p.fraction as f32));
+                        }
                         if p.finished {
                             break;
                         }
@@ -330,9 +350,21 @@ impl StudioService {
                         handle.cancel();
                         break;
                     }
+                    () = job_cancel.cancelled() => {
+                        handle.cancel();
+                        break;
+                    }
                 }
             }
-            match handle.wait().await {
+            let res = handle.wait().await;
+            if let Some(j) = jh {
+                match &res {
+                    Ok(_) => j.finish(),
+                    Err(_) if j.is_cancelled() => j.cancelled(),
+                    Err(e) => j.fail(e.to_string()),
+                }
+            }
+            match res {
                 Ok(r) => {
                     renders.lock().await.insert(renders_key, r.output.clone());
                     events.emit(StudioEvent::RenderDone {

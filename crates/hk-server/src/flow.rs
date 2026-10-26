@@ -76,6 +76,9 @@ pub struct FlowApi {
     pub test_runner: Option<Arc<dyn FlowToolHost>>,
     pub credential_schemas: Arc<dyn CredentialSchemas>,
     events: broadcast::Sender<ServerEvent>,
+    /// Executions mirrored as jobs (progress per node, cancel). `None` = not tracked.
+    jobs: Option<hk_core::JobRegistry>,
+    live_jobs: Arc<std::sync::Mutex<std::collections::HashMap<i64, hk_core::JobHandle>>>,
 }
 
 impl fmt::Debug for FlowApi {
@@ -98,7 +101,42 @@ impl FlowApi {
             test_runner: None,
             credential_schemas: Arc::new(BuiltinCredentialSchemas),
             events,
+            jobs: None,
+            live_jobs: Arc::default(),
         }
+    }
+
+    /// Track executions in `jobs` (shared with the agent runtime for one Activity view).
+    #[must_use]
+    pub fn with_jobs(mut self, jobs: Option<hk_core::JobRegistry>) -> Self {
+        self.jobs = jobs;
+        self
+    }
+
+    /// Cancel token + per-node progress hook for a started execution; `None` when untracked.
+    pub fn execution_control(&self, id: i64) -> Option<hk_flow::RunControl> {
+        let live = self.live_jobs.clone();
+        let cancel = live
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&id)?
+            .token()
+            .clone();
+        Some(hk_flow::RunControl {
+            cancel,
+            on_node: Some(Arc::new(move |node: &str, runs: usize, total: usize| {
+                if let Some(h) = live
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .get(&id)
+                {
+                    h.phase(node);
+                    // Loops can run nodes more than once; never claim completion early.
+                    let f = (runs as f32 / total.max(1) as f32).min(0.95);
+                    h.progress(hk_core::Progress::Determinate(f));
+                }
+            })),
+        })
     }
 
     #[must_use]
@@ -142,6 +180,21 @@ impl FlowApi {
             .store
             .insert_execution(workflow_id, mode, "running", snap.as_deref())
             .await?;
+        if let Some(reg) = &self.jobs {
+            let h = reg.start(
+                hk_core::JobSpec::new(
+                    hk_core::JobKind::FlowExecution,
+                    format!("{workflow_id} #{}", row.id),
+                )
+                .key(format!("exec:{}", row.id))
+                .meta(json!({ "workflow_id": workflow_id, "execution_id": row.id, "mode": mode })),
+                None,
+            );
+            self.live_jobs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(row.id, h);
+        }
         self.emit(
             "execution/started",
             row.id,
@@ -158,6 +211,23 @@ impl FlowApi {
         status: &str,
         data: Option<&Value>,
     ) -> Result<(), ApiError> {
+        let job = self
+            .live_jobs
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&id);
+        if let Some(h) = job {
+            match status {
+                "success" => h.finish(),
+                "canceled" => h.cancelled(),
+                // Parked in a Wait: the job ends; the resumed run is not tracked as a job yet.
+                "waiting" => {
+                    h.log("waiting");
+                    h.finish();
+                }
+                other => h.fail(other),
+            }
+        }
         let text = data.map(Value::to_string);
         let finished = status == "success";
         if !self
