@@ -30,6 +30,7 @@ hk-local = { version = "0.0.0", path = "../hk-local" }
 tokio-util = { version = "0.7", features = ["io"] }
 hk-integrations = { version = "0.0.0", path = "../hk-integrations" }
 hk-core = { version = "0.0.0", path = "../hk-core" }
+hk-genai = { version = "0.0.0", path = "../hk-genai" }
 hk-llm = { version = "0.0.0", path = "../hk-llm" }
 hk-server = { version = "0.0.0", path = "../hk-server", default-features = false, features = ["runtime"] }
 hk-mcp = { version = "0.0.0", path = "../hk-mcp" }

@@ -50,14 +50,22 @@ pub(crate) async fn session(c: &Ctx<'_>, action: &str, p: Value) -> Result<Value
                     })
                 })
                 .collect();
-            let total: usize = rows.iter().filter_map(|r| r["tokens"].as_u64()).sum::<u64>() as usize;
+            let total: usize = rows
+                .iter()
+                .filter_map(|r| r["tokens"].as_u64())
+                .sum::<u64>() as usize;
             Ok(json!({"messages": rows, "total_tokens": total}))
         }
         _ => Err(bad(format!("unknown `session.{action}`"))),
     }
 }
 
-pub(crate) async fn recall(c: &Ctx<'_>, domain: &str, action: &str, p: Value) -> Result<Value, HkError> {
+pub(crate) async fn recall(
+    c: &Ctx<'_>,
+    domain: &str,
+    action: &str,
+    p: Value,
+) -> Result<Value, HkError> {
     use hk_tools::builtin::{KnowledgeBase, MemoryStore};
     let dir = c.data_dir.to_path_buf();
     let action = action.to_string();
@@ -130,17 +138,22 @@ async fn usage_summary(c: &Ctx<'_>, days: i64) -> Result<Value, HkError> {
         let model = s.model.clone().unwrap_or_else(|| "unknown".into());
         let d = c.runtime.session(&s.id, None).await.map_err(internal)?;
         for e in &d.events {
-            let EventKind::StepEnd { usage: Some(u), .. } = &e.kind else { continue };
+            let EventKind::StepEnd { usage: Some(u), .. } = &e.kind else {
+                continue;
+            };
             if e.ts_ms < since {
                 continue;
             }
             let cost = prices.get(&model).map_or(0.0, |p| {
-                (u.input_tokens as f64 * p.input + u.output_tokens as f64 * p.output
+                (u.input_tokens as f64 * p.input
+                    + u.output_tokens as f64 * p.output
                     + u.cache_read_tokens as f64 * p.cache_read.unwrap_or(p.input))
                     / 1_000_000.0
             });
             let day = day_key(e.ts_ms);
-            let slot = by_day.entry(day.clone()).or_insert_with(|| json!({"day": day, "input": 0, "output": 0, "cost_usd": 0.0}));
+            let slot = by_day
+                .entry(day.clone())
+                .or_insert_with(|| json!({"day": day, "input": 0, "output": 0, "cost_usd": 0.0}));
             slot["input"] = json!(slot["input"].as_u64().unwrap_or(0) + u.total_input());
             slot["output"] = json!(slot["output"].as_u64().unwrap_or(0) + u.output_tokens);
             slot["cost_usd"] = json!(slot["cost_usd"].as_f64().unwrap_or(0.0) + cost);
@@ -177,7 +190,11 @@ fn day_key(ms: i64) -> String {
 }
 
 /// Model arena (P9.11): same prompt to several models concurrently.
-async fn arena(c: &Ctx<'_>, prompt: &str, models: Vec<String>) -> Result<Value, HkError> {
+pub(crate) async fn arena(
+    c: &Ctx<'_>,
+    prompt: &str,
+    models: Vec<String>,
+) -> Result<Value, HkError> {
     let runs = models.into_iter().take(6).map(|model| {
         let provider = c.provider.clone();
         let prompt = prompt.to_string();
@@ -222,9 +239,16 @@ async fn arena(c: &Ctx<'_>, prompt: &str, models: Vec<String>) -> Result<Value, 
     Ok(json!(futures::future::join_all(runs).await))
 }
 
-pub(crate) async fn call(c: &Ctx<'_>, domain: &str, action: &str, p: Value) -> Result<Value, HkError> {
+pub(crate) async fn call(
+    c: &Ctx<'_>,
+    domain: &str,
+    action: &str,
+    p: Value,
+) -> Result<Value, HkError> {
     match (domain, action) {
-        ("usage", "summary") => usage_summary(c, p.get("days").and_then(Value::as_i64).unwrap_or(30)).await,
+        ("usage", "summary") => {
+            usage_summary(c, p.get("days").and_then(Value::as_i64).unwrap_or(30)).await
+        }
         ("arena", "run") => {
             let models: Vec<String> = p
                 .get("models")

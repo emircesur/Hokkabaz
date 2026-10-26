@@ -199,6 +199,11 @@ impl LocalCore {
                 shutdown: CancellationToken::new(),
             }),
         });
+        crate::scheduler::spawn(
+            core.i.runtime.clone(),
+            store.clone(),
+            core.i.shutdown.clone(),
+        );
         {
             let hub = core.i.hub.clone();
             local_ctx.set_rebuild(Arc::new(move || {

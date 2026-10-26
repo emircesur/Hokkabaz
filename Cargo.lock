@@ -3723,6 +3723,7 @@ dependencies = [
  "hk-core",
  "hk-daemon",
  "hk-flow",
+ "hk-genai",
  "hk-integrations",
  "hk-llm",
  "hk-local",

@@ -1,0 +1,3626 @@
+[
+{
+"id": "flow-rss-digest",
+"name": "RSS → AI digest → Telegram",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Daily summary of new RSS items.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "feed_url",
+"label": "RSS feed URL",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "telegram_chat_id",
+"label": "Telegram chat id",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "RSS → AI digest → Telegram",
+"nodes": [
+{
+"id": "b24a015f-9349-5759-9a5e-97c346f9c00d",
+"name": "Schedule",
+"type": "n8n-nodes-base.scheduleTrigger",
+"typeVersion": 1.2,
+"position": [
+0,
+0
+],
+"parameters": {
+"rule": {
+"interval": [
+{
+"field": "cronExpression",
+"expression": "0 8 * * *"
+}
+]
+}
+}
+},
+{
+"id": "a5cd4f16-d56f-58b9-af5c-bc8093f3e6b7",
+"name": "RSS",
+"type": "n8n-nodes-base.rssFeedRead",
+"typeVersion": 1.1,
+"position": [
+260,
+0
+],
+"parameters": {
+"url": "{{inputs.feed_url}}"
+}
+},
+{
+"id": "1c6ad4fb-f6c9-5888-82b6-7aa9bd3544bf",
+"name": "Top 10",
+"type": "n8n-nodes-base.limit",
+"typeVersion": 1,
+"position": [
+520,
+0
+],
+"parameters": {
+"maxItems": 10
+}
+},
+{
+"id": "10c9ffe0-d465-5118-8baf-5cad9aea7b26",
+"name": "Aggregate",
+"type": "n8n-nodes-base.aggregate",
+"typeVersion": 1,
+"position": [
+780,
+0
+],
+"parameters": {
+"aggregate": "aggregateAllItemData"
+}
+},
+{
+"id": "41f41199-cf0d-56b6-82f5-70a2f75dbb60",
+"name": "Summarize",
+"type": "@n8n/n8n-nodes-langchain.chainLlm",
+"typeVersion": 1.5,
+"position": [
+1040,
+0
+],
+"parameters": {
+"promptType": "define",
+"text": "Summarize these articles in 5 bullets:\n{{ JSON.stringify($json.data) }}"
+}
+},
+{
+"id": "b4188720-bef6-5418-9c3e-7c7ec0f2305a",
+"name": "Telegram",
+"type": "n8n-nodes-base.telegram",
+"typeVersion": 1.2,
+"position": [
+1300,
+0
+],
+"parameters": {
+"chatId": "{{inputs.telegram_chat_id}}",
+"text": "={{ $json.text }}"
+}
+}
+],
+"connections": {
+"Schedule": {
+"main": [
+[
+{
+"node": "RSS",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"RSS": {
+"main": [
+[
+{
+"node": "Top 10",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Top 10": {
+"main": [
+[
+{
+"node": "Aggregate",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Aggregate": {
+"main": [
+[
+{
+"node": "Summarize",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Summarize": {
+"main": [
+[
+{
+"node": "Telegram",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-daily-briefing",
+"name": "Daily briefing agent",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Morning briefing: weather, news, calendar via agent tools.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "city",
+"label": "City",
+"kind": {
+"type": "string"
+},
+"required": true,
+"default": "Istanbul"
+},
+{
+"key": "telegram_chat_id",
+"label": "Telegram chat id",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Daily briefing agent",
+"nodes": [
+{
+"id": "b24a015f-9349-5759-9a5e-97c346f9c00d",
+"name": "Schedule",
+"type": "n8n-nodes-base.scheduleTrigger",
+"typeVersion": 1.2,
+"position": [
+0,
+0
+],
+"parameters": {
+"rule": {
+"interval": [
+{
+"field": "cronExpression",
+"expression": "30 7 * * 1-5"
+}
+]
+}
+}
+},
+{
+"id": "23a10cf6-09cf-54ac-b391-71d725c86c15",
+"name": "Briefing",
+"type": "hokkabaz.agent",
+"typeVersion": 1,
+"position": [
+260,
+0
+],
+"parameters": {
+"prompt": "Prepare a short morning briefing for {{inputs.city}}: weather, top tech news, and a motivational line.",
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "b4188720-bef6-5418-9c3e-7c7ec0f2305a",
+"name": "Telegram",
+"type": "n8n-nodes-base.telegram",
+"typeVersion": 1.2,
+"position": [
+520,
+0
+],
+"parameters": {
+"chatId": "{{inputs.telegram_chat_id}}",
+"text": "={{ $json.output }}"
+}
+}
+],
+"connections": {
+"Schedule": {
+"main": [
+[
+{
+"node": "Briefing",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Briefing": {
+"main": [
+[
+{
+"node": "Telegram",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-github-issue-triage",
+"name": "GitHub issue triage",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Label and answer new issues with AI.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "repo",
+"label": "owner/repo",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "GitHub issue triage",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "github-issues",
+"httpMethod": "POST",
+"responseMode": "onReceived"
+}
+},
+{
+"id": "7a25462b-96e6-57ee-915c-bba31262e450",
+"name": "Classify",
+"type": "@n8n/n8n-nodes-langchain.textClassifier",
+"typeVersion": 1,
+"position": [
+260,
+0
+],
+"parameters": {
+"inputText": "={{ $json.body.issue.title }}\n{{ $json.body.issue.body }}",
+"categories": {
+"categories": [
+{
+"category": "bug"
+},
+{
+"category": "feature"
+},
+{
+"category": "question"
+}
+]
+}
+}
+},
+{
+"id": "ecf81ac7-683e-5565-8b33-bd7c47254600",
+"name": "Reply",
+"type": "hokkabaz.agent",
+"typeVersion": 1,
+"position": [
+520,
+0
+],
+"parameters": {
+"prompt": "Draft a helpful first reply for this {{ $json.category }} issue in {{inputs.repo}}.",
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "Classify",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Classify": {
+"main": [
+[
+{
+"node": "Reply",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-gitea-release-notes",
+"name": "Gitea/Forgejo release notes",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Generate release notes from merged PR titles.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "api_url",
+"label": "Gitea API base URL",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "repo",
+"label": "owner/repo",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Gitea/Forgejo release notes",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "release",
+"httpMethod": "POST",
+"responseMode": "onReceived"
+}
+},
+{
+"id": "d074f84f-e3ff-56cd-8636-8b7f60ec1f25",
+"name": "Pulls",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 4.2,
+"position": [
+260,
+0
+],
+"parameters": {
+"url": "={{'{{inputs.api_url}}'}}/repos/{{inputs.repo}}/pulls?state=closed&limit=50",
+"method": "GET"
+}
+},
+{
+"id": "03e8d3b8-0c44-5f00-953f-da5a23e01990",
+"name": "Notes",
+"type": "@n8n/n8n-nodes-langchain.chainLlm",
+"typeVersion": 1.5,
+"position": [
+520,
+0
+],
+"parameters": {
+"promptType": "define",
+"text": "Write grouped release notes (Features, Fixes, Other) from these PRs:\n{{ JSON.stringify($json) }}"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "Pulls",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Pulls": {
+"main": [
+[
+{
+"node": "Notes",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-webhook-classify-route",
+"name": "Webhook classify & route",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Classify incoming messages and route by category.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Webhook classify & route",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "inbox",
+"httpMethod": "POST",
+"responseMode": "lastNode"
+}
+},
+{
+"id": "7a25462b-96e6-57ee-915c-bba31262e450",
+"name": "Classify",
+"type": "@n8n/n8n-nodes-langchain.textClassifier",
+"typeVersion": 1,
+"position": [
+260,
+0
+],
+"parameters": {
+"inputText": "={{ $json.body.text }}",
+"categories": {
+"categories": [
+{
+"category": "sales"
+},
+{
+"category": "support"
+},
+{
+"category": "spam"
+}
+]
+}
+}
+},
+{
+"id": "1a72e540-195a-56cb-bb14-8f2b4094d240",
+"name": "Respond",
+"type": "n8n-nodes-base.respondToWebhook",
+"typeVersion": 1.1,
+"position": [
+520,
+0
+],
+"parameters": {
+"respondWith": "json",
+"responseBody": "={{ { category: $json.category } }}"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "Classify",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Classify": {
+"main": [
+[
+{
+"node": "Respond",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-uptime-alert-summary",
+"name": "Uptime alert summarizer",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Turn monitoring alerts into a readable ntfy push.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "ntfy_url",
+"label": "ntfy topic URL",
+"kind": {
+"type": "string"
+},
+"required": true,
+"default": "https://ntfy.sh/hokkabaz"
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Uptime alert summarizer",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "uptime",
+"httpMethod": "POST",
+"responseMode": "onReceived"
+}
+},
+{
+"id": "0aca8020-e763-5717-bde2-c0f38d130ac5",
+"name": "Explain",
+"type": "@n8n/n8n-nodes-langchain.chainLlm",
+"typeVersion": 1.5,
+"position": [
+260,
+0
+],
+"parameters": {
+"promptType": "define",
+"text": "Explain this alert for an on-call engineer in 2 sentences:\n{{ JSON.stringify($json.body) }}"
+}
+},
+{
+"id": "ab86de9b-5138-5a28-89b2-1ad7042af99d",
+"name": "ntfy",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 4.2,
+"position": [
+520,
+0
+],
+"parameters": {
+"url": "{{inputs.ntfy_url}}",
+"method": "POST",
+"sendBody": true,
+"contentType": "raw",
+"body": "={{ $json.text }}"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "Explain",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Explain": {
+"main": [
+[
+{
+"node": "ntfy",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-email-draft-replies",
+"name": "Email draft replies",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Read unread mail and draft replies.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "imap_host",
+"label": "IMAP host",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Email draft replies",
+"nodes": [
+{
+"id": "8e832e6a-8678-5142-977e-a378a508f224",
+"name": "IMAP",
+"type": "n8n-nodes-base.emailReadImap",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"mailbox": "INBOX",
+"postProcessAction": "nothing"
+}
+},
+{
+"id": "4e66779f-1cb2-595b-a414-ffdf27869060",
+"name": "Draft",
+"type": "@n8n/n8n-nodes-langchain.chainLlm",
+"typeVersion": 1.5,
+"position": [
+260,
+0
+],
+"parameters": {
+"promptType": "define",
+"text": "Draft a polite reply to:\nSubject: {{ $json.subject }}\n{{ $json.text }}"
+}
+}
+],
+"connections": {
+"IMAP": {
+"main": [
+[
+{
+"node": "Draft",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-site-change-monitor",
+"name": "Website change monitor",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Alert when a page changes.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "url",
+"label": "Page URL",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "ntfy_url",
+"label": "ntfy topic URL",
+"kind": {
+"type": "string"
+},
+"required": true,
+"default": "https://ntfy.sh/hokkabaz"
+}
+],
+"payload": {
+"name": "Website change monitor",
+"nodes": [
+{
+"id": "b24a015f-9349-5759-9a5e-97c346f9c00d",
+"name": "Schedule",
+"type": "n8n-nodes-base.scheduleTrigger",
+"typeVersion": 1.2,
+"position": [
+0,
+0
+],
+"parameters": {
+"rule": {
+"interval": [
+{
+"field": "cronExpression",
+"expression": "*/30 * * * *"
+}
+]
+}
+}
+},
+{
+"id": "f4fc28ef-d8a6-5e82-9fce-4bff9ba0ca96",
+"name": "Fetch",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 4.2,
+"position": [
+260,
+0
+],
+"parameters": {
+"url": "{{inputs.url}}",
+"method": "GET"
+}
+},
+{
+"id": "7041b0ed-82d8-59cf-ad4d-f23c475e420a",
+"name": "Diff",
+"type": "n8n-nodes-base.code",
+"typeVersion": 2,
+"position": [
+520,
+0
+],
+"parameters": {
+"jsCode": "const h = require('crypto').createHash('sha1').update(JSON.stringify($input.first().json)).digest('hex');\nconst s = $getWorkflowStaticData('global');\nconst changed = s.h && s.h !== h; s.h = h;\nreturn changed ? [{json:{changed:true}}] : [];"
+}
+},
+{
+"id": "ab86de9b-5138-5a28-89b2-1ad7042af99d",
+"name": "ntfy",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 4.2,
+"position": [
+780,
+0
+],
+"parameters": {
+"url": "{{inputs.ntfy_url}}",
+"method": "POST",
+"sendBody": true,
+"contentType": "raw",
+"body": "{{inputs.url}} changed"
+}
+}
+],
+"connections": {
+"Schedule": {
+"main": [
+[
+{
+"node": "Fetch",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Fetch": {
+"main": [
+[
+{
+"node": "Diff",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Diff": {
+"main": [
+[
+{
+"node": "ntfy",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-searxng-research",
+"name": "SearXNG research digest",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Search the web via your SearXNG and summarize.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "searxng_url",
+"label": "SearXNG URL",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "topic",
+"label": "Topic",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "telegram_chat_id",
+"label": "Telegram chat id",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "SearXNG research digest",
+"nodes": [
+{
+"id": "b24a015f-9349-5759-9a5e-97c346f9c00d",
+"name": "Schedule",
+"type": "n8n-nodes-base.scheduleTrigger",
+"typeVersion": 1.2,
+"position": [
+0,
+0
+],
+"parameters": {
+"rule": {
+"interval": [
+{
+"field": "cronExpression",
+"expression": "0 9 * * 1"
+}
+]
+}
+}
+},
+{
+"id": "488ba17f-6220-599b-862b-e2a65fbfc059",
+"name": "Search",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 4.2,
+"position": [
+260,
+0
+],
+"parameters": {
+"url": "{{inputs.searxng_url}}/search?q={{inputs.topic}}&format=json",
+"method": "GET"
+}
+},
+{
+"id": "34d51fce-bef5-5770-87e4-42caaa7d3d18",
+"name": "Digest",
+"type": "@n8n/n8n-nodes-langchain.chainLlm",
+"typeVersion": 1.5,
+"position": [
+520,
+0
+],
+"parameters": {
+"promptType": "define",
+"text": "Write a weekly research digest on {{inputs.topic}} from these results with links:\n{{ JSON.stringify($json.results) }}"
+}
+},
+{
+"id": "b4188720-bef6-5418-9c3e-7c7ec0f2305a",
+"name": "Telegram",
+"type": "n8n-nodes-base.telegram",
+"typeVersion": 1.2,
+"position": [
+780,
+0
+],
+"parameters": {
+"chatId": "{{inputs.telegram_chat_id}}",
+"text": "={{ $json.text }}"
+}
+}
+],
+"connections": {
+"Schedule": {
+"main": [
+[
+{
+"node": "Search",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Search": {
+"main": [
+[
+{
+"node": "Digest",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Digest": {
+"main": [
+[
+{
+"node": "Telegram",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-meeting-actions",
+"name": "Meeting transcript → action items",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Extract owners and deadlines from a transcript.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Meeting transcript → action items",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "meeting",
+"httpMethod": "POST",
+"responseMode": "lastNode"
+}
+},
+{
+"id": "8e022f1a-4160-5ca2-b536-4a9fc30ebd83",
+"name": "Extract",
+"type": "@n8n/n8n-nodes-langchain.informationExtractor",
+"typeVersion": 1,
+"position": [
+260,
+0
+],
+"parameters": {
+"text": "={{ $json.body.transcript }}",
+"schemaType": "manual",
+"inputSchema": "{\"type\":\"object\",\"properties\":{\"actions\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"owner\":{\"type\":\"string\"},\"task\":{\"type\":\"string\"},\"due\":{\"type\":\"string\"}}}}}}"
+}
+},
+{
+"id": "1a72e540-195a-56cb-bb14-8f2b4094d240",
+"name": "Respond",
+"type": "n8n-nodes-base.respondToWebhook",
+"typeVersion": 1.1,
+"position": [
+520,
+0
+],
+"parameters": {
+"respondWith": "json",
+"responseBody": "={{ $json.output }}"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "Extract",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Extract": {
+"main": [
+[
+{
+"node": "Respond",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-receipt-extract",
+"name": "Receipt extraction → CSV row",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Extract vendor/total/date from receipt text.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Receipt extraction → CSV row",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "receipt",
+"httpMethod": "POST",
+"responseMode": "lastNode"
+}
+},
+{
+"id": "8e022f1a-4160-5ca2-b536-4a9fc30ebd83",
+"name": "Extract",
+"type": "@n8n/n8n-nodes-langchain.informationExtractor",
+"typeVersion": 1,
+"position": [
+260,
+0
+],
+"parameters": {
+"text": "={{ $json.body.text }}",
+"schemaType": "manual",
+"inputSchema": "{\"type\":\"object\",\"properties\":{\"vendor\":{\"type\":\"string\"},\"total\":{\"type\":\"number\"},\"date\":{\"type\":\"string\"}}}"
+}
+},
+{
+"id": "1a72e540-195a-56cb-bb14-8f2b4094d240",
+"name": "Respond",
+"type": "n8n-nodes-base.respondToWebhook",
+"typeVersion": 1.1,
+"position": [
+520,
+0
+],
+"parameters": {
+"respondWith": "json",
+"responseBody": "={{ $json.output }}"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "Extract",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Extract": {
+"main": [
+[
+{
+"node": "Respond",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-podcast-to-shorts",
+"name": "Podcast → shorts",
+"kind": "flow",
+"version": "1.0.0",
+"description": "New episode file → Studio batch: transcribe, find highlights, render shorts.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "folder",
+"label": "Episodes folder",
+"kind": {
+"type": "string"
+},
+"required": true
+}
+],
+"payload": {
+"name": "Podcast → shorts",
+"nodes": [
+{
+"id": "2176b6cc-7d72-5f9a-ba51-c8725ae154b8",
+"name": "Watch",
+"type": "hokkabaz.fileWatchTrigger",
+"typeVersion": 1,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "{{inputs.folder}}"
+}
+},
+{
+"id": "13468672-42b8-5606-bc04-4c79dd00e0cb",
+"name": "Studio",
+"type": "hokkabaz.agent",
+"typeVersion": 1,
+"position": [
+260,
+0
+],
+"parameters": {
+"prompt": "Use studio tools to make 3 vertical shorts from the new video at {{ $json.path }} with the shorts-karaoke template.",
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+}
+],
+"connections": {
+"Watch": {
+"main": [
+[
+{
+"node": "Studio",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-youtube-social",
+"name": "Video → social posts",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Write per-platform posts for a published video.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Video → social posts",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "video-published",
+"httpMethod": "POST",
+"responseMode": "lastNode"
+}
+},
+{
+"id": "3001627d-96d2-5a3d-98db-13a43f2549dc",
+"name": "Posts",
+"type": "@n8n/n8n-nodes-langchain.chainLlm",
+"typeVersion": 1.5,
+"position": [
+260,
+0
+],
+"parameters": {
+"promptType": "define",
+"text": "Write a TikTok caption, an X post and a LinkedIn post for this video:\nTitle: {{ $json.body.title }}\n{{ $json.body.description }}"
+}
+},
+{
+"id": "1a72e540-195a-56cb-bb14-8f2b4094d240",
+"name": "Respond",
+"type": "n8n-nodes-base.respondToWebhook",
+"typeVersion": 1.1,
+"position": [
+520,
+0
+],
+"parameters": {
+"respondWith": "json",
+"responseBody": "={{ { posts: $json.text } }}"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "Posts",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Posts": {
+"main": [
+[
+{
+"node": "Respond",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-home-assistant-voice",
+"name": "Home Assistant command agent",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Natural-language commands to Home Assistant.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "ha_url",
+"label": "Home Assistant URL",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Home Assistant command agent",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "ha-command",
+"httpMethod": "POST",
+"responseMode": "lastNode"
+}
+},
+{
+"id": "a402a134-299d-5e2d-8ee6-1ceac23ece4c",
+"name": "HA",
+"type": "hokkabaz.agent",
+"typeVersion": 1,
+"position": [
+260,
+0
+],
+"parameters": {
+"prompt": "Translate this request into a Home Assistant service call JSON (domain, service, entity_id): {{ $json.body.text }}",
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "1a72e540-195a-56cb-bb14-8f2b4094d240",
+"name": "Respond",
+"type": "n8n-nodes-base.respondToWebhook",
+"typeVersion": 1.1,
+"position": [
+520,
+0
+],
+"parameters": {
+"respondWith": "json",
+"responseBody": "={{ $json.output }}"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "HA",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"HA": {
+"main": [
+[
+{
+"node": "Respond",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-backup-check",
+"name": "Backup check",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Daily check that the latest backup exists and is fresh.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "status_url",
+"label": "Backup status endpoint",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "ntfy_url",
+"label": "ntfy topic URL",
+"kind": {
+"type": "string"
+},
+"required": true,
+"default": "https://ntfy.sh/hokkabaz"
+}
+],
+"payload": {
+"name": "Backup check",
+"nodes": [
+{
+"id": "b24a015f-9349-5759-9a5e-97c346f9c00d",
+"name": "Schedule",
+"type": "n8n-nodes-base.scheduleTrigger",
+"typeVersion": 1.2,
+"position": [
+0,
+0
+],
+"parameters": {
+"rule": {
+"interval": [
+{
+"field": "cronExpression",
+"expression": "0 6 * * *"
+}
+]
+}
+}
+},
+{
+"id": "32ad4664-c5a7-5ffc-b96b-0c115d18f663",
+"name": "Status",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 4.2,
+"position": [
+260,
+0
+],
+"parameters": {
+"url": "{{inputs.status_url}}",
+"method": "GET"
+}
+},
+{
+"id": "fd9964d6-7735-5c7b-862a-7ab415334331",
+"name": "Stale?",
+"type": "n8n-nodes-base.if",
+"typeVersion": 2,
+"position": [
+520,
+0
+],
+"parameters": {
+"conditions": {
+"conditions": [
+{
+"leftValue": "={{ $json.age_hours }}",
+"rightValue": 26,
+"operator": {
+"type": "number",
+"operation": "gt"
+}
+}
+]
+}
+}
+},
+{
+"id": "ab86de9b-5138-5a28-89b2-1ad7042af99d",
+"name": "ntfy",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 4.2,
+"position": [
+780,
+0
+],
+"parameters": {
+"url": "{{inputs.ntfy_url}}",
+"method": "POST",
+"sendBody": true,
+"contentType": "raw",
+"body": "Backup is stale!"
+}
+}
+],
+"connections": {
+"Schedule": {
+"main": [
+[
+{
+"node": "Status",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Status": {
+"main": [
+[
+{
+"node": "Stale?",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Stale?": {
+"main": [
+[
+{
+"node": "ntfy",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-pr-review-bot",
+"name": "PR review bot",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Review PR diffs with AI and comment.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "repo",
+"label": "owner/repo",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "PR review bot",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "pull-request",
+"httpMethod": "POST",
+"responseMode": "onReceived"
+}
+},
+{
+"id": "aa9f545e-99f2-519d-8539-b4308947fe94",
+"name": "Diff",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 4.2,
+"position": [
+260,
+0
+],
+"parameters": {
+"url": "={{ $json.body.pull_request.diff_url }}",
+"method": "GET"
+}
+},
+{
+"id": "2c0cce23-4699-5de0-a3de-7dec3b74e70b",
+"name": "Review",
+"type": "hokkabaz.agent",
+"typeVersion": 1,
+"position": [
+520,
+0
+],
+"parameters": {
+"prompt": "Review this diff for bugs and risky changes; reply with concise review comments:\n{{ $json.data }}",
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "Diff",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Diff": {
+"main": [
+[
+{
+"node": "Review",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-matrix-bot",
+"name": "Matrix chat bot",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Answer messages in a Matrix room with AI.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "room_id",
+"label": "Room id",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Matrix chat bot",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "matrix",
+"httpMethod": "POST",
+"responseMode": "onReceived"
+}
+},
+{
+"id": "9055e49e-c72b-53ab-8f34-f7d81f5b4a4c",
+"name": "Answer",
+"type": "@n8n/n8n-nodes-langchain.chainLlm",
+"typeVersion": 1.5,
+"position": [
+260,
+0
+],
+"parameters": {
+"promptType": "define",
+"text": "Reply helpfully and briefly: {{ $json.body.text }}"
+}
+},
+{
+"id": "5e6e5ac0-626c-54df-aca1-af5b2cbc9ef3",
+"name": "Matrix",
+"type": "n8n-nodes-base.matrix",
+"typeVersion": 1,
+"position": [
+520,
+0
+],
+"parameters": {
+"roomId": "{{inputs.room_id}}",
+"text": "={{ $json.text }}"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "Answer",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Answer": {
+"main": [
+[
+{
+"node": "Matrix",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-slack-standup",
+"name": "Slack standup summary",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Summarize standup thread into a digest.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "channel",
+"label": "Slack channel",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Slack standup summary",
+"nodes": [
+{
+"id": "b24a015f-9349-5759-9a5e-97c346f9c00d",
+"name": "Schedule",
+"type": "n8n-nodes-base.scheduleTrigger",
+"typeVersion": 1.2,
+"position": [
+0,
+0
+],
+"parameters": {
+"rule": {
+"interval": [
+{
+"field": "cronExpression",
+"expression": "0 11 * * 1-5"
+}
+]
+}
+}
+},
+{
+"id": "34d51fce-bef5-5770-87e4-42caaa7d3d18",
+"name": "Digest",
+"type": "@n8n/n8n-nodes-langchain.chainLlm",
+"typeVersion": 1.5,
+"position": [
+260,
+0
+],
+"parameters": {
+"promptType": "define",
+"text": "Summarize today's standup updates into blockers, done, next."
+}
+},
+{
+"id": "4d5db3f4-edaa-5a8b-98f9-f8c65f738ed4",
+"name": "Slack",
+"type": "n8n-nodes-base.slack",
+"typeVersion": 2.2,
+"position": [
+520,
+0
+],
+"parameters": {
+"channel": "{{inputs.channel}}",
+"text": "={{ $json.text }}"
+}
+}
+],
+"connections": {
+"Schedule": {
+"main": [
+[
+{
+"node": "Digest",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Digest": {
+"main": [
+[
+{
+"node": "Slack",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-lead-enrichment",
+"name": "Lead enrichment",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Enrich a new lead with company info via agent web research.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Lead enrichment",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "lead",
+"httpMethod": "POST",
+"responseMode": "lastNode"
+}
+},
+{
+"id": "aba8812c-89ff-5f83-b2a2-3fceca179368",
+"name": "Enrich",
+"type": "hokkabaz.agent",
+"typeVersion": 1,
+"position": [
+260,
+0
+],
+"parameters": {
+"prompt": "Research the company of {{ $json.body.email }} and return JSON: company, size, industry, website.",
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "1a72e540-195a-56cb-bb14-8f2b4094d240",
+"name": "Respond",
+"type": "n8n-nodes-base.respondToWebhook",
+"typeVersion": 1.1,
+"position": [
+520,
+0
+],
+"parameters": {
+"respondWith": "json",
+"responseBody": "={{ $json.output }}"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "Enrich",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Enrich": {
+"main": [
+[
+{
+"node": "Respond",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-support-faq",
+"name": "Support FAQ answerer",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Answer customer questions from your knowledge base.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "kb",
+"label": "Knowledge base name",
+"kind": {
+"type": "string"
+},
+"required": true,
+"default": "docs"
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Support FAQ answerer",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "faq",
+"httpMethod": "POST",
+"responseMode": "lastNode"
+}
+},
+{
+"id": "ecec8035-8e5b-5804-ac84-9ee1693592ce",
+"name": "FAQ",
+"type": "hokkabaz.agent",
+"typeVersion": 1,
+"position": [
+260,
+0
+],
+"parameters": {
+"prompt": "Use the knowledge tool (base {{inputs.kb}}) to answer with citations: {{ $json.body.question }}",
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "1a72e540-195a-56cb-bb14-8f2b4094d240",
+"name": "Respond",
+"type": "n8n-nodes-base.respondToWebhook",
+"typeVersion": 1.1,
+"position": [
+520,
+0
+],
+"parameters": {
+"respondWith": "json",
+"responseBody": "={{ { answer: $json.output } }}"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "FAQ",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"FAQ": {
+"main": [
+[
+{
+"node": "Respond",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-translate-webhook",
+"name": "Translation endpoint",
+"kind": "flow",
+"version": "1.0.0",
+"description": "POST text, get a translation back.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "target",
+"label": "Target language",
+"kind": {
+"type": "string"
+},
+"required": true,
+"default": "Turkish"
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Translation endpoint",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "translate",
+"httpMethod": "POST",
+"responseMode": "lastNode"
+}
+},
+{
+"id": "22895ca2-743e-51b1-8dec-affaf4634ed0",
+"name": "Translate",
+"type": "@n8n/n8n-nodes-langchain.chainLlm",
+"typeVersion": 1.5,
+"position": [
+260,
+0
+],
+"parameters": {
+"promptType": "define",
+"text": "Translate to {{inputs.target}}, keep formatting:\n{{ $json.body.text }}"
+}
+},
+{
+"id": "1a72e540-195a-56cb-bb14-8f2b4094d240",
+"name": "Respond",
+"type": "n8n-nodes-base.respondToWebhook",
+"typeVersion": 1.1,
+"position": [
+520,
+0
+],
+"parameters": {
+"respondWith": "json",
+"responseBody": "={{ { text: $json.text } }}"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "Translate",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Translate": {
+"main": [
+[
+{
+"node": "Respond",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-weekly-report",
+"name": "Weekly metrics report",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Pull metrics JSON and write a narrative report.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "metrics_url",
+"label": "Metrics endpoint",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "telegram_chat_id",
+"label": "Telegram chat id",
+"kind": {
+"type": "string"
+},
+"required": true
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Weekly metrics report",
+"nodes": [
+{
+"id": "b24a015f-9349-5759-9a5e-97c346f9c00d",
+"name": "Schedule",
+"type": "n8n-nodes-base.scheduleTrigger",
+"typeVersion": 1.2,
+"position": [
+0,
+0
+],
+"parameters": {
+"rule": {
+"interval": [
+{
+"field": "cronExpression",
+"expression": "0 17 * * 5"
+}
+]
+}
+}
+},
+{
+"id": "df20a0c5-0e7e-58e6-98f7-0a0ca3f63639",
+"name": "Metrics",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 4.2,
+"position": [
+260,
+0
+],
+"parameters": {
+"url": "{{inputs.metrics_url}}",
+"method": "GET"
+}
+},
+{
+"id": "982c66fe-8612-5193-85cd-29393afd28bd",
+"name": "Report",
+"type": "@n8n/n8n-nodes-langchain.chainLlm",
+"typeVersion": 1.5,
+"position": [
+520,
+0
+],
+"parameters": {
+"promptType": "define",
+"text": "Write a weekly report with highlights and concerns from:\n{{ JSON.stringify($json) }}"
+}
+},
+{
+"id": "b4188720-bef6-5418-9c3e-7c7ec0f2305a",
+"name": "Telegram",
+"type": "n8n-nodes-base.telegram",
+"typeVersion": 1.2,
+"position": [
+780,
+0
+],
+"parameters": {
+"chatId": "{{inputs.telegram_chat_id}}",
+"text": "={{ $json.text }}"
+}
+}
+],
+"connections": {
+"Schedule": {
+"main": [
+[
+{
+"node": "Metrics",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Metrics": {
+"main": [
+[
+{
+"node": "Report",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Report": {
+"main": [
+[
+{
+"node": "Telegram",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-postgres-nl-query",
+"name": "Natural language → SQL report",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Ask questions about your Postgres data.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Natural language → SQL report",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "ask-db",
+"httpMethod": "POST",
+"responseMode": "lastNode"
+}
+},
+{
+"id": "718df494-32a3-5961-aeec-e291245af623",
+"name": "SQL",
+"type": "@n8n/n8n-nodes-langchain.chainLlm",
+"typeVersion": 1.5,
+"position": [
+260,
+0
+],
+"parameters": {
+"promptType": "define",
+"text": "Write one safe read-only PostgreSQL SELECT for: {{ $json.body.question }}. Reply with SQL only."
+}
+},
+{
+"id": "cc60c2cf-149a-518a-bf78-9a66b5991f59",
+"name": "Postgres",
+"type": "n8n-nodes-base.postgres",
+"typeVersion": 2.5,
+"position": [
+520,
+0
+],
+"parameters": {
+"operation": "executeQuery",
+"query": "={{ $json.text }}"
+}
+},
+{
+"id": "1a72e540-195a-56cb-bb14-8f2b4094d240",
+"name": "Respond",
+"type": "n8n-nodes-base.respondToWebhook",
+"typeVersion": 1.1,
+"position": [
+780,
+0
+],
+"parameters": {
+"respondWith": "json",
+"responseBody": "={{ $json }}"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "SQL",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"SQL": {
+"main": [
+[
+{
+"node": "Postgres",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Postgres": {
+"main": [
+[
+{
+"node": "Respond",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-redis-rate-alert",
+"name": "Error spike alert",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Count errors per minute in Redis and alert on spikes.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "ntfy_url",
+"label": "ntfy topic URL",
+"kind": {
+"type": "string"
+},
+"required": true,
+"default": "https://ntfy.sh/hokkabaz"
+}
+],
+"payload": {
+"name": "Error spike alert",
+"nodes": [
+{
+"id": "cd59482b-8caf-5772-8257-388c7f561e3f",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [
+0,
+0
+],
+"parameters": {
+"path": "error",
+"httpMethod": "POST",
+"responseMode": "onReceived"
+}
+},
+{
+"id": "53e0ffcd-4bbb-5493-9e0a-c7e2cc9d6e67",
+"name": "Count",
+"type": "n8n-nodes-base.redis",
+"typeVersion": 1,
+"position": [
+260,
+0
+],
+"parameters": {
+"operation": "incr",
+"key": "errors:{{ $now.toFormat('yyyyMMddHHmm') }}"
+}
+},
+{
+"id": "19453678-2348-5d8a-a606-0cb88a3e876c",
+"name": "Spike?",
+"type": "n8n-nodes-base.if",
+"typeVersion": 2,
+"position": [
+520,
+0
+],
+"parameters": {
+"conditions": {
+"conditions": [
+{
+"leftValue": "={{ $json.value }}",
+"rightValue": 20,
+"operator": {
+"type": "number",
+"operation": "gt"
+}
+}
+]
+}
+}
+},
+{
+"id": "ab86de9b-5138-5a28-89b2-1ad7042af99d",
+"name": "ntfy",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 4.2,
+"position": [
+780,
+0
+],
+"parameters": {
+"url": "{{inputs.ntfy_url}}",
+"method": "POST",
+"sendBody": true,
+"contentType": "raw",
+"body": "Error spike"
+}
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "Count",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Count": {
+"main": [
+[
+{
+"node": "Spike?",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Spike?": {
+"main": [
+[
+{
+"node": "ntfy",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-nightly-agent",
+"name": "Nightly agent report",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Run an agent task every night and push the result.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "task",
+"label": "Task for the agent",
+"kind": {
+"type": "string"
+},
+"required": true,
+"default": "Check my repo for TODOs and summarize them."
+},
+{
+"key": "ntfy_url",
+"label": "ntfy topic URL",
+"kind": {
+"type": "string"
+},
+"required": true,
+"default": "https://ntfy.sh/hokkabaz"
+},
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Nightly agent report",
+"nodes": [
+{
+"id": "b24a015f-9349-5759-9a5e-97c346f9c00d",
+"name": "Schedule",
+"type": "n8n-nodes-base.scheduleTrigger",
+"typeVersion": 1.2,
+"position": [
+0,
+0
+],
+"parameters": {
+"rule": {
+"interval": [
+{
+"field": "cronExpression",
+"expression": "0 2 * * *"
+}
+]
+}
+}
+},
+{
+"id": "970a6384-4a19-5935-b04d-7bdaba1590f2",
+"name": "Agent",
+"type": "hokkabaz.agent",
+"typeVersion": 1,
+"position": [
+260,
+0
+],
+"parameters": {
+"prompt": "{{inputs.task}}",
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "ab86de9b-5138-5a28-89b2-1ad7042af99d",
+"name": "ntfy",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 4.2,
+"position": [
+520,
+0
+],
+"parameters": {
+"url": "{{inputs.ntfy_url}}",
+"method": "POST",
+"sendBody": true,
+"contentType": "raw",
+"body": "={{ $json.output }}"
+}
+}
+],
+"connections": {
+"Schedule": {
+"main": [
+[
+{
+"node": "Agent",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Agent": {
+"main": [
+[
+{
+"node": "ntfy",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "flow-chat-assistant",
+"name": "Chat assistant with memory",
+"kind": "flow",
+"version": "1.0.0",
+"description": "Chat trigger + agent with window memory.",
+"tags": [
+"starter"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"name": "Chat assistant with memory",
+"nodes": [
+{
+"id": "0f2bb220-02eb-5bc0-a454-31b692b10f5e",
+"name": "Chat",
+"type": "@n8n/n8n-nodes-langchain.chatTrigger",
+"typeVersion": 1.1,
+"position": [
+0,
+0
+],
+"parameters": {}
+},
+{
+"id": "4bc4c891-761c-5abd-8faa-4e6712d096ef",
+"name": "Agent",
+"type": "@n8n/n8n-nodes-langchain.agent",
+"typeVersion": 1.7,
+"position": [
+260,
+0
+],
+"parameters": {
+"promptType": "auto"
+}
+}
+],
+"connections": {
+"Chat": {
+"main": [
+[
+{
+"node": "Agent",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
+},
+{
+"id": "agent-coder",
+"name": "Coder",
+"kind": "agent",
+"version": "1.0.0",
+"description": "Writes and edits code with tests.",
+"tags": [
+"agent"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"id": "agent-coder",
+"name": "Coder",
+"system_prompt": "You are a senior engineer. Make minimal, correct changes; run checks; explain briefly.",
+"tools": [
+"read",
+"write",
+"edit",
+"glob",
+"grep",
+"bash",
+"checkpoint"
+],
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "agent-reviewer",
+"name": "Code reviewer",
+"kind": "agent",
+"version": "1.0.0",
+"description": "Reviews diffs for bugs and risks.",
+"tags": [
+"agent"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"id": "agent-reviewer",
+"name": "Code reviewer",
+"system_prompt": "Review changes for correctness, security and clarity. Report findings ranked by severity.",
+"tools": [
+"read",
+"glob",
+"grep"
+],
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "agent-researcher",
+"name": "Researcher",
+"kind": "agent",
+"version": "1.0.0",
+"description": "Web research with citations.",
+"tags": [
+"agent"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"id": "agent-researcher",
+"name": "Researcher",
+"system_prompt": "Research thoroughly, compare sources, cite links, flag uncertainty.",
+"tools": [
+"web_fetch",
+"knowledge",
+"memory"
+],
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "agent-devops",
+"name": "DevOps",
+"kind": "agent",
+"version": "1.0.0",
+"description": "Docker, CI and deployment helper.",
+"tags": [
+"agent"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"id": "agent-devops",
+"name": "DevOps",
+"system_prompt": "You manage containers, CI and deployments carefully; prefer dry runs and explain risks.",
+"tools": [
+"bash",
+"read",
+"edit",
+"checkpoint"
+],
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "agent-analyst",
+"name": "Data analyst",
+"kind": "agent",
+"version": "1.0.0",
+"description": "SQL and CSV analysis.",
+"tags": [
+"agent"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"id": "agent-analyst",
+"name": "Data analyst",
+"system_prompt": "Analyze data step by step; show queries and summarize findings with numbers.",
+"tools": [
+"bash",
+"read",
+"write"
+],
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "agent-writer",
+"name": "Writer",
+"kind": "agent",
+"version": "1.0.0",
+"description": "Drafts posts, docs and emails.",
+"tags": [
+"agent"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"id": "agent-writer",
+"name": "Writer",
+"system_prompt": "Write clearly in the user's voice; offer a short and a long version.",
+"tools": [
+"read",
+"write",
+"memory"
+],
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "agent-translator",
+"name": "Translator",
+"kind": "agent",
+"version": "1.0.0",
+"description": "Natural translations, keeps formatting.",
+"tags": [
+"agent"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"id": "agent-translator",
+"name": "Translator",
+"system_prompt": "Translate faithfully and naturally; keep markdown and code untouched.",
+"tools": [],
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "agent-video-editor",
+"name": "Video editor",
+"kind": "agent",
+"version": "1.0.0",
+"description": "Makes shorts with Studio tools.",
+"tags": [
+"agent"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"id": "agent-video-editor",
+"name": "Video editor",
+"system_prompt": "Use studio_* tools to find highlights, edit by text, caption, reframe and render shorts.",
+"tools": [
+"studio_projects",
+"studio_transcribe",
+"studio_highlights",
+"studio_edit",
+"studio_render",
+"studio_writeup",
+"studio_social"
+],
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "agent-social",
+"name": "Social manager",
+"kind": "agent",
+"version": "1.0.0",
+"description": "Plans and writes social posts.",
+"tags": [
+"agent"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"id": "agent-social",
+"name": "Social manager",
+"system_prompt": "Plan posts per platform limits, hooks first, consistent brand voice.",
+"tools": [
+"studio_social",
+"studio_writeup",
+"memory"
+],
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "agent-support",
+"name": "Support triage",
+"kind": "agent",
+"version": "1.0.0",
+"description": "Answers from the knowledge base.",
+"tags": [
+"agent"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"id": "agent-support",
+"name": "Support triage",
+"system_prompt": "Answer support questions from the knowledge base with citations; escalate when unsure.",
+"tools": [
+"knowledge",
+"memory"
+],
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "agent-home",
+"name": "Home automation",
+"kind": "agent",
+"version": "1.0.0",
+"description": "Home Assistant helper.",
+"tags": [
+"agent"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"id": "agent-home",
+"name": "Home automation",
+"system_prompt": "Turn requests into Home Assistant actions; confirm before acting on locks or heating.",
+"tools": [
+"web_fetch"
+],
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "agent-tutor",
+"name": "Tutor",
+"kind": "agent",
+"version": "1.0.0",
+"description": "Explains concepts step by step.",
+"tags": [
+"agent"
+],
+"inputs": [
+{
+"key": "model",
+"label": "Model",
+"kind": {
+"type": "model",
+"capabilities": [
+"tools"
+]
+},
+"required": false,
+"default": "deepseek/deepseek-chat"
+}
+],
+"payload": {
+"id": "agent-tutor",
+"name": "Tutor",
+"system_prompt": "Teach with questions, examples and short checks for understanding.",
+"tools": [
+"memory"
+],
+"model": "{{inputs.model}}",
+"mode": "build"
+}
+},
+{
+"id": "prompt-summarize",
+"name": "Summarize",
+"kind": "prompt",
+"version": "1.0.0",
+"description": "TL;DR + bullets",
+"tags": [
+"prompt"
+],
+"inputs": [],
+"payload": {
+"id": "prompt-summarize",
+"name": "Summarize",
+"text": "Summarize the following in one TL;DR sentence and 5 bullets:\n\n{{text}}"
+}
+},
+{
+"id": "prompt-explain-code",
+"name": "Explain code",
+"kind": "prompt",
+"version": "1.0.0",
+"description": "Line-by-line explanation",
+"tags": [
+"prompt"
+],
+"inputs": [],
+"payload": {
+"id": "prompt-explain-code",
+"name": "Explain code",
+"text": "Explain what this code does, then list edge cases:\n\n{{code}}"
+}
+},
+{
+"id": "prompt-commit-msg",
+"name": "Commit message",
+"kind": "prompt",
+"version": "1.0.0",
+"description": "Conventional commit",
+"tags": [
+"prompt"
+],
+"inputs": [],
+"payload": {
+"id": "prompt-commit-msg",
+"name": "Commit message",
+"text": "Write a conventional commit message for this diff:\n\n{{diff}}"
+}
+},
+{
+"id": "prompt-email-reply",
+"name": "Email reply",
+"kind": "prompt",
+"version": "1.0.0",
+"description": "Polite reply",
+"tags": [
+"prompt"
+],
+"inputs": [],
+"payload": {
+"id": "prompt-email-reply",
+"name": "Email reply",
+"text": "Draft a polite, concise reply to this email:\n\n{{email}}"
+}
+},
+{
+"id": "prompt-tweet-thread",
+"name": "Thread",
+"kind": "prompt",
+"version": "1.0.0",
+"description": "5-post thread",
+"tags": [
+"prompt"
+],
+"inputs": [],
+"payload": {
+"id": "prompt-tweet-thread",
+"name": "Thread",
+"text": "Turn this into a 5-post thread with a strong hook:\n\n{{text}}"
+}
+},
+{
+"id": "preset-precise-coder",
+"name": "Precise coder",
+"kind": "settings_preset",
+"version": "1.0.0",
+"description": "AI settings preset: Precise coder",
+"tags": [
+"preset"
+],
+"inputs": [],
+"payload": {
+"id": "preset-precise-coder",
+"name": "Precise coder",
+"settings": {
+"temperature": 0.1,
+"top_p": 0.9,
+"reasoning_effort": "high"
+}
+}
+},
+{
+"id": "preset-creative-writer",
+"name": "Creative writer",
+"kind": "settings_preset",
+"version": "1.0.0",
+"description": "AI settings preset: Creative writer",
+"tags": [
+"preset"
+],
+"inputs": [],
+"payload": {
+"id": "preset-creative-writer",
+"name": "Creative writer",
+"settings": {
+"temperature": 0.9,
+"top_p": 0.95,
+"presence_penalty": 0.4
+}
+}
+},
+{
+"id": "preset-cheap-fast",
+"name": "Cheap & fast",
+"kind": "settings_preset",
+"version": "1.0.0",
+"description": "AI settings preset: Cheap & fast",
+"tags": [
+"preset"
+],
+"inputs": [],
+"payload": {
+"id": "preset-cheap-fast",
+"name": "Cheap & fast",
+"settings": {
+"temperature": 0.3,
+"max_output_tokens": 1024,
+"reasoning_effort": "low"
+}
+}
+},
+{
+"id": "preset-offline-phone",
+"name": "Offline phone",
+"kind": "settings_preset",
+"version": "1.0.0",
+"description": "AI settings preset: Offline phone",
+"tags": [
+"preset"
+],
+"inputs": [],
+"payload": {
+"id": "preset-offline-phone",
+"name": "Offline phone",
+"settings": {
+"temperature": 0.4,
+"max_output_tokens": 512,
+"context_limit": 4096
+}
+}
+}
+]

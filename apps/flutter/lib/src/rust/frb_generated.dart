@@ -370,6 +370,13 @@ abstract class RustLibApi extends BaseApi {
 
   Stream<String> crateApiStudioStudioEvents({required String id});
 
+  Future<String> crateApiHkHkCall({
+    required String method,
+    required String paramsJson,
+  });
+
+  Stream<String> crateApiHkHkEvents({required String topic});
+
   Future<String> crateApiStudioStudioExport({
     required String id,
     required String clip,
@@ -3017,6 +3024,73 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiStudioStudioEventsConstMeta =>
       const TaskConstMeta(debugName: "studio_events", argNames: ["id", "sink"]);
+
+  @override
+  Future<String> crateApiHkHkCall({
+    required String method,
+    required String paramsJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(method, serializer);
+          sse_encode_String(paramsJson, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 113,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_hk_error,
+        ),
+        constMeta: kCrateApiHkHkCallConstMeta,
+        argValues: [method, paramsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiHkHkCallConstMeta => const TaskConstMeta(
+    debugName: "hk_call",
+    argNames: ["method", "paramsJson"],
+  );
+
+  @override
+  Stream<String> crateApiHkHkEvents({required String topic}) {
+    final sink = RustStreamSink<String>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_String(topic, serializer);
+            sse_encode_StreamSink_String_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 114,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_hk_error,
+          ),
+          constMeta: kCrateApiHkHkEventsConstMeta,
+          argValues: [topic, sink],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiHkHkEventsConstMeta =>
+      const TaskConstMeta(debugName: "hk_events", argNames: ["topic", "sink"]);
 
   @override
   Future<String> crateApiStudioStudioExport({

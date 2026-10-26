@@ -61,7 +61,10 @@ async fn list_doc(store: &Store, key: &str, action: &str, p: &Value) -> Result<V
     match action {
         "list" => {}
         "save" => {
-            let item = p.get("item").cloned().ok_or_else(|| bad("missing `item`"))?;
+            let item = p
+                .get("item")
+                .cloned()
+                .ok_or_else(|| bad("missing `item`"))?;
             let id = item
                 .get("id")
                 .and_then(Value::as_str)
@@ -94,7 +97,10 @@ pub(crate) async fn call(c: &Ctx<'_>, method: &str, p: Value) -> Result<Value, H
             match action {
                 "list" => Ok(json!(reg.list())),
                 "cancel" => {
-                    let id = p.get("id").and_then(Value::as_u64).ok_or_else(|| bad("missing `id`"))?;
+                    let id = p
+                        .get("id")
+                        .and_then(Value::as_u64)
+                        .ok_or_else(|| bad("missing `id`"))?;
                     Ok(json!(reg.cancel(hk_core::JobId(id))))
                 }
                 "cancel_all" => Ok(json!(reg.cancel_all())),
@@ -118,12 +124,33 @@ pub(crate) async fn call(c: &Ctx<'_>, method: &str, p: Value) -> Result<Value, H
         "memory" | "knowledge" => crate::features::recall(c, domain, action, p).await,
         "settings" => match action {
             "ai.get" => doc_get(c.store, "ai_settings").await,
-            "ai.save" => doc_set(c.store, "ai_settings", p.get("settings").unwrap_or(&Value::Null)).await,
+            "ai.save" => {
+                doc_set(
+                    c.store,
+                    "ai_settings",
+                    p.get("settings").unwrap_or(&Value::Null),
+                )
+                .await
+            }
             "ai.presets" => Ok(json!(hk_core::builtin_presets())),
             "approvals.get" => doc_get(c.store, "approval_policy").await,
-            "approvals.save" => doc_set(c.store, "approval_policy", p.get("policy").unwrap_or(&Value::Null)).await,
+            "approvals.save" => {
+                doc_set(
+                    c.store,
+                    "approval_policy",
+                    p.get("policy").unwrap_or(&Value::Null),
+                )
+                .await
+            }
             "local.get" => doc_get(c.store, "local_runtime_profiles").await,
-            "local.save" => doc_set(c.store, "local_runtime_profiles", p.get("profiles").unwrap_or(&Value::Null)).await,
+            "local.save" => {
+                doc_set(
+                    c.store,
+                    "local_runtime_profiles",
+                    p.get("profiles").unwrap_or(&Value::Null),
+                )
+                .await
+            }
             _ => Err(bad(format!("unknown `{method}`"))),
         },
         "prompts" => list_doc(c.store, "prompt_library", action, &p).await,
@@ -133,14 +160,19 @@ pub(crate) async fn call(c: &Ctx<'_>, method: &str, p: Value) -> Result<Value, H
     }
 }
 
-pub(crate) fn events(rt: &LocalRuntime, topic: &str) -> Result<BoxStream<'static, String>, HkError> {
+pub(crate) fn events(
+    rt: &LocalRuntime,
+    topic: &str,
+) -> Result<BoxStream<'static, String>, HkError> {
     match topic {
         "jobs" => {
             let rx = jobs(rt)?.subscribe();
             Ok(futures::stream::unfold(rx, |mut rx| async move {
                 loop {
                     match rx.recv().await {
-                        Ok(ev) => return Some((serde_json::to_string(&ev).unwrap_or_default(), rx)),
+                        Ok(ev) => {
+                            return Some((serde_json::to_string(&ev).unwrap_or_default(), rx));
+                        }
                         // A slow UI skips progress frames; `jobs.list` resyncs.
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                         Err(_) => return None,

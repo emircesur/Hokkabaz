@@ -84,6 +84,173 @@ pub fn builtin_templates() -> Vec<Template> {
             music: None,
         },
     ]
+    .into_iter()
+    .chain(more_templates())
+    .collect()
+}
+
+/// Genre presets derived from the base styles (P9.44).
+fn more_templates() -> Vec<Template> {
+    // (name, description, captions, vertical?, cut silences, remove fillers, b-roll)
+    let rows: [(
+        &str,
+        &str,
+        fn() -> CaptionStyle,
+        Option<fn() -> ReframeSpec>,
+        bool,
+        bool,
+        bool,
+    ); 15] = [
+        (
+            "podcast-clip",
+            "Podcast clip: speaker-framed 9:16, karaoke captions, tight cuts",
+            CaptionStyle::karaoke,
+            Some(ReframeSpec::vertical),
+            true,
+            true,
+            false,
+        ),
+        (
+            "gaming-highlight",
+            "Gaming highlight: fast pop captions, keep pauses short",
+            CaptionStyle::pop,
+            Some(ReframeSpec::vertical),
+            true,
+            true,
+            false,
+        ),
+        (
+            "tutorial",
+            "Tutorial: classic captions, natural pacing, keep 16:9",
+            CaptionStyle::classic,
+            None,
+            false,
+            true,
+            false,
+        ),
+        (
+            "interview-split",
+            "Interview: vertical, classic captions, fillers removed",
+            CaptionStyle::classic,
+            Some(ReframeSpec::vertical),
+            true,
+            true,
+            false,
+        ),
+        (
+            "news-brief",
+            "News brief: vertical, minimal captions, B-roll on",
+            CaptionStyle::minimal,
+            Some(ReframeSpec::vertical),
+            true,
+            true,
+            true,
+        ),
+        (
+            "reaction",
+            "Reaction: pop captions, tight pacing",
+            CaptionStyle::pop,
+            Some(ReframeSpec::vertical),
+            true,
+            true,
+            false,
+        ),
+        (
+            "quote-card",
+            "Quote card: square, minimal captions",
+            CaptionStyle::minimal,
+            Some(ReframeSpec::square),
+            false,
+            false,
+            false,
+        ),
+        (
+            "listicle",
+            "Listicle: vertical, pop captions, B-roll on",
+            CaptionStyle::pop,
+            Some(ReframeSpec::vertical),
+            true,
+            true,
+            true,
+        ),
+        (
+            "meme",
+            "Meme caption: square, big words",
+            CaptionStyle::pop,
+            Some(ReframeSpec::square),
+            false,
+            false,
+            false,
+        ),
+        (
+            "before-after",
+            "Before/after: 16:9, classic captions",
+            CaptionStyle::classic,
+            None,
+            false,
+            false,
+            true,
+        ),
+        (
+            "motivation",
+            "Motivation: karaoke captions, B-roll on",
+            CaptionStyle::karaoke,
+            Some(ReframeSpec::vertical),
+            true,
+            true,
+            true,
+        ),
+        (
+            "product-demo",
+            "Product demo: 16:9, classic captions, fillers removed",
+            CaptionStyle::classic,
+            None,
+            false,
+            true,
+            true,
+        ),
+        (
+            "lecture",
+            "Lecture highlight: vertical, classic captions, silences cut",
+            CaptionStyle::classic,
+            Some(ReframeSpec::vertical),
+            true,
+            true,
+            false,
+        ),
+        (
+            "vlog",
+            "Vlog: karaoke captions, natural pacing",
+            CaptionStyle::karaoke,
+            Some(ReframeSpec::vertical),
+            false,
+            true,
+            true,
+        ),
+        (
+            "square-quote",
+            "Square quote: minimal captions, no cuts",
+            CaptionStyle::minimal,
+            Some(ReframeSpec::square),
+            false,
+            false,
+            false,
+        ),
+    ];
+    rows.into_iter()
+        .map(
+            |(name, description, cap, frame, cut, fillers, broll)| Template {
+                name: name.into(),
+                description: description.into(),
+                captions: Some(cap()),
+                reframe: frame.map(|f| f()),
+                silence: cut.then(SilenceCut::default),
+                remove_fillers: fillers,
+                broll,
+                music: None,
+            },
+        )
+        .collect()
 }
 
 pub fn builtin(name: &str) -> Option<Template> {
