@@ -12,3 +12,4 @@ apps/flutter/android/.kotlin/
 apps/flutter/android/key.properties
 *.jks
 *.keystore
+.claude/worktrees/
