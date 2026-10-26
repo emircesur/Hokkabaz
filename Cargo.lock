@@ -3829,6 +3829,7 @@ dependencies = [
  "bytes",
  "futures",
  "hk-core",
+ "jsonschema",
  "reqwest 0.12.28",
  "serde",
  "serde_json",

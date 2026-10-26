@@ -124,6 +124,78 @@ pub struct Router {
     first_event_timeout: Option<Duration>,
     catalog: Option<Arc<Catalog>>,
     meter: Arc<Mutex<Meter>>,
+    budget: Option<Budget>,
+    auto: Option<AutoRoutes>,
+}
+
+/// Spend cap. Once reached, priced routes are skipped (unpriced/local ones still run);
+/// with `hard_stop` and no unpriced route left the request fails.
+#[derive(Clone)]
+pub struct Budget {
+    pub limit_usd: f64,
+    pub hard_stop: bool,
+    /// Spend from outside this router (e.g. today's persisted usage); added to the meter.
+    pub external_spend: Option<Arc<dyn Fn() -> f64 + Send + Sync>>,
+}
+
+impl fmt::Debug for Budget {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Budget")
+            .field("limit_usd", &self.limit_usd)
+            .field("hard_stop", &self.hard_stop)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Task kind picked for model `auto`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TaskKind {
+    Code,
+    LongContext,
+    Reasoning,
+    Cheap,
+}
+
+/// Chain keys per task kind for requests with model `auto`.
+#[derive(Debug, Clone, Default)]
+pub struct AutoRoutes {
+    pub chains: HashMap<TaskKind, String>,
+    /// Estimated prompt tokens above which a request counts as long-context.
+    pub long_context_tokens: u64,
+}
+
+impl AutoRoutes {
+    /// Heuristic task classification from the request text.
+    pub fn classify(&self, req: &ChatRequest) -> TaskKind {
+        let chars: usize = req.messages.iter().map(|m| m.content.len()).sum();
+        if self.long_context_tokens > 0 && (chars / 4) as u64 > self.long_context_tokens {
+            return TaskKind::LongContext;
+        }
+        let last = req
+            .messages
+            .iter()
+            .rev()
+            .find(|m| m.role == crate::Role::User);
+        let text = last.map_or("", |m| m.content.as_str()).to_lowercase();
+        const CODE: [&str; 8] = [
+            "```",
+            "fn ",
+            "def ",
+            "class ",
+            "error[",
+            "traceback",
+            "stack trace",
+            "compile",
+        ];
+        const THINK: [&str; 5] = ["prove", "step by step", "why does", "plan ", "analyze"];
+        if !req.tools.is_empty() || CODE.iter().any(|k| text.contains(k)) {
+            TaskKind::Code
+        } else if THINK.iter().any(|k| text.contains(k)) {
+            TaskKind::Reasoning
+        } else {
+            TaskKind::Cheap
+        }
+    }
 }
 
 impl fmt::Debug for Router {
@@ -159,6 +231,8 @@ impl Router {
             first_event_timeout: Some(Duration::from_secs(60)),
             catalog: None,
             meter: Arc::default(),
+            budget: None,
+            auto: None,
         }
     }
 
@@ -216,6 +290,25 @@ impl Router {
     }
 
     /// Copy of the current meter.
+    /// Cap spend; see [`Budget`].
+    pub fn budget(mut self, b: Budget) -> Self {
+        self.budget = Some(b);
+        self
+    }
+
+    /// Enable model `auto` routing by task kind.
+    pub fn auto_routes(mut self, a: AutoRoutes) -> Self {
+        self.auto = Some(a);
+        self
+    }
+
+    fn over_budget(&self) -> bool {
+        self.budget.as_ref().is_some_and(|b| {
+            let spent = self.meter().cost.usd + b.external_spend.as_ref().map_or(0.0, |f| f());
+            spent >= b.limit_usd
+        })
+    }
+
     pub fn meter(&self) -> Meter {
         self.meter
             .lock()
@@ -406,9 +499,30 @@ impl Provider for Router {
     }
 
     async fn stream(&self, req: ChatRequest, cancel: CancellationToken) -> Result<EventStream> {
-        let chain = self.resolve(&req.model)?;
+        let key = match (&self.auto, req.model.as_str()) {
+            (Some(a), "auto") => {
+                let kind = a.classify(&req);
+                tracing::debug!(?kind, "router: auto route");
+                a.chains
+                    .get(&kind)
+                    .cloned()
+                    .unwrap_or_else(|| req.model.clone())
+            }
+            _ => req.model.clone(),
+        };
+        let chain = self.resolve(&key)?;
+        let over = self.over_budget();
         let mut last_err = None;
         for route in &chain {
+            if over
+                && self
+                    .cost_of(route)
+                    .is_some_and(|c| c.input > 0.0 || c.output > 0.0)
+            {
+                tracing::info!(%route, "router: budget reached, skipping priced route");
+                last_err = Some(LlmError::InvalidRequest("budget limit reached".into()));
+                continue;
+            }
             if !req.tools.is_empty()
                 && self
                     .model_info(route)
@@ -803,6 +917,40 @@ mod tests {
             }],
         });
         Arc::new(c)
+    }
+
+    #[tokio::test]
+    async fn router_budget_skips_priced_routes() {
+        let a = Mock::new("a", vec![ok_stream("from-a")]);
+        let b = Mock::new("b", vec![ok_stream("from-b")]);
+        let r = router(&a, &b).catalog(priced_catalog()).budget(Budget {
+            limit_usd: 0.0,
+            hard_stop: false,
+            external_spend: None,
+        });
+        let s = r
+            .stream(req("build"), CancellationToken::new())
+            .await
+            .unwrap();
+        assert_eq!(text_of(&collect(s).await), "from-b");
+        assert_eq!(a.calls(), 0);
+    }
+
+    #[test]
+    fn auto_classifies_tasks() {
+        let a = AutoRoutes {
+            chains: HashMap::new(),
+            long_context_tokens: 5,
+        };
+        assert_eq!(a.classify(&req("x")), TaskKind::Cheap);
+        let mut r = req("x");
+        r.messages[0].content = "why does this fail? ```fn main(){}```".into();
+        assert_eq!(a.classify(&r), TaskKind::LongContext);
+        let a2 = AutoRoutes {
+            long_context_tokens: 0,
+            ..a
+        };
+        assert_eq!(a2.classify(&r), TaskKind::Code);
     }
 
     #[tokio::test]

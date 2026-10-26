@@ -19,6 +19,7 @@ mod provider;
 pub mod registry;
 mod request;
 pub mod router;
+pub mod structured;
 mod usage;
 
 pub use error::{LlmError, Result};
@@ -33,6 +34,6 @@ pub use registry::{
 pub use request::{
     ChatRequest, Message, ReasoningEffort, Role, SamplingParams, ToolCall, ToolChoice, ToolSpec,
 };
-pub use router::{Meter, Projection, Route, RouteTotals, Router};
+pub use router::{AutoRoutes, Budget, Meter, Projection, Route, RouteTotals, Router, TaskKind};
 pub use tokio_util::sync::CancellationToken;
 pub use usage::{Cost, Usage};
