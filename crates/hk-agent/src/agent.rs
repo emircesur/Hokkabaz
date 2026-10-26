@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use hk_core::{Effect, EventBus};
+use hk_core::{Effect, EventBus, JobHandle, JobId, JobKind, JobRegistry, JobSpec};
 use hk_llm::{
     CancellationToken, ChatRequest, FinishReason, LlmError, Provider, StreamEvent, ToolCall,
     ToolSpec, Usage,
@@ -26,6 +26,24 @@ use crate::subagent::TASK_TOOL;
 
 const CANCELLED_RESULT: &str = "tool call cancelled before it produced a result";
 const INTERRUPTED_RESULT: &str = "tool call interrupted: no result was recorded";
+
+/// Job key of a tool call, so the tool (e.g. `task`) can nest its own jobs under it.
+pub(crate) fn tool_job_key(session_id: &str, call_id: &str) -> String {
+    format!("tool:{session_id}:{call_id}")
+}
+
+/// Close a turn job by how the turn ended.
+fn end_job(job: JobHandle, reason: TurnEndReason, error: Option<&str>) {
+    match reason {
+        TurnEndReason::Completed => job.finish(),
+        TurnEndReason::MaxSteps => {
+            job.log("step cap reached");
+            job.finish();
+        }
+        TurnEndReason::Cancelled => job.cancelled(),
+        TurnEndReason::Failed => job.fail(error.unwrap_or("turn failed")),
+    }
+}
 
 /// Fatal loop failure: the session log can no longer be trusted or written.
 /// Provider and tool failures are not errors here; they end the turn as `failed` or become
@@ -114,6 +132,10 @@ pub struct Agent {
     open_approvals: Vec<String>,
     /// Identical-call streak of the running turn.
     repeat: RepeatGuard,
+    /// Job tree to report into, and the parent job turns nest under.
+    jobs: Option<(JobRegistry, Option<JobId>)>,
+    turn_job: Option<JobId>,
+    step_job: Option<JobHandle>,
     /// Keeps the mode-policy interceptor installed for the agent's lifetime.
     _policy: Effect,
 }
@@ -158,6 +180,9 @@ impl Agent {
             gate_rx,
             open_approvals: Vec::new(),
             repeat: RepeatGuard::default(),
+            jobs: None,
+            turn_job: None,
+            step_job: None,
             _policy: policy,
         })
     }
@@ -165,6 +190,16 @@ impl Agent {
     /// Control surface (submit / inject / cancel) usable from other tasks.
     pub fn handle(&self) -> AgentHandle {
         self.handle.clone()
+    }
+
+    /// Report turns, steps and tool calls as jobs, nested under `parent`. Cancelling the turn
+    /// job cancels the turn exactly like [`AgentHandle::cancel`].
+    pub fn set_jobs(&mut self, reg: JobRegistry, parent: Option<JobId>) {
+        self.jobs = Some((reg, parent));
+    }
+
+    fn start_job(&self, spec: JobSpec, parent: Option<JobId>) -> Option<JobHandle> {
+        self.jobs.as_ref().map(|(reg, _)| reg.start(spec, parent))
     }
 
     /// Replace settings between turns (mode or model switch).
@@ -190,14 +225,36 @@ impl Agent {
     /// Claim the inbox and run one turn. `None` when the inbox was empty.
     pub async fn run_turn(&mut self) -> Result<Option<TurnSummary>> {
         // Token first so a cancel() racing the claim still hits this turn.
-        let cancel = self.handle.begin_turn();
+        let mut cancel = self.handle.begin_turn();
         let msgs = self.handle.claim_all();
         if msgs.is_empty() {
             self.handle.end_turn();
             return Ok(None);
         }
+        let parent = self.jobs.as_ref().and_then(|(_, p)| *p);
+        let spec = JobSpec::new(JobKind::AgentTurn, "agent turn").meta(json!({
+            "session_id": self.writer.session_id(),
+            "model": self.cfg.model,
+        }));
+        let job = self.start_job(spec, parent);
+        if let (Some(job), Some((reg, _))) = (&job, &self.jobs) {
+            // One cancel path: the turn runs on the job's token.
+            cancel = self
+                .handle
+                .adopt_job(job.token().clone(), reg.clone(), job.id());
+        }
+        self.turn_job = job.as_ref().map(JobHandle::id);
         let res = self.drive(msgs, cancel).await;
+        // A step left open by a fatal error closes before its turn.
+        drop(self.step_job.take());
+        self.turn_job = None;
         self.handle.end_turn();
+        if let Some(job) = job {
+            match &res {
+                Ok(s) => end_job(job, s.reason, s.error.as_deref()),
+                Err(e) => job.fail(e.to_string()),
+            }
+        }
         res.map(Some)
     }
 
@@ -341,12 +398,21 @@ impl Agent {
                 step,
             })?;
             *steps += 1;
+            let spec = JobSpec::new(JobKind::Step, format!("step {step}"))
+                .meta(json!({"turn_id": turn_id, "step": step}));
+            self.step_job = self.start_job(spec, self.turn_job);
+            if let Some(j) = &self.step_job {
+                j.phase("model");
+            }
 
             let (out, mut stop) = self.model_phase(turn_id, step, cancel, deadline).await?;
             for c in &out.calls {
                 self.repeat.observe(&c.name, &c.arguments);
             }
             if stop.is_none() && !out.calls.is_empty() {
+                if let Some(j) = &self.step_job {
+                    j.phase("tools");
+                }
                 stop = self.tool_phase(&out.calls, cancel, deadline).await?;
             }
             if let Some(u) = &out.usage {
@@ -358,6 +424,13 @@ impl Agent {
                 finish: out.finish,
                 usage: out.usage,
             })?;
+            if let Some(j) = self.step_job.take() {
+                match &stop {
+                    Some(Stop::Cancelled) => j.cancelled(),
+                    Some(Stop::Failed(e)) => j.fail(e.as_str()),
+                    None => j.finish(),
+                }
+            }
 
             match stop {
                 Some(Stop::Cancelled) => return Ok((TurnEndReason::Cancelled, None)),
@@ -756,6 +829,17 @@ impl Agent {
             };
             let session_id = self.writer.session_id().to_owned();
             let cwd = self.cfg.cwd.clone();
+            // Started before the calls run so a tool can find its job by key.
+            let step_job = self.step_job.as_ref().map(JobHandle::id);
+            let jobs: Vec<Option<JobHandle>> = batch
+                .iter()
+                .map(|call| {
+                    let spec = JobSpec::new(JobKind::Tool, call.name.clone())
+                        .key(tool_job_key(&session_id, &call.id))
+                        .meta(json!({"call_id": call.id, "tool": call.name}));
+                    self.start_job(spec, step_job)
+                })
+                .collect();
             let run = futures::future::join_all(batch.iter().map(|call| {
                 let ctx = ToolCtx {
                     call_id: call.id.clone(),
@@ -802,36 +886,53 @@ impl Agent {
             }
             match end {
                 BatchEnd::Done(rs) => {
-                    for (call, r) in batch.iter().zip(rs) {
-                        match r {
-                            Ok(o) => self.log_result(&call.id, o.content, o.is_error)?,
-                            Err(e) => self.log_result(&call.id, e.to_output().content, true)?,
+                    for ((call, r), job) in batch.iter().zip(rs).zip(jobs) {
+                        let failed = match r {
+                            Ok(o) => {
+                                self.log_result(&call.id, o.content, o.is_error)?;
+                                o.is_error.then(|| "tool returned an error".to_owned())
+                            }
+                            Err(e) => {
+                                self.log_result(&call.id, e.to_output().content, true)?;
+                                Some(e.to_string())
+                            }
+                        };
+                        match (job, failed) {
+                            (Some(j), Some(e)) => j.fail(e),
+                            (Some(j), None) => j.finish(),
+                            (None, _) => {}
                         }
                     }
                 }
                 BatchEnd::Cancelled => {
                     stop = Some(Stop::Cancelled);
-                    for call in batch {
+                    for (call, job) in batch.iter().zip(jobs) {
                         self.log_result(&call.id, CANCELLED_RESULT, true)?;
+                        if let Some(j) = job {
+                            j.cancelled();
+                        }
                     }
                 }
                 BatchEnd::TurnTimeout => {
                     stop = Some(Stop::Failed("turn timeout exceeded".to_owned()));
-                    for call in batch {
+                    for (call, job) in batch.iter().zip(jobs) {
                         self.log_result(&call.id, "tool call aborted: turn timeout", true)?;
+                        if let Some(j) = job {
+                            j.fail("turn timeout");
+                        }
                     }
                 }
                 BatchEnd::ToolTimeout(what) => {
                     let secs = per_call.map_or(0, |d| d.as_secs_f64() as u64);
-                    for call in batch {
-                        self.log_result(
-                            &call.id,
-                            format!(
-                                "{what} `{}` timed out after {secs}s and was aborted",
-                                call.name
-                            ),
-                            true,
-                        )?;
+                    for (call, job) in batch.iter().zip(jobs) {
+                        let msg = format!(
+                            "{what} `{}` timed out after {secs}s and was aborted",
+                            call.name
+                        );
+                        if let Some(j) = job {
+                            j.fail(msg.as_str());
+                        }
+                        self.log_result(&call.id, msg, true)?;
                     }
                 }
                 BatchEnd::Gate(_) => unreachable!("gate events are handled in the loop"),

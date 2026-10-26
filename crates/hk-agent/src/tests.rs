@@ -1393,3 +1393,154 @@ mod p2 {
         assert_eq!(s.reason, TurnEndReason::Completed);
     }
 }
+
+mod jobs {
+    use hk_core::{JobEvent, JobInfo, JobKind, JobRegistry, JobState};
+
+    use super::*;
+    use crate::{SubagentRunner, TaskTool};
+
+    fn by_kind(reg: &JobRegistry, kind: &JobKind) -> Vec<JobInfo> {
+        reg.list().into_iter().filter(|j| &j.kind == kind).collect()
+    }
+
+    #[tokio::test]
+    async fn jobs_nest_turn_step_tool() {
+        let mut e = env(vec![call("e1", "echo", r#"{"text":"x"}"#), text("done")]);
+        let reg = JobRegistry::new();
+        e.agent.set_jobs(reg.clone(), None);
+        e.agent.handle().submit("go");
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!(s.reason, TurnEndReason::Completed);
+
+        let turn = &by_kind(&reg, &JobKind::AgentTurn)[0];
+        assert_eq!((turn.parent, &turn.state), (None, &JobState::Finished));
+        let steps = by_kind(&reg, &JobKind::Step);
+        assert_eq!(steps.len(), 2);
+        assert!(
+            steps
+                .iter()
+                .all(|s| s.parent == Some(turn.id) && s.state == JobState::Finished)
+        );
+        let tool = &by_kind(&reg, &JobKind::Tool)[0];
+        assert_eq!(tool.parent, Some(steps[0].id));
+        let key = format!("tool:{}:e1", e.id);
+        assert_eq!(tool.key.as_deref(), Some(key.as_str()));
+        assert_eq!(tool.state, JobState::Finished);
+    }
+
+    #[tokio::test]
+    async fn jobs_cancel_turn_job_cancels_turn_and_subtree() {
+        let mut e = env(vec![call("s1", "slow", "{}")]);
+        let reg = JobRegistry::new();
+        e.agent.set_jobs(reg.clone(), None);
+        let mut rx = reg.subscribe();
+        let r = reg.clone();
+        let watcher = tokio::spawn(async move {
+            let mut seen = Vec::new();
+            while let Ok(ev) = rx.recv().await {
+                if let JobEvent::Started { job } = &ev
+                    && job.kind == JobKind::Tool
+                {
+                    // The turn job is the first one started.
+                    assert!(r.cancel(hk_core::JobId(1)));
+                }
+                let done = matches!(&ev, JobEvent::Cancelled { id } if id.0 == 1);
+                seen.push(ev);
+                if done {
+                    break;
+                }
+            }
+            seen
+        });
+        e.agent.handle().submit("go");
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!(s.reason, TurnEndReason::Cancelled);
+        assert_paired(&e);
+
+        let seen = watcher.await.unwrap();
+        let requested: Vec<u64> = seen
+            .iter()
+            .filter_map(|ev| match ev {
+                JobEvent::CancelRequested { id } => Some(id.0),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(requested, vec![1, 2, 3]); // turn, step, tool
+        assert!(reg.list().iter().all(|j| j.state == JobState::Cancelled));
+    }
+
+    #[tokio::test]
+    async fn jobs_handle_cancel_goes_through_job_tree() {
+        let partial = vec![Ok(StreamEvent::TextDelta { text: "p".into() })];
+        let mut e = env_with(Fake::with_hang(vec![(partial, true)]), |_| {});
+        let reg = JobRegistry::new();
+        e.agent.set_jobs(reg.clone(), None);
+        let mut rx = reg.subscribe();
+        let h = e.agent.handle();
+        h.submit("go");
+        cancel_soon(h);
+        let s = e.agent.run_turn().await.unwrap().unwrap();
+        assert_eq!(s.reason, TurnEndReason::Cancelled);
+        let mut evs = Vec::new();
+        while let Ok(ev) = rx.try_recv() {
+            evs.push(ev.name());
+        }
+        let req = evs
+            .iter()
+            .position(|n| *n == "job/cancel-requested")
+            .unwrap();
+        let end = evs.iter().rposition(|n| *n == "job/cancelled").unwrap();
+        assert!(req < end);
+    }
+
+    #[tokio::test]
+    async fn jobs_subagent_turn_nests_under_task_call() {
+        let task = vec![
+            Ok(StreamEvent::ToolCallDelta {
+                index: 0,
+                id: Some("t1".into()),
+                name: Some("task".into()),
+                arguments_delta: json!({"prompt": "p", "description": "sub job"}).to_string(),
+            }),
+            Ok(StreamEvent::Finish(FinishReason::ToolCalls)),
+        ];
+        let fake = Fake::new(vec![task, text("child answer"), text("parent done")]);
+        let dir = tempfile::tempdir().unwrap();
+        let store = SessionStore::open(dir.path().join("s")).unwrap();
+        let writer = store.create(NewSession::default()).unwrap();
+        let tools = ToolRegistry::new();
+        std::mem::forget(tools.register(Arc::new(Echo)).unwrap());
+        let limits = OutputLimits::new(dir.path().join("spill"));
+        let jobs = JobRegistry::new();
+        let runner = SubagentRunner::new(
+            fake.clone(),
+            store.clone(),
+            tools.clone(),
+            limits.clone(),
+            AgentConfig::new("child-m"),
+        )
+        .jobs(jobs.clone());
+        std::mem::forget(
+            tools
+                .register(Arc::new(TaskTool::new(Arc::new(runner))))
+                .unwrap(),
+        );
+        let bus = EventBus::new();
+        let pipe = ToolPipeline::new(tools, bus.clone(), limits);
+        let mut agent = Agent::new(fake.clone(), pipe, bus, AgentConfig::new("m"), writer).unwrap();
+        agent.set_jobs(jobs.clone(), None);
+        agent.handle().submit("go");
+        let s = agent.run_turn().await.unwrap().unwrap();
+        assert_eq!(s.reason, TurnEndReason::Completed);
+
+        let tool = &by_kind(&jobs, &JobKind::Tool)[0];
+        let sub = &by_kind(&jobs, &JobKind::Subagent)[0];
+        assert_eq!(sub.parent, Some(tool.id));
+        assert_eq!(sub.title, "sub job");
+        let turns = by_kind(&jobs, &JobKind::AgentTurn);
+        assert_eq!(turns.len(), 2);
+        assert!(turns.iter().any(|t| t.parent == Some(sub.id)));
+        assert!(jobs.list().iter().all(|j| j.state == JobState::Finished));
+    }
+}

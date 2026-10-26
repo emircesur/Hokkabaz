@@ -8,6 +8,7 @@ mod config;
 mod effect;
 mod error;
 mod host;
+mod jobs;
 mod services;
 
 pub use ai_settings::{
@@ -19,4 +20,8 @@ pub use config::{Config, ConfigError, Layer, LoadOptions, Profile};
 pub use effect::{Effect, EffectHandle, Scope};
 pub use error::CoreError;
 pub use host::{BoxFuture, Ctx, Host, Plugin, PluginId};
+pub use jobs::{
+    DEFAULT_GRACE, JobEvent, JobHandle, JobId, JobInfo, JobKind, JobRegistry, JobSpec, JobState,
+    JobsPlugin, Progress,
+};
 pub use services::ServiceRegistry;
