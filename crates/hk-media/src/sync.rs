@@ -116,3 +116,41 @@ mod tests {
         assert!(peak > 0.99);
     }
 }
+
+impl Tools {
+    /// Mix audio files placed at output times (seconds) into one track (`amix`, no
+    /// normalization). Used for dubbing tracks built from per-line TTS clips.
+    pub async fn mix_at(&self, clips: &[(std::path::PathBuf, f64)], out: &Path) -> Result<()> {
+        if clips.is_empty() {
+            return Err(crate::MediaError::InvalidSpec("nothing to mix".into()));
+        }
+        let mut args: Vec<String> = ["-hide_banner", "-nostdin", "-y", "-loglevel", "error"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        for (p, _) in clips {
+            args.push("-i".into());
+            args.push(p.display().to_string());
+        }
+        let mut f = String::new();
+        for (i, (_, at)) in clips.iter().enumerate() {
+            let ms = (at.max(0.0) * 1000.0).round() as u64;
+            f.push_str(&format!("[{i}:a]aresample=48000,adelay={ms}|{ms}[d{i}];"));
+        }
+        let ins: String = (0..clips.len()).map(|i| format!("[d{i}]")).collect();
+        f.push_str(&format!(
+            "{ins}amix=inputs={}:normalize=0:duration=longest[a]",
+            clips.len()
+        ));
+        args.extend([
+            "-filter_complex".into(),
+            f,
+            "-map".into(),
+            "[a]".into(),
+            out.display().to_string(),
+        ]);
+        crate::proc::run_capture(&self.ffmpeg, &args)
+            .await
+            .map(drop)
+    }
+}

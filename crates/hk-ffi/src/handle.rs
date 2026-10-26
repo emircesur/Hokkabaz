@@ -141,6 +141,22 @@ pub trait CoreHandle: Send + Sync + 'static {
     }
 
     /// Stop background work. Idempotent.
+    /// Generic command gate for features without a typed FFI fn (`domain.action` + JSON).
+    async fn call(&self, method: &str, _params: serde_json::Value) -> Result<serde_json::Value, HkError> {
+        Err(HkError::new(
+            crate::error::HkErrorKind::Unsupported,
+            format!("`{method}` is not available on this core"),
+        ))
+    }
+
+    /// Generic event feed (`jobs`, …) as JSON strings.
+    async fn events(&self, topic: &str) -> Result<BoxStream<'static, String>, HkError> {
+        Err(HkError::new(
+            crate::error::HkErrorKind::Unsupported,
+            format!("no `{topic}` feed on this core"),
+        ))
+    }
+
     async fn shutdown(&self);
 }
 

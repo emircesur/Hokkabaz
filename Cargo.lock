@@ -3720,6 +3720,7 @@ dependencies = [
  "async-trait",
  "flutter_rust_bridge",
  "futures",
+ "hk-core",
  "hk-daemon",
  "hk-flow",
  "hk-integrations",
@@ -3781,6 +3782,18 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "hk-genai"
+version = "0.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]
@@ -4027,6 +4040,7 @@ dependencies = [
  "hk-concat",
  "hk-core",
  "hk-deps",
+ "hk-genai",
  "hk-llm",
  "hk-local",
  "hk-media",

@@ -226,6 +226,43 @@ pub async fn translate_lines(
     Ok(out)
 }
 
+const SPEAKER_SYSTEM: &str = "You label who speaks each transcript line (interviews, podcasts). \
+Use short consistent labels like \"Host\", \"Guest\" or names said in the audio. Reply JSON only: \
+{\"speakers\":[\"...\" one per line, same order]}.";
+
+/// Text-based speaker labels (P9.29 fallback without an audio diarization model).
+pub async fn label_speakers(llm: &dyn Llm, lines: &[TimedLine]) -> Result<Vec<String>> {
+    #[derive(Deserialize)]
+    struct Out {
+        speakers: Vec<String>,
+    }
+    let mut out = Vec::with_capacity(lines.len());
+    for chunk in lines.chunks(80) {
+        let texts: Vec<&str> = chunk.iter().map(|l| l.text.as_str()).collect();
+        let user = format!(
+            "Known labels so far: {:?}\nLines ({}):\n{}",
+            {
+                let mut u: Vec<&String> = out.iter().collect();
+                u.sort();
+                u.dedup();
+                u
+            },
+            chunk.len(),
+            serde_json::to_string(&texts).unwrap_or_default()
+        );
+        let o: Out = complete_json(llm, SPEAKER_SYSTEM, &user).await?;
+        for i in 0..chunk.len() {
+            out.push(
+                o.speakers
+                    .get(i)
+                    .cloned()
+                    .unwrap_or_else(|| "Speaker".into()),
+            );
+        }
+    }
+    Ok(out)
+}
+
 /// Lines from transcript segments (or ~6-word groups when unsegmented).
 pub fn transcript_lines(tr: &Transcript) -> Vec<TimedLine> {
     if !tr.segments.is_empty() {

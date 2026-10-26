@@ -1,6 +1,7 @@
 //! Builtin tools: read, write, edit, glob, grep, bash, web_fetch, todo.
 // port: dsh packages/core/tools builtin set (semantics); opencode tool arg shapes for edit/todo.
 
+mod checkpoint;
 mod edit;
 mod glob;
 mod grep;
@@ -26,6 +27,7 @@ use serde_json::Value;
 use crate::registry::ToolRegistry;
 use crate::tool::{Tool, ToolCtx, ToolError, ToolOutput};
 
+pub use checkpoint::{Checkpoint, CheckpointTool, Checkpoints};
 pub use edit::{EditError, EditTool, apply_edit};
 pub use glob::GlobTool;
 pub use grep::GrepTool;

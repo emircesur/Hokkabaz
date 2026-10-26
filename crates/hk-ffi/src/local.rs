@@ -71,6 +71,7 @@ struct Inner {
     hub: Arc<ProviderHub>,
     runtime: LocalRuntime,
     flows: LocalFlows,
+    store: Store,
     shutdown: CancellationToken,
 }
 
@@ -194,6 +195,7 @@ impl LocalCore {
                 hub: hub.clone(),
                 runtime,
                 flows,
+                store: store.clone(),
                 shutdown: CancellationToken::new(),
             }),
         });
@@ -557,6 +559,28 @@ impl CoreHandle for LocalCore {
             .events(id)
             .await
             .map_err(crate::studio::studio_err)
+    }
+
+    async fn call(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value, HkError> {
+        crate::gate::call(
+            &crate::gate::Ctx {
+                runtime: &self.i.runtime,
+                store: &self.i.store,
+                data_dir: &self.i.data_dir,
+                provider: self.i.hub.provider(),
+            },
+            method,
+            params,
+        )
+        .await
+    }
+
+    async fn events(&self, topic: &str) -> Result<BoxStream<'static, String>, HkError> {
+        crate::gate::events(&self.i.runtime, topic)
     }
 
     async fn shutdown(&self) {

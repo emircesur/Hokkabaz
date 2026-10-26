@@ -95,6 +95,9 @@ fn memory_tools(dir: &Path) -> Vec<Arc<dyn Tool>> {
     vec![
         Arc::new(MemoryTool(Arc::new(MemoryStore::new(dir)))),
         Arc::new(KnowledgeTool(Arc::new(KnowledgeBase::new(dir)))),
+        Arc::new(hk_tools::builtin::CheckpointTool(Arc::new(
+            hk_tools::builtin::Checkpoints::new(dir),
+        ))),
     ]
 }
 

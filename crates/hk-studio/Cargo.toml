@@ -16,6 +16,7 @@ default = ["vision"]
 vision = ["dep:rustface"]
 
 [dependencies]
+hk-genai = { version = "0.0.0", path = "../hk-genai" }
 hk-core = { version = "0.0.0", path = "../hk-core" }
 async-trait = "0.1"
 futures = "0.3"

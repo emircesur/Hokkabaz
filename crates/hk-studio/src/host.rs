@@ -582,6 +582,28 @@ impl StudioHost {
                 .await?;
                 Ok(Value::Null)
             }
+            "diarize" => Ok(json!(svc.diarize(&arg::<String>(&p, "id")?).await?)),
+            "dub" => {
+                let tts: hk_genai::TtsConfig = arg(&p, "tts")?;
+                Ok(json!(
+                    svc.dub(
+                        &arg::<String>(&p, "id")?,
+                        &arg::<String>(&p, "language")?,
+                        &tts
+                    )
+                    .await?
+                    .to_string_lossy()
+                ))
+            }
+            "batch" => {
+                let opts = svc.render_opts(p.get("opts").unwrap_or(&Value::Null)).await;
+                Ok(json!(svc.batch(
+                    PathBuf::from(arg::<String>(&p, "folder")?),
+                    opt(&p, "template")?,
+                    opt(&p, "top")?.unwrap_or(3),
+                    opts,
+                )))
+            }
             "sync_offset" => {
                 let (a, b): (String, String) = (arg(&p, "a")?, arg(&p, "b")?);
                 let window: f64 = opt(&p, "window_s")?.unwrap_or(120.0);

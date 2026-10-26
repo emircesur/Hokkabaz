@@ -430,6 +430,131 @@ impl StudioService {
         Ok(path)
     }
 
+    /// Speaker-labelled transcript lines; also writes `<work>/captions/speakers.srt`.
+    pub async fn diarize(&self, id: &str) -> Result<Vec<serde_json::Value>> {
+        let snap = self.open(id).await?.snapshot().await;
+        let llm = self.backends.llm().await?;
+        let lines = crate::longform::transcript_lines(snap.transcript()?);
+        let who = crate::longform::label_speakers(llm.as_ref(), &lines).await?;
+        let labelled: Vec<crate::longform::TimedLine> = lines
+            .iter()
+            .zip(&who)
+            .map(|(l, w)| crate::longform::TimedLine {
+                text: format!("{w}: {}", l.text),
+                ..l.clone()
+            })
+            .collect();
+        let dir = self.work_dir(id).join("captions");
+        tokio::fs::create_dir_all(&dir).await?;
+        tokio::fs::write(dir.join("speakers.srt"), crate::longform::to_srt(&labelled)).await?;
+        Ok(lines
+            .iter()
+            .zip(who)
+            .map(|(l, w)| serde_json::json!({"start": l.start, "end": l.end, "speaker": w, "text": l.text}))
+            .collect())
+    }
+
+    /// Dubbed audio track (P9.30): translate lines, synthesize each, place at its start time.
+    pub async fn dub(&self, id: &str, target: &str, tts: &hk_genai::TtsConfig) -> Result<PathBuf> {
+        let snap = self.open(id).await?.snapshot().await;
+        let llm = self.backends.llm().await?;
+        let lines = crate::longform::transcript_lines(snap.transcript()?);
+        let tr = crate::longform::translate_lines(llm.as_ref(), &lines, target).await?;
+        let dir = self.work_dir(id).join("dub").join(target);
+        tokio::fs::create_dir_all(&dir).await?;
+        let mut parts = Vec::with_capacity(tr.len());
+        for (i, l) in tr
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| !l.text.trim().is_empty())
+        {
+            let p = dir.join(format!("{i:05}.wav"));
+            hk_genai::speak(tts, &l.text, &p)
+                .await
+                .map_err(|e| StudioError::Invalid(format!("tts: {e}")))?;
+            parts.push((p, l.start));
+        }
+        let out = dir.join("dub.m4a");
+        self.studio.tools.mix_at(&parts, &out).await?;
+        Ok(out)
+    }
+
+    /// Batch (P9.37): every video in `folder` → transcribe → highlights → render top `top`.
+    /// Runs as one job with per-file progress; returns immediately with the job id.
+    pub fn batch(
+        self: &std::sync::Arc<Self>,
+        folder: PathBuf,
+        template: Option<String>,
+        top: usize,
+        opts: RenderOpts,
+    ) -> Option<u64> {
+        let reg = self.job_registry.get()?.clone();
+        let job = reg.start(
+            hk_core::JobSpec::new(
+                hk_core::JobKind::Other("batch".into()),
+                format!("batch {}", folder.display()),
+            ),
+            None,
+        );
+        let id = job.id().0;
+        let svc = self.clone();
+        tokio::spawn(async move {
+            let mut files: Vec<PathBuf> = std::fs::read_dir(&folder)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| {
+                    p.extension().and_then(|e| e.to_str()).is_some_and(|e| {
+                        matches!(
+                            e.to_ascii_lowercase().as_str(),
+                            "mp4" | "mov" | "mkv" | "webm" | "m4v"
+                        )
+                    })
+                })
+                .collect();
+            files.sort();
+            let n = files.len().max(1);
+            for (i, f) in files.iter().enumerate() {
+                if job.is_cancelled() {
+                    break;
+                }
+                job.phase(
+                    f.file_name()
+                        .map(|s| s.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                );
+                let step = async {
+                    let live = svc.import(f, None).await?;
+                    let pid = live.snapshot().await.id;
+                    svc.transcribe(&pid).await?;
+                    let clips = svc
+                        .analyze(
+                            &pid,
+                            &crate::highlights::HighlightOpts::default(),
+                            None,
+                            template.as_deref(),
+                        )
+                        .await?;
+                    for c in clips.iter().take(top.max(1)) {
+                        svc.start_render(&pid, c, opts.clone()).await?;
+                    }
+                    Ok::<_, StudioError>(())
+                };
+                if let Err(e) = step.await {
+                    job.log(format!("{}: {e}", f.display()));
+                }
+                job.progress(hk_core::Progress::Determinate((i + 1) as f32 / n as f32));
+            }
+            if job.is_cancelled() {
+                job.cancelled()
+            } else {
+                job.finish()
+            }
+        });
+        Some(id)
+    }
+
     /// Render options from JSON (see [`RenderOpts::from_json`]); `encoder: "auto"` probes ffmpeg.
     pub async fn render_opts(&self, v: &serde_json::Value) -> RenderOpts {
         RenderOpts::from_json(v, &self.studio.tools).await
