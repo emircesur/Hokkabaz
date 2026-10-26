@@ -1,9 +1,10 @@
 //! [`ChatRequest`] -> `/chat/completions` JSON body, shared by OpenAI-style
 //! backends. Per-backend quirks live in [`BodyOptions`].
 
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
-use crate::{ChatRequest, Message, ReasoningEffort, Role, ToolChoice};
+use crate::params::retain_supported;
+use crate::{ChatRequest, Message, ReasoningEffort, Role, SamplingParams, ToolChoice};
 
 /// Wire-format knobs that differ between OpenAI-style backends.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,8 +19,14 @@ pub struct BodyOptions {
     pub max_tokens_field: String,
     /// Forward [`ChatRequest::reasoning_effort`] as `reasoning_effort`.
     pub send_reasoning_effort: bool,
-    /// Model ids that reject sampling params; `temperature` is dropped for them.
+    /// Model ids that reject sampling params (`temperature`, `top_p`,
+    /// penalties, `logit_bias`); those are dropped for them.
     pub no_temperature_models: Vec<String>,
+    /// Send the vLLM / llama.cpp extensions `top_k`, `min_p` and
+    /// `repetition_penalty`. Off for strict OpenAI-style servers.
+    pub extended_sampling: bool,
+    /// Param keys (`AiSettings` field names) this backend never takes.
+    pub drop_params: Vec<String>,
 }
 
 impl Default for BodyOptions {
@@ -30,7 +37,27 @@ impl Default for BodyOptions {
             max_tokens_field: "max_tokens".into(),
             send_reasoning_effort: true,
             no_temperature_models: Vec::new(),
+            extended_sampling: false,
+            drop_params: Vec::new(),
         }
+    }
+}
+
+/// Whether a backend configured with `opts` sends param `key` for `model`.
+pub(crate) fn supports(opts: &BodyOptions, model: &str, key: &str) -> bool {
+    if opts.drop_params.iter().any(|p| p == key) {
+        return false;
+    }
+    let sampling = !opts.no_temperature_models.iter().any(|m| m == model);
+    match key {
+        "temperature" | "top_p" | "presence_penalty" | "frequency_penalty" | "logit_bias" => {
+            sampling
+        }
+        "top_k" | "min_p" | "repetition_penalty" => sampling && opts.extended_sampling,
+        "max_output_tokens" | "stop" | "seed" | "json_mode" | "json_schema" => true,
+        "reasoning_effort" => opts.send_reasoning_effort,
+        // No OpenAI-style wire field for a token budget.
+        _ => false,
     }
 }
 
@@ -38,6 +65,8 @@ impl Default for BodyOptions {
 ///
 /// Model-visible means logged: everything here derives from `req` alone.
 pub fn build_body_with(req: &ChatRequest, opts: &BodyOptions) -> Value {
+    // DeepSeek shares this builder; the logged model id tells them apart.
+    let req = &*retain_supported("openai_compat", req, |k| supports(opts, &req.model, k));
     let mut body = json!({
         "model": req.model,
         "messages": req.messages.iter().map(|m| message(m, opts.echo_reasoning)).collect::<Vec<_>>(),
@@ -47,17 +76,14 @@ pub fn build_body_with(req: &ChatRequest, opts: &BodyOptions) -> Value {
     if opts.include_usage {
         obj.insert("stream_options".into(), json!({ "include_usage": true }));
     }
-    if let Some(t) = req.temperature
-        && !opts.no_temperature_models.contains(&req.model)
-    {
+    if let Some(t) = req.temperature {
         obj.insert("temperature".into(), json!(t));
     }
     if let Some(n) = req.max_output_tokens {
         obj.insert(opts.max_tokens_field.clone(), json!(n));
     }
-    if opts.send_reasoning_effort
-        && let Some(e) = req.reasoning_effort
-    {
+    sampling(obj, &req.sampling);
+    if let Some(e) = req.reasoning_effort {
         let e = match e {
             ReasoningEffort::Low => "low",
             ReasoningEffort::Medium => "medium",
@@ -79,6 +105,34 @@ pub fn build_body_with(req: &ChatRequest, opts: &BodyOptions) -> Value {
         obj.insert("tool_choice".into(), tool_choice(&req.tool_choice));
     }
     body
+}
+
+fn sampling(obj: &mut Map<String, Value>, p: &SamplingParams) {
+    let mut put = |k: &str, v: Option<Value>| {
+        if let Some(v) = v {
+            obj.insert(k.into(), v);
+        }
+    };
+    put("top_p", p.top_p.map(Value::from));
+    put("top_k", p.top_k.map(Value::from));
+    put("min_p", p.min_p.map(Value::from));
+    put("presence_penalty", p.presence_penalty.map(Value::from));
+    put("frequency_penalty", p.frequency_penalty.map(Value::from));
+    put("repetition_penalty", p.repetition_penalty.map(Value::from));
+    put("seed", p.seed.map(Value::from));
+    put("stop", (!p.stop.is_empty()).then(|| json!(p.stop)));
+    put(
+        "logit_bias",
+        (!p.logit_bias.is_empty()).then(|| json!(p.logit_bias)),
+    );
+    let format = match (&p.json_schema, p.json_mode) {
+        (Some(schema), _) => Some(json!({ "type": "json_schema", "json_schema": {
+            "name": "response", "schema": schema, "strict": true,
+        }})),
+        (None, true) => Some(json!({ "type": "json_object" })),
+        (None, false) => None,
+    };
+    put("response_format", format);
 }
 
 fn tool_choice(c: &ToolChoice) -> Value {
@@ -190,6 +244,7 @@ mod tests {
             max_tokens_field: "max_completion_tokens".into(),
             send_reasoning_effort: false,
             no_temperature_models: vec!["m".into()],
+            ..BodyOptions::default()
         };
         let b = build_body_with(&tool_turn(), &opts);
         assert!(b.get("stream_options").is_none());

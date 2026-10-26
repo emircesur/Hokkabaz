@@ -18,7 +18,7 @@
 //!   in `output_tokens`.
 // port: opencode packages/opencode/src/provider (google), dsh packages/llm (shared wire plumbing)
 
-mod request;
+pub(crate) mod request;
 mod store;
 mod stream;
 

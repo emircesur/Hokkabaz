@@ -14,6 +14,7 @@ pub mod gemini;
 mod model;
 pub mod ollama;
 pub mod openai;
+mod params;
 mod provider;
 pub mod registry;
 mod request;
@@ -23,12 +24,15 @@ mod usage;
 pub use error::{LlmError, Result};
 pub use event::{FinishReason, StreamEvent};
 pub use model::{Capabilities, ModelCost, ModelInfo};
+pub use params::supports_param;
 pub use provider::{EventStream, Provider};
 pub use registry::{
     KeyRef, KeyResolver, ModelList, ProviderConfig, ProviderKind, ProviderOptions,
     ProviderRegistry, RegistryError, RouteConfig, build_router,
 };
-pub use request::{ChatRequest, Message, ReasoningEffort, Role, ToolCall, ToolChoice, ToolSpec};
+pub use request::{
+    ChatRequest, Message, ReasoningEffort, Role, SamplingParams, ToolCall, ToolChoice, ToolSpec,
+};
 pub use router::{Meter, Projection, Route, RouteTotals, Router};
 pub use tokio_util::sync::CancellationToken;
 pub use usage::{Cost, Usage};

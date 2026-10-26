@@ -139,6 +139,9 @@ pub struct ProviderOptions {
     pub max_tokens_field: Option<String>,
     /// openai-compat: send `stream_options.include_usage`.
     pub include_usage: Option<bool>,
+    /// openai-compat: send `top_k` / `min_p` / `repetition_penalty`
+    /// (vLLM, llama.cpp server, LM Studio).
+    pub extended_sampling: Option<bool>,
 }
 
 /// Plain description of one provider instance.
@@ -490,6 +493,9 @@ fn build_provider(
             }
             if let Some(v) = &o.max_tokens_field {
                 body.max_tokens_field.clone_from(v);
+            }
+            if let Some(v) = o.extended_sampling {
+                body.extended_sampling = v;
             }
             p = p.body_options(body);
             if let Some(r) = retry {

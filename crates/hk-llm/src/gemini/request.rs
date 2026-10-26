@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use serde_json::{Map, Value, json};
 
 use super::store::SignatureStore;
+use crate::params::retain_supported;
 use crate::{ChatRequest, Message, ReasoningEffort, Role, ToolChoice};
 
 /// Google's documented placeholder that disables signature validation for
@@ -32,9 +33,32 @@ fn is_v3(model: &str) -> bool {
     model.starts_with("gemini-3")
 }
 
+fn has_thinking_knob(model: &str) -> bool {
+    is_v3(model) || model.starts_with("gemini-2.5")
+}
+
+/// Whether `generationConfig` carries param `key` for `model`.
+pub(crate) fn supports(model: &str, key: &str) -> bool {
+    match key {
+        "temperature" | "top_p" | "top_k" | "max_output_tokens" | "presence_penalty"
+        | "frequency_penalty" | "seed" | "stop" | "json_mode" | "json_schema" => true,
+        "reasoning_effort" | "thinking_budget" => has_thinking_knob(model),
+        // min_p, repetition_penalty, logit_bias: no Gemini equivalent.
+        _ => false,
+    }
+}
+
 /// `thinkingConfig` for the request, or `None` when the model has no
 /// thinking knob (Gemini 2.0, Gemma) or the caller did not opt in.
 fn thinking_config(req: &ChatRequest) -> Option<Value> {
+    if !has_thinking_knob(&req.model) {
+        return None;
+    }
+    // An explicit budget wins; Gemini 3 still accepts `thinkingBudget` but
+    // rejects it together with `thinkingLevel`, so it replaces the level.
+    if let Some(b) = req.sampling.thinking_budget {
+        return Some(json!({ "includeThoughts": b > 0, "thinkingBudget": b }));
+    }
     let effort = req.reasoning_effort?;
     if is_v3(&req.model) {
         // Gemini 3 takes a level, not a budget; Medium = model default (Pro has
@@ -46,10 +70,8 @@ fn thinking_config(req: &ChatRequest) -> Option<Value> {
             ReasoningEffort::Medium => {}
         }
         Some(c)
-    } else if req.model.starts_with("gemini-2.5") {
-        Some(json!({ "includeThoughts": true, "thinkingBudget": budget_for(effort) }))
     } else {
-        None
+        Some(json!({ "includeThoughts": true, "thinkingBudget": budget_for(effort) }))
     }
 }
 
@@ -100,6 +122,7 @@ fn assistant_parts(m: &Message, model: &str, store: &SignatureStore) -> Vec<Valu
 }
 
 pub(super) fn build_body(req: &ChatRequest, store: &SignatureStore) -> Value {
+    let req = &*retain_supported("gemini", req, |k| supports(&req.model, k));
     let mut body = Map::new();
 
     let system: Vec<&str> = req
@@ -167,6 +190,24 @@ pub(super) fn build_body(req: &ChatRequest, store: &SignatureStore) -> Value {
     if let Some(n) = req.max_output_tokens {
         gen_cfg.insert("maxOutputTokens".into(), json!(n));
     }
+    let p = &req.sampling;
+    let mut put = |k: &str, v: Option<Value>| {
+        if let Some(v) = v {
+            gen_cfg.insert(k.into(), v);
+        }
+    };
+    put("topP", p.top_p.map(Value::from));
+    put("topK", p.top_k.map(Value::from));
+    put("presencePenalty", p.presence_penalty.map(Value::from));
+    put("frequencyPenalty", p.frequency_penalty.map(Value::from));
+    put("seed", p.seed.map(Value::from));
+    put("stopSequences", (!p.stop.is_empty()).then(|| json!(p.stop)));
+    if p.json_mode || p.json_schema.is_some() {
+        put("responseMimeType", Some(json!("application/json")));
+    }
+    // `responseJsonSchema` takes full JSON Schema (unlike OpenAPI-subset
+    // `responseSchema`), matching `parametersJsonSchema` for tools.
+    put("responseJsonSchema", p.json_schema.clone());
     if let Some(t) = thinking_config(req) {
         gen_cfg.insert("thinkingConfig".into(), t);
     }

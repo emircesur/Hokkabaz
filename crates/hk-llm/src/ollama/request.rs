@@ -2,7 +2,8 @@
 
 use serde_json::{Map, Value, json};
 
-use crate::{ChatRequest, Message, Role, ToolChoice};
+use crate::params::retain_supported;
+use crate::{ChatRequest, Message, ReasoningEffort, Role, ToolChoice};
 
 /// Ollama-specific knobs that have no place in the neutral request.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -15,10 +16,54 @@ pub struct BodyOptions {
     pub num_ctx: Option<u64>,
 }
 
+/// Whether param `key` has an Ollama wire form (`options.*`, `format`, `think`).
+pub(crate) fn supports(key: &str) -> bool {
+    // logit_bias: not exposed by Ollama.
+    matches!(
+        key,
+        "temperature"
+            | "top_p"
+            | "top_k"
+            | "min_p"
+            | "max_output_tokens"
+            | "presence_penalty"
+            | "frequency_penalty"
+            | "repetition_penalty"
+            | "seed"
+            | "stop"
+            | "reasoning_effort"
+            | "thinking_budget"
+            | "json_mode"
+            | "json_schema"
+    )
+}
+
+/// `think` value: `false` for a zero budget, the effort level for gpt-oss
+/// (which takes low/medium/high), otherwise `true` when reasoning was asked for.
+/// Models without thinking reject the field, so it is only sent on request.
+fn think(req: &ChatRequest) -> Option<Value> {
+    if req.sampling.thinking_budget == Some(0) {
+        return Some(json!(false));
+    }
+    if req.model.starts_with("gpt-oss")
+        && let Some(e) = req.reasoning_effort
+    {
+        let level = match e {
+            ReasoningEffort::Low => "low",
+            ReasoningEffort::Medium => "medium",
+            ReasoningEffort::High => "high",
+        };
+        return Some(json!(level));
+    }
+    (req.reasoning_effort.is_some() || req.sampling.thinking_budget.is_some())
+        .then_some(Value::Bool(true))
+}
+
 /// Build the streaming chat body.
 ///
 /// Model-visible means logged: everything here derives from `req` + `opts`.
 pub fn build_body(req: &ChatRequest, opts: &BodyOptions) -> Value {
+    let req = &*retain_supported("ollama", req, supports);
     let mut body = json!({
         "model": req.model,
         "messages": messages(&req.messages),
@@ -36,16 +81,34 @@ pub fn build_body(req: &ChatRequest, opts: &BodyOptions) -> Value {
     if let Some(n) = opts.num_ctx {
         options.insert("num_ctx".into(), json!(n));
     }
+    let p = &req.sampling;
+    let mut put = |k: &str, v: Option<Value>| {
+        if let Some(v) = v {
+            options.insert(k.into(), v);
+        }
+    };
+    put("top_p", p.top_p.map(Value::from));
+    put("top_k", p.top_k.map(Value::from));
+    put("min_p", p.min_p.map(Value::from));
+    put("presence_penalty", p.presence_penalty.map(Value::from));
+    put("frequency_penalty", p.frequency_penalty.map(Value::from));
+    put("repeat_penalty", p.repetition_penalty.map(Value::from));
+    put("seed", p.seed.map(Value::from));
+    put("stop", (!p.stop.is_empty()).then(|| json!(p.stop)));
     if !options.is_empty() {
         obj.insert("options".into(), Value::Object(options));
     }
     if let Some(k) = &opts.keep_alive {
         obj.insert("keep_alive".into(), json!(k));
     }
-    // Models without thinking support ignore/reject this only when it is set,
-    // so send it only when the caller asked for reasoning.
-    if req.reasoning_effort.is_some() {
-        obj.insert("think".into(), json!(true));
+    if let Some(t) = think(req) {
+        obj.insert("think".into(), t);
+    }
+    // `format` takes a JSON Schema object or the string "json".
+    if let Some(schema) = &p.json_schema {
+        obj.insert("format".into(), schema.clone());
+    } else if p.json_mode {
+        obj.insert("format".into(), json!("json"));
     }
 
     // No native tool_choice: `None` drops the tools, `Named` narrows the
