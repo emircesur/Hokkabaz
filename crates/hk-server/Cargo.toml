@@ -16,7 +16,6 @@ default = ["server"]
 runtime = [
   "dep:async-trait",
   "dep:hk-agent",
-  "dep:hk-core",
   "dep:hk-llm",
   "dep:hk-session",
   "dep:hk-tools",
@@ -67,7 +66,7 @@ utoipa = { version = "5", optional = true, default-features = false, features = 
 getrandom = { version = "0.3", optional = true }
 hk-agent = { version = "0.0.0", path = "../hk-agent", optional = true }
 hk-concat = { version = "0.0.0", path = "../hk-concat", optional = true }
-hk-core = { version = "0.0.0", path = "../hk-core", optional = true }
+hk-core = { version = "0.0.0", path = "../hk-core" }
 hk-providers = { version = "0.0.0", path = "../hk-providers", optional = true }
 # Webhook response types (ResponseSink etc.) and workflow validation only; no QuickJS/reqwest here.
 hk-flow = { version = "0.0.0", path = "../hk-flow", optional = true, default-features = false }

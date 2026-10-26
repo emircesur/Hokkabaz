@@ -105,6 +105,9 @@ pub struct JobInfo {
     pub started_at_ms: u64,
     pub meta: Value,
     pub state: JobState,
+    /// Latest live metrics (LLM: ttft_ms, tokens_per_s, tokens_out, cost_usd, context_tokens …).
+    #[serde(default, skip_serializing_if = "Value::is_null")]
+    pub metrics: Value,
 }
 
 /// What to start.
@@ -151,6 +154,7 @@ impl JobSpec {
 /// Live job events; wire names are `job/<action>`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[allow(clippy::large_enum_variant)] // events are short-lived broadcast values
 pub enum JobEvent {
     #[serde(rename = "job/started")]
     Started { job: JobInfo },
@@ -164,6 +168,8 @@ pub enum JobEvent {
     },
     #[serde(rename = "job/log")]
     Log { id: JobId, line: String },
+    #[serde(rename = "job/metrics")]
+    Metrics { id: JobId, metrics: Value },
     #[serde(rename = "job/cancel-requested")]
     CancelRequested { id: JobId },
     #[serde(rename = "job/cancelled")]
@@ -181,6 +187,7 @@ impl JobEvent {
             Self::Phase { id, .. }
             | Self::Progress { id, .. }
             | Self::Log { id, .. }
+            | Self::Metrics { id, .. }
             | Self::CancelRequested { id }
             | Self::Cancelled { id }
             | Self::Finished { id }
@@ -194,6 +201,7 @@ impl JobEvent {
             Self::Phase { .. } => "job/phase",
             Self::Progress { .. } => "job/progress",
             Self::Log { .. } => "job/log",
+            Self::Metrics { .. } => "job/metrics",
             Self::CancelRequested { .. } => "job/cancel-requested",
             Self::Cancelled { .. } => "job/cancelled",
             Self::Finished { .. } => "job/finished",
@@ -212,6 +220,7 @@ struct Entry {
     force: Option<ForceFn>,
     started: Instant,
     last_progress: Option<Instant>,
+    last_metrics: Option<Instant>,
     /// A throttled progress value not yet emitted.
     progress_dirty: bool,
 }
@@ -311,6 +320,7 @@ impl JobRegistry {
             eta_ms: None,
             started_at_ms: now_ms(),
             meta: spec.meta,
+            metrics: Value::Null,
             state: if born_cancelled {
                 JobState::Cancelling
             } else {
@@ -331,6 +341,7 @@ impl JobRegistry {
                 force: None,
                 started: Instant::now(),
                 last_progress: None,
+                last_metrics: None,
                 progress_dirty: false,
             },
         );
@@ -601,6 +612,24 @@ impl JobHandle {
             e.progress_dirty = true;
             if due || complete {
                 reg.flush_progress(e);
+            }
+        });
+    }
+
+    /// Replace the job's live metrics; emitted at most every 250 ms unless `force`.
+    pub fn metrics(&self, metrics: Value, force: bool) {
+        self.reg.with_live(self.id, |reg, e| {
+            let now = Instant::now();
+            e.info.metrics = metrics.clone();
+            if force
+                || e.last_metrics
+                    .is_none_or(|t| now.duration_since(t) >= Duration::from_millis(250))
+            {
+                e.last_metrics = Some(now);
+                reg.emit(JobEvent::Metrics {
+                    id: e.info.id,
+                    metrics,
+                });
             }
         });
     }

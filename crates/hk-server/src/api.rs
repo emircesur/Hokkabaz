@@ -113,6 +113,10 @@ pub fn router(state: AppState) -> Router {
         .route("/sessions/{id}/turns", post(submit_turn))
         .route("/sessions/{id}/inject", post(inject))
         .route("/sessions/{id}/cancel", post(cancel))
+        .route("/sessions/{id}/pause", post(pause))
+        .route("/jobs", get(list_jobs))
+        .route("/jobs/cancel-all", post(cancel_all_jobs))
+        .route("/jobs/{id}/cancel", post(cancel_job))
         .route("/approvals/{id}", post(approve))
         .route("/models", get(models))
         .route("/ws", get(ws::upgrade))
@@ -310,6 +314,45 @@ async fn cancel(
     p.require(Scope::Run)?;
     s.runtime.cancel(&id).await?;
     Ok(StatusCode::ACCEPTED)
+}
+
+async fn pause(
+    p: Principal,
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    p.require(Scope::Run)?;
+    s.runtime.pause(&id).await?;
+    Ok(StatusCode::ACCEPTED)
+}
+
+fn job_registry(s: &AppState) -> Result<hk_core::JobRegistry, ApiError> {
+    s.runtime
+        .jobs()
+        .ok_or_else(|| ApiError::NotFound("this instance does not track jobs".into()))
+}
+
+async fn list_jobs(p: Principal, State(s): State<AppState>) -> Result<Json<Value>, ApiError> {
+    p.require(Scope::Read)?;
+    Ok(Json(json!({ "jobs": job_registry(&s)?.list() })))
+}
+
+async fn cancel_job(
+    p: Principal,
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+) -> Result<StatusCode, ApiError> {
+    p.require(Scope::Run)?;
+    if job_registry(&s)?.cancel(hk_core::JobId(id)) {
+        Ok(StatusCode::ACCEPTED)
+    } else {
+        Err(ApiError::NotFound(format!("no running job {id}")))
+    }
+}
+
+async fn cancel_all_jobs(p: Principal, State(s): State<AppState>) -> Result<Json<Value>, ApiError> {
+    p.require(Scope::Run)?;
+    Ok(Json(json!({ "cancelled": job_registry(&s)?.cancel_all() })))
 }
 
 async fn approve(

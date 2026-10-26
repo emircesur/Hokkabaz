@@ -106,6 +106,16 @@ pub trait AgentRuntime: Send + Sync + 'static {
     async fn submit(&self, id: &str, req: TurnRequest) -> Result<TurnAccepted, ApiError>;
     async fn inject(&self, id: &str, text: String) -> Result<(), ApiError>;
     async fn cancel(&self, id: &str) -> Result<(), ApiError>;
+    /// End the running turn after its current step.
+    async fn pause(&self, _id: &str) -> Result<(), ApiError> {
+        Err(ApiError::BadRequest(
+            "pause not supported by this runtime".into(),
+        ))
+    }
+    /// Live job tree (agent turns, tools, flows, renders …) when the runtime tracks jobs.
+    fn jobs(&self) -> Option<hk_core::JobRegistry> {
+        None
+    }
     /// `NotFound` when nothing pending matches (settled, cancelled, wrong id).
     async fn respond_approval(
         &self,

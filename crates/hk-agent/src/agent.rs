@@ -82,6 +82,70 @@ pub struct TurnSummary {
     pub error: Option<String>,
 }
 
+/// Live LLM telemetry for the step job: TTFT, throughput, phase, tokens, context size.
+struct StreamMeter {
+    started: Instant,
+    first: Option<Instant>,
+    /// Streamed characters; ~4 per token until the provider reports usage.
+    chars: usize,
+    usage: Option<Usage>,
+    context_tokens: u64,
+    phase: &'static str,
+}
+
+impl StreamMeter {
+    fn new(context_tokens: u64) -> Self {
+        Self {
+            started: Instant::now(),
+            first: None,
+            chars: 0,
+            usage: None,
+            context_tokens,
+            phase: "waiting",
+        }
+    }
+
+    fn observe(&mut self, ev: &StreamEvent) -> Option<Value> {
+        let now = Instant::now();
+        let (n, phase) = match ev {
+            StreamEvent::TextDelta { text } => (text.len(), "writing"),
+            StreamEvent::ReasoningDelta { text } => (text.len(), "thinking"),
+            StreamEvent::ToolCallDelta {
+                arguments_delta, ..
+            } => (arguments_delta.len(), "tool_args"),
+            StreamEvent::Usage(u) => {
+                self.usage = Some(*u);
+                (0, self.phase)
+            }
+            _ => return None,
+        };
+        if n > 0 {
+            self.first.get_or_insert(now);
+            self.chars += n;
+        }
+        self.phase = phase;
+        let out = self
+            .usage
+            .as_ref()
+            .map_or((self.chars / 4) as u64, |u| u.output_tokens);
+        let gen_s = self
+            .first
+            .map_or(0.0, |f| now.duration_since(f).as_secs_f64());
+        Some(json!({
+            "phase": self.phase,
+            "ttft_ms": self.first.map(|f| f.duration_since(self.started).as_millis() as u64),
+            "elapsed_ms": now.duration_since(self.started).as_millis() as u64,
+            "tokens_out": out,
+            "tokens_estimated": self.usage.is_none(),
+            "tokens_per_s": if gen_s > 0.2 { (out as f64 / gen_s * 10.0).round() / 10.0 } else { 0.0 },
+            "input_tokens": self.usage.as_ref().map(Usage::total_input),
+            "reasoning_tokens": self.usage.as_ref().map(|u| u.reasoning_tokens),
+            "cached_tokens": self.usage.as_ref().map(|u| u.cache_read_tokens),
+            "context_tokens": self.context_tokens,
+        }))
+    }
+}
+
 /// Why a step stopped early.
 enum Stop {
     Cancelled,
@@ -639,6 +703,7 @@ impl Agent {
         let mut reasoning = String::new();
         let mut partial: BTreeMap<u32, PartialCall> = BTreeMap::new();
         let mut failure: Option<Fail> = None;
+        let mut meter = StreamMeter::new(compaction::context_tokens(&self.events));
         loop {
             let next = tokio::select! {
                 biased;
@@ -670,6 +735,11 @@ impl Agent {
                     event: ev.clone(),
                 })
                 .await;
+            if let Some(j) = &self.step_job
+                && let Some(m) = meter.observe(&ev)
+            {
+                j.metrics(m, matches!(ev, StreamEvent::Usage(_)));
+            }
             match ev {
                 StreamEvent::TextDelta { text: t } => text.push_str(&t),
                 StreamEvent::ReasoningDelta { text: t } => reasoning.push_str(&t),

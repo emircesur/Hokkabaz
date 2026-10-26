@@ -1,7 +1,7 @@
 //! `GET /api/v1/ws`: one socket per client. Server pushes [`ServerEvent`] frames
 //! (`{"event":"tool/call","session_id":"..","data":{..}}`); the client sends JSON commands.
 //!
-//! Commands: `submit`, `inject`, `cancel`, `approve`, plus `subscribe` / `unsubscribe` to
+//! Commands: `submit`, `inject`, `cancel`, `pause`, `cancel_job`, `cancel_all_jobs`, `approve`, plus `subscribe` / `unsubscribe` to
 //! narrow the feed to chosen sessions (default: all). Each command may carry an `id` that the
 //! `command/ack` or `command/error` reply echoes. Mutating commands need the `run` scope.
 //!
@@ -75,6 +75,13 @@ enum Command {
         #[serde(default)]
         session_id: Option<String>,
     },
+    Pause {
+        session_id: String,
+    },
+    CancelJob {
+        job_id: u64,
+    },
+    CancelAllJobs,
     Subscribe {
         session_id: String,
     },
@@ -100,6 +107,12 @@ async fn session(mut sock: WebSocket, s: AppState, who: Principal) {
         .filter(|_| who.allows(Scope::ExecutionRead))
         .map(|f| f.subscribe());
     let agent_events = who.allows(Scope::Read);
+    // Job tree events (`job/*`) are global, not session-filtered.
+    let mut job_rx = s
+        .runtime
+        .jobs()
+        .filter(|_| agent_events)
+        .map(|r| r.subscribe());
     // Empty = everything.
     let mut filter: HashSet<String> = HashSet::new();
     loop {
@@ -125,6 +138,21 @@ async fn session(mut sock: WebSocket, s: AppState, who: Principal) {
                 }
                 // The flow side is gone; keep serving agent events.
                 Err(RecvError::Closed) => exec_rx = None,
+            },
+            ev = async { match job_rx.as_mut() { Some(r) => r.recv().await, None => std::future::pending().await } } => match ev {
+                Ok(ev) => {
+                    let out = ServerEvent {
+                        name: ev.name().into(),
+                        session_id: String::new(),
+                        data: serde_json::to_value(&ev).unwrap_or(Value::Null),
+                    };
+                    if send(&mut sock, &out).await.is_err() {
+                        return;
+                    }
+                }
+                // A slow client misses intermediate progress; `GET /jobs` resyncs.
+                Err(RecvError::Lagged(_)) => {}
+                Err(RecvError::Closed) => job_rx = None,
             },
             ev = rx.recv(), if agent_events => match ev {
                 Ok(ev) => {
@@ -240,6 +268,29 @@ async fn run(
         Command::Cancel { session_id } => {
             need_run()?;
             s.runtime.cancel(&session_id).await
+        }
+        Command::Pause { session_id } => {
+            need_run()?;
+            s.runtime.pause(&session_id).await
+        }
+        Command::CancelJob { job_id } => {
+            need_run()?;
+            let reg = s
+                .runtime
+                .jobs()
+                .ok_or_else(|| ApiError::NotFound("no job tracking".into()))?;
+            if reg.cancel(hk_core::JobId(job_id)) {
+                Ok(())
+            } else {
+                Err(ApiError::NotFound(format!("no running job {job_id}")))
+            }
+        }
+        Command::CancelAllJobs => {
+            need_run()?;
+            if let Some(reg) = s.runtime.jobs() {
+                reg.cancel_all();
+            }
+            Ok(())
         }
         Command::Approve {
             approval_id,

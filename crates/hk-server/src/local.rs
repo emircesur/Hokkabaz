@@ -75,6 +75,7 @@ struct Inner {
     live: Mutex<HashMap<String, Arc<Live>>>,
     /// Registered next to the builtins in every session created after they are added.
     extra_tools: Mutex<Vec<Arc<dyn Tool>>>,
+    jobs: hk_core::JobRegistry,
 }
 
 /// Agent runtime for the daemon and the desktop app's embedded server.
@@ -103,6 +104,7 @@ impl LocalRuntime {
             tx,
             live: Mutex::default(),
             extra_tools: Mutex::default(),
+            jobs: hk_core::JobRegistry::new(),
         })))
     }
 
@@ -172,7 +174,7 @@ impl LocalRuntime {
             .map(PathBuf::from)
             .or_else(|| self.0.cfg.default_cwd.clone());
         cfg.max_steps = self.0.cfg.max_steps;
-        let agent = Agent::new(
+        let mut agent = Agent::new(
             self.0.cfg.provider.clone(),
             pipeline,
             bus.clone(),
@@ -180,6 +182,7 @@ impl LocalRuntime {
             writer,
         )
         .map_err(|e| ApiError::Internal(format!("agent: {e}")))?;
+        agent.set_jobs(self.0.jobs.clone(), None);
 
         let live = Arc::new(Live {
             handle: agent.handle(),
@@ -398,6 +401,19 @@ impl AgentRuntime for LocalRuntime {
             None => drop(self.summary(id)?),
         }
         Ok(())
+    }
+
+    async fn pause(&self, id: &str) -> Result<(), ApiError> {
+        let live = lock(&self.0.live).get(id).cloned();
+        match live {
+            Some(l) => l.handle.pause_after_step(),
+            None => drop(self.summary(id)?),
+        }
+        Ok(())
+    }
+
+    fn jobs(&self) -> Option<hk_core::JobRegistry> {
+        Some(self.0.jobs.clone())
     }
 
     async fn respond_approval(
