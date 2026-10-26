@@ -200,8 +200,8 @@ Design: DESIGN §3.14 (jobs/cancel), §3.15 (AI settings), §4.8 (Activity cente
 
 | ID | Lane | Task | Deps | Size | Test | DoD | Status |
 |---|---|---|---|---|---|---|---|
-| P9.9 | B | Long-term memory: per-user/project facts (SQLite + embeddings), auto-extract (opt-in), editable memory panel, injection toggle | P1.12 | M | unit (retrieval) | fact from session A used in session B | todo |
-| P9.10 | B | Knowledge bases / local RAG: index folders (MD, PDF, code, docx) with local embeddings (fastembed / Ollama), hybrid BM25 (tantivy) + vector (sqlite-vec), citations in chat; backs n8n vector-store nodes | P9.9 | L | fixture | answer cites indexed file + line | todo |
+| P9.9 | B | Long-term memory: per-user/project facts (SQLite + embeddings), auto-extract (opt-in), editable memory panel, injection toggle | P1.12 | M | unit (retrieval) | fact from session A used in session B | done (core) — `memory` tool (save/search/list/delete, user + project scope, BM25 recall), JSONL store next to sessions; auto-extract + UI panel pending |
+| P9.10 | B | Knowledge bases / local RAG: index folders (MD, PDF, code, docx) with local embeddings (fastembed / Ollama), hybrid BM25 (tantivy) + vector (sqlite-vec), citations in chat; backs n8n vector-store nodes | P9.9 | L | fixture | answer cites indexed file + line | partial — `knowledge` tool: index folders (gitignore-aware, 40-line chunks), BM25 search with file:line citations; embeddings/hybrid + PDF pending |
 | P9.11 | C | Model arena: same prompt → N models side by side, latency/cost table, vote, "make default" | P2.5, P3.2 | M | none | 3-model compare in chat | todo |
 | P9.12 | B | Smart router v2: route by task type (code/vision/cheap/long-context), daily/monthly budgets, auto-escalate on failure, offline local fallback | P2.5, P6.7 | M | unit | budget hit → cheaper model, logged | done (core) — Router budget (skip priced routes / hard stop, external spend hook) + model `auto` task routing (code/long-context/reasoning/cheap); local fallback via chain order |
 | P9.13 | C | Usage & cost dashboard: per provider/model/project/day, budget bars, export CSV | P9.12 | M | none | – | todo |

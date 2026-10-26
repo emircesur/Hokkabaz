@@ -8,7 +8,7 @@
 //! session log, tailed by file length so nothing the model saw is missing from the stream.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
@@ -90,6 +90,14 @@ impl std::fmt::Debug for LocalRuntime {
     }
 }
 
+fn memory_tools(dir: &Path) -> Vec<Arc<dyn Tool>> {
+    use hk_tools::builtin::{KnowledgeBase, KnowledgeTool, MemoryStore, MemoryTool};
+    vec![
+        Arc::new(MemoryTool(Arc::new(MemoryStore::new(dir)))),
+        Arc::new(KnowledgeTool(Arc::new(KnowledgeBase::new(dir)))),
+    ]
+}
+
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
 }
@@ -97,13 +105,18 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 impl LocalRuntime {
     pub fn new(cfg: LocalConfig) -> Result<Self, ApiError> {
         let store = SessionStore::open(&cfg.sessions_dir)?;
+        // Memory and knowledge bases live next to the sessions folder.
+        let data_dir = cfg
+            .sessions_dir
+            .parent()
+            .map_or_else(|| cfg.sessions_dir.clone(), Path::to_path_buf);
         let (tx, _) = broadcast::channel(FEED_CAPACITY);
         Ok(Self(Arc::new(Inner {
             cfg,
             store,
             tx,
             live: Mutex::default(),
-            extra_tools: Mutex::default(),
+            extra_tools: Mutex::new(memory_tools(&data_dir)),
             jobs: hk_core::JobRegistry::new(),
         })))
     }
