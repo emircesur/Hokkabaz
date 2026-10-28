@@ -1,3 +1,5 @@
+import 'dart:io';
+
 /// This is copied from Cargokit (which is the official way to use it currently)
 /// Details: https://fzyzcjy.github.io/flutter_rust_bridge/manual/integrate/builtin
 
@@ -147,6 +149,8 @@ class RustBuilder {
         'cargo',
         'build',
         ...extraArgs,
+        // Hokkabaz: CI picks GPU backends per build (e.g. `llama-vulkan` on Windows).
+        if (Platform.environment['HK_CARGO_FEATURES'] case final f? when f.isNotEmpty) ...['--features', f],
         '--manifest-path',
         manifestPath,
         '-p',

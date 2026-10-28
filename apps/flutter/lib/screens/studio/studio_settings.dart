@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
@@ -87,17 +88,6 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
 
   Future<void> _load() async {
     try {
-      try {
-        final w = jsonDecode(await api.studioWhisperStatus()) as Map;
-        _whisperBackend = w['gpu'] as String?;
-        final gd = w['gpu_devices'];
-        if (gd is Map && gd['devices'] is List) {
-          _gpuDevices = [
-            for (final d in gd['devices'] as List)
-              (d as Map).cast<String, dynamic>(),
-          ];
-        }
-      } catch (_) {}
       final j = jsonDecode(await api.studioGetSettings()) as Map;
       final s = (j['settings'] as Map).cast<String, dynamic>();
       setState(() {
@@ -136,6 +126,24 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
         _loaded = true;
       });
     }
+    unawaited(_loadWhisper());
+  }
+
+  /// GPU list comes from the whisper helper; can take a moment on first open, so it fills in later.
+  Future<void> _loadWhisper() async {
+    try {
+      final w = jsonDecode(await api.studioWhisperStatus()) as Map;
+      if (!mounted) return;
+      setState(() {
+        _whisperBackend = w['gpu'] as String?;
+        final gd = w['gpu_devices'];
+        if (gd is Map && gd['devices'] is List) {
+          _gpuDevices = [
+            for (final d in gd['devices'] as List) (d as Map).cast<String, dynamic>(),
+          ];
+        }
+      });
+    } catch (_) {}
   }
 
   // Subject tracking (Studio settings `tracking`).

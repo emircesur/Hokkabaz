@@ -301,6 +301,7 @@ impl StudioHost {
         secrets: Arc<dyn SecretStore>,
         data_dir: &Path,
     ) -> Self {
+        hk_stt::external::prewarm();
         Self {
             svc,
             settings,
@@ -508,7 +509,13 @@ impl StudioHost {
                 });
                 Ok(json!(job))
             }
-            "whisper_status" => Ok(self.whisper.status()),
+            "whisper_status" => {
+                // `status` may wait on `hk-whisper --info` (GPU init): keep it off the runtime.
+                let w = self.whisper.clone();
+                tokio::task::spawn_blocking(move || w.status())
+                    .await
+                    .map_err(|e| StudioError::Invalid(e.to_string()))
+            }
             "whisper_pull" => {
                 self.whisper.pull(&arg::<String>(&p, "id")?)?;
                 Ok(Value::Null)

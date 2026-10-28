@@ -18,6 +18,9 @@ workspace = true
 default = ["vision"]
 # Face tracking model download for Studio reframing.
 vision = ["hk-studio/vision"]
+# GPU offload for local models (Windows/Linux). CI sets it through HK_CARGO_FEATURES.
+llama-vulkan = ["hk-local/llama-vulkan"]
+llama-cuda = ["hk-local/llama-cuda"]
 
 # Must stay android-safe: no landlock/acp/stdio-spawn deps here. hk-server is pulled with
 # default-features off (`runtime` only), so axum never compiles into the app.
@@ -61,8 +64,7 @@ webpki-roots = "1"
 [target.'cfg(target_os = "linux")'.dependencies]
 hk-local = { version = "0.0.0", path = "../hk-local", features = ["llama-openmp"] }
 
-# Windows: CPU for now. `llama-vulkan` (GPU offload) is built by the `llama-vulkan` probe job in
-# .github/workflows/windows.yml until its shader generator builds under the Visual Studio generator.
+# Windows: GPU offload comes from the `llama-vulkan` feature (Windows CI builds it with Ninja).
 [target.'cfg(target_os = "windows")'.dependencies]
 hk-local = { version = "0.0.0", path = "../hk-local", features = ["llama-openmp"] }
 

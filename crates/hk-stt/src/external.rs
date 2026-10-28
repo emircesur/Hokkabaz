@@ -81,21 +81,13 @@ fn helper_info() -> Option<serde_json::Value> {
 
 /// GPU backend compiled into the helper (`vulkan`, `cuda`, `metal`), from `--info`; cached.
 pub fn helper_gpu() -> Option<String> {
-    static GPU: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
-    GPU.get_or_init(|| {
-        let helper = find_helper()?;
-        let mut cmd = std::process::Command::new(helper);
-        cmd.arg("--info").stdin(Stdio::null()).stderr(Stdio::null());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt as _;
-            cmd.creation_flags(0x0800_0000);
-        }
-        let out = cmd.output().ok()?;
-        let v: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
-        v["gpu"].as_str().map(str::to_owned)
-    })
-    .clone()
+    helper_info()?["gpu"].as_str().map(str::to_owned)
+}
+
+/// Run `hk-whisper --info` on a background thread so the first settings screen doesn't wait on
+/// the helper's GPU (Vulkan) initialization.
+pub fn prewarm() {
+    std::thread::spawn(|| drop(helper_info()));
 }
 
 /// Settings for [`ExternalWhisper`].
