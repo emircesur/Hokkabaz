@@ -161,6 +161,18 @@ impl LocalRuntime {
         Ok(())
     }
 
+    /// Per-session sampling overrides (chat "Run settings"); fields left `None` fall back to the
+    /// instance defaults. Applies from the next turn.
+    pub fn set_session_ai(&self, id: &str, d: &AiDefaults) -> Result<(), ApiError> {
+        let live = self.ensure_live(id)?;
+        let mut c = lock(&live.cfg);
+        c.temperature = d.temperature;
+        c.max_output_tokens = d.max_output_tokens;
+        c.reasoning_effort = d.reasoning_effort;
+        c.sampling = d.sampling.clone();
+        Ok(())
+    }
+
     /// Replace the instance-wide AI defaults; applies from the next turn of every session.
     pub fn set_ai_defaults(&self, d: AiDefaults) {
         *lock(&self.0.defaults) = d;

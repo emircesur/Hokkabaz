@@ -108,6 +108,26 @@ pub(crate) async fn call(c: &Ctx<'_>, method: &str, p: Value) -> Result<Value, H
             }
         }
         "session" => match action {
+            // Per-chat "Run settings": AiSettings fields + optional `system`.
+            "settings.get" => {
+                let id = str_arg(&p, "session_id")?;
+                let all = doc_get(c.store, "session_settings").await?;
+                let v = all.get(id).cloned().unwrap_or(Value::Null);
+                apply_session_settings(c.runtime, id, &v);
+                Ok(v)
+            }
+            "settings.save" => {
+                let id = str_arg(&p, "session_id")?.to_string();
+                let v = p.get("settings").cloned().unwrap_or(Value::Null);
+                let mut all = doc_get(c.store, "session_settings").await?;
+                if !all.is_object() {
+                    all = json!({});
+                }
+                all[&id] = v.clone();
+                doc_set(c.store, "session_settings", &all).await?;
+                apply_session_settings(c.runtime, &id, &v);
+                Ok(v)
+            }
             "pause" => {
                 c.runtime
                     .pause(str_arg(&p, "session_id")?)
@@ -146,14 +166,18 @@ pub(crate) async fn call(c: &Ctx<'_>, method: &str, p: Value) -> Result<Value, H
                 apply_ai_defaults(c.runtime, c.store).await;
                 Ok(v)
             }
-            "local.get" => doc_get(c.store, "local_runtime_profiles").await,
+            "local.get" => Ok(json!(local_profiles(
+                &doc_get(c.store, "local_runtime_profiles").await?
+            ))),
             "local.save" => {
-                doc_set(
+                let v = doc_set(
                     c.store,
                     "local_runtime_profiles",
                     p.get("profiles").unwrap_or(&Value::Null),
                 )
-                .await
+                .await?;
+                hk_local::profile::set_all(local_profiles(&v));
+                Ok(v)
             }
             _ => Err(bad(format!("unknown `{method}`"))),
         },
@@ -186,6 +210,63 @@ pub(crate) fn events(
             .boxed())
         }
         other => Err(bad(format!("unknown topic `{other}`"))),
+    }
+}
+
+/// `local_runtime_profiles` document → per-model profiles. Older builds saved one flat profile
+/// with different names; that becomes the `*` default.
+pub(crate) fn local_profiles(
+    v: &Value,
+) -> std::collections::BTreeMap<String, hk_local::profile::RuntimeProfile> {
+    use hk_local::profile::RuntimeProfile;
+    let Some(o) = v.as_object() else {
+        return Default::default();
+    };
+    if o.values().all(Value::is_object) {
+        return o
+            .iter()
+            .filter_map(|(k, x)| Some((k.clone(), serde_json::from_value(x.clone()).ok()?)))
+            .collect();
+    }
+    let int = |k: &str| o.get(k).and_then(Value::as_i64);
+    let legacy = RuntimeProfile {
+        ctx: int("context_length").and_then(|x| u32::try_from(x).ok()),
+        gpu_layers: int("gpu_layers").and_then(|x| i32::try_from(x).ok()),
+        threads: int("threads").and_then(|x| i32::try_from(x).ok()),
+        batch: int("batch_size").and_then(|x| u32::try_from(x).ok()),
+        flash_attn: o
+            .get("flash_attention")
+            .and_then(Value::as_bool)
+            .map(|b| if b { "on" } else { "off" }.to_string()),
+        kv_type: o
+            .get("kv_cache_type")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        mmap: o.get("mmap").and_then(Value::as_bool),
+        mlock: o.get("mlock").and_then(Value::as_bool),
+    };
+    std::iter::once(("*".to_string(), legacy)).collect()
+}
+
+fn apply_session_settings(rt: &LocalRuntime, id: &str, v: &Value) {
+    let settings: hk_core::AiSettings = serde_json::from_value(v.clone()).unwrap_or_default();
+    let mut probe = hk_llm::ChatRequest::new(String::new(), Vec::new());
+    probe.apply_settings(&settings);
+    let d = hk_server::AiDefaults {
+        sampling: probe.sampling,
+        temperature: probe.temperature,
+        max_output_tokens: probe.max_output_tokens,
+        reasoning_effort: probe.reasoning_effort,
+        policy: Default::default(),
+        dry_run: false,
+    };
+    let _ = rt.set_session_ai(id, &d);
+    if let Some(s) = v
+        .get("system")
+        .and_then(Value::as_str)
+        .filter(|s| !s.trim().is_empty())
+    {
+        let _ = rt.set_session_system(id, vec![s.to_string()]);
     }
 }
 

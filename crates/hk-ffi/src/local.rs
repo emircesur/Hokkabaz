@@ -206,6 +206,11 @@ impl LocalCore {
         );
         crate::gate::apply_ai_defaults(&core.i.runtime, &store).await;
         crate::features2::apply_embedder(&store).await;
+        if let Ok(Some(doc)) = store.get_setting("local_runtime_profiles").await
+            && let Ok(v) = serde_json::from_str::<serde_json::Value>(&doc)
+        {
+            hk_local::profile::set_all(crate::gate::local_profiles(&v));
+        }
         {
             let hub = core.i.hub.clone();
             local_ctx.set_rebuild(Arc::new(move || {

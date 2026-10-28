@@ -13,7 +13,7 @@ use hk_llm::{
     Capabilities, ChatRequest, EventStream, FinishReason, LlmError, Message, ModelInfo, Provider,
     Role, StreamEvent, ToolChoice, Usage,
 };
-use llama_cpp_2::context::params::LlamaContextParams;
+use llama_cpp_2::context::params::{KvCacheType, LlamaContextParams};
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::{LlamaModelParams, LlamaSplitMode};
@@ -45,6 +45,8 @@ struct Loaded {
     model: Arc<LlamaModel>,
     /// [`crate::gpu::generation`] the model was loaded under.
     gpu_gen: u64,
+    /// Load-time profile fields the model was loaded with.
+    load_key: (Option<i32>, Option<bool>, Option<bool>),
 }
 
 struct Shared {
@@ -89,7 +91,12 @@ impl Shared {
     fn model(&self, id: &str) -> R<Arc<LlamaModel>> {
         let mut slot = self.loaded.lock().unwrap_or_else(PoisonError::into_inner);
         let gpu_gen = crate::gpu::generation();
-        if let Some(l) = slot.as_ref().filter(|l| l.id == id && l.gpu_gen == gpu_gen) {
+        let prof = crate::profile::for_model(id);
+        let load_key = prof.load_key();
+        if let Some(l) = slot
+            .as_ref()
+            .filter(|l| l.id == id && l.gpu_gen == gpu_gen && l.load_key == load_key)
+        {
             return Ok(l.model.clone());
         }
         let m = self
@@ -99,8 +106,23 @@ impl Shared {
         let b = backend()?;
         *slot = None; // free the old weights before mapping the new ones
         let gpu = crate::gpu::get();
-        let layers = gpu.effective_layers();
-        let mut params = LlamaModelParams::default().with_n_gpu_layers(layers);
+        let layers = match prof.gpu_layers {
+            _ if crate::gpu::BACKEND.is_none() => 0,
+            Some(n) if n < 0 => u32::MAX,
+            Some(n) => n.unsigned_abs(),
+            None => gpu.effective_layers(),
+        };
+        let base = || {
+            let mut p = LlamaModelParams::default();
+            if let Some(m) = prof.mmap {
+                p = p.with_use_mmap(m);
+            }
+            if let Some(m) = prof.mlock {
+                p = p.with_use_mlock(m);
+            }
+            p
+        };
+        let mut params = base().with_n_gpu_layers(layers);
         if layers > 0 {
             // One device only: splitting layers onto an iGPU next to a discrete card is slower
             // than the discrete card alone.
@@ -114,7 +136,7 @@ impl Shared {
                     Ok(p) => p,
                     Err(e) => {
                         tracing::warn!(error = %e, "cannot select GPU; using the backend default");
-                        LlamaModelParams::default().with_n_gpu_layers(layers)
+                        base().with_n_gpu_layers(layers)
                     }
                 };
             }
@@ -123,7 +145,7 @@ impl Shared {
             Err(e) if layers > 0 => {
                 // Usually too little video memory: the CPU always works.
                 tracing::warn!(error = %e, model = id, "GPU load failed; loading on the CPU");
-                let cpu = LlamaModelParams::default().with_n_gpu_layers(0);
+                let cpu = base().with_n_gpu_layers(0);
                 LlamaModel::load_from_file(b, &m.path, &cpu)
             }
             r => r,
@@ -134,6 +156,7 @@ impl Shared {
             id: id.to_owned(),
             model: model.clone(),
             gpu_gen,
+            load_key,
         });
         Ok(model)
     }
@@ -224,7 +247,11 @@ fn generate(
     // The rendered template already carries BOS/special markers.
     let tokens = model.vocab().tokenize(prompt.as_bytes(), false, true);
 
-    let n_ctx = provider.max_ctx.min(model.n_ctx_train());
+    let prof = crate::profile::for_model(&req.model);
+    let n_ctx = prof
+        .ctx
+        .unwrap_or(provider.max_ctx)
+        .clamp(512, model.n_ctx_train().max(512));
     let want_out = u32::try_from(req.max_output_tokens.unwrap_or(1024))
         .unwrap_or(1024)
         .clamp(16, n_ctx / 2);
@@ -236,20 +263,36 @@ fn generate(
     }
     let budget = want_out.min(n_ctx - tokens.len() as u32);
 
-    let params = LlamaContextParams::default()
+    let threads = prof.threads.filter(|t| *t > 0).unwrap_or(provider.threads);
+    let n_batch = prof.batch.unwrap_or(512).clamp(32, 4096);
+    let mut params = LlamaContextParams::default()
         .with_n_ctx(NonZeroU32::new(n_ctx))
-        .with_n_batch(512)
-        .with_n_threads(provider.threads)
-        .with_n_threads_batch(provider.threads);
+        .with_n_batch(n_batch)
+        .with_n_threads(threads)
+        .with_n_threads_batch(threads);
+    // llama.cpp: -1 auto, 0 off, 1 on.
+    match prof.flash_attn.as_deref() {
+        Some("on") => params = params.with_flash_attention_policy(1),
+        Some("off") => params = params.with_flash_attention_policy(0),
+        _ => {}
+    }
+    let kv = match prof.kv_type.as_deref() {
+        Some("q8_0") => Some(KvCacheType::Q8_0),
+        Some("q4_0") => Some(KvCacheType::Q4_0),
+        _ => None,
+    };
+    if let Some(k) = kv {
+        params = params.with_type_k(k).with_type_v(k);
+    }
     let mut ctx = model
         .new_context(b, params)
         .map_err(|e| LlmError::InvalidRequest(format!("cannot allocate context: {e}")))?;
 
     // Prompt, in batches; logits only for the last token.
-    let mut batch = LlamaBatch::new(512, 1);
+    let mut batch = LlamaBatch::new(n_batch as usize, 1);
     let last = tokens.len() - 1;
     let mut pos: i32 = 0;
-    for chunk in tokens.chunks(512) {
+    for chunk in tokens.chunks(n_batch as usize) {
         batch.clear();
         for t in chunk {
             batch
@@ -263,17 +306,9 @@ fn generate(
         ctx.decode(&mut batch).map_err(err)?;
     }
 
-    let temp = req.temperature.unwrap_or(0.7);
-    let mut sampler = if temp <= 0.01 {
-        LlamaSampler::greedy()
-    } else {
-        LlamaSampler::chain_simple([
-            LlamaSampler::top_k(40),
-            LlamaSampler::top_p(0.9, 1),
-            LlamaSampler::temp(temp),
-            LlamaSampler::dist(rand_seed()),
-        ])
-    };
+    let mut sampler = build_sampler(req, model.n_vocab());
+    let mut stops = StopFilter::new(&req.sampling.stop);
+    let mut stopped = false;
 
     let mut parser = ToolStreamParser::default();
     let mut decoder = Utf8Carry::default();
@@ -315,16 +350,25 @@ fn generate(
         }
         let bytes = vocab.token_to_piece(token, false, None);
         generated += 1;
-        let piece = decoder.push(&bytes);
+        let (piece, hit) = stops.push(&decoder.push(&bytes));
         if !piece.is_empty() && !emit(parser.push(&piece), &mut calls) {
             return Ok(()); // receiver dropped
+        }
+        if hit {
+            finish = FinishReason::Stop;
+            stopped = true;
+            break;
         }
         batch.clear();
         batch.add(token, n_cur, &[0], true).map_err(err)?;
         n_cur += 1;
         ctx.decode(&mut batch).map_err(err)?;
     }
-    let rest = decoder.finish();
+    let mut rest = String::new();
+    if !stopped {
+        rest = stops.push(&decoder.finish()).0;
+        rest.push_str(&stops.finish());
+    }
     if !rest.is_empty() {
         emit(parser.push(&rest), &mut calls);
     }
@@ -339,6 +383,81 @@ fn generate(
     }));
     let _ = send(StreamEvent::Finish(finish));
     Ok(())
+}
+
+/// Sampler chain from the request: repetition penalties, top-k, top-p, min-p, temperature, seed.
+fn build_sampler(req: &ChatRequest, n_vocab: i32) -> LlamaSampler {
+    let s = &req.sampling;
+    let temp = req.temperature.unwrap_or(0.7);
+    let mut chain = Vec::new();
+    let repeat = s.repetition_penalty.unwrap_or(1.0) as f32;
+    let freq = s.frequency_penalty.unwrap_or(0.0) as f32;
+    let present = s.presence_penalty.unwrap_or(0.0) as f32;
+    if repeat != 1.0 || freq != 0.0 || present != 0.0 {
+        chain.push(LlamaSampler::penalties(n_vocab, 64, repeat, freq, present));
+    }
+    if temp <= 0.01 {
+        chain.push(LlamaSampler::greedy());
+        return LlamaSampler::chain_simple(chain);
+    }
+    let top_k = s.top_k.unwrap_or(40);
+    if top_k > 0 {
+        chain.push(LlamaSampler::top_k(
+            i32::try_from(top_k).unwrap_or(i32::MAX),
+        ));
+    }
+    chain.push(LlamaSampler::top_p(s.top_p.unwrap_or(0.95) as f32, 1));
+    if let Some(p) = s.min_p.filter(|p| *p > 0.0) {
+        chain.push(LlamaSampler::min_p(p as f32, 1));
+    }
+    chain.push(LlamaSampler::temp(temp));
+    let seed = s.seed.map_or_else(rand_seed, |x| x as u32);
+    chain.push(LlamaSampler::dist(seed));
+    LlamaSampler::chain_simple(chain)
+}
+
+/// Stop sequences over streamed text: holds back a possible partial match, cuts at the first hit.
+pub(crate) struct StopFilter {
+    stops: Vec<String>,
+    held: String,
+}
+
+impl StopFilter {
+    pub(crate) fn new(stops: &[String]) -> Self {
+        Self {
+            stops: stops.iter().filter(|s| !s.is_empty()).cloned().collect(),
+            held: String::new(),
+        }
+    }
+
+    /// Text safe to emit, and whether a stop sequence was hit (text after it is dropped).
+    pub(crate) fn push(&mut self, s: &str) -> (String, bool) {
+        if self.stops.is_empty() {
+            return (s.to_owned(), false);
+        }
+        self.held.push_str(s);
+        if let Some(i) = self
+            .stops
+            .iter()
+            .filter_map(|st| self.held.find(st.as_str()))
+            .min()
+        {
+            let out = self.held[..i].to_owned();
+            self.held.clear();
+            return (out, true);
+        }
+        let keep = self.stops.iter().map(String::len).max().unwrap_or(1) - 1;
+        let mut cut = self.held.len().saturating_sub(keep);
+        while !self.held.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        let out: String = self.held.drain(..cut).collect();
+        (out, false)
+    }
+
+    pub(crate) fn finish(&mut self) -> String {
+        std::mem::take(&mut self.held)
+    }
 }
 
 fn rand_seed() -> u32 {
@@ -401,18 +520,23 @@ impl Provider for LlamaProvider {
             .store
             .installed()
             .into_iter()
-            .map(|m| ModelInfo {
-                id: m.id,
-                provider: crate::PROVIDER_ID.into(),
-                name: m.name,
-                context_window: u64::from(self.0.max_ctx),
-                max_output: Some(u64::from(self.0.max_ctx / 2)),
-                capabilities: Capabilities {
-                    tools: true,
-                    reasoning: false,
-                    vision: false,
-                },
-                cost: None,
+            .map(|m| {
+                let ctx = crate::profile::for_model(&m.id)
+                    .ctx
+                    .unwrap_or(self.0.max_ctx);
+                ModelInfo {
+                    id: m.id,
+                    provider: crate::PROVIDER_ID.into(),
+                    name: m.name,
+                    context_window: u64::from(ctx),
+                    max_output: Some(u64::from(ctx / 2)),
+                    capabilities: Capabilities {
+                        tools: true,
+                        reasoning: false,
+                        vision: false,
+                    },
+                    cost: None,
+                }
             })
             .collect())
     }
@@ -449,6 +573,25 @@ impl Provider for LlamaProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stop_sequence_split_across_pieces() {
+        let mut f = StopFilter::new(&["</end>".to_string()]);
+        let mut out = String::new();
+        let mut hit = false;
+        for p in ["Hello wor", "ld</e", "nd> tail"] {
+            let (s, h) = f.push(p);
+            out.push_str(&s);
+            if h {
+                hit = true;
+                break;
+            }
+        }
+        assert!(hit);
+        assert_eq!(out, "Hello world");
+        let mut none = StopFilter::new(&[]);
+        assert_eq!(none.push("abc"), ("abc".into(), false));
+    }
 
     #[test]
     fn utf8_split_across_tokens() {
