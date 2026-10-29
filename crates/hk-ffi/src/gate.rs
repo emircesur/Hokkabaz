@@ -128,6 +128,23 @@ pub(crate) async fn call(c: &Ctx<'_>, method: &str, p: Value) -> Result<Value, H
                 apply_session_settings(c.runtime, &id, &v);
                 Ok(v)
             }
+            "delete" => {
+                c.runtime
+                    .delete_session(str_arg(&p, "session_id")?)
+                    .map_err(|e| HkError::internal(e.to_string()))?;
+                Ok(Value::Null)
+            }
+            // Custom titles live in a settings doc: the session log has one writer (the agent).
+            "titles" => doc_get(c.store, "session_titles").await,
+            "rename" => {
+                let id = str_arg(&p, "session_id")?.to_string();
+                let mut all = doc_get(c.store, "session_titles").await?;
+                if !all.is_object() {
+                    all = json!({});
+                }
+                all[&id] = json!(str_arg(&p, "title")?);
+                doc_set(c.store, "session_titles", &all).await
+            }
             "pause" => {
                 c.runtime
                     .pause(str_arg(&p, "session_id")?)

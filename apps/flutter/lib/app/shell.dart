@@ -13,6 +13,7 @@ import 'breakpoints.dart';
 import 'command_palette.dart';
 import 'destinations.dart';
 import 'theme_mode.dart';
+import '../widgets/hk_ui.dart';
 
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.location, required this.child});
@@ -80,56 +81,26 @@ class AppShell extends ConsumerWidget {
   }
 
   Widget _wide(BuildContext context, WidgetRef ref) {
-    final theme = ref.watch(themeModeProvider);
     final pending = ref
         .watch(approvalInboxProvider)
         .values
         .fold<int>(0, (n, l) => n + l.length);
     return Scaffold(
-      body: Row(
+      body: Column(
         children: [
-          SafeArea(
-            child: NavigationRail(
-              selectedIndex: _index,
-              labelType: NavigationRailLabelType.all,
-              trailing: Expanded(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: HkTokens.s3),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const ActivityButton(),
-                        IconButton(
-                          tooltip: 'Command palette (Ctrl+K)',
-                          icon: const Icon(Icons.keyboard_command_key),
-                          onPressed: () => openCommandPalette(context, ref),
-                        ),
-                        IconButton(
-                          tooltip: 'Theme: ${themeModeLabel(theme)}',
-                          icon: Icon(themeModeIcon(theme)),
-                          onPressed: () =>
-                              ref.read(themeModeProvider.notifier).cycle(),
-                        ),
-                      ],
-                    ),
-                  ),
+          _TopBar(title: destinations[_index].label),
+          Expanded(
+            child: Row(
+              children: [
+                _Rail(
+                  index: _index,
+                  pending: pending,
+                  onSelect: (i) => context.go(destinations[i].path),
                 ),
-              ),
-              onDestinationSelected: (i) => context.go(destinations[i].path),
-              destinations: [
-                for (final d in destinations)
-                  NavigationRailDestination(
-                    icon: _badged(d.icon, d.path, pending),
-                    selectedIcon: _badged(d.selectedIcon, d.path, pending),
-                    label: Text(d.label),
-                  ),
+                Expanded(child: child),
               ],
             ),
           ),
-          VerticalDivider(color: context.hk.border),
-          Expanded(child: child),
         ],
       ),
     );
@@ -304,6 +275,240 @@ class _ApprovalBanner extends StatelessWidget {
                 Text('Review', style: TextStyle(color: hk.warn)),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Editor-style title bar: brand, current workspace, command search, global actions.
+class _TopBar extends ConsumerWidget {
+  const _TopBar({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hk = context.hk;
+    final theme = ref.watch(themeModeProvider);
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: HkTokens.s3),
+      decoration: BoxDecoration(
+        color: hk.surface,
+        border: Border(bottom: BorderSide(color: hk.border)),
+      ),
+      child: Row(
+        children: [
+          const BrandMark(size: 26),
+          const SizedBox(width: HkTokens.s3),
+          const Text(
+            'Hokkabaz',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.2,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: HkTokens.s2),
+            child: Icon(Icons.chevron_right, size: 16, color: hk.textFaint),
+          ),
+          Text(title, style: TextStyle(fontSize: 13, color: hk.textMuted)),
+          const Spacer(),
+          _SearchBox(onTap: () => openCommandPalette(context, ref)),
+          const Spacer(),
+          const ActivityButton(),
+          IconButton(
+            tooltip: 'Theme: ${themeModeLabel(theme)}',
+            icon: Icon(themeModeIcon(theme)),
+            onPressed: () => ref.read(themeModeProvider.notifier).cycle(),
+          ),
+          IconButton(
+            tooltip: 'Settings',
+            icon: const Icon(Icons.tune),
+            onPressed: () => context.go('/settings'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchBox extends StatelessWidget {
+  const _SearchBox({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final hk = context.hk;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(HkTokens.radiusControl),
+      child: Container(
+        width: 420,
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: HkTokens.s3),
+        decoration: BoxDecoration(
+          color: hk.surface2,
+          borderRadius: BorderRadius.circular(HkTokens.radiusControl),
+          border: Border.all(color: hk.border),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.search, size: 16, color: hk.textFaint),
+            const SizedBox(width: HkTokens.s2),
+            Expanded(
+              child: Text(
+                'Search commands, chats, flows…',
+                style: TextStyle(fontSize: 13, color: hk.textFaint),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: hk.surface3,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Ctrl K',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: hk.textMuted,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Slim icon rail with labels under icons and an accent bar on the active workspace.
+class _Rail extends StatelessWidget {
+  const _Rail({
+    required this.index,
+    required this.pending,
+    required this.onSelect,
+  });
+
+  final int index;
+  final int pending;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final hk = context.hk;
+    return Container(
+      width: 72,
+      decoration: BoxDecoration(
+        color: hk.surface,
+        border: Border(right: BorderSide(color: hk.border)),
+      ),
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: HkTokens.s2),
+        children: [
+          for (var i = 0; i < destinations.length; i++)
+            _RailItem(
+              d: destinations[i],
+              selected: i == index,
+              badge: destinations[i].path == '/chat' ? pending : 0,
+              onTap: () => onSelect(i),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RailItem extends StatefulWidget {
+  const _RailItem({
+    required this.d,
+    required this.selected,
+    required this.badge,
+    required this.onTap,
+  });
+
+  final HkDestination d;
+  final bool selected;
+  final int badge;
+  final VoidCallback onTap;
+
+  @override
+  State<_RailItem> createState() => _RailItemState();
+}
+
+class _RailItemState extends State<_RailItem> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hk = context.hk;
+    final sel = widget.selected;
+    Widget icon = Icon(
+      sel ? widget.d.selectedIcon : widget.d.icon,
+      size: 21,
+      color: sel ? hk.text : (_hover ? hk.text : hk.textMuted),
+    );
+    if (widget.badge > 0) icon = Badge.count(count: widget.badge, child: icon);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: SizedBox(
+          height: 60,
+          child: Stack(
+            children: [
+              if (sel)
+                Positioned(
+                  left: 0,
+                  top: 14,
+                  bottom: 14,
+                  child: Container(
+                    width: 3,
+                    decoration: BoxDecoration(
+                      gradient: hk.gradient,
+                      borderRadius: const BorderRadius.horizontal(
+                        right: Radius.circular(3),
+                      ),
+                    ),
+                  ),
+                ),
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 140),
+                      width: 40,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: sel
+                            ? hk.accent.withValues(alpha: 0.18)
+                            : (_hover ? hk.surface3 : Colors.transparent),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Center(child: icon),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      widget.d.label,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: sel ? FontWeight.w600 : FontWeight.w500,
+                        color: sel ? hk.text : hk.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

@@ -161,6 +161,19 @@ impl LocalRuntime {
         Ok(())
     }
 
+    /// Delete a session's log. Refused while its agent is running.
+    pub fn delete_session(&self, id: &str) -> Result<(), ApiError> {
+        {
+            let mut map = lock(&self.0.live);
+            if map.get(id).is_some_and(|l| l.handle.is_running()) {
+                return Err(ApiError::BadRequest("stop the session before deleting it".into()));
+            }
+            map.remove(id);
+        }
+        self.0.store.delete(id)?;
+        Ok(())
+    }
+
     /// Per-session sampling overrides (chat "Run settings"); fields left `None` fall back to the
     /// instance defaults. Applies from the next turn.
     pub fn set_session_ai(&self, id: &str, d: &AiDefaults) -> Result<(), ApiError> {
