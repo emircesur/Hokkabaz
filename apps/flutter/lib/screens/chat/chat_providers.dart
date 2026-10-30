@@ -267,8 +267,7 @@ class ChatController extends Notifier<ChatState> {
   }
 
   /// Last user prompt, for regenerate / edit.
-  String? get lastPrompt =>
-      state.items.whereType<UserItem>().lastOrNull?.text;
+  String? get lastPrompt => state.items.whereType<UserItem>().lastOrNull?.text;
 
   /// Ask again with the last prompt (the model sees the previous answer too).
   Future<void> regenerate(ModeDto mode, {String? model}) async {

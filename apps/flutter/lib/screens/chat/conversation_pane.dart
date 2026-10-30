@@ -371,8 +371,7 @@ class _MessageList extends ConsumerWidget {
           ),
           AssistantItem() => AssistantBlock(
             item: item,
-            onRegenerate:
-                items.length - 1 - i == lastAnswer && !state.running
+            onRegenerate: items.length - 1 - i == lastAnswer && !state.running
                 ? () => ctl.regenerate(
                     ref.read(chatModeProvider),
                     model: ref.read(composerModelProvider),

@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/breakpoints.dart';
+import '../../ffi/hk_gate.dart' as gate;
 import '../../ffi/settings_providers.dart';
 import '../../src/rust/dto.dart';
 import '../../ffi/voice.dart';
@@ -103,6 +106,81 @@ class _ComposerState extends ConsumerState<Composer> {
     }
   }
 
+  /// Text/code files inlined into the next message as fenced blocks.
+  final List<(String, String)> _files = [];
+
+  Future<void> _attachFile() async {
+    final r = await FilePicker.pickFiles(
+      dialogTitle: 'Attach a text or code file',
+    );
+    final p = r.firstOrNull?.path;
+    if (p == null) return;
+    try {
+      final f = File(p);
+      if (await f.length() > 256 * 1024) {
+        throw 'larger than 256 KB';
+      }
+      final text = await f.readAsString();
+      setState(() => _files.add((p.split(RegExp(r'[\\/]')).last, text)));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Cannot attach: $e (text files only)')),
+        );
+      }
+    }
+  }
+
+  Future<void> _insertPrompt() async {
+    List<Map> items = const [];
+    try {
+      final v = await gate.hk('prompts.list');
+      if (v is List) items = v.cast<Map>();
+    } catch (_) {}
+    if (!mounted) return;
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Prompt library'),
+        children: [
+          if (items.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No saved prompts yet. Add them in AI → Prompts.'),
+            ),
+          for (final it in items)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, '${it['text'] ?? ''}'),
+              child: ListTile(
+                title: Text('${it['name'] ?? it['id']}'),
+                subtitle: Text(
+                  '${it['text'] ?? ''}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (picked == null || picked.isEmpty) return;
+    final cur = _text.text;
+    _text.text = cur.isEmpty ? picked : '$cur\n$picked';
+    _text.selection = TextSelection.collapsed(offset: _text.text.length);
+    _focus.requestFocus();
+  }
+
+  /// Prompt with attached files prepended as fenced blocks.
+  String _withFiles(String t) {
+    if (_files.isEmpty) return t;
+    final b = StringBuffer();
+    for (final (name, body) in _files) {
+      b.writeln('`$name`:\n```\n$body\n```\n');
+    }
+    b.write(t);
+    return b.toString();
+  }
+
   Future<void> _attach() async {
     final r = await FilePicker.pickFiles(
       type: FileType.image,
@@ -113,7 +191,8 @@ class _ComposerState extends ConsumerState<Composer> {
   }
 
   void _send() {
-    final t = _text.text;
+    final t = _withFiles(_text.text);
+    if (_files.isNotEmpty) setState(_files.clear);
     if (_images.isNotEmpty) {
       final imgs = List<String>.of(_images);
       setState(_images.clear);
@@ -256,7 +335,8 @@ class _ComposerState extends ConsumerState<Composer> {
     };
 
     final narrow = isNarrow(context);
-    final canSend = _text.text.trim().isNotEmpty || _images.isNotEmpty;
+    final canSend =
+        _text.text.trim().isNotEmpty || _images.isNotEmpty || _files.isNotEmpty;
     Widget chip(IconData icon, String label, String tip, VoidCallback onTap) =>
         Tooltip(
           message: tip,
@@ -336,6 +416,26 @@ class _ComposerState extends ConsumerState<Composer> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (_files.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              for (final f in List.of(_files))
+                                InputChip(
+                                  avatar: const Icon(
+                                    Icons.description_outlined,
+                                    size: 16,
+                                  ),
+                                  label: Text(f.$1),
+                                  onDeleted: () =>
+                                      setState(() => _files.remove(f)),
+                                ),
+                            ],
+                          ),
+                        ),
                       if (_images.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
@@ -386,12 +486,40 @@ class _ComposerState extends ConsumerState<Composer> {
                       ),
                       Row(
                         children: [
-                          IconButton(
-                            tooltip: 'Attach image (vision models)',
-                            icon: const Icon(
-                              Icons.add_photo_alternate_outlined,
-                            ),
-                            onPressed: _attach,
+                          PopupMenuButton<String>(
+                            tooltip: 'Attach',
+                            icon: const Icon(Icons.add_circle_outline),
+                            onSelected: (v) => switch (v) {
+                              'image' => _attach(),
+                              'file' => _attachFile(),
+                              _ => _insertPrompt(),
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                value: 'image',
+                                child: ListTile(
+                                  leading: Icon(Icons.image_outlined, size: 18),
+                                  title: Text('Image (vision models)'),
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'file',
+                                child: ListTile(
+                                  leading: Icon(
+                                    Icons.description_outlined,
+                                    size: 18,
+                                  ),
+                                  title: Text('Text or code file'),
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'prompt',
+                                child: ListTile(
+                                  leading: Icon(Icons.notes, size: 18),
+                                  title: Text('From prompt library'),
+                                ),
+                              ),
+                            ],
                           ),
                           IconButton(
                             tooltip: _voice == 'recording'
