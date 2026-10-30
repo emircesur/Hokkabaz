@@ -45,6 +45,7 @@ impl RuntimeProfile {
     }
 
     /// Fields that need a model reload when they change.
+    #[cfg_attr(not(feature = "llama"), allow(dead_code))]
     pub(crate) fn load_key(&self) -> (Option<i32>, Option<bool>, Option<bool>) {
         (self.gpu_layers, self.mmap, self.mlock)
     }
