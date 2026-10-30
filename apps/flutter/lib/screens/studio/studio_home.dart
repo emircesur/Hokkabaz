@@ -1,4 +1,4 @@
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../src/rust/api/studio.dart' as api;
 import '../../theme/tokens.dart';
+import '../../ffi/hk_gate.dart';
+import '../../widgets/hk_ui.dart';
 import '../ai/ai_common.dart';
 import '../chat/chat_providers.dart' show describeError;
 import 'studio_ai_panels.dart';
@@ -40,6 +42,20 @@ class _StudioHomeState extends ConsumerState<StudioHome> {
     ('brand', 'Brand kit', Icons.verified_outlined),
     ('batch', 'Batch folder', Icons.drive_folder_upload_outlined),
   ];
+
+  static const _toolHelp = <String, String>{
+    'edit': 'Cut by editing the transcript',
+    'captions': 'Animated, styled subtitles',
+    'broll': 'Stock footage where it helps',
+    'reframe': 'Track the speaker into 9:16',
+    'enhance': 'Clean up voice and silences',
+    'dub': 'Translate and re-voice',
+    'hook': 'AI hook for the first seconds',
+    'writeup': 'YouTube chapters, blog post',
+    'thumbs': 'Clickable cover images',
+    'brand': 'Logo, colours, intro/outro',
+    'batch': 'Clip a whole folder at once',
+  };
 
   Future<String?> _importVideo() async {
     final files = await FilePicker.pickFiles(
@@ -181,19 +197,11 @@ class _StudioHomeState extends ConsumerState<StudioHome> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     ),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 28,
-                        vertical: 20,
-                      ),
-                      shape: const StadiumBorder(),
-                    ),
+                  GradientButton(
+                    label: 'Get clips in 1 click',
+                    icon: Icons.auto_awesome,
+                    height: 46,
                     onPressed: _working != null ? null : () => _tool('shorts'),
-                    child: const Text(
-                      'Get clips in 1 click',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
                   ),
                 ],
               ),
@@ -201,25 +209,57 @@ class _StudioHomeState extends ConsumerState<StudioHome> {
           ),
         ),
         const SizedBox(height: HkTokens.s3),
-        Center(
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            spacing: HkTokens.s2,
-            runSpacing: HkTokens.s2,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _working != null ? null : () => _tool('edit'),
-                icon: const Icon(Icons.upload_outlined),
-                label: const Text('Upload'),
-              ),
-              for (final (k, label, icon) in _tools.skip(1))
-                ActionChip(
-                  avatar: Icon(icon, size: 18),
-                  label: Text(label),
-                  onPressed: _working != null ? null : () => _tool(k),
+        const SizedBox(height: HkTokens.s4),
+        Wrap(
+          spacing: HkTokens.s3,
+          runSpacing: HkTokens.s3,
+          children: [
+            for (final (k, label, icon) in _tools.skip(1))
+              SizedBox(
+                width: 232,
+                child: HoverCard(
+                  padding: const EdgeInsets.all(HkTokens.s3),
+                  onTap: _working != null ? null : () => _tool(k),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: hk.accent.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(icon, size: 19, color: hk.accent),
+                      ),
+                      const SizedBox(width: HkTokens.s3),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              label,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              _toolHelp[k] ?? '',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: hk.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
         if (tools != null && tools['ffmpeg'] != true)
           Padding(
@@ -353,60 +393,170 @@ class _PresetCard extends StatelessWidget {
   }
 }
 
+/// First-frame-ish thumbnail of a project (cached by the backend under the project's work dir).
+final _projectThumbProvider = FutureProvider.family<String?, String>((
+  ref,
+  id,
+) async {
+  if (studioRemote) return null;
+  try {
+    final v = await hk('studio.thumbnail', {'id': id, 'at': 5.0});
+    return v is String && File(v).existsSync() ? v : null;
+  } catch (_) {
+    return null;
+  }
+});
+
 class _ProjectCard extends ConsumerWidget {
   const _ProjectCard({required this.p});
   final ProjectSummary p;
 
+  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete project?'),
+        content: Text(
+          '"${p.name}" with its clips, transcript and renders will be removed. The source video file is kept.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: ctx.hk.err),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await ref.read(studioListProvider.notifier).remove(p.id);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hk = context.hk;
+    final thumb = ref.watch(_projectThumbProvider(p.id)).value;
     return SizedBox(
-      width: 260,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () =>
-              ref.read(selectedStudioProjectProvider.notifier).select(p.id),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                height: 120,
-                color: hk.border,
-                child: Center(
-                  child: Icon(
-                    Icons.movie_outlined,
-                    size: 40,
-                    color: hk.textMuted,
-                  ),
-                ),
+      width: 280,
+      child: HoverCard(
+        padding: EdgeInsets.zero,
+        onTap: () =>
+            ref.read(selectedStudioProjectProvider.notifier).select(p.id),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(HkTokens.radiusCard),
               ),
-              ListTile(
-                dense: true,
-                title: Text(
-                  p.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  '${p.clips} clips · ${formatTime(p.duration)}${p.hasTranscript ? '' : ' · not transcribed'}',
-                ),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (v) async {
-                    if (v == 'delete') {
-                      await ref.read(studioListProvider.notifier).remove(p.id);
-                    }
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Delete project'),
+              child: SizedBox(
+                height: 150,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (thumb != null)
+                      Image.file(
+                        File(thumb),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const SizedBox(),
+                      )
+                    else
+                      Container(
+                        color: hk.surface3,
+                        child: Icon(
+                          Icons.movie_outlined,
+                          size: 36,
+                          color: hk.textFaint,
+                        ),
+                      ),
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          formatTime(p.duration),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          p.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            Pill(
+                              '${p.clips} clip${p.clips == 1 ? '' : 's'}',
+                              icon: Icons.video_library_outlined,
+                            ),
+                            if (p.hasTranscript)
+                              Pill(
+                                'Transcribed',
+                                icon: Icons.check,
+                                color: hk.ok,
+                              )
+                            else
+                              Pill(
+                                'Not transcribed',
+                                icon: Icons.subtitles_off_outlined,
+                                color: hk.warn,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'More',
+                    onSelected: (v) {
+                      if (v == 'delete') _delete(context, ref);
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete project'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

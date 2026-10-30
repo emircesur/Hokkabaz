@@ -486,6 +486,12 @@ class StudioEvent {
 
 String formatTime(double secs) {
   final s = secs < 0 ? 0 : secs;
+  if (s >= 3600) {
+    final h = s ~/ 3600;
+    final m = (s - h * 3600) ~/ 60;
+    final r = (s - h * 3600 - m * 60).floor();
+    return '$h:${m.toString().padLeft(2, '0')}:${r.toString().padLeft(2, '0')}';
+  }
   final m = s ~/ 60;
   final r = s - m * 60;
   return '$m:${r.toStringAsFixed(1).padLeft(4, '0')}';
