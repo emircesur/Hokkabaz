@@ -9,17 +9,13 @@ import 'qr_scan_page.dart';
 import 'instances_providers.dart';
 
 /// Add an instance by URL + API token.
-Future<void> showAddInstanceDialog(BuildContext context) => showDialog<void>(
-  context: context,
-  builder: (_) => const _AddDialog(),
-);
+Future<void> showAddInstanceDialog(BuildContext context) =>
+    showDialog<void>(context: context, builder: (_) => const _AddDialog());
 
 /// Add an instance from a pairing link (`hokkabaz://pair?url=..&token=..`).
 /// QR camera scanning lands later (P6.5); the link is what the QR carries.
-Future<void> showPairDialog(BuildContext context) => showDialog<void>(
-  context: context,
-  builder: (_) => const _PairDialog(),
-);
+Future<void> showPairDialog(BuildContext context) =>
+    showDialog<void>(context: context, builder: (_) => const _PairDialog());
 
 class _AddDialog extends ConsumerStatefulWidget {
   const _AddDialog();
@@ -143,7 +139,8 @@ class _PairDialogState extends ConsumerState<_PairDialog> {
   }
 
   Future<void> _scan() async {
-    final value = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => const QrScanPage()));
+    final value = await Navigator.of(context)
+        .push<String>(MaterialPageRoute(builder: (_) => const QrScanPage()));
     if (value != null && mounted) setState(() => _link.text = value.trim());
   }
 
@@ -196,8 +193,16 @@ class _PairDialogState extends ConsumerState<_PairDialog> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (Platform.isAndroid || Platform.isIOS)
-                        IconButton(tooltip: 'Scan QR code', icon: const Icon(Icons.qr_code_scanner), onPressed: _scan),
-                      IconButton(tooltip: 'Paste', icon: const Icon(Icons.content_paste), onPressed: _paste),
+                        IconButton(
+                          tooltip: 'Scan QR code',
+                          icon: const Icon(Icons.qr_code_scanner),
+                          onPressed: _scan,
+                        ),
+                      IconButton(
+                        tooltip: 'Paste',
+                        icon: const Icon(Icons.content_paste),
+                        onPressed: _paste,
+                      ),
                     ],
                   ),
                 ),
@@ -205,9 +210,7 @@ class _PairDialogState extends ConsumerState<_PairDialog> {
               const SizedBox(height: HkTokens.s3),
               TextField(
                 controller: _name,
-                decoration: const InputDecoration(
-                  labelText: 'Name (optional)',
-                ),
+                decoration: const InputDecoration(labelText: 'Name (optional)'),
               ),
               if (_error != null) _ErrorText(_error!),
             ],

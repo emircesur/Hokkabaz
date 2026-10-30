@@ -23,7 +23,9 @@ class SettingsScreen extends ConsumerWidget {
     final theme = ref.watch(themeModeProvider);
     final update = ref.watch(updateCheckProvider);
     final checked = ref.read(updateCheckProvider.notifier).checked;
-    final core = ref.watch(rustInitErrorProvider) == null ? ref.watch(settingsProvider).value : null;
+    final core = ref.watch(rustInitErrorProvider) == null
+        ? ref.watch(settingsProvider).value
+        : null;
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
@@ -38,10 +40,15 @@ class SettingsScreen extends ConsumerWidget {
             SegmentedButton<ThemeMode>(
               segments: [
                 for (final m in ThemeMode.values)
-                  ButtonSegment(value: m, label: Text(themeModeLabel(m)), icon: Icon(themeModeIcon(m), size: 18)),
+                  ButtonSegment(
+                    value: m,
+                    label: Text(themeModeLabel(m)),
+                    icon: Icon(themeModeIcon(m), size: 18),
+                  ),
               ],
               selected: {theme},
-              onSelectionChanged: (s) => ref.read(themeModeProvider.notifier).set(s.first),
+              onSelectionChanged: (s) =>
+                  ref.read(themeModeProvider.notifier).set(s.first),
             ),
             const SizedBox(height: HkTokens.s6),
             Text('Text size', style: text.titleSmall),
@@ -72,41 +79,67 @@ class SettingsScreen extends ConsumerWidget {
             const SizedBox(height: HkTokens.s4),
             Text('Updates', style: text.titleSmall),
             const SizedBox(height: HkTokens.s1),
-            Text('Version $hkVersion', style: text.bodySmall?.copyWith(color: hk.textMuted)),
+            Text(
+              'Version $hkVersion',
+              style: text.bodySmall?.copyWith(color: hk.textMuted),
+            ),
             const SizedBox(height: HkTokens.s2),
             Row(
               children: [
                 OutlinedButton.icon(
                   icon: update.isLoading
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Icon(Icons.system_update_alt, size: 18),
                   label: const Text('Check for updates'),
-                  onPressed: update.isLoading ? null : () => ref.read(updateCheckProvider.notifier).run(),
+                  onPressed: update.isLoading
+                      ? null
+                      : () => ref.read(updateCheckProvider.notifier).run(),
                 ),
               ],
             ),
             const SizedBox(height: HkTokens.s2),
             update.when(
               loading: () => const SizedBox.shrink(),
-              error: (e, _) => Text('Could not check: $e', style: TextStyle(color: hk.err)),
+              error: (e, _) =>
+                  Text('Could not check: $e', style: TextStyle(color: hk.err)),
               data: (r) => r != null
                   ? Card(
                       child: ListTile(
-                        leading: Icon(Icons.new_releases_outlined, color: hk.accent),
+                        leading: Icon(
+                          Icons.new_releases_outlined,
+                          color: hk.accent,
+                        ),
                         title: Text('${r.tag} is available'),
-                        subtitle: Text(r.notes.isEmpty ? r.url : r.notes, maxLines: 4, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(
+                          r.notes.isEmpty ? r.url : r.notes,
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         trailing: TextButton(
                           onPressed: () async {
                             await Clipboard.setData(ClipboardData(text: r.url));
                             if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Release link copied')));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Release link copied'),
+                                ),
+                              );
                             }
                           },
                           child: const Text('Copy link'),
                         ),
                       ),
                     )
-                  : Text(checked ? 'You are on the latest version.' : 'Updates are never installed automatically.', style: text.bodySmall),
+                  : Text(
+                      checked
+                          ? 'You are on the latest version.'
+                          : 'Updates are never installed automatically.',
+                      style: text.bodySmall,
+                    ),
             ),
             if (core != null) ...[
               const SizedBox(height: HkTokens.s6),
@@ -140,7 +173,11 @@ class SettingsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: HkTokens.s2),
             TextButton(
-              onPressed: () => showLicensePage(context: context, applicationName: 'Hokkabaz', applicationVersion: hkVersion),
+              onPressed: () => showLicensePage(
+                context: context,
+                applicationName: 'Hokkabaz',
+                applicationVersion: hkVersion,
+              ),
               child: const Text('Open-source licenses'),
             ),
           ],
@@ -156,7 +193,10 @@ class SettingsScreen extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 110, child: Text(k, style: TextStyle(color: hk.textMuted))),
+          SizedBox(
+            width: 110,
+            child: Text(k, style: TextStyle(color: hk.textMuted)),
+          ),
           Expanded(child: SelectableText(v)),
         ],
       ),

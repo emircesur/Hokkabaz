@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../app/activity.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/hk_ui.dart';
+import 'agents_section.dart';
 import 'sections_library.dart';
 import 'sections_settings.dart';
 import 'sections_tools.dart';
@@ -68,35 +70,64 @@ class _AiHubScreenState extends State<AiHubScreen> {
         ],
       );
     }
+    const groups = <(String, List<int>)>[
+      ('Build', [0, 1, 2]),
+      ('Knowledge', [3, 4, 8, 9]),
+      ('Run', [5, 7, 10, 11]),
+      ('Insights', [6]),
+      ('Configure', [12]),
+    ];
     return Row(
       children: [
-        SizedBox(
-          width: 200,
-          child: ListView(
-            padding: const EdgeInsets.symmetric(vertical: HkTokens.s3),
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  HkTokens.s4,
-                  0,
-                  HkTokens.s4,
-                  HkTokens.s2,
-                ),
-                child: Text(
-                  'AI hub',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
+        Material(
+          color: hk.surface,
+          child: SizedBox(
+            width: 220,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                HkTokens.s2,
+                HkTokens.s4,
+                HkTokens.s2,
+                HkTokens.s4,
               ),
-              for (var k = 0; k < _sections.length; k++)
-                ListTile(
-                  dense: true,
-                  selected: _i == k,
-                  selectedTileColor: hk.accent.withValues(alpha: 0.12),
-                  leading: Icon(_sections[k].$2, size: 20),
-                  title: Text(_sections[k].$1),
-                  onTap: () => setState(() => _i = k),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: HkTokens.s2),
+                  child: Text(
+                    'AI hub',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                 ),
-            ],
+                for (final (g, idx) in groups) ...[
+                  SectionLabel(
+                    g,
+                    padding: const EdgeInsets.fromLTRB(
+                      HkTokens.s2,
+                      HkTokens.s4,
+                      HkTokens.s2,
+                      HkTokens.s1,
+                    ),
+                  ),
+                  for (final k in idx)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: ListTile(
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
+                        selected: _i == k,
+                        selectedTileColor: hk.surface3,
+                        leading: Icon(
+                          _sections[k].$2,
+                          size: 18,
+                          color: _i == k ? hk.accent : hk.textMuted,
+                        ),
+                        title: Text(_sections[k].$1),
+                        onTap: () => setState(() => _i = k),
+                      ),
+                    ),
+                ],
+              ],
+            ),
           ),
         ),
         VerticalDivider(width: 1, color: hk.border),

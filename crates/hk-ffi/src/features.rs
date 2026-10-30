@@ -344,8 +344,14 @@ pub(crate) async fn call(
                 ));
             }
             c.runtime
-                .set_session_system(&info.id, system)
+                .set_session_system(&info.id, system.clone())
                 .map_err(internal)?;
+            // Sampling from the agent editor becomes the chat's run settings (visible there).
+            let mut settings = a.get("settings").cloned().unwrap_or_else(|| json!({}));
+            if settings.is_object() {
+                settings["system"] = json!(system.join("\n\n"));
+                crate::gate::save_session_settings(c, &info.id, &settings).await?;
+            }
             Ok(json!(info))
         }
         ("usage", "summary") => {

@@ -6,13 +6,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/version.dart';
 
 class ReleaseInfo {
-  const ReleaseInfo({required this.tag, required this.url, required this.notes});
+  const ReleaseInfo({
+    required this.tag,
+    required this.url,
+    required this.notes,
+  });
   final String tag, url, notes;
 }
 
 /// `1.2.3` / `v1.2.3` / `1.2.3-rc1` -> [1,2,3]; null when it has no numeric core.
 List<int>? parseVersion(String v) {
-  final core = v.trim().replaceFirst(RegExp('^[vV]'), '').split(RegExp(r'[-+]')).first;
+  final core = v
+      .trim()
+      .replaceFirst(RegExp('^[vV]'), '')
+      .split(RegExp(r'[-+]'))
+      .first;
   final parts = core.split('.');
   if (parts.isEmpty || parts.length > 4) return null;
   final nums = <int>[];
@@ -40,19 +48,24 @@ Future<ReleaseInfo?> checkForUpdate({HttpClient? client}) async {
   final c = client ?? HttpClient()
     ..connectionTimeout = const Duration(seconds: 10);
   try {
-    final req = await c.getUrl(Uri.parse('https://api.github.com/repos/$hkRepo/releases/latest'));
+    final req = await c.getUrl(
+      Uri.parse('https://api.github.com/repos/$hkRepo/releases/latest'),
+    );
     req.headers.set('Accept', 'application/vnd.github+json');
     req.headers.set('User-Agent', 'hokkabaz/$hkVersion');
     final res = await req.close().timeout(const Duration(seconds: 15));
     if (res.statusCode == 404) return null; // no releases yet
-    if (res.statusCode != 200) throw HttpException('GitHub answered ${res.statusCode}');
+    if (res.statusCode != 200)
+      throw HttpException('GitHub answered ${res.statusCode}');
     final body = await res.transform(utf8.decoder).join();
     final j = jsonDecode(body) as Map<String, dynamic>;
     final tag = (j['tag_name'] as String?) ?? '';
     if (!isNewer(tag, hkVersion)) return null;
     return ReleaseInfo(
       tag: tag,
-      url: (j['html_url'] as String?) ?? 'https://github.com/$hkRepo/releases/latest',
+      url:
+          (j['html_url'] as String?) ??
+          'https://github.com/$hkRepo/releases/latest',
       notes: ((j['body'] as String?) ?? '').trim(),
     );
   } finally {
@@ -74,4 +87,6 @@ class UpdateCheck extends AsyncNotifier<ReleaseInfo?> {
   }
 }
 
-final updateCheckProvider = AsyncNotifierProvider<UpdateCheck, ReleaseInfo?>(UpdateCheck.new);
+final updateCheckProvider = AsyncNotifierProvider<UpdateCheck, ReleaseInfo?>(
+  UpdateCheck.new,
+);

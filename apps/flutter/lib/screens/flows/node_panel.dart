@@ -265,7 +265,11 @@ class _ParamsTab extends StatelessWidget {
 /// Pick (or create) the credential a node uses for one credential type. Stored in the node's
 /// n8n `credentials` map as `{id, name}`; the secret values stay in the secret store.
 class _CredentialPicker extends ConsumerWidget {
-  const _CredentialPicker({required this.editor, required this.node, required this.req});
+  const _CredentialPicker({
+    required this.editor,
+    required this.node,
+    required this.req,
+  });
   final FlowEditor editor;
   final FlowNode node;
   final CredReq req;
@@ -275,13 +279,18 @@ class _CredentialPicker extends ConsumerWidget {
     final all = ref.watch(credentialBookProvider).value ?? const [];
     final types = ref.watch(credentialTypesProvider).value ?? const [];
     final mine = all.where((c) => c.type == req.name).toList();
-    final typeLabel = types.where((t) => t.name == req.name).firstOrNull?.displayName ?? req.name;
+    final typeLabel =
+        types.where((t) => t.name == req.name).firstOrNull?.displayName ??
+        req.name;
     final cur = node.credentials[req.name];
     final curId = cur?['id'] as String?;
     final known = mine.any((c) => c.id == curId);
     void pick(String? id) {
       final name = mine.where((c) => c.id == id).firstOrNull?.name;
-      editor.updateNode(node.name, (n) => n.withCredential(req.name, id: id, name: name));
+      editor.updateNode(
+        node.name,
+        (n) => n.withCredential(req.name, id: id, name: name),
+      );
     }
 
     return Padding(
@@ -295,12 +304,20 @@ class _CredentialPicker extends ConsumerWidget {
               initialValue: known ? curId : null,
               isExpanded: true,
               decoration: InputDecoration(
-                labelText: req.required ? 'Credential: $typeLabel *' : 'Credential: $typeLabel',
-                helperText: curId != null && !known ? 'Saved credential "${cur?['name'] ?? curId}" not found on this device' : null,
+                labelText: req.required
+                    ? 'Credential: $typeLabel *'
+                    : 'Credential: $typeLabel',
+                helperText: curId != null && !known
+                    ? 'Saved credential "${cur?['name'] ?? curId}" not found on this device'
+                    : null,
               ),
               items: [
-                const DropdownMenuItem<String?>(value: null, child: Text('None')),
-                for (final c in mine) DropdownMenuItem<String?>(value: c.id, child: Text(c.name)),
+                const DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text('None'),
+                ),
+                for (final c in mine)
+                  DropdownMenuItem<String?>(value: c.id, child: Text(c.name)),
               ],
               onChanged: pick,
             ),
@@ -309,9 +326,16 @@ class _CredentialPicker extends ConsumerWidget {
             tooltip: 'New credential',
             icon: const Icon(Icons.add),
             onPressed: () async {
-              final made = await showCredentialDialog(context, fixedType: req.name);
+              final made = await showCredentialDialog(
+                context,
+                fixedType: req.name,
+              );
               if (made != null) {
-                editor.updateNode(node.name, (n) => n.withCredential(req.name, id: made.id, name: made.name));
+                editor.updateNode(
+                  node.name,
+                  (n) =>
+                      n.withCredential(req.name, id: made.id, name: made.name),
+                );
               }
             },
           ),

@@ -9,7 +9,10 @@ import '../chat/chat_providers.dart' show describeError;
 import 'plugins_models.dart';
 
 /// Every mutation returns an error string (null = ok) and reloads, so widgets never see a throw.
-Future<String?> _guard(Future<void> Function() op, void Function() after) async {
+Future<String?> _guard(
+  Future<void> Function() op,
+  void Function() after,
+) async {
   String? err;
   try {
     await op();
@@ -27,8 +30,9 @@ class PluginBook extends AsyncNotifier<List<PluginInfo>> {
     return PluginInfo.parseList(await api.pluginList());
   }
 
-  Future<void> _reload() async =>
-      state = await AsyncValue.guard(() async => PluginInfo.parseList(await api.pluginList()));
+  Future<void> _reload() async => state = await AsyncValue.guard(
+    () async => PluginInfo.parseList(await api.pluginList()),
+  );
 
   Future<String?> installFile(String path) =>
       _guard(() => api.pluginInstallFile(path: path), _reload);
@@ -49,17 +53,24 @@ class PluginBook extends AsyncNotifier<List<PluginInfo>> {
   );
 }
 
-final pluginBookProvider = AsyncNotifierProvider<PluginBook, List<PluginInfo>>(PluginBook.new);
+final pluginBookProvider = AsyncNotifierProvider<PluginBook, List<PluginInfo>>(
+  PluginBook.new,
+);
 
 class RegistryUrl extends Notifier<String?> {
   @override
   String? build() => null;
-  void set(String? v) => state = (v == null || v.trim().isEmpty) ? null : v.trim();
+  void set(String? v) =>
+      state = (v == null || v.trim().isEmpty) ? null : v.trim();
 }
 
-final registryUrlProvider = NotifierProvider<RegistryUrl, String?>(RegistryUrl.new);
+final registryUrlProvider = NotifierProvider<RegistryUrl, String?>(
+  RegistryUrl.new,
+);
 
-final registryProvider = FutureProvider.autoDispose<List<RegistryEntry>>((ref) async {
+final registryProvider = FutureProvider.autoDispose<List<RegistryEntry>>((
+  ref,
+) async {
   final url = ref.watch(registryUrlProvider);
   return RegistryEntry.parse(await api.pluginRegistry(indexUrl: url));
 });
@@ -71,8 +82,9 @@ class McpBook extends AsyncNotifier<List<McpServer>> {
     return McpServer.parseList(await api.mcpList());
   }
 
-  Future<void> _reload() async =>
-      state = await AsyncValue.guard(() async => McpServer.parseList(await api.mcpList()));
+  Future<void> _reload() async => state = await AsyncValue.guard(
+    () async => McpServer.parseList(await api.mcpList()),
+  );
 
   Future<String?> save(Map<String, dynamic> spec) =>
       _guard(() => api.mcpSave(specJson: jsonEncode(spec)), _reload);
@@ -86,7 +98,9 @@ class McpBook extends AsyncNotifier<List<McpServer>> {
       _guard(() => api.mcpConnect(name: name), _reload);
 }
 
-final mcpBookProvider = AsyncNotifierProvider<McpBook, List<McpServer>>(McpBook.new);
+final mcpBookProvider = AsyncNotifierProvider<McpBook, List<McpServer>>(
+  McpBook.new,
+);
 
 class CredentialBook extends AsyncNotifier<List<CredInfo>> {
   @override
@@ -95,8 +109,9 @@ class CredentialBook extends AsyncNotifier<List<CredInfo>> {
     return CredInfo.parseList(await cred.credentialList());
   }
 
-  Future<void> _reload() async =>
-      state = await AsyncValue.guard(() async => CredInfo.parseList(await cred.credentialList()));
+  Future<void> _reload() async => state = await AsyncValue.guard(
+    () async => CredInfo.parseList(await cred.credentialList()),
+  );
 
   Future<({String? error, CredInfo? info})> create(
     String name,
@@ -105,11 +120,16 @@ class CredentialBook extends AsyncNotifier<List<CredInfo>> {
   ) async {
     CredInfo? info;
     final err = await _guard(() async {
-      final raw = await cred.credentialCreate(name: name, kind: kind, dataJson: jsonEncode(data));
+      final raw = await cred.credentialCreate(
+        name: name,
+        kind: kind,
+        dataJson: jsonEncode(data),
+      );
       info = CredInfo.fromJson((jsonDecode(raw) as Map).cast());
     }, _reload);
     return (error: err, info: info);
   }
+
   Future<String?> edit(String id, {String? name, Map<String, dynamic>? data}) =>
       _guard(
         () => cred.credentialUpdate(
@@ -123,13 +143,15 @@ class CredentialBook extends AsyncNotifier<List<CredInfo>> {
       _guard(() => cred.credentialDelete(id: id), _reload);
 }
 
-final credentialBookProvider = AsyncNotifierProvider<CredentialBook, List<CredInfo>>(CredentialBook.new);
+final credentialBookProvider =
+    AsyncNotifierProvider<CredentialBook, List<CredInfo>>(CredentialBook.new);
 
 final credentialTypesProvider = FutureProvider<List<CredType>>(
   (ref) async => CredType.parseList(await cred.credentialTypes()),
 );
 
 /// Which fields of a stored credential have a value (never the values).
-final credentialSetFieldsProvider = FutureProvider.autoDispose.family<List<String>, String>(
-  (ref, id) => cred.credentialSetFields(id: id),
-);
+final credentialSetFieldsProvider = FutureProvider.autoDispose
+    .family<List<String>, String>(
+      (ref, id) => cred.credentialSetFields(id: id),
+    );

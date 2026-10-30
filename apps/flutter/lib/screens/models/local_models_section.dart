@@ -33,11 +33,21 @@ class LocalOverview {
       totalRam = ((j['device'] as Map)['total_ram'] as num).toInt(),
       recommended = j['recommended'] as String?,
       fallback = j['fallback'] as String?,
-      models = (j['models'] as List).map((m) => LocalModel((m as Map).cast())).toList(),
-      custom = (j['custom'] as List).map((m) => (m as Map).cast<String, dynamic>()).toList(),
+      models = (j['models'] as List)
+          .map((m) => LocalModel((m as Map).cast()))
+          .toList(),
+      custom = (j['custom'] as List)
+          .map((m) => (m as Map).cast<String, dynamic>())
+          .toList(),
       gpuBackend = (j['gpu'] as Map?)?['backend'] as String?,
-      gpu = (((j['gpu'] as Map?)?['settings'] as Map?) ?? const {'enabled': true, 'device': 0}).cast<String, dynamic>(),
-      gpuDevices = [for (final d in ((j['gpu'] as Map?)?['devices'] as List? ?? const [])) (d as Map).cast<String, dynamic>()],
+      gpu =
+          (((j['gpu'] as Map?)?['settings'] as Map?) ??
+                  const {'enabled': true, 'device': 0})
+              .cast<String, dynamic>(),
+      gpuDevices = [
+        for (final d in ((j['gpu'] as Map?)?['devices'] as List? ?? const []))
+          (d as Map).cast<String, dynamic>(),
+      ],
       loaded = [for (final m in (j['loaded'] as List? ?? const [])) '$m'];
   final bool engine;
 
@@ -70,7 +80,8 @@ class LocalModelsNotifier extends AsyncNotifier<LocalOverview> {
 
   @override
   Future<LocalOverview> build() async {
-    if (ref.watch(rustInitErrorProvider) != null) throw StateError('Rust is not available');
+    if (ref.watch(rustInitErrorProvider) != null)
+      throw StateError('Rust is not available');
     ref.onDispose(() {
       for (final s in _subs.values) {
         s.cancel();
@@ -79,7 +90,9 @@ class LocalModelsNotifier extends AsyncNotifier<LocalOverview> {
     return _load();
   }
 
-  Future<LocalOverview> _load() async => LocalOverview(jsonDecode(await api.localModelsOverview()) as Map<String, dynamic>);
+  Future<LocalOverview> _load() async => LocalOverview(
+    jsonDecode(await api.localModelsOverview()) as Map<String, dynamic>,
+  );
 
   Future<void> refresh() async => state = await AsyncValue.guard(_load);
 
@@ -90,25 +103,30 @@ class LocalModelsNotifier extends AsyncNotifier<LocalOverview> {
     final done = Completer<String?>();
     progress[id] = 0;
     late StreamSubscription<String> sub;
-    sub = api.localModelDownload(id: id).listen(
-      (ev) {
-        final j = jsonDecode(ev) as Map;
-        progress[id] = ((j['done'] as num) / (j['total'] as num).clamp(1, double.infinity)).toDouble();
-        ref.notifyListeners();
-      },
-      onError: (Object e) {
-        progress.remove(id);
-        _subs.remove(id);
-        done.complete(describeError(e));
-      },
-      onDone: () async {
-        progress.remove(id);
-        _subs.remove(id);
-        await reload();
-        if (!done.isCompleted) done.complete(null);
-      },
-      cancelOnError: true,
-    );
+    sub = api
+        .localModelDownload(id: id)
+        .listen(
+          (ev) {
+            final j = jsonDecode(ev) as Map;
+            progress[id] =
+                ((j['done'] as num) /
+                        (j['total'] as num).clamp(1, double.infinity))
+                    .toDouble();
+            ref.notifyListeners();
+          },
+          onError: (Object e) {
+            progress.remove(id);
+            _subs.remove(id);
+            done.complete(describeError(e));
+          },
+          onDone: () async {
+            progress.remove(id);
+            _subs.remove(id);
+            await reload();
+            if (!done.isCompleted) done.complete(null);
+          },
+          cancelOnError: true,
+        );
     _subs[id] = sub;
     return done.future;
   }
@@ -135,9 +153,19 @@ class LocalModelsNotifier extends AsyncNotifier<LocalOverview> {
     }
   }
 
-  Future<String?> setGpu({required bool enabled, required int device, int? layers}) async {
+  Future<String?> setGpu({
+    required bool enabled,
+    required int device,
+    int? layers,
+  }) async {
     try {
-      await api.localSetGpu(settingsJson: jsonEncode({'enabled': enabled, 'device': device, 'layers': layers}));
+      await api.localSetGpu(
+        settingsJson: jsonEncode({
+          'enabled': enabled,
+          'device': device,
+          'layers': layers,
+        }),
+      );
       await reload();
       return null;
     } catch (e) {
@@ -156,7 +184,10 @@ class LocalModelsNotifier extends AsyncNotifier<LocalOverview> {
   }
 }
 
-final localModelsProvider = AsyncNotifierProvider<LocalModelsNotifier, LocalOverview>(LocalModelsNotifier.new);
+final localModelsProvider =
+    AsyncNotifierProvider<LocalModelsNotifier, LocalOverview>(
+      LocalModelsNotifier.new,
+    );
 
 String formatBytes(int b) {
   const gb = 1024 * 1024 * 1024;
@@ -205,7 +236,8 @@ class LocalModelsSection extends ConsumerWidget {
         const SizedBox(height: HkTokens.s3),
         overview.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Text(describeError(e), style: TextStyle(color: hk.err)),
+          error: (e, _) =>
+              Text(describeError(e), style: TextStyle(color: hk.err)),
           data: (o) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -217,7 +249,10 @@ class LocalModelsSection extends ConsumerWidget {
                     style: text.bodySmall?.copyWith(color: hk.warn),
                   ),
                 ),
-              Text('This device has ${formatBytes(o.totalRam)} of RAM.', style: text.bodySmall),
+              Text(
+                'This device has ${formatBytes(o.totalRam)} of RAM.',
+                style: text.bodySmall,
+              ),
               const SizedBox(height: HkTokens.s2),
               Container(
                 padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
@@ -228,11 +263,17 @@ class LocalModelsSection extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.memory, size: 18, color: o.loaded.isEmpty ? hk.textFaint : hk.ok),
+                    Icon(
+                      Icons.memory,
+                      size: 18,
+                      color: o.loaded.isEmpty ? hk.textFaint : hk.ok,
+                    ),
                     const SizedBox(width: HkTokens.s2),
                     Expanded(
                       child: Text(
-                        o.loaded.isEmpty ? 'No model in memory' : 'In memory: ${o.loaded.join(', ')}',
+                        o.loaded.isEmpty
+                            ? 'No model in memory'
+                            : 'In memory: ${o.loaded.join(', ')}',
                         style: text.bodySmall,
                       ),
                     ),
@@ -240,9 +281,12 @@ class LocalModelsSection extends ConsumerWidget {
                       onPressed: o.loaded.isEmpty
                           ? null
                           : () async {
-                              await gate.hk('local.unload').catchError((_) => 0);
+                              await gate
+                                  .hk('local.unload')
+                                  .catchError((_) => 0);
                               await notifier.refresh();
-                              if (context.mounted) toast('Model unloaded; memory freed');
+                              if (context.mounted)
+                                toast('Model unloaded; memory freed');
                             },
                       icon: const Icon(Icons.eject_outlined, size: 16),
                       label: const Text('Unload'),
@@ -253,12 +297,20 @@ class LocalModelsSection extends ConsumerWidget {
               const SizedBox(height: HkTokens.s2),
               DropdownButtonFormField<String?>(
                 key: ValueKey('fb-${o.fallback}-${o.installedChoices.length}'),
-                initialValue: o.installedChoices.any((c) => c.$1 == o.fallback) ? o.fallback : null,
+                initialValue: o.installedChoices.any((c) => c.$1 == o.fallback)
+                    ? o.fallback
+                    : null,
                 isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Offline fallback model'),
+                decoration: const InputDecoration(
+                  labelText: 'Offline fallback model',
+                ),
                 items: [
-                  const DropdownMenuItem<String?>(value: null, child: Text('None')),
-                  for (final c in o.installedChoices) DropdownMenuItem<String?>(value: c.$1, child: Text(c.$2)),
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('None'),
+                  ),
+                  for (final c in o.installedChoices)
+                    DropdownMenuItem<String?>(value: c.$1, child: Text(c.$2)),
                 ],
                 onChanged: (v) async {
                   final err = await notifier.setFallback(v);
@@ -266,10 +318,17 @@ class LocalModelsSection extends ConsumerWidget {
                 },
               ),
               const SizedBox(height: HkTokens.s2),
-              _GpuCard(overview: o, onChanged: (en, dev, layers) async {
-                final err = await notifier.setGpu(enabled: en, device: dev, layers: layers);
-                if (err != null && context.mounted) toast(err);
-              }),
+              _GpuCard(
+                overview: o,
+                onChanged: (en, dev, layers) async {
+                  final err = await notifier.setGpu(
+                    enabled: en,
+                    device: dev,
+                    layers: layers,
+                  );
+                  if (err != null && context.mounted) toast(err);
+                },
+              ),
               const SizedBox(height: HkTokens.s3),
               for (final m in o.models)
                 _ModelRow(
@@ -354,10 +413,16 @@ class _ModelRow extends StatelessWidget {
                   style: text.titleSmall,
                 ),
               ),
-              Text(formatBytes(model.sizeBytes), style: text.bodySmall?.copyWith(color: hk.textMuted)),
+              Text(
+                formatBytes(model.sizeBytes),
+                style: text.bodySmall?.copyWith(color: hk.textMuted),
+              ),
             ],
           ),
-          Text(model.note, style: text.bodySmall?.copyWith(color: hk.textMuted)),
+          Text(
+            model.note,
+            style: text.bodySmall?.copyWith(color: hk.textMuted),
+          ),
           const SizedBox(height: HkTokens.s1),
           Row(
             children: [
@@ -372,7 +437,11 @@ class _ModelRow extends StatelessWidget {
               if (busy)
                 TextButton(onPressed: onCancel, child: const Text('Cancel'))
               else if (model.installed)
-                TextButton.icon(onPressed: onDelete, icon: const Icon(Icons.delete_outline, size: 18), label: const Text('Delete'))
+                TextButton.icon(
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Delete'),
+                )
               else
                 FilledButton.tonal(
                   onPressed: model.fit == 'too_big' ? null : onDownload,
@@ -383,7 +452,9 @@ class _ModelRow extends StatelessWidget {
           if (busy)
             Padding(
               padding: const EdgeInsets.only(top: HkTokens.s2),
-              child: LinearProgressIndicator(value: progress == 0 ? null : progress),
+              child: LinearProgressIndicator(
+                value: progress == 0 ? null : progress,
+              ),
             ),
         ],
       ),
@@ -403,7 +474,9 @@ class _GpuCard extends StatefulWidget {
 }
 
 class _GpuCardState extends State<_GpuCard> {
-  late final _layers = TextEditingController(text: (widget.overview.gpu['layers'] as num?)?.toString() ?? '');
+  late final _layers = TextEditingController(
+    text: (widget.overview.gpu['layers'] as num?)?.toString() ?? '',
+  );
 
   @override
   void dispose() {
@@ -418,7 +491,10 @@ class _GpuCardState extends State<_GpuCard> {
     final text = Theme.of(context).textTheme;
     final backend = o.gpuBackend;
     if (backend == null) {
-      return Text('Local models run on the CPU in this build.', style: text.bodySmall?.copyWith(color: hk.textMuted));
+      return Text(
+        'Local models run on the CPU in this build.',
+        style: text.bodySmall?.copyWith(color: hk.textMuted),
+      );
     }
     final enabled = o.gpu['enabled'] != false;
     final device = (o.gpu['device'] as num?)?.toInt() ?? 0;
@@ -432,8 +508,12 @@ class _GpuCardState extends State<_GpuCard> {
           children: [
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text('Use the GPU (${backend[0].toUpperCase()}${backend.substring(1)})'),
-              subtitle: const Text('Much faster when the model fits in video memory. If loading on the GPU fails, the CPU is used.'),
+              title: Text(
+                'Use the GPU (${backend[0].toUpperCase()}${backend.substring(1)})',
+              ),
+              subtitle: const Text(
+                'Much faster when the model fits in video memory. If loading on the GPU fails, the CPU is used.',
+              ),
               value: enabled,
               onChanged: (v) => widget.onChanged(v, device, layers()),
             ),
@@ -443,11 +523,20 @@ class _GpuCardState extends State<_GpuCard> {
                   SizedBox(
                     width: 280,
                     child: DropdownButtonFormField<int>(
-                      initialValue: o.gpuDevices.any((d) => d['position'] == device) ? device : 0,
+                      initialValue:
+                          o.gpuDevices.any((d) => d['position'] == device)
+                          ? device
+                          : 0,
                       isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'GPU', isDense: true),
+                      decoration: const InputDecoration(
+                        labelText: 'GPU',
+                        isDense: true,
+                      ),
                       items: [
-                        const DropdownMenuItem(value: 0, child: Text('Auto (best discrete GPU)')),
+                        const DropdownMenuItem(
+                          value: 0,
+                          child: Text('Auto (best discrete GPU)'),
+                        ),
                         for (final d in o.gpuDevices)
                           DropdownMenuItem(
                             value: (d['position'] as num).toInt(),
@@ -457,7 +546,8 @@ class _GpuCardState extends State<_GpuCard> {
                             ),
                           ),
                       ],
-                      onChanged: (v) => widget.onChanged(enabled, v ?? 0, layers()),
+                      onChanged: (v) =>
+                          widget.onChanged(enabled, v ?? 0, layers()),
                     ),
                   ),
                   const SizedBox(width: HkTokens.s3),
@@ -465,11 +555,21 @@ class _GpuCardState extends State<_GpuCard> {
                     child: TextField(
                       controller: _layers,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Layers on the GPU', hintText: 'empty = all', isDense: true),
-                      onSubmitted: (_) => widget.onChanged(enabled, device, layers()),
+                      decoration: const InputDecoration(
+                        labelText: 'Layers on the GPU',
+                        hintText: 'empty = all',
+                        isDense: true,
+                      ),
+                      onSubmitted: (_) =>
+                          widget.onChanged(enabled, device, layers()),
                     ),
                   ),
-                  IconButton(tooltip: 'Apply', icon: const Icon(Icons.check), onPressed: () => widget.onChanged(enabled, device, layers())),
+                  IconButton(
+                    tooltip: 'Apply',
+                    icon: const Icon(Icons.check),
+                    onPressed: () =>
+                        widget.onChanged(enabled, device, layers()),
+                  ),
                 ],
               ),
           ],

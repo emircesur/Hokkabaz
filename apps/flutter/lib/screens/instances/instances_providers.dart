@@ -29,9 +29,8 @@ class InstanceBook extends AsyncNotifier<List<InstanceDto>> {
     return err;
   }
 
-  Future<String?> add(String name, String url, String token) => _run(
-    () => api.addInstance(name: name, baseUrl: url, token: token),
-  );
+  Future<String?> add(String name, String url, String token) =>
+      _run(() => api.addInstance(name: name, baseUrl: url, token: token));
 
   Future<String?> pair(String uri, String? name) => _run(
     () => api.pairFromUri(

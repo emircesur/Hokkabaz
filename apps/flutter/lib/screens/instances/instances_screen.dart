@@ -183,19 +183,14 @@ class _InstanceCardState extends ConsumerState<_InstanceCard> {
           hk.warn,
           s.message ?? 'Token rejected',
         ),
-        InstanceStateDto.unreachable => (
-          hk.err,
-          s.message ?? 'Unreachable',
-        ),
+        InstanceStateDto.unreachable => (hk.err, s.message ?? 'Unreachable'),
       },
     );
     return Container(
       padding: const EdgeInsets.all(HkTokens.s3),
       decoration: BoxDecoration(
         color: hk.surface,
-        border: Border.all(
-          color: i.connected ? hk.accent : hk.border,
-        ),
+        border: Border.all(color: i.connected ? hk.accent : hk.border),
         borderRadius: BorderRadius.circular(HkTokens.radiusCard),
       ),
       child: Row(

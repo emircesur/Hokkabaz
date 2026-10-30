@@ -513,7 +513,10 @@ class _GenTabState extends State<_GenTab> {
               ],
       ),
       const SizedBox(height: HkTokens.s4),
-      Text('Embeddings (knowledge search)', style: Theme.of(context).textTheme.titleMedium),
+      Text(
+        'Embeddings (knowledge search)',
+        style: Theme.of(context).textTheme.titleMedium,
+      ),
       const SizedBox(height: HkTokens.s1),
       Text(
         'With an embedding model, knowledge bases use hybrid search (keywords + meaning). Re-index after changing it.',
@@ -548,7 +551,9 @@ class _GenTabState extends State<_GenTab> {
               'settings': {
                 'tts': _tts,
                 'image': _img,
-                'embed': (_emb['engine'] == null || _emb['engine'] == 'off') ? null : _emb,
+                'embed': (_emb['engine'] == null || _emb['engine'] == 'off')
+                    ? null
+                    : _emb,
               },
             }),
             ok: 'Saved',

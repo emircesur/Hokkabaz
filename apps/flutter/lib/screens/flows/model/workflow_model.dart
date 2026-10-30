@@ -88,7 +88,8 @@ class FlowNode {
     if (c is! Map) return const {};
     return {
       for (final e in c.entries)
-        if (e.value is Map) '${e.key}': (e.value as Map).cast<String, dynamic>(),
+        if (e.value is Map)
+          '${e.key}': (e.value as Map).cast<String, dynamic>(),
     };
   }
 

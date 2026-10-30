@@ -294,7 +294,15 @@ class _MessageList extends ConsumerWidget {
                   runSpacing: HkTokens.s3,
                   alignment: WrapAlignment.center,
                   children: [
-                    for (final (icon, label, prompt) in _starters)
+                    for (final (icon, label, prompt)
+                        in (ref
+                                .watch(agentStartersProvider)[sessionId]
+                                ?.map(
+                                  (p) =>
+                                      (Icons.chat_bubble_outline, 'Start', p),
+                                )
+                                .toList() ??
+                            _starters))
                       SizedBox(
                         width: 300,
                         child: HoverCard(

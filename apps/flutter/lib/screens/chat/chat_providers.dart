@@ -98,6 +98,19 @@ final composerModelProvider = NotifierProvider<ComposerModel, String?>(
   ComposerModel.new,
 );
 
+/// Conversation starters of the agent a chat was started from (session id → prompts).
+class AgentStarters extends Notifier<Map<String, List<String>>> {
+  @override
+  Map<String, List<String>> build() => const {};
+  void set(String sessionId, List<String> s) =>
+      state = {...state, sessionId: s};
+}
+
+final agentStartersProvider =
+    NotifierProvider<AgentStarters, Map<String, List<String>>>(
+      AgentStarters.new,
+    );
+
 /// Text pushed into a chat's composer (edit & resend, prompt library), keyed by session.
 class ComposerDraft extends Notifier<(String, String)?> {
   @override

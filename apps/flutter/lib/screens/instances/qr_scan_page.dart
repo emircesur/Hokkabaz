@@ -10,7 +10,10 @@ class QrScanPage extends StatefulWidget {
 }
 
 class _QrScanPageState extends State<QrScanPage> {
-  final _controller = MobileScannerController(formats: const [BarcodeFormat.qrCode], detectionSpeed: DetectionSpeed.noDuplicates);
+  final _controller = MobileScannerController(
+    formats: const [BarcodeFormat.qrCode],
+    detectionSpeed: DetectionSpeed.noDuplicates,
+  );
   bool _done = false;
 
   @override
@@ -21,7 +24,10 @@ class _QrScanPageState extends State<QrScanPage> {
 
   void _onDetect(BarcodeCapture capture) {
     if (_done) return;
-    final value = capture.barcodes.map((b) => b.rawValue).whereType<String>().firstOrNull;
+    final value = capture.barcodes
+        .map((b) => b.rawValue)
+        .whereType<String>()
+        .firstOrNull;
     if (value == null || value.isEmpty) return;
     _done = true;
     Navigator.of(context).pop(value);
@@ -33,8 +39,16 @@ class _QrScanPageState extends State<QrScanPage> {
       appBar: AppBar(
         title: const Text('Scan pairing QR'),
         actions: [
-          IconButton(tooltip: 'Torch', icon: const Icon(Icons.flashlight_on_outlined), onPressed: _controller.toggleTorch),
-          IconButton(tooltip: 'Switch camera', icon: const Icon(Icons.cameraswitch_outlined), onPressed: _controller.switchCamera),
+          IconButton(
+            tooltip: 'Torch',
+            icon: const Icon(Icons.flashlight_on_outlined),
+            onPressed: _controller.toggleTorch,
+          ),
+          IconButton(
+            tooltip: 'Switch camera',
+            icon: const Icon(Icons.cameraswitch_outlined),
+            onPressed: _controller.switchCamera,
+          ),
         ],
       ),
       body: Stack(
@@ -58,7 +72,13 @@ class _QrScanPageState extends State<QrScanPage> {
             alignment: Alignment.bottomCenter,
             child: Padding(
               padding: EdgeInsets.all(24),
-              child: Text('Run `hokkabazd pair` and point the camera at the QR code', style: TextStyle(color: Colors.white, shadows: [Shadow(blurRadius: 4)])),
+              child: Text(
+                'Run `hokkabazd pair` and point the camera at the QR code',
+                style: TextStyle(
+                  color: Colors.white,
+                  shadows: [Shadow(blurRadius: 4)],
+                ),
+              ),
             ),
           ),
         ],

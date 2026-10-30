@@ -119,13 +119,7 @@ pub(crate) async fn call(c: &Ctx<'_>, method: &str, p: Value) -> Result<Value, H
             "settings.save" => {
                 let id = str_arg(&p, "session_id")?.to_string();
                 let v = p.get("settings").cloned().unwrap_or(Value::Null);
-                let mut all = doc_get(c.store, "session_settings").await?;
-                if !all.is_object() {
-                    all = json!({});
-                }
-                all[&id] = v.clone();
-                doc_set(c.store, "session_settings", &all).await?;
-                apply_session_settings(c.runtime, &id, &v);
+                save_session_settings(c, &id, &v).await?;
                 Ok(v)
             }
             "delete" => {
@@ -264,6 +258,18 @@ pub(crate) fn local_profiles(
         mlock: o.get("mlock").and_then(Value::as_bool),
     };
     std::iter::once(("*".to_string(), legacy)).collect()
+}
+
+/// Store and apply a chat's run settings (also used when an agent starts a chat).
+pub(crate) async fn save_session_settings(c: &Ctx<'_>, id: &str, v: &Value) -> Result<(), HkError> {
+    let mut all = doc_get(c.store, "session_settings").await?;
+    if !all.is_object() {
+        all = json!({});
+    }
+    all[id] = v.clone();
+    doc_set(c.store, "session_settings", &all).await?;
+    apply_session_settings(c.runtime, id, v);
+    Ok(())
 }
 
 fn apply_session_settings(rt: &LocalRuntime, id: &str, v: &Value) {

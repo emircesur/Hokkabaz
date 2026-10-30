@@ -4,7 +4,11 @@ import 'workflow_model.dart';
 
 /// A credential type a node can use; shown when its `displayOptions` match the parameters.
 class CredReq {
-  const CredReq({required this.name, required this.required, required this.visibility});
+  const CredReq({
+    required this.name,
+    required this.required,
+    required this.visibility,
+  });
 
   factory CredReq.fromJson(Map<String, dynamic> j) => CredReq(
     name: j['name'] as String,

@@ -97,12 +97,8 @@ class CredField {
   final List<(Object?, String)> options;
 
   /// Fields the form can edit as text; the rest (notices, collections) are skipped.
-  bool get editable => const {
-    'string',
-    'number',
-    'boolean',
-    'options',
-  }.contains(type);
+  bool get editable =>
+      const {'string', 'number', 'boolean', 'options'}.contains(type);
 }
 
 class CredType {

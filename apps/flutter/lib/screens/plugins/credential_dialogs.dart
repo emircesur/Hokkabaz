@@ -18,7 +18,10 @@ Future<CredInfo?> showCredentialDialog(
   CredInfo? existing,
 }) => showDialog<CredInfo>(
   context: context,
-  builder: (_) => _CredentialDialog(fixedType: fixedType ?? existing?.type, existing: existing),
+  builder: (_) => _CredentialDialog(
+    fixedType: fixedType ?? existing?.type,
+    existing: existing,
+  ),
 );
 
 class _CredentialDialog extends ConsumerStatefulWidget {
@@ -92,17 +95,28 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
         final v = _ctl(f).text;
         if (v.isNotEmpty) data[f.name] = v;
       }
-      final b = jsonDecode(await cred_api.oauthBegin(kind: t.name, dataJson: jsonEncode(data))) as Map<String, dynamic>;
+      final b = jsonDecode(
+        await cred_api.oauthBegin(kind: t.name, dataJson: jsonEncode(data)),
+      ) as Map<String, dynamic>;
       _oauthState = b['state'] as String;
-      setState(() => _signInNote = 'Waiting for the browser. The provider app must allow the redirect ${b['redirect_uri']}');
-      await launchUrl(Uri.parse(b['auth_url'] as String), mode: LaunchMode.externalApplication);
-      final tokens = jsonDecode(await cred_api.oauthFinish(state: _oauthState!)) as Map<String, dynamic>;
+      setState(
+        () => _signInNote =
+            'Waiting for the browser. The provider app must allow the redirect ${b['redirect_uri']}',
+      );
+      await launchUrl(
+        Uri.parse(b['auth_url'] as String),
+        mode: LaunchMode.externalApplication,
+      );
+      final tokens = jsonDecode(
+        await cred_api.oauthFinish(state: _oauthState!),
+      ) as Map<String, dynamic>;
       _oauthState = null;
       for (final f in t.fields) {
         final v = tokens[f.name];
         if (v is String && v.isNotEmpty) _ctl(f).text = v;
       }
-      if (mounted) setState(() => _signInNote = 'Signed in. Press Save to keep it.');
+      if (mounted)
+        setState(() => _signInNote = 'Signed in. Press Save to keep it.');
     } catch (e) {
       _oauthState = null;
       if (mounted) {
@@ -116,7 +130,9 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
 
   Future<void> _save(CredType t) async {
     final missing = _replace
-        ? t.fields.where((f) => f.required && _ctl(f).text.isEmpty).map((f) => f.label)
+        ? t.fields
+              .where((f) => f.required && _ctl(f).text.isEmpty)
+              .map((f) => f.label)
         : const <String>[];
     if (_name.text.trim().isEmpty) {
       setState(() => _error = 'Name is required');
@@ -139,7 +155,11 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
       err = r.error;
       made = r.info;
     } else {
-      err = await book.edit(old.id, name: _name.text.trim(), data: _replace ? _collect(t) : null);
+      err = await book.edit(
+        old.id,
+        name: _name.text.trim(),
+        data: _replace ? _collect(t) : null,
+      );
     }
     if (!mounted) return;
     if (err != null) {
@@ -157,11 +177,16 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
     final types = ref.watch(credentialTypesProvider);
     final hk = context.hk;
     return AlertDialog(
-      title: Text(widget.existing == null ? 'New credential' : 'Edit credential'),
+      title: Text(
+        widget.existing == null ? 'New credential' : 'Edit credential',
+      ),
       content: SizedBox(
         width: 460,
         child: types.when(
-          loading: () => const SizedBox(height: 80, child: Center(child: CircularProgressIndicator())),
+          loading: () => const SizedBox(
+            height: 80,
+            child: Center(child: CircularProgressIndicator()),
+          ),
           error: (e, _) => Text('$e', style: TextStyle(color: hk.err)),
           data: (all) {
             final t = all.where((x) => x.name == _type).firstOrNull;
@@ -178,7 +203,11 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
                       requestFocusOnTap: true,
                       initialSelection: _type,
                       dropdownMenuEntries: [
-                        for (final x in all) DropdownMenuEntry(value: x.name, label: x.displayName),
+                        for (final x in all)
+                          DropdownMenuEntry(
+                            value: x.name,
+                            label: x.displayName,
+                          ),
                       ],
                       onSelected: (v) => setState(() {
                         _type = v;
@@ -186,7 +215,10 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
                       }),
                     )
                   else
-                    Text(t?.displayName ?? widget.fixedType!, style: Theme.of(context).textTheme.titleSmall),
+                    Text(
+                      t?.displayName ?? widget.fixedType!,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
                   const SizedBox(height: HkTokens.s3),
                   TextField(
                     controller: _name,
@@ -197,25 +229,47 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Replace stored values'),
-                        subtitle: const Text('Values are never shown; re-enter all fields to change them.'),
+                        subtitle: const Text(
+                          'Values are never shown; re-enter all fields to change them.',
+                        ),
                         value: _replace,
                         onChanged: (v) => setState(() => _replace = v),
                       ),
-                    if (_replace && t.fields.any((f) => f.name == 'authUrl') && t.fields.any((f) => f.name == 'clientId'))
+                    if (_replace &&
+                        t.fields.any((f) => f.name == 'authUrl') &&
+                        t.fields.any((f) => f.name == 'clientId'))
                       Padding(
                         padding: const EdgeInsets.only(top: HkTokens.s2),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             OutlinedButton.icon(
-                              onPressed: _busy || _oauthState != null ? null : () => _signIn(t),
+                              onPressed: _busy || _oauthState != null
+                                  ? null
+                                  : () => _signIn(t),
                               icon: _oauthState != null
-                                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
                                   : const Icon(Icons.login, size: 18),
                               label: const Text('Sign in with your account'),
                             ),
-                            if (_signInNote != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(_signInNote!, style: Theme.of(context).textTheme.bodySmall)),
-                            const Text('Fill Client ID (and secret) of your own app first.', style: TextStyle(fontSize: 12)),
+                            if (_signInNote != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  _signInNote!,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ),
+                            const Text(
+                              'Fill Client ID (and secret) of your own app first.',
+                              style: TextStyle(fontSize: 12),
+                            ),
                           ],
                         ),
                       ),
@@ -238,11 +292,19 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: _busy ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
           onPressed: _busy || _type == null
               ? null
-              : () => _save(ref.read(credentialTypesProvider).requireValue.firstWhere((x) => x.name == _type)),
+              : () => _save(
+                  ref
+                      .read(credentialTypesProvider)
+                      .requireValue
+                      .firstWhere((x) => x.name == _type),
+                ),
           child: Text(_busy ? 'Saving…' : 'Save'),
         ),
       ],
@@ -256,8 +318,13 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
       return DropdownMenu<Object?>(
         width: 460 - 48,
         label: Text(label),
-        initialSelection: f.options.any((o) => '${o.$1}' == c.text) ? f.options.firstWhere((o) => '${o.$1}' == c.text).$1 : null,
-        dropdownMenuEntries: [for (final o in f.options) DropdownMenuEntry(value: o.$1, label: o.$2)],
+        initialSelection: f.options.any((o) => '${o.$1}' == c.text)
+            ? f.options.firstWhere((o) => '${o.$1}' == c.text).$1
+            : null,
+        dropdownMenuEntries: [
+          for (final o in f.options)
+            DropdownMenuEntry(value: o.$1, label: o.$2),
+        ],
         onSelected: (v) => c.text = '${v ?? ''}',
       );
     }
@@ -266,7 +333,10 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
       return Row(
         children: [
           Expanded(child: Text(label)),
-          Switch(value: c.text == 'true', onChanged: (v) => setState(() => c.text = '$v')),
+          Switch(
+            value: c.text == 'true',
+            onChanged: (v) => setState(() => c.text = '$v'),
+          ),
         ],
       );
     }
@@ -276,7 +346,11 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
       enableSuggestions: !f.secret,
       autocorrect: false,
       keyboardType: f.type == 'number' ? TextInputType.number : null,
-      decoration: InputDecoration(labelText: label, helperText: f.description, helperMaxLines: 2),
+      decoration: InputDecoration(
+        labelText: label,
+        helperText: f.description,
+        helperMaxLines: 2,
+      ),
     );
   }
 }

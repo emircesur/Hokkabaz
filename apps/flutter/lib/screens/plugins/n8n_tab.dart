@@ -27,7 +27,9 @@ class N8nLinkNotifier extends AsyncNotifier<N8nLink> {
   Future<String?> save(String? credentialId, bool delegate) async {
     try {
       await api.n8NConfigure(credentialId: credentialId, delegate: delegate);
-      state = AsyncData(N8nLink(credentialId, delegate && credentialId != null));
+      state = AsyncData(
+        N8nLink(credentialId, delegate && credentialId != null),
+      );
       ref.invalidate(n8nWorkflowsProvider);
       return null;
     } catch (e) {
@@ -36,7 +38,9 @@ class N8nLinkNotifier extends AsyncNotifier<N8nLink> {
   }
 }
 
-final n8nLinkProvider = AsyncNotifierProvider<N8nLinkNotifier, N8nLink>(N8nLinkNotifier.new);
+final n8nLinkProvider = AsyncNotifierProvider<N8nLinkNotifier, N8nLink>(
+  N8nLinkNotifier.new,
+);
 
 class RemoteWorkflow {
   RemoteWorkflow(Map<String, dynamic> j)
@@ -49,7 +53,9 @@ class RemoteWorkflow {
   final int? nodes;
 }
 
-final n8nWorkflowsProvider = FutureProvider.autoDispose<List<RemoteWorkflow>>((ref) async {
+final n8nWorkflowsProvider = FutureProvider.autoDispose<List<RemoteWorkflow>>((
+  ref,
+) async {
   final link = await ref.watch(n8nLinkProvider.future);
   if (link.credentialId == null) return const [];
   final raw = jsonDecode(await api.n8NListWorkflows()) as List;
@@ -88,7 +94,10 @@ class _N8nTabState extends ConsumerState<N8nTab> {
       final r = jsonDecode(await api.n8NPull(id: w.id)) as Map;
       final wf = FlowWorkflow.fromJson(r['workflow']);
       final store = await FlowStore.open();
-      await store.create(w.name.isEmpty ? 'Imported from n8n' : w.name, from: wf);
+      await store.create(
+        w.name.isEmpty ? 'Imported from n8n' : w.name,
+        from: wf,
+      );
       final un = (r['unmapped'] as List).cast<Map>();
       _toast(
         un.isEmpty
@@ -106,7 +115,9 @@ class _N8nTabState extends ConsumerState<N8nTab> {
     final hk = context.hk;
     final text = Theme.of(context).textTheme;
     final link = ref.watch(n8nLinkProvider);
-    final creds = (ref.watch(credentialBookProvider).value ?? const []).where((c) => c.type == 'n8nApi').toList();
+    final creds = (ref.watch(credentialBookProvider).value ?? const [])
+        .where((c) => c.type == 'n8nApi')
+        .toList();
     final remote = ref.watch(n8nWorkflowsProvider);
     return ListView(
       padding: const EdgeInsets.all(HkTokens.s4),
@@ -133,13 +144,24 @@ class _N8nTabState extends ConsumerState<N8nTab> {
                         key: ValueKey('n8n-${l.credentialId}-${creds.length}'),
                         initialValue: known ? l.credentialId : null,
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'n8n API credential'),
+                        decoration: const InputDecoration(
+                          labelText: 'n8n API credential',
+                        ),
                         items: [
-                          const DropdownMenuItem<String?>(value: null, child: Text('Not linked')),
-                          for (final c in creds) DropdownMenuItem<String?>(value: c.id, child: Text(c.name)),
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('Not linked'),
+                          ),
+                          for (final c in creds)
+                            DropdownMenuItem<String?>(
+                              value: c.id,
+                              child: Text(c.name),
+                            ),
                         ],
                         onChanged: (v) async {
-                          final err = await ref.read(n8nLinkProvider.notifier).save(v, l.delegate);
+                          final err = await ref
+                              .read(n8nLinkProvider.notifier)
+                              .save(v, l.delegate);
                           if (err != null) _toast(err);
                         },
                       ),
@@ -148,9 +170,14 @@ class _N8nTabState extends ConsumerState<N8nTab> {
                       tooltip: 'New n8n credential',
                       icon: const Icon(Icons.add),
                       onPressed: () async {
-                        final made = await showCredentialDialog(context, fixedType: 'n8nApi');
+                        final made = await showCredentialDialog(
+                          context,
+                          fixedType: 'n8nApi',
+                        );
                         if (made != null) {
-                          final err = await ref.read(n8nLinkProvider.notifier).save(made.id, l.delegate);
+                          final err = await ref
+                              .read(n8nLinkProvider.notifier)
+                              .save(made.id, l.delegate);
                           if (err != null) _toast(err);
                         }
                       },
@@ -168,7 +195,9 @@ class _N8nTabState extends ConsumerState<N8nTab> {
                       onChanged: l.credentialId == null
                           ? null
                           : (v) async {
-                              final err = await ref.read(n8nLinkProvider.notifier).save(l.credentialId, v);
+                              final err = await ref
+                                  .read(n8nLinkProvider.notifier)
+                                  .save(l.credentialId, v);
                               if (err != null) _toast(err);
                             },
                     ),
@@ -193,7 +222,9 @@ class _N8nTabState extends ConsumerState<N8nTab> {
         const SizedBox(height: HkTokens.s4),
         Row(
           children: [
-            Expanded(child: Text('Workflows on the instance', style: text.titleSmall)),
+            Expanded(
+              child: Text('Workflows on the instance', style: text.titleSmall),
+            ),
             IconButton(
               tooltip: 'Refresh',
               icon: const Icon(Icons.refresh),
@@ -202,19 +233,31 @@ class _N8nTabState extends ConsumerState<N8nTab> {
           ],
         ),
         remote.when(
-          loading: () => const Padding(padding: EdgeInsets.all(HkTokens.s4), child: Center(child: CircularProgressIndicator())),
-          error: (e, _) => Text(describeError(e), style: TextStyle(color: hk.err)),
+          loading: () => const Padding(
+            padding: EdgeInsets.all(HkTokens.s4),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (e, _) =>
+              Text(describeError(e), style: TextStyle(color: hk.err)),
           data: (list) => list.isEmpty
-              ? Text('Nothing to show. Link a credential to list workflows.', style: TextStyle(color: hk.textMuted))
+              ? Text(
+                  'Nothing to show. Link a credential to list workflows.',
+                  style: TextStyle(color: hk.textMuted),
+                )
               : Column(
                   children: [
                     for (final w in list)
                       Card(
                         margin: const EdgeInsets.only(bottom: HkTokens.s2),
                         child: ListTile(
-                          leading: Icon(w.active ? Icons.bolt : Icons.account_tree_outlined, color: w.active ? hk.ok : null),
+                          leading: Icon(
+                            w.active ? Icons.bolt : Icons.account_tree_outlined,
+                            color: w.active ? hk.ok : null,
+                          ),
                           title: Text(w.name),
-                          subtitle: Text('${w.nodes ?? '?'} nodes${w.active ? ' · active' : ''}'),
+                          subtitle: Text(
+                            '${w.nodes ?? '?'} nodes${w.active ? ' · active' : ''}',
+                          ),
                           trailing: FilledButton(
                             onPressed: _busy ? null : () => _import(w),
                             child: const Text('Import'),

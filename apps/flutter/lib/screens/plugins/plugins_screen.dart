@@ -29,7 +29,12 @@ class PluginsScreen extends ConsumerWidget {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(HkTokens.s4, HkTokens.s4, HkTokens.s4, 0),
+                padding: const EdgeInsets.fromLTRB(
+                  HkTokens.s4,
+                  HkTokens.s4,
+                  HkTokens.s4,
+                  0,
+                ),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Column(
@@ -47,15 +52,30 @@ class PluginsScreen extends ConsumerWidget {
               const TabBar(
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
-                tabs: [Tab(text: 'Plugins'), Tab(text: 'MCP servers'), Tab(text: 'Credentials'), Tab(text: 'n8n')],
+                tabs: [
+                  Tab(text: 'Plugins'),
+                  Tab(text: 'MCP servers'),
+                  Tab(text: 'Credentials'),
+                  Tab(text: 'n8n'),
+                ],
               ),
               Expanded(
                 child: backendError != null
                     ? Padding(
                         padding: const EdgeInsets.all(HkTokens.s4),
-                        child: Text(backendError, style: TextStyle(color: hk.err)),
+                        child: Text(
+                          backendError,
+                          style: TextStyle(color: hk.err),
+                        ),
                       )
-                    : const TabBarView(children: [_PluginsTab(), _McpTab(), _CredentialsTab(), N8nTab()]),
+                    : const TabBarView(
+                        children: [
+                          _PluginsTab(),
+                          _McpTab(),
+                          _CredentialsTab(),
+                          N8nTab(),
+                        ],
+                      ),
               ),
             ],
           ),
@@ -69,32 +89,44 @@ void _toast(BuildContext context, String msg) => ScaffoldMessenger.of(context)
   ..hideCurrentSnackBar()
   ..showSnackBar(SnackBar(content: Text(msg)));
 
-Future<bool> _confirm(BuildContext context, String title, String body, String action) async =>
+Future<bool> _confirm(
+  BuildContext context,
+  String title,
+  String body,
+  String action,
+) async =>
     await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title),
         content: Text(body),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(action)),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(action),
+          ),
         ],
       ),
     ) ??
     false;
 
-Widget _chips(BuildContext context, Iterable<String> items, {Color? color}) => Wrap(
-  spacing: HkTokens.s1,
-  runSpacing: HkTokens.s1,
-  children: [
-    for (final i in items)
-      Chip(
-        visualDensity: VisualDensity.compact,
-        label: Text(i, style: Theme.of(context).textTheme.labelSmall),
-        side: color == null ? null : BorderSide(color: color),
-      ),
-  ],
-);
+Widget _chips(BuildContext context, Iterable<String> items, {Color? color}) =>
+    Wrap(
+      spacing: HkTokens.s1,
+      runSpacing: HkTokens.s1,
+      children: [
+        for (final i in items)
+          Chip(
+            visualDensity: VisualDensity.compact,
+            label: Text(i, style: Theme.of(context).textTheme.labelSmall),
+            side: color == null ? null : BorderSide(color: color),
+          ),
+      ],
+    );
 
 // ---------------------------------------------------------------- plugins
 
@@ -115,7 +147,10 @@ class _PluginsTab extends ConsumerWidget {
             FilledButton.icon(
               icon: const Icon(Icons.store_outlined, size: 18),
               label: const Text('Browse registry'),
-              onPressed: () => showDialog<void>(context: context, builder: (_) => const _RegistryDialog()),
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) => const _RegistryDialog(),
+              ),
             ),
             OutlinedButton.icon(
               icon: const Icon(Icons.upload_file, size: 18),
@@ -124,7 +159,9 @@ class _PluginsTab extends ConsumerWidget {
                 final r = await FilePicker.pickFiles(type: FileType.any);
                 final path = r.firstOrNull?.path;
                 if (path == null || !context.mounted) return;
-                final err = await ref.read(pluginBookProvider.notifier).installFile(path);
+                final err = await ref
+                    .read(pluginBookProvider.notifier)
+                    .installFile(path);
                 if (context.mounted) _toast(context, err ?? 'Installed');
               },
             ),
@@ -143,7 +180,10 @@ class _PluginsTab extends ConsumerWidget {
               : Column(
                   children: [
                     for (final p in list)
-                      Padding(padding: const EdgeInsets.only(bottom: HkTokens.s2), child: _PluginCard(p)),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: HkTokens.s2),
+                        child: _PluginCard(p),
+                      ),
                   ],
                 ),
         ),
@@ -173,7 +213,9 @@ class _PluginCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Text('${p.name}  v${p.version}', style: text.titleSmall)),
+              Expanded(
+                child: Text('${p.name}  v${p.version}', style: text.titleSmall),
+              ),
               Switch(
                 value: p.enabled,
                 onChanged: (v) async {
@@ -185,27 +227,51 @@ class _PluginCard extends ConsumerWidget {
                 tooltip: 'Remove',
                 icon: const Icon(Icons.delete_outline),
                 onPressed: () async {
-                  if (!await _confirm(context, 'Remove ${p.name}?', 'Its files and settings are deleted.', 'Remove')) return;
+                  if (!await _confirm(
+                    context,
+                    'Remove ${p.name}?',
+                    'Its files and settings are deleted.',
+                    'Remove',
+                  ))
+                    return;
                   final err = await notifier.remove(p.id);
                   if (context.mounted && err != null) _toast(context, err);
                 },
               ),
             ],
           ),
-          if (p.description.isNotEmpty) Text(p.description, style: text.bodySmall?.copyWith(color: hk.textMuted)),
+          if (p.description.isNotEmpty)
+            Text(
+              p.description,
+              style: text.bodySmall?.copyWith(color: hk.textMuted),
+            ),
           if (p.error != null)
             Padding(
               padding: const EdgeInsets.only(top: HkTokens.s1),
-              child: Text(p.error!, style: text.bodySmall?.copyWith(color: hk.err)),
+              child: Text(
+                p.error!,
+                style: text.bodySmall?.copyWith(color: hk.err),
+              ),
             ),
           const SizedBox(height: HkTokens.s2),
-          Text('Can access', style: text.labelSmall?.copyWith(color: hk.textMuted)),
+          Text(
+            'Can access',
+            style: text.labelSmall?.copyWith(color: hk.textMuted),
+          ),
           p.capabilities.isEmpty
-              ? Text('Nothing beyond its own computation', style: text.bodySmall)
+              ? Text(
+                  'Nothing beyond its own computation',
+                  style: text.bodySmall,
+                )
               : _chips(context, p.capabilities, color: hk.warn),
-          if (p.tools.isNotEmpty || p.nodes.isNotEmpty || p.triggers.isNotEmpty) ...[
+          if (p.tools.isNotEmpty ||
+              p.nodes.isNotEmpty ||
+              p.triggers.isNotEmpty) ...[
             const SizedBox(height: HkTokens.s2),
-            Text('Provides', style: text.labelSmall?.copyWith(color: hk.textMuted)),
+            Text(
+              'Provides',
+              style: text.labelSmall?.copyWith(color: hk.textMuted),
+            ),
             _chips(context, [
               ...p.tools.map((t) => 'tool: $t'),
               ...p.nodes.map((n) => 'node: $n'),
@@ -218,7 +284,10 @@ class _PluginCard extends ConsumerWidget {
               child: TextButton.icon(
                 icon: const Icon(Icons.tune, size: 18),
                 label: const Text('Settings'),
-                onPressed: () => showDialog<void>(context: context, builder: (_) => _SettingsDialog(p)),
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => _SettingsDialog(p),
+                ),
               ),
             ),
         ],
@@ -237,7 +306,9 @@ class _SettingsDialog extends ConsumerStatefulWidget {
 }
 
 class _SettingsDialogState extends ConsumerState<_SettingsDialog> {
-  late final _c = TextEditingController(text: const JsonEncoder.withIndent('  ').convert(widget.p.settings));
+  late final _c = TextEditingController(
+    text: const JsonEncoder.withIndent('  ').convert(widget.p.settings),
+  );
   String? _error;
 
   @override
@@ -254,7 +325,9 @@ class _SettingsDialogState extends ConsumerState<_SettingsDialog> {
       setState(() => _error = 'Not a JSON object');
       return;
     }
-    final err = await ref.read(pluginBookProvider.notifier).setSettings(widget.p.id, v);
+    final err = await ref
+        .read(pluginBookProvider.notifier)
+        .setSettings(widget.p.id, v);
     if (!mounted) return;
     if (err == null) {
       Navigator.pop(context);
@@ -286,7 +359,10 @@ class _SettingsDialogState extends ConsumerState<_SettingsDialog> {
       ),
     ),
     actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
       FilledButton(onPressed: _save, child: const Text('Save')),
     ],
   );
@@ -318,33 +394,60 @@ class _RegistryDialog extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(e.description),
-                            if (e.capabilities.isNotEmpty) Text('Access: ${e.capabilities.join(' · ')}', style: TextStyle(color: hk.warn)),
+                            if (e.capabilities.isNotEmpty)
+                              Text(
+                                'Access: ${e.capabilities.join(' · ')}',
+                                style: TextStyle(color: hk.warn),
+                              ),
                           ],
                         ),
                         isThreeLine: true,
                         trailing: FilledButton(
-                          onPressed: e.installedVersion != null && !e.updateAvailable
+                          onPressed:
+                              e.installedVersion != null && !e.updateAvailable
                               ? null
                               : () async {
                                   if (!await _confirm(
                                     context,
                                     'Install ${e.name}?',
-                                    e.capabilities.isEmpty ? 'It declares no access to the network, secrets or storage.' : 'It can access: ${e.capabilities.join(', ')}.',
+                                    e.capabilities.isEmpty
+                                        ? 'It declares no access to the network, secrets or storage.'
+                                        : 'It can access: ${e.capabilities.join(', ')}.',
                                     e.updateAvailable ? 'Update' : 'Install',
                                   )) {
                                     return;
                                   }
-                                  final err = await ref.read(pluginBookProvider.notifier).installFromRegistry(e.id, indexUrl: ref.read(registryUrlProvider));
-                                  if (context.mounted) _toast(context, err ?? '${e.name} installed');
+                                  final err = await ref
+                                      .read(pluginBookProvider.notifier)
+                                      .installFromRegistry(
+                                        e.id,
+                                        indexUrl: ref.read(registryUrlProvider),
+                                      );
+                                  if (context.mounted)
+                                    _toast(
+                                      context,
+                                      err ?? '${e.name} installed',
+                                    );
                                 },
-                          child: Text(e.installedVersion == null ? 'Install' : e.updateAvailable ? 'Update' : 'Installed'),
+                          child: Text(
+                            e.installedVersion == null
+                                ? 'Install'
+                                : e.updateAvailable
+                                ? 'Update'
+                                : 'Installed',
+                          ),
                         ),
                       ),
                   ],
                 ),
         ),
       ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
     );
   }
 }
@@ -366,7 +469,10 @@ class _McpTab extends ConsumerWidget {
           child: FilledButton.icon(
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Add MCP server'),
-            onPressed: () => showDialog<void>(context: context, builder: (_) => const _McpDialog()),
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) => const _McpDialog(),
+            ),
           ),
         ),
         const SizedBox(height: HkTokens.s3),
@@ -374,8 +480,19 @@ class _McpTab extends ConsumerWidget {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Text('$e', style: TextStyle(color: hk.err)),
           data: (list) => list.isEmpty
-              ? Text('No MCP servers. Their tools join the agent after you trust them.', style: TextStyle(color: hk.textMuted))
-              : Column(children: [for (final s in list) Padding(padding: const EdgeInsets.only(bottom: HkTokens.s2), child: _McpCard(s))]),
+              ? Text(
+                  'No MCP servers. Their tools join the agent after you trust them.',
+                  style: TextStyle(color: hk.textMuted),
+                )
+              : Column(
+                  children: [
+                    for (final s in list)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: HkTokens.s2),
+                        child: _McpCard(s),
+                      ),
+                  ],
+                ),
         ),
       ],
     );
@@ -408,35 +525,73 @@ class _McpCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.circle, size: 10, color: s.connected ? hk.ok : hk.textMuted),
+              Icon(
+                Icons.circle,
+                size: 10,
+                color: s.connected ? hk.ok : hk.textMuted,
+              ),
               const SizedBox(width: HkTokens.s2),
               Expanded(child: Text(s.name, style: text.titleSmall)),
-              Switch(value: s.enabled, onChanged: (v) => run(n.setEnabled(s.name, v))),
+              Switch(
+                value: s.enabled,
+                onChanged: (v) => run(n.setEnabled(s.name, v)),
+              ),
               IconButton(
                 tooltip: 'Remove',
                 icon: const Icon(Icons.delete_outline),
                 onPressed: () async {
-                  if (await _confirm(context, 'Remove ${s.name}?', 'Its stored secrets are deleted.', 'Remove')) await run(n.remove(s.name));
+                  if (await _confirm(
+                    context,
+                    'Remove ${s.name}?',
+                    'Its stored secrets are deleted.',
+                    'Remove',
+                  ))
+                    await run(n.remove(s.name));
                 },
               ),
             ],
           ),
-          Text('${s.transport}: ${s.target}', style: text.bodySmall?.copyWith(color: hk.textMuted, fontFamily: 'monospace')),
+          Text(
+            '${s.transport}: ${s.target}',
+            style: text.bodySmall?.copyWith(
+              color: hk.textMuted,
+              fontFamily: 'monospace',
+            ),
+          ),
           if (s.transport == 'stdio' && !s.stdioSupported)
-            Text('stdio servers cannot run on Android; use an HTTP server.', style: text.bodySmall?.copyWith(color: hk.warn)),
-          if (s.error != null) Text(s.error!, style: text.bodySmall?.copyWith(color: hk.err)),
-          if (s.tools.isNotEmpty) ...[const SizedBox(height: HkTokens.s2), _chips(context, s.tools)],
+            Text(
+              'stdio servers cannot run on Android; use an HTTP server.',
+              style: text.bodySmall?.copyWith(color: hk.warn),
+            ),
+          if (s.error != null)
+            Text(s.error!, style: text.bodySmall?.copyWith(color: hk.err)),
+          if (s.tools.isNotEmpty) ...[
+            const SizedBox(height: HkTokens.s2),
+            _chips(context, s.tools),
+          ],
           const SizedBox(height: HkTokens.s2),
           if (!s.trusted)
             Row(
               children: [
                 Icon(Icons.shield_outlined, size: 16, color: hk.warn),
                 const SizedBox(width: HkTokens.s1),
-                Expanded(child: Text('Untrusted: not connected.', style: text.bodySmall?.copyWith(color: hk.warn))),
+                Expanded(
+                  child: Text(
+                    'Untrusted: not connected.',
+                    style: text.bodySmall?.copyWith(color: hk.warn),
+                  ),
+                ),
                 FilledButton(
                   onPressed: () async {
-                    final what = s.transport == 'stdio' ? 'run this command on your device:\n${s.target}' : 'send requests to ${s.target}';
-                    if (await _confirm(context, 'Trust ${s.name}?', 'Trusting lets the agent $what and call any tool the server exposes.', 'Trust')) {
+                    final what = s.transport == 'stdio'
+                        ? 'run this command on your device:\n${s.target}'
+                        : 'send requests to ${s.target}';
+                    if (await _confirm(
+                      context,
+                      'Trust ${s.name}?',
+                      'Trusting lets the agent $what and call any tool the server exposes.',
+                      'Trust',
+                    )) {
                       await run(n.setTrusted(s.name, true));
                     }
                   },
@@ -451,8 +606,14 @@ class _McpCard extends ConsumerWidget {
                 const SizedBox(width: HkTokens.s1),
                 const Text('Trusted'),
                 const Spacer(),
-                TextButton(onPressed: () => run(n.connect(s.name)), child: const Text('Reconnect')),
-                TextButton(onPressed: () => run(n.setTrusted(s.name, false)), child: const Text('Revoke')),
+                TextButton(
+                  onPressed: () => run(n.connect(s.name)),
+                  child: const Text('Reconnect'),
+                ),
+                TextButton(
+                  onPressed: () => run(n.setTrusted(s.name, false)),
+                  child: const Text('Revoke'),
+                ),
               ],
             ),
         ],
@@ -488,16 +649,23 @@ class _McpDialogState extends ConsumerState<_McpDialog> {
   }
 
   Future<void> _save() async {
-    final spec = <String, dynamic>{'name': _name.text.trim(), 'transport': _transport};
+    final spec = <String, dynamic>{
+      'name': _name.text.trim(),
+      'transport': _transport,
+    };
     if (_transport == 'http') {
       spec['url'] = _url.text.trim();
       if (_token.text.isNotEmpty) spec['bearer_token'] = _token.text;
     } else {
       spec['command'] = _command.text.trim();
-      spec['args'] = _args.text.trim().isEmpty ? <String>[] : _args.text.trim().split(RegExp(r'\s+'));
+      spec['args'] = _args.text.trim().isEmpty
+          ? <String>[]
+          : _args.text.trim().split(RegExp(r'\s+'));
       spec['env'] = {
         for (final l in _env.text.split('\n').where((l) => l.contains('=')))
-          l.substring(0, l.indexOf('=')).trim(): l.substring(l.indexOf('=') + 1),
+          l.substring(0, l.indexOf('=')).trim(): l.substring(
+            l.indexOf('=') + 1,
+          ),
       };
     }
     setState(() {
@@ -518,7 +686,9 @@ class _McpDialogState extends ConsumerState<_McpDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final stdioOk = !const bool.fromEnvironment('dart.library.js_interop') && !Theme.of(context).platform.name.contains('android');
+    final stdioOk =
+        !const bool.fromEnvironment('dart.library.js_interop') &&
+        !Theme.of(context).platform.name.contains('android');
     return AlertDialog(
       title: const Text('Add MCP server'),
       content: SizedBox(
@@ -527,37 +697,76 @@ class _McpDialogState extends ConsumerState<_McpDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: _name, decoration: const InputDecoration(labelText: 'Name')),
+              TextField(
+                controller: _name,
+                decoration: const InputDecoration(labelText: 'Name'),
+              ),
               const SizedBox(height: HkTokens.s2),
               SegmentedButton<String>(
                 segments: [
                   const ButtonSegment(value: 'http', label: Text('HTTP')),
-                  ButtonSegment(value: 'stdio', label: const Text('Command'), enabled: stdioOk),
+                  ButtonSegment(
+                    value: 'stdio',
+                    label: const Text('Command'),
+                    enabled: stdioOk,
+                  ),
                 ],
                 selected: {_transport},
                 onSelectionChanged: (s) => setState(() => _transport = s.first),
               ),
               const SizedBox(height: HkTokens.s2),
               if (_transport == 'http') ...[
-                TextField(controller: _url, decoration: const InputDecoration(labelText: 'URL')),
+                TextField(
+                  controller: _url,
+                  decoration: const InputDecoration(labelText: 'URL'),
+                ),
                 const SizedBox(height: HkTokens.s2),
-                TextField(controller: _token, obscureText: true, decoration: const InputDecoration(labelText: 'Bearer token (optional)')),
+                TextField(
+                  controller: _token,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Bearer token (optional)',
+                  ),
+                ),
               ] else ...[
-                TextField(controller: _command, decoration: const InputDecoration(labelText: 'Command')),
+                TextField(
+                  controller: _command,
+                  decoration: const InputDecoration(labelText: 'Command'),
+                ),
                 const SizedBox(height: HkTokens.s2),
-                TextField(controller: _args, decoration: const InputDecoration(labelText: 'Arguments (space separated)')),
+                TextField(
+                  controller: _args,
+                  decoration: const InputDecoration(
+                    labelText: 'Arguments (space separated)',
+                  ),
+                ),
                 const SizedBox(height: HkTokens.s2),
-                TextField(controller: _env, maxLines: 3, decoration: const InputDecoration(labelText: 'Environment (KEY=value per line; values are stored encrypted)')),
+                TextField(
+                  controller: _env,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Environment (KEY=value per line; values are stored encrypted)',
+                  ),
+                ),
               ],
               if (_error != null)
-                Padding(padding: const EdgeInsets.only(top: HkTokens.s2), child: Text(_error!, style: TextStyle(color: context.hk.err))),
+                Padding(
+                  padding: const EdgeInsets.only(top: HkTokens.s2),
+                  child: Text(_error!, style: TextStyle(color: context.hk.err)),
+                ),
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(onPressed: _busy ? null : _save, child: const Text('Save')),
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _busy ? null : _save,
+          child: const Text('Save'),
+        ),
       ],
     );
   }
@@ -573,7 +782,8 @@ class _CredentialsTab extends ConsumerWidget {
     final book = ref.watch(credentialBookProvider);
     final types = ref.watch(credentialTypesProvider).value ?? const [];
     final hk = context.hk;
-    String label(String t) => types.where((x) => x.name == t).firstOrNull?.displayName ?? t;
+    String label(String t) =>
+        types.where((x) => x.name == t).firstOrNull?.displayName ?? t;
     return ListView(
       padding: const EdgeInsets.all(HkTokens.s4),
       children: [
@@ -588,14 +798,18 @@ class _CredentialsTab extends ConsumerWidget {
         const SizedBox(height: HkTokens.s2),
         Text(
           'Values are stored encrypted on this device and never shown again. Flows reference credentials by name.',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: hk.textMuted),
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: hk.textMuted),
         ),
         const SizedBox(height: HkTokens.s3),
         book.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Text('$e', style: TextStyle(color: hk.err)),
           data: (list) => list.isEmpty
-              ? Text('No credentials yet.', style: TextStyle(color: hk.textMuted))
+              ? Text(
+                  'No credentials yet.',
+                  style: TextStyle(color: hk.textMuted),
+                )
               : Column(
                   children: [
                     for (final c in list)
@@ -608,14 +822,28 @@ class _CredentialsTab extends ConsumerWidget {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              IconButton(tooltip: 'Edit', icon: const Icon(Icons.edit_outlined), onPressed: () => showCredentialDialog(context, existing: c)),
+                              IconButton(
+                                tooltip: 'Edit',
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () =>
+                                    showCredentialDialog(context, existing: c),
+                              ),
                               IconButton(
                                 tooltip: 'Delete',
                                 icon: const Icon(Icons.delete_outline),
                                 onPressed: () async {
-                                  if (!await _confirm(context, 'Delete ${c.name}?', 'Flows using it will fail until you pick another.', 'Delete')) return;
-                                  final err = await ref.read(credentialBookProvider.notifier).remove(c.id);
-                                  if (context.mounted && err != null) _toast(context, err);
+                                  if (!await _confirm(
+                                    context,
+                                    'Delete ${c.name}?',
+                                    'Flows using it will fail until you pick another.',
+                                    'Delete',
+                                  ))
+                                    return;
+                                  final err = await ref
+                                      .read(credentialBookProvider.notifier)
+                                      .remove(c.id);
+                                  if (context.mounted && err != null)
+                                    _toast(context, err);
                                 },
                               ),
                             ],
