@@ -51,6 +51,7 @@ class _ComposerState extends ConsumerState<Composer> {
   void initState() {
     super.initState();
     _text.addListener(_onText);
+    _focus.addListener(() => setState(() {}));
   }
 
   @override
@@ -248,134 +249,226 @@ class _ComposerState extends ConsumerState<Composer> {
     };
 
     final narrow = isNarrow(context);
-    final density = narrow ? VisualDensity.standard : VisualDensity.compact;
-    // Own the bottom inset: home-indicator safe area when the composer sits at
-    // the screen edge; the shell Scaffold already lifts it above the keyboard.
-    return Container(
-      decoration: BoxDecoration(
-        color: hk.surface,
-        border: Border(top: BorderSide(color: hk.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.all(HkTokens.s3),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (menu.mention || menuOpen)
-                _MenuList(
-                  entries: entries,
-                  selected: sel,
-                  footer: menu.mention
-                      ? 'MCP resources: not available yet'
-                      : null,
-                ),
-              Wrap(
-                spacing: HkTokens.s2,
-                runSpacing: HkTokens.s1,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  ActionChip(
-                    visualDensity: density,
-                    avatar: Icon(
-                      mode == ModeDto.plan
-                          ? Icons.map_outlined
-                          : Icons.build_outlined,
-                      size: 16,
-                    ),
-                    label: Text(mode == ModeDto.plan ? 'Plan' : 'Build'),
-                    tooltip: 'Toggle plan / build',
-                    onPressed: () => ref
-                        .read(chatModeProvider.notifier)
-                        .set(
-                          mode == ModeDto.plan ? ModeDto.build : ModeDto.plan,
-                        ),
-                  ),
-                  ActionChip(
-                    visualDensity: density,
-                    avatar: const Icon(Icons.memory_outlined, size: 16),
-                    label: Text(_modelLabel()),
-                    tooltip: 'Choose model',
-                    onPressed: () => showModelPicker(context),
-                  ),
-                  if (widget.running)
-                    Text(
-                      'Running: your message steers the current turn',
-                      style: TextStyle(fontSize: 12, color: hk.textMuted),
-                    ),
-                ],
+    final canSend = _text.text.trim().isNotEmpty || _images.isNotEmpty;
+    Widget chip(IconData icon, String label, String tip, VoidCallback onTap) =>
+        Tooltip(
+          message: tip,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(HkTokens.radiusChip),
+            onTap: onTap,
+            child: Container(
+              height: 28,
+              constraints: const BoxConstraints(maxWidth: 220),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: hk.surface3,
+                borderRadius: BorderRadius.circular(HkTokens.radiusChip),
               ),
-              if (_images.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: HkTokens.s2),
-                  child: Wrap(
-                    spacing: 6,
-                    children: [
-                      for (final p in List<String>.of(_images))
-                        InputChip(
-                          avatar: const Icon(Icons.image_outlined, size: 16),
-                          label: Text(p.split(RegExp(r'[\\/]')).last),
-                          onDeleted: () => setState(() => _images.remove(p)),
-                        ),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: HkTokens.s2),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(
-                    tooltip: _voice == 'recording'
-                        ? 'Stop and transcribe'
-                        : 'Voice input (push to talk)',
-                    color: _voice == 'recording' ? Colors.red : null,
-                    icon: _voice == 'transcribing'
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Icon(
-                            _voice == 'recording'
-                                ? Icons.stop_circle
-                                : Icons.mic_none,
-                          ),
-                    onPressed: _voice == 'transcribing' ? null : _toggleVoice,
-                  ),
-                  IconButton(
-                    tooltip: 'Attach image (vision models)',
-                    icon: const Icon(Icons.add_photo_alternate_outlined),
-                    onPressed: _attach,
-                  ),
-                  Expanded(
-                    child: CallbackShortcuts(
-                      bindings: bindings,
-                      child: TextField(
-                        controller: _text,
-                        focusNode: _focus,
-                        minLines: 1,
-                        maxLines: 6,
-                        textInputAction: TextInputAction.newline,
-                        decoration: InputDecoration(
-                          isDense: !narrow,
-                          hintText: fileMentionsSupported
-                              ? 'Message  ( / commands, @ files )'
-                              : 'Message  ( / commands )',
-                          border: const OutlineInputBorder(),
-                        ),
+                  Icon(icon, size: 14, color: hk.textMuted),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      label,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
-                  const SizedBox(width: HkTokens.s2),
-                  IconButton.filled(
-                    tooltip: 'Send (Ctrl+Enter)',
-                    icon: const Icon(Icons.arrow_upward),
-                    onPressed: _send,
-                  ),
                 ],
               ),
-            ],
+            ),
+          ),
+        );
+    // Own the bottom inset: home-indicator safe area when the composer sits at
+    // the screen edge; the shell Scaffold already lifts it above the keyboard.
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          narrow ? HkTokens.s2 : HkTokens.s5,
+          0,
+          narrow ? HkTokens.s2 : HkTokens.s5,
+          narrow ? HkTokens.s2 : HkTokens.s4,
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 900),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (menu.mention || menuOpen)
+                  _MenuList(
+                    entries: entries,
+                    selected: sel,
+                    footer: menu.mention
+                        ? 'MCP resources: not available yet'
+                        : null,
+                  ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: hk.surface2,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _focus.hasFocus ? hk.borderStrong : hk.border,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.18),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.fromLTRB(6, 6, 8, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_images.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              for (final p in List<String>.of(_images))
+                                InputChip(
+                                  avatar: const Icon(
+                                    Icons.image_outlined,
+                                    size: 16,
+                                  ),
+                                  label: Text(p.split(RegExp(r'[\\/]')).last),
+                                  onDeleted: () =>
+                                      setState(() => _images.remove(p)),
+                                ),
+                            ],
+                          ),
+                        ),
+                      CallbackShortcuts(
+                        bindings: bindings,
+                        child: TextField(
+                          controller: _text,
+                          focusNode: _focus,
+                          minLines: 1,
+                          maxLines: 8,
+                          textInputAction: TextInputAction.newline,
+                          style: const TextStyle(fontSize: 14, height: 1.5),
+                          decoration: InputDecoration(
+                            filled: false,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: const EdgeInsets.fromLTRB(
+                              10,
+                              10,
+                              10,
+                              6,
+                            ),
+                            hintText: widget.running
+                                ? 'Steer the running turn…'
+                                : (fileMentionsSupported
+                                      ? 'Message Hokkabaz  ·  / commands  ·  @ files'
+                                      : 'Message Hokkabaz  ·  / commands'),
+                          ),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            tooltip: 'Attach image (vision models)',
+                            icon: const Icon(
+                              Icons.add_photo_alternate_outlined,
+                            ),
+                            onPressed: _attach,
+                          ),
+                          IconButton(
+                            tooltip: _voice == 'recording'
+                                ? 'Stop and transcribe'
+                                : 'Voice input',
+                            color: _voice == 'recording' ? hk.err : null,
+                            icon: _voice == 'transcribing'
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Icon(
+                                    _voice == 'recording'
+                                        ? Icons.stop_circle
+                                        : Icons.mic_none,
+                                  ),
+                            onPressed: _voice == 'transcribing'
+                                ? null
+                                : _toggleVoice,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                chip(
+                                  mode == ModeDto.plan
+                                      ? Icons.map_outlined
+                                      : Icons.build_outlined,
+                                  mode == ModeDto.plan ? 'Plan' : 'Build',
+                                  'Plan: read-only. Build: may edit and run tools.',
+                                  () => ref
+                                      .read(chatModeProvider.notifier)
+                                      .set(
+                                        mode == ModeDto.plan
+                                            ? ModeDto.build
+                                            : ModeDto.plan,
+                                      ),
+                                ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: chip(
+                                    Icons.memory_outlined,
+                                    _modelLabel(),
+                                    'Choose model',
+                                    () => showModelPicker(context),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          AnimatedOpacity(
+                            duration: const Duration(milliseconds: 150),
+                            opacity: canSend ? 1 : 0.4,
+                            child: Tooltip(
+                              message: 'Send (Enter)',
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: canSend ? _send : null,
+                                child: Container(
+                                  width: 34,
+                                  height: 34,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: hk.gradient,
+                                  ),
+                                  child: Icon(
+                                    Icons.arrow_upward_rounded,
+                                    size: 19,
+                                    color: hk.onAccent,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -397,8 +490,8 @@ class _MenuList extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: HkTokens.s2),
       constraints: const BoxConstraints(maxHeight: 240),
       decoration: BoxDecoration(
-        color: hk.bg,
-        border: Border.all(color: hk.border),
+        color: hk.surface2,
+        border: Border.all(color: hk.borderStrong),
         borderRadius: BorderRadius.circular(HkTokens.radiusCard),
       ),
       child: ListView(

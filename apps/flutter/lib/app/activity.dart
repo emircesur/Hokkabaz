@@ -97,7 +97,11 @@ class JobsNotifier extends Notifier<Map<int, Job>> {
     } catch (_) {
       // Core without job tracking: the Activity view stays empty.
     }
-    _sub = hkStream('jobs').listen(_on, onError: (_) {});
+    try {
+      _sub = hkStream('jobs').listen(_on, onError: (_) {});
+    } catch (_) {
+      // No core (tests, failed init): nothing to follow.
+    }
   }
 
   void _on(Map<String, dynamic> ev) {

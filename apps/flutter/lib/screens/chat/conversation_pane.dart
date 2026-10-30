@@ -11,7 +11,9 @@ import 'chat_providers.dart';
 import 'composer.dart';
 import 'inspector_pane.dart';
 import 'message_widgets.dart';
+import 'sessions_pane.dart' show sessionTitlesProvider;
 import 'tool_card.dart';
+import '../../widgets/hk_ui.dart';
 
 /// Header + streaming message list + composer for one session.
 class ConversationPane extends ConsumerWidget {
@@ -42,28 +44,34 @@ class ConversationPane extends ConsumerWidget {
         .value
         ?.where((s) => s.id == sessionId)
         .firstOrNull;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _Header(
-          sessionId: sessionId,
-          state: state,
-          info: info,
-          onBack: onBack,
-          inspectorInline: inspectorInline,
-        ),
-        Divider(height: 1, color: context.hk.border),
-        Expanded(
-          child: state.loading
-              ? const Center(child: CircularProgressIndicator())
-              : _MessageList(sessionId: sessionId, state: state),
-        ),
-        Composer(
-          sessionId: sessionId,
-          running: state.running,
-          promptPrefix: promptPrefix,
-        ),
-      ],
+    return ColoredBox(
+      color: context.hk.bg,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _Header(
+            sessionId: sessionId,
+            state: state,
+            info: info,
+            onBack: onBack,
+            inspectorInline: inspectorInline,
+          ),
+          Expanded(
+            child: state.loading
+                ? const Center(child: CircularProgressIndicator())
+                : _MessageList(
+                    sessionId: sessionId,
+                    state: state,
+                    promptPrefix: promptPrefix,
+                  ),
+          ),
+          Composer(
+            sessionId: sessionId,
+            running: state.running,
+            promptPrefix: promptPrefix,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -86,12 +94,15 @@ class _Header extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hk = context.hk;
-    final title = state.title ?? info?.title;
+    final custom = ref.watch(sessionTitlesProvider).value?[sessionId];
+    final title = custom ?? state.title ?? info?.title;
     final used = state.inputTokens + state.outputTokens;
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: HkTokens.s2,
-        vertical: HkTokens.s2,
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: HkTokens.s2),
+      decoration: BoxDecoration(
+        color: hk.surface,
+        border: Border(bottom: BorderSide(color: hk.border)),
       ),
       child: Row(
         children: [
@@ -108,10 +119,13 @@ class _Header extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  (title == null || title.isEmpty) ? 'New session' : title,
+                  (title == null || title.isEmpty) ? 'New chat' : title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 Text(
                   [
@@ -121,7 +135,7 @@ class _Header extends ConsumerWidget {
                   ].join(' · '),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: hk.textMuted),
+                  style: TextStyle(fontSize: 11, color: hk.textFaint),
                 ),
               ],
             ),
@@ -164,11 +178,10 @@ class _Header extends ConsumerWidget {
             ),
             const SizedBox(width: HkTokens.s2),
           ],
-          const ActivityButton(),
           IconButton(
-            tooltip: 'Inspector',
+            tooltip: 'Run settings & inspector',
             icon: Icon(
-              Icons.view_sidebar_outlined,
+              Icons.tune,
               color: inspectorInline && ref.watch(inspectorOpenProvider)
                   ? hk.accent
                   : null,
@@ -185,20 +198,111 @@ class _Header extends ConsumerWidget {
 
 String _k(int n) => n >= 1000 ? '${(n / 1000).toStringAsFixed(1)}k' : '$n';
 
-class _MessageList extends StatelessWidget {
-  const _MessageList({required this.sessionId, required this.state});
+class _MessageList extends ConsumerWidget {
+  const _MessageList({
+    required this.sessionId,
+    required this.state,
+    this.promptPrefix,
+  });
 
   final String sessionId;
   final ChatState state;
+  final String Function()? promptPrefix;
+
+  static const _starters = [
+    (
+      Icons.lightbulb_outline,
+      'Explain',
+      'Explain how this project is structured',
+    ),
+    (Icons.bug_report_outlined, 'Debug', 'Find and fix the failing tests'),
+    (Icons.edit_note, 'Write', 'Draft a README section for setup'),
+    (
+      Icons.travel_explore,
+      'Research',
+      'Summarize the latest changes in the repo',
+    ),
+  ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hk = context.hk;
     final items = state.items;
     if (items.isEmpty) {
       return Center(
-        child: Text(
-          'Send a message to start.',
-          style: TextStyle(color: context.hk.textMuted),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(HkTokens.s6),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: Column(
+              children: [
+                const BrandMark(size: 44),
+                const SizedBox(height: HkTokens.s4),
+                Text(
+                  'What should we work on?',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: HkTokens.s2),
+                Text(
+                  'Ask anything, attach images, or use / commands and @ files.',
+                  style: TextStyle(color: hk.textMuted, fontSize: 13),
+                ),
+                const SizedBox(height: HkTokens.s6),
+                Wrap(
+                  spacing: HkTokens.s3,
+                  runSpacing: HkTokens.s3,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    for (final (icon, label, prompt) in _starters)
+                      SizedBox(
+                        width: 300,
+                        child: HoverCard(
+                          padding: const EdgeInsets.all(HkTokens.s3),
+                          onTap: () => ref
+                              .read(chatControllerProvider(sessionId).notifier)
+                              .send(
+                                promptPrefix == null
+                                    ? prompt
+                                    : '${promptPrefix!()}\n$prompt',
+                                ref.read(chatModeProvider),
+                                model: ref.read(composerModelProvider),
+                              ),
+                          child: Row(
+                            children: [
+                              Icon(icon, size: 18, color: hk.accent),
+                              const SizedBox(width: HkTokens.s3),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      label,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      prompt,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: hk.textMuted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
@@ -207,21 +311,33 @@ class _MessageList extends StatelessWidget {
     return ListView.separated(
       reverse: true,
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.all(HkTokens.s4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: HkTokens.s5,
+        vertical: HkTokens.s5,
+      ),
       itemCount: items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: HkTokens.s3),
+      separatorBuilder: (_, _) => const SizedBox(height: HkTokens.s5),
       itemBuilder: (context, i) {
         final item = items[items.length - 1 - i];
-        return switch (item) {
+        final w = switch (item) {
           UserItem() => UserBubble(item: item),
           AssistantItem() => AssistantBlock(item: item),
-          ToolItem() => ToolCard(
-            key: ValueKey(item.callId),
-            sessionId: sessionId,
-            item: item,
+          ToolItem() => Padding(
+            padding: const EdgeInsets.only(left: 38),
+            child: ToolCard(
+              key: ValueKey(item.callId),
+              sessionId: sessionId,
+              item: item,
+            ),
           ),
           NoticeItem() => NoticeLine(item: item),
         };
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: kMessageMaxWidth),
+            child: w,
+          ),
+        );
       },
     );
   }

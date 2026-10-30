@@ -462,7 +462,7 @@ class _RailItemState extends State<_RailItem> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: SizedBox(
-          height: 60,
+          height: 68,
           child: Stack(
             children: [
               if (sel)

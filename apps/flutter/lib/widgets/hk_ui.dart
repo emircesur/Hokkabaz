@@ -32,7 +32,8 @@ class HkPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (title != null) PanelHeader(title: title!, icon: icon, actions: actions),
+          if (title != null)
+            PanelHeader(title: title!, icon: icon, actions: actions),
           Expanded(
             child: Padding(padding: padding, child: child),
           ),
@@ -96,7 +97,8 @@ class SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: padding ?? const EdgeInsets.fromLTRB(0, HkTokens.s4, 0, HkTokens.s2),
+    padding:
+        padding ?? const EdgeInsets.fromLTRB(0, HkTokens.s4, 0, HkTokens.s2),
     child: Row(
       children: [
         Expanded(
@@ -142,7 +144,10 @@ class GradientButton extends StatelessWidget {
           SizedBox(
             width: 15,
             height: 15,
-            child: CircularProgressIndicator(strokeWidth: 2, color: hk.onAccent),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: hk.onAccent,
+            ),
           )
         else if (icon != null)
           Icon(icon, size: 17, color: hk.onAccent),
@@ -221,7 +226,11 @@ class Pill extends StatelessWidget {
           ],
           Text(
             text,
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: c,
+            ),
           ),
         ],
       ),
@@ -354,7 +363,10 @@ class SettingRow extends StatelessWidget {
               children: [
                 Text(label, style: TextStyle(fontSize: 12, color: hk.text)),
                 if (help != null)
-                  Text(help!, style: TextStyle(fontSize: 11, color: hk.textFaint)),
+                  Text(
+                    help!,
+                    style: TextStyle(fontSize: 11, color: hk.textFaint),
+                  ),
               ],
             ),
           ),
@@ -451,7 +463,12 @@ class PageHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final hk = context.hk;
     return Container(
-      padding: const EdgeInsets.fromLTRB(HkTokens.s6, HkTokens.s5, HkTokens.s6, 0),
+      padding: const EdgeInsets.fromLTRB(
+        HkTokens.s6,
+        HkTokens.s5,
+        HkTokens.s6,
+        0,
+      ),
       decoration: BoxDecoration(
         color: hk.surface,
         border: Border(bottom: BorderSide(color: hk.border)),
@@ -465,7 +482,10 @@ class PageHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: Theme.of(context).textTheme.headlineSmall),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
                     if (subtitle != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
@@ -478,7 +498,10 @@ class PageHeader extends StatelessWidget {
                 ),
               ),
               for (final a in actions)
-                Padding(padding: const EdgeInsets.only(left: HkTokens.s2), child: a),
+                Padding(
+                  padding: const EdgeInsets.only(left: HkTokens.s2),
+                  child: a,
+                ),
             ],
           ),
           SizedBox(height: bottom == null ? HkTokens.s5 : HkTokens.s3),
@@ -517,7 +540,9 @@ class _HoverCardState extends State<HoverCard> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      cursor: widget.onTap != null ? SystemMouseCursors.click : MouseCursor.defer,
+      cursor: widget.onTap != null
+          ? SystemMouseCursors.click
+          : MouseCursor.defer,
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(

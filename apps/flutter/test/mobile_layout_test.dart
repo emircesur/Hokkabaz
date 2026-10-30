@@ -118,7 +118,9 @@ void main() {
       await t.pumpWidget(
         _app(const AppShell(location: '/chat', child: SizedBox.expand())),
       );
-      expect(find.byType(NavigationRail), findsOneWidget);
+      // Editor-style top bar + icon rail instead of the bottom bar.
+      expect(find.text('Hokkabaz'), findsOneWidget);
+      expect(find.text('Studio'), findsOneWidget);
       expect(find.byType(NavigationBar), findsNothing);
     });
   });
@@ -146,7 +148,8 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('fix webhook'), findsOneWidget);
       expect(find.byType(NavigationBar), findsOneWidget);
-      expect(find.byType(TextField), findsNothing);
+      // Only the chat search field; no composer until a chat opens.
+      expect(find.byType(TextField), findsOneWidget);
       expect(t.takeException(), isNull);
     });
 
@@ -217,7 +220,7 @@ void main() {
         ),
       );
       await t.pumpAndSettle();
-      await t.tap(find.byTooltip('Inspector'));
+      await t.tap(find.byTooltip('Run settings & inspector'));
       await t.pumpAndSettle();
       expect(find.byType(DraggableScrollableSheet), findsOneWidget);
     });

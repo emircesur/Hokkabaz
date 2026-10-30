@@ -35,7 +35,9 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
 
   Future<void> _always() async {
     setState(() => _busy = true);
-    ref.read(chatControllerProvider(widget.sessionId).notifier).allowAlways(widget.tool.name);
+    ref
+        .read(chatControllerProvider(widget.sessionId).notifier)
+        .allowAlways(widget.tool.name);
     if (mounted) setState(() => _busy = false);
   }
 
@@ -70,7 +72,10 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
     final always = TextButton(
       style: style,
       onPressed: _busy ? null : _always,
-      child: Text('Always allow ${widget.tool.name}', overflow: TextOverflow.ellipsis),
+      child: Text(
+        'Always allow ${widget.tool.name}',
+        overflow: TextOverflow.ellipsis,
+      ),
     );
     if (narrow) {
       return Column(

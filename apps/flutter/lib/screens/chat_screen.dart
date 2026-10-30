@@ -7,7 +7,9 @@ import '../theme/tokens.dart';
 import 'chat/chat_providers.dart';
 import 'chat/conversation_pane.dart';
 import 'chat/inspector_pane.dart';
+import 'chat/run_settings_pane.dart';
 import 'chat/sessions_pane.dart';
+import '../widgets/hk_ui.dart';
 
 /// Chat tab: sessions list + conversation. Two panes on wide windows, list ->
 /// conversation navigation on narrow ones (DESIGN §4.3).
@@ -17,8 +19,8 @@ class ChatScreen extends ConsumerWidget {
   final String title;
   final IconData icon;
 
-  static const double _sessionsWidth = 280;
-  static const double _inspectorWidth = 320;
+  static const double _sessionsWidth = 272;
+  static const double _inspectorWidth = 340;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,15 +66,60 @@ class ChatScreen extends ConsumerWidget {
               VerticalDivider(width: 1, color: context.hk.border),
               SizedBox(
                 width: _inspectorWidth,
-                child: InspectorPane(
-                  key: ValueKey(selected),
-                  sessionId: selected,
-                ),
+                child: _SidePanel(key: ValueKey(selected), sessionId: selected),
               ),
             ],
           ],
         );
       },
+    );
+  }
+}
+
+/// Right column: per-chat run settings and the inspector, as tabs.
+class _SidePanel extends StatelessWidget {
+  const _SidePanel({super.key, required this.sessionId});
+
+  final String sessionId;
+
+  @override
+  Widget build(BuildContext context) {
+    final hk = context.hk;
+    return ColoredBox(
+      color: hk.surface,
+      child: DefaultTabController(
+        length: 2,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: 52,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: hk.border)),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: HkTokens.s2),
+                alignment: Alignment.bottomLeft,
+                child: const TabBar(
+                  dividerHeight: 0,
+                  tabs: [
+                    Tab(height: 40, text: 'Run settings'),
+                    Tab(height: 40, text: 'Inspector'),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  RunSettingsPane(sessionId: sessionId),
+                  InspectorPane(sessionId: sessionId),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -85,32 +132,21 @@ class _Empty extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hk = context.hk;
     final err = ref.watch(backendErrorProvider);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(HkTokens.s6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 40, color: hk.textMuted),
-            const SizedBox(height: HkTokens.s3),
-            Text(
-              err ?? 'Select a session or start a new one.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: err == null ? hk.textMuted : hk.err),
-            ),
-            if (err == null) ...[
-              const SizedBox(height: HkTokens.s3),
-              FilledButton.icon(
+    return ColoredBox(
+      color: context.hk.bg,
+      child: EmptyState(
+        icon: icon,
+        title: err == null ? 'Start a conversation' : 'Backend unavailable',
+        message: err ?? 'Pick a chat on the left or start a new one. Any provider or on-device model works.',
+        action: err == null
+            ? GradientButton(
+                label: 'New chat',
+                icon: Icons.add,
                 onPressed: () =>
                     ref.read(sessionListProvider.notifier).create(),
-                icon: const Icon(Icons.add),
-                label: const Text('New session'),
-              ),
-            ],
-          ],
-        ),
+              )
+            : null,
       ),
     );
   }
