@@ -169,7 +169,7 @@ void main() {
     await tester.tap(find.text('Captions').first);
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.tap(find.widgetWithText(ActionChip, 'pop'));
+    await tester.tap(find.text('pop'));
     await tester.pump();
     expect(recorded.last.single['op'], 'set_caption_preset');
     expect(recorded.last.single['preset'], 'pop');

@@ -110,12 +110,13 @@ class StylePanel extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Wrap(
-                      spacing: 6,
+                      spacing: HkTokens.s2,
+                      runSpacing: HkTokens.s2,
                       children: [
                         for (final p in presets)
-                          ActionChip(
-                            label: Text(p),
-                            onPressed: () => ctl.edit([
+                          _PresetTile(
+                            name: p,
+                            onTap: () => ctl.edit([
                               {
                                 'op': 'set_caption_preset',
                                 'clip': clip.id,
@@ -502,6 +503,85 @@ class _Swatches extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Caption preset as a small styled sample (mirrors the presets in hk-studio `captions.rs`).
+class _PresetTile extends StatelessWidget {
+  const _PresetTile({required this.name, required this.onTap});
+
+  final String name;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final hk = context.hk;
+    final (hi, upper, stroke, size) = switch (name) {
+      'karaoke' => (const Color(0xFFFFE600), true, 3.0, 13.0),
+      'pop' => (const Color(0xFF39FF14), true, 4.0, 14.0),
+      'minimal' => (Colors.white, false, 1.2, 11.0),
+      _ => (Colors.white, false, 2.0, 12.0),
+    };
+    String t(String w) => upper ? w.toUpperCase() : w;
+    TextStyle st(Color c) => TextStyle(
+      fontSize: size,
+      fontWeight: FontWeight.w800,
+      color: c,
+      shadows: [
+        for (final o in const [
+          Offset(1, 1),
+          Offset(-1, 1),
+          Offset(1, -1),
+          Offset(-1, -1),
+        ])
+          Shadow(color: Colors.black, offset: o * stroke / 2, blurRadius: 0),
+      ],
+    );
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(HkTokens.radiusCard),
+      child: Container(
+        width: 150,
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: hk.surface2,
+          borderRadius: BorderRadius.circular(HkTokens.radiusCard),
+          border: Border.all(color: hk.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              height: 52,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF3A3F55), Color(0xFF1C1F2B)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(text: '${t('the')} ', style: st(Colors.white)),
+                    TextSpan(text: t('big'), style: st(hi)),
+                    TextSpan(text: ' ${t('idea')}', style: st(Colors.white)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              name,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
