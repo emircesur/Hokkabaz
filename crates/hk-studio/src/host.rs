@@ -829,6 +829,21 @@ impl StudioHost {
                     svc.studio().thumbnail(&snap, at).await?.to_string_lossy()
                 ))
             }
+            // Full-width still of the source at `at` (frame grab / snapshot).
+            "frame" => {
+                let snap = svc.open(&arg::<String>(&p, "id")?).await?.snapshot().await;
+                let at: f64 = opt(&p, "at")?.unwrap_or(0.0);
+                let dir = svc.work_dir(&snap.id).join("frames");
+                tokio::fs::create_dir_all(&dir).await?;
+                let dst = dir.join(format!("{:010.3}.png", at.max(0.0)));
+                if !dst.exists() {
+                    svc.studio()
+                        .tools
+                        .thumbnail(&snap.source.path, at, &dst, snap.source.width.max(320))
+                        .await?;
+                }
+                Ok(json!(dst.to_string_lossy()))
+            }
             "proxy" => {
                 let snap = svc.open(&arg::<String>(&p, "id")?).await?.snapshot().await;
                 Ok(json!(svc.studio().proxy(&snap).await?.to_string_lossy()))

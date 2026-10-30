@@ -18,6 +18,8 @@ class FakeBackend implements PlayerBackend {
   @override
   Future<void> pause() async {}
   @override
+  Future<void> setRate(double rate) async {}
+  @override
   Future<void> seek(double seconds) async {}
   @override
   double get position => 0;

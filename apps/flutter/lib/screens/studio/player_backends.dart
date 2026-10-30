@@ -15,6 +15,7 @@ mixin _Extrapolate {
   final Stopwatch _sw = Stopwatch();
   double _limit = double.infinity;
   bool _isPlaying = false;
+  double _rate = 1;
 
   void _update(double pos, {required bool playing, double? limit}) {
     _base = pos;
@@ -29,7 +30,7 @@ mixin _Extrapolate {
   }
 
   double get _now => _isPlaying
-      ? (_base + _sw.elapsedMicroseconds / 1e6).clamp(0.0, _limit)
+      ? (_base + _sw.elapsedMicroseconds / 1e6 * _rate).clamp(0.0, _limit)
       : _base;
 }
 
@@ -41,6 +42,8 @@ class VideoPlayerBackend with _Extrapolate implements PlayerBackend {
 
   @override
   Future<void> open(String path) async {
+    await _c?.dispose();
+    _c = null;
     final c = path.startsWith('http')
         ? VideoPlayerController.networkUrl(Uri.parse(path))
         : VideoPlayerController.file(File(path));
@@ -81,6 +84,13 @@ class VideoPlayerBackend with _Extrapolate implements PlayerBackend {
   }
 
   @override
+  Future<void> setRate(double rate) async {
+    _update(_now, playing: _isPlaying);
+    _rate = rate;
+    await _c?.setPlaybackSpeed(rate);
+  }
+
+  @override
   double get position => _now;
 
   @override
@@ -105,6 +115,9 @@ class MediaKitBackend with _Extrapolate implements PlayerBackend {
       mk.MediaKit.ensureInitialized();
       _inited = true;
     }
+    // Re-open (new source / proxy): release the previous player.
+    await _posSub?.cancel();
+    await _p?.dispose();
     final p = mk.Player();
     _p = p;
     _vc = mkv.VideoController(p);
@@ -132,6 +145,13 @@ class MediaKitBackend with _Extrapolate implements PlayerBackend {
   Future<void> seek(double seconds) async {
     _update(seconds, playing: _isPlaying);
     await _p?.seek(Duration(microseconds: (seconds * 1e6).round()));
+  }
+
+  @override
+  Future<void> setRate(double rate) async {
+    _update(_now, playing: _isPlaying);
+    _rate = rate;
+    await _p?.setRate(rate);
   }
 
   @override

@@ -66,9 +66,17 @@ static PROVIDERS: Mutex<Vec<std::sync::Weak<Shared>>> = Mutex::new(Vec::new());
 /// loads again.
 pub fn unload_all() -> usize {
     let mut n = 0;
-    for p in PROVIDERS.lock().unwrap_or_else(PoisonError::into_inner).iter() {
+    for p in PROVIDERS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .iter()
+    {
         if let Some(p) = p.upgrade()
-            && p.loaded.lock().unwrap_or_else(PoisonError::into_inner).take().is_some()
+            && p.loaded
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .take()
+                .is_some()
         {
             n += 1;
         }

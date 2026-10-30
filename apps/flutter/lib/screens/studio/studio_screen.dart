@@ -1,7 +1,11 @@
+import 'dart:io' show File;
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../ffi/hk_gate.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/hk_ui.dart';
 import '../ai/ai_common.dart' show guarded;
@@ -119,6 +123,29 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
         ?.clips
         .lastOrNull;
     if (last != null) await ctl.selectClip(last.id);
+  }
+
+  /// Save the frame under the playhead as a PNG.
+  Future<void> _snapshot() async {
+    final s = ref.read(studioControllerProvider(widget.projectId));
+    final plan = s.plan;
+    if (plan == null || studioRemote) return;
+    final at = plan.clock.toSource(_player.outTime.value);
+    final path = await guarded(
+      context,
+      () => hk('studio.frame', {'id': widget.projectId, 'at': at}),
+    );
+    if (path is! String) return;
+    final bytes = await File(path).readAsBytes();
+    final saved = await FilePicker.saveFile(
+      dialogTitle: 'Save frame',
+      fileName: 'frame_${at.toStringAsFixed(1)}s.png',
+      bytes: bytes,
+    );
+    if (saved != null && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Frame saved')));
+    }
   }
 
   Future<void> _openSource(String path) async {
@@ -354,7 +381,10 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
                                             ),
                                     ),
                                   ),
-                                  TransportBar(controller: _player),
+                                  TransportBar(
+                                    controller: _player,
+                                    onSnapshot: studioRemote ? null : _snapshot,
+                                  ),
                                 ],
                               ),
                             ),

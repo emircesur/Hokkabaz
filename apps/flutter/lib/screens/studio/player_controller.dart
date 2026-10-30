@@ -11,6 +11,9 @@ abstract class PlayerBackend {
   Future<void> pause();
   Future<void> seek(double seconds);
 
+  /// Playback speed (1 = normal).
+  Future<void> setRate(double rate);
+
   /// Best-effort current position (extrapolated between engine updates).
   double get position;
   bool get playing;
@@ -39,6 +42,23 @@ class EdlPlayerController extends ChangeNotifier {
 
   PreviewPlan? get plan => _plan;
   bool get playing => _playing;
+
+  /// Restart from the top when the clip ends.
+  bool loop = false;
+  double _rate = 1;
+  double get rate => _rate;
+
+  Future<void> setRate(double r) async {
+    _rate = r;
+    await backend.setRate(r);
+    notifyListeners();
+  }
+
+  void toggleLoop() {
+    loop = !loop;
+    notifyListeners();
+  }
+
   double get duration => _clock.duration;
 
   void setPlan(PreviewPlan? plan) {
@@ -109,6 +129,10 @@ class EdlPlayerController extends ChangeNotifier {
         final next = _clock.ranges[_range];
         outTime.value = _clock.rangeStartOut(_range);
         unawaited(backend.seek(next.$1));
+      } else if (loop) {
+        _range = 0;
+        outTime.value = 0;
+        unawaited(backend.seek(_clock.ranges.first.$1));
       } else {
         outTime.value = _clock.duration;
         unawaited(pause());

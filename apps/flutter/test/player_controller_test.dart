@@ -15,6 +15,8 @@ class FakeBackend implements PlayerBackend {
   @override
   Future<void> pause() async => isPlaying = false;
   @override
+  Future<void> setRate(double rate) async {}
+  @override
   Future<void> seek(double seconds) async {
     pos = seconds;
     seeks.add(seconds);
@@ -46,6 +48,20 @@ PreviewPlan plan(String clip, List<(double, double)> ranges) {
 }
 
 void main() {
+  test('loop restarts at the first range instead of stopping', () async {
+    final b = FakeBackend();
+    final c = EdlPlayerController(b, tickEvery: const Duration(hours: 1));
+    c.setPlan(plan('a', [(1.0, 3.0)]));
+    c.toggleLoop();
+    await c.play();
+    b.pos = 3.0;
+    c.tick();
+    await Future<void>.delayed(Duration.zero);
+    expect(c.playing, isTrue);
+    expect(b.seeks.last, 1.0);
+    expect(c.outTime.value, 0);
+  });
+
   test('plays across a cut and stops at the end', () async {
     final b = FakeBackend();
     final c = EdlPlayerController(b, tickEvery: const Duration(hours: 1));

@@ -117,9 +117,12 @@ class _CroppedVideo extends StatelessWidget {
 
 /// Play / pause, time readout and scrubber over the output timeline.
 class TransportBar extends StatelessWidget {
-  const TransportBar({super.key, required this.controller});
+  const TransportBar({super.key, required this.controller, this.onSnapshot});
 
   final EdlPlayerController controller;
+
+  /// Save the current frame; hidden when null.
+  final VoidCallback? onSnapshot;
 
   @override
   Widget build(BuildContext context) {
@@ -150,6 +153,40 @@ class TransportBar extends StatelessWidget {
                 ),
               ),
               Text(formatTime(d), style: Theme.of(context).textTheme.bodySmall),
+              IconButton(
+                tooltip: controller.loop ? 'Loop: on' : 'Loop: off',
+                isSelected: controller.loop,
+                icon: Icon(
+                  Icons.repeat_rounded,
+                  size: 18,
+                  color: controller.loop
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                ),
+                onPressed: controller.toggleLoop,
+              ),
+              PopupMenuButton<double>(
+                tooltip: 'Playback speed',
+                initialValue: controller.rate,
+                onSelected: controller.setRate,
+                itemBuilder: (_) => [
+                  for (final r in const [0.5, 0.75, 1.0, 1.25, 1.5, 2.0])
+                    PopupMenuItem(value: r, child: Text('${r}×')),
+                ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Text(
+                    '${controller.rate}×',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ),
+              if (onSnapshot != null)
+                IconButton(
+                  tooltip: 'Save this frame',
+                  icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                  onPressed: onSnapshot,
+                ),
             ],
           ),
         );
