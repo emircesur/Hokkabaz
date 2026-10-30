@@ -115,8 +115,9 @@ class _CredentialDialogState extends ConsumerState<_CredentialDialog> {
         final v = tokens[f.name];
         if (v is String && v.isNotEmpty) _ctl(f).text = v;
       }
-      if (mounted)
+      if (mounted) {
         setState(() => _signInNote = 'Signed in. Press Save to keep it.');
+      }
     } catch (e) {
       _oauthState = null;
       if (mounted) {

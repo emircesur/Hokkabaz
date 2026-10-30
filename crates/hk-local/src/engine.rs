@@ -329,7 +329,15 @@ fn generate(
         _ => None,
     };
     if let Some(k) = kv {
-        params = params.with_type_k(k).with_type_v(k);
+        // A quantized V cache needs flash attention; with it forced off only K is quantized.
+        params = if prof.flash_attn.as_deref() == Some("off") {
+            params.with_type_k(k)
+        } else {
+            params
+                .with_flash_attention_policy(1)
+                .with_type_k(k)
+                .with_type_v(k)
+        };
     }
     let mut ctx = model
         .new_context(b, params)

@@ -171,7 +171,7 @@ class TransportBar extends StatelessWidget {
                 onSelected: controller.setRate,
                 itemBuilder: (_) => [
                   for (final r in const [0.5, 0.75, 1.0, 1.25, 1.5, 2.0])
-                    PopupMenuItem(value: r, child: Text('${r}×')),
+                    PopupMenuItem(value: r, child: Text('$r×')),
                 ],
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6),

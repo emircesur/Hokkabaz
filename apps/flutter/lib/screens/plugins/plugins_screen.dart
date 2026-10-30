@@ -232,8 +232,9 @@ class _PluginCard extends ConsumerWidget {
                     'Remove ${p.name}?',
                     'Its files and settings are deleted.',
                     'Remove',
-                  ))
+                  )) {
                     return;
+                  }
                   final err = await notifier.remove(p.id);
                   if (context.mounted && err != null) _toast(context, err);
                 },
@@ -423,11 +424,12 @@ class _RegistryDialog extends ConsumerWidget {
                                         e.id,
                                         indexUrl: ref.read(registryUrlProvider),
                                       );
-                                  if (context.mounted)
+                                  if (context.mounted) {
                                     _toast(
                                       context,
                                       err ?? '${e.name} installed',
                                     );
+                                  }
                                 },
                           child: Text(
                             e.installedVersion == null
@@ -545,8 +547,9 @@ class _McpCard extends ConsumerWidget {
                     'Remove ${s.name}?',
                     'Its stored secrets are deleted.',
                     'Remove',
-                  ))
+                  )) {
                     await run(n.remove(s.name));
+                  }
                 },
               ),
             ],
@@ -837,13 +840,15 @@ class _CredentialsTab extends ConsumerWidget {
                                     'Delete ${c.name}?',
                                     'Flows using it will fail until you pick another.',
                                     'Delete',
-                                  ))
+                                  )) {
                                     return;
+                                  }
                                   final err = await ref
                                       .read(credentialBookProvider.notifier)
                                       .remove(c.id);
-                                  if (context.mounted && err != null)
+                                  if (context.mounted && err != null) {
                                     _toast(context, err);
+                                  }
                                 },
                               ),
                             ],

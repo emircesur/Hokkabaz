@@ -343,17 +343,21 @@ class _LocalTabState extends State<_LocalTab> {
   final _model = TextEditingController();
   String? _bench;
 
+  // Default profile (`*`) for every on-device model; per-model overrides live in the chat's
+  // Run settings panel. Names match hk-local `RuntimeProfile`.
   static const _fields = <(String, String, String)>[
-    ('context_length', 'Context length', 'int'),
-    ('gpu_layers', 'GPU layers', 'int'),
-    ('threads', 'Threads', 'int'),
-    ('batch_size', 'Batch size', 'int'),
-    ('kv_cache_type', 'KV cache quantization', 'choice:f16,q8_0,q4_0'),
-    ('flash_attention', 'Flash attention', 'bool'),
-    ('mmap', 'mmap', 'bool'),
-    ('mlock', 'mlock', 'bool'),
-    ('keep_alive_minutes', 'Keep alive (minutes)', 'int'),
+    ('ctx', 'Context length (tokens)', 'int'),
+    ('gpu_layers', 'GPU layers (-1 = all, 0 = CPU)', 'int'),
+    ('threads', 'CPU threads', 'int'),
+    ('batch', 'Batch size', 'int'),
+    ('kv_type', 'KV cache quantization', 'choice:f16,q8_0,q4_0'),
+    ('flash_attn', 'Flash attention', 'choice:auto,on,off'),
+    ('mmap', 'Memory-map model file', 'bool'),
+    ('mlock', 'Lock in RAM (mlock)', 'bool'),
   ];
+
+  /// The whole document: `{"*": {...}, "<model>": {...}}`.
+  Map<String, dynamic> _doc = {};
 
   @override
   void initState() {
@@ -361,7 +365,13 @@ class _LocalTabState extends State<_LocalTab> {
     hk('settings.local.get')
         .then((v) {
           if (mounted && v is Map) {
-            setState(() => _p = v.cast<String, dynamic>());
+            setState(() {
+              _doc = v.cast<String, dynamic>();
+              _p = {
+                for (final e in ((_doc['*'] as Map?) ?? const {}).entries)
+                  if (e.value != null) '${e.key}': e.value,
+              };
+            });
           }
         })
         .catchError((_) {});
@@ -372,7 +382,7 @@ class _LocalTabState extends State<_LocalTab> {
     padding: const EdgeInsets.all(HkTokens.s4),
     children: [
       Text(
-        'Local model runtime profile',
+        'On-device runtime (all local models)',
         style: Theme.of(context).textTheme.titleMedium,
       ),
       const SizedBox(height: HkTokens.s2),
@@ -383,7 +393,19 @@ class _LocalTabState extends State<_LocalTab> {
         child: FilledButton(
           onPressed: () => guarded(
             context,
-            () => hk('settings.local.save', {'profiles': _p}),
+            () => hk('settings.local.save', {
+              'profiles': {
+                ..._doc,
+                '*': {
+                  for (final e in _p.entries)
+                    if (e.value != null &&
+                        e.value != '' &&
+                        !(e.key == 'kv_type' && e.value == 'f16') &&
+                        !(e.key == 'flash_attn' && e.value == 'auto'))
+                      e.key: e.value,
+                },
+              },
+            }),
             ok: 'Saved',
           ),
           child: const Text('Save'),

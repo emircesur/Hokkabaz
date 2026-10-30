@@ -125,6 +125,7 @@ pub(crate) async fn call(c: &Ctx<'_>, method: &str, p: Value) -> Result<Value, H
             "delete" => {
                 c.runtime
                     .delete_session(str_arg(&p, "session_id")?)
+                    .await
                     .map_err(|e| HkError::internal(e.to_string()))?;
                 Ok(Value::Null)
             }

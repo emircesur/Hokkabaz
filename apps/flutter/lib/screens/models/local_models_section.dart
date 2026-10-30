@@ -80,8 +80,9 @@ class LocalModelsNotifier extends AsyncNotifier<LocalOverview> {
 
   @override
   Future<LocalOverview> build() async {
-    if (ref.watch(rustInitErrorProvider) != null)
+    if (ref.watch(rustInitErrorProvider) != null) {
       throw StateError('Rust is not available');
+    }
     ref.onDispose(() {
       for (final s in _subs.values) {
         s.cancel();
@@ -285,8 +286,9 @@ class LocalModelsSection extends ConsumerWidget {
                                   .hk('local.unload')
                                   .catchError((_) => 0);
                               await notifier.refresh();
-                              if (context.mounted)
+                              if (context.mounted) {
                                 toast('Model unloaded; memory freed');
+                              }
                             },
                       icon: const Icon(Icons.eject_outlined, size: 16),
                       label: const Text('Unload'),

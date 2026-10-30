@@ -94,6 +94,8 @@ struct Live {
     wake: Notify,
     /// Log has something new the tailer should push now (approval parked).
     flush: Notify,
+    /// Ends the drive task (session deleted): drops the agent and its log writer.
+    stop: Notify,
 }
 
 struct Inner {
@@ -162,18 +164,29 @@ impl LocalRuntime {
     }
 
     /// Delete a session's log. Refused while its agent is running.
-    pub fn delete_session(&self, id: &str) -> Result<(), ApiError> {
-        {
+    pub async fn delete_session(&self, id: &str) -> Result<(), ApiError> {
+        let live = {
             let mut map = lock(&self.0.live);
             if map.get(id).is_some_and(|l| l.handle.is_running()) {
                 return Err(ApiError::BadRequest(
                     "stop the session before deleting it".into(),
                 ));
             }
-            map.remove(id);
+            map.remove(id)
+        };
+        // The idle agent task still holds the log open; Windows refuses to delete an open file.
+        if let Some(l) = live {
+            l.stop.notify_one();
         }
-        self.0.store.delete(id)?;
-        Ok(())
+        let mut last = None;
+        for _ in 0..20 {
+            match self.0.store.delete(id) {
+                Ok(()) => return Ok(()),
+                Err(e) => last = Some(e),
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        Err(last.map_or_else(|| ApiError::Internal("delete failed".into()), Into::into))
     }
 
     /// Per-session sampling overrides (chat "Run settings"); fields left `None` fall back to the
@@ -275,6 +288,7 @@ impl LocalRuntime {
             cfg: Mutex::new(cfg),
             wake: Notify::new(),
             flush: Notify::new(),
+            stop: Notify::new(),
         });
 
         let (tx, sid) = (self.0.tx.clone(), id.to_owned());
@@ -327,7 +341,10 @@ async fn drive(
         last_len: 0,
     };
     loop {
-        live.wake.notified().await;
+        tokio::select! {
+            () = live.wake.notified() => {}
+            () = live.stop.notified() => return,
+        }
         loop {
             let mut c = lock(&live.cfg).clone();
             lock(&live.defaults).apply(&mut c);

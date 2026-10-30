@@ -580,3 +580,24 @@ async fn local_runtime_runs_a_turn_and_feeds_events() {
         Err(ApiError::NotFound(_))
     ));
 }
+
+#[tokio::test]
+async fn delete_session_stops_its_idle_agent_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let rt = LocalRuntime::new(LocalConfig {
+        provider: Arc::new(Echo),
+        sessions_dir: dir.path().join("sessions"),
+        spill_dir: dir.path().join("spill"),
+        default_model: "echo-1".into(),
+        default_cwd: Some(dir.path().to_owned()),
+        max_steps: 5,
+    })
+    .unwrap();
+    let s = rt.create_session(CreateSession::default()).await.unwrap();
+    // Makes the session live (drive task holding the log writer).
+    rt.set_session_ai(&s.id, &crate::AiDefaults::default())
+        .unwrap();
+    rt.delete_session(&s.id).await.unwrap();
+    assert!(rt.list_sessions(10, 0).await.unwrap().is_empty());
+    assert!(!dir.path().join("sessions").join(&s.id).exists());
+}

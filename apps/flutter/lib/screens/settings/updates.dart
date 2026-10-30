@@ -55,8 +55,9 @@ Future<ReleaseInfo?> checkForUpdate({HttpClient? client}) async {
     req.headers.set('User-Agent', 'hokkabaz/$hkVersion');
     final res = await req.close().timeout(const Duration(seconds: 15));
     if (res.statusCode == 404) return null; // no releases yet
-    if (res.statusCode != 200)
+    if (res.statusCode != 200) {
       throw HttpException('GitHub answered ${res.statusCode}');
+    }
     final body = await res.transform(utf8.decoder).join();
     final j = jsonDecode(body) as Map<String, dynamic>;
     final tag = (j['tag_name'] as String?) ?? '';
