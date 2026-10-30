@@ -2,10 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../theme/tokens.dart';
+import '../../widgets/hk_ui.dart';
 import 'studio_models.dart';
 import 'studio_providers.dart';
 
 /// Clip candidates and edits, best score first.
+/// Clip list order.
+class _ClipSort extends Notifier<String> {
+  @override
+  String build() => 'time';
+  void set(String v) => state = v;
+}
+
+final _clipSortProvider = NotifierProvider<_ClipSort, String>(_ClipSort.new);
+
 class ClipsPane extends ConsumerWidget {
   const ClipsPane({super.key, required this.projectId, this.onPicked});
 
@@ -23,28 +33,41 @@ class ClipsPane extends ConsumerWidget {
     if (project == null) {
       return const Center(child: CircularProgressIndicator());
     }
+    final sort = ref.watch(_clipSortProvider);
+    final clips = [...project.clips];
+    if (sort == 'score') {
+      clips.sort(
+        (a, b) => (b.score?.total ?? -1).compareTo(a.score?.total ?? -1),
+      );
+    } else if (sort == 'length') {
+      clips.sort((a, b) => (b.end - b.start).compareTo(a.end - a.start));
+    }
+    final step = !project.hasTranscript
+        ? 0
+        : (project.clips.isEmpty ? 1 : (s.rendered.isEmpty ? 2 : 3));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _Steps(current: step),
         Padding(
-          padding: const EdgeInsets.all(HkTokens.s2),
+          padding: const EdgeInsets.all(HkTokens.s3),
           child: Wrap(
             spacing: HkTokens.s2,
             runSpacing: HkTokens.s2,
             children: [
-              FilledButton.icon(
-                onPressed: !project.hasTranscript || s.busy.contains('analyze')
-                    ? null
-                    : () => _analyze(context, ctl),
-                icon: s.busy.contains('analyze')
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.auto_awesome, size: 18),
-                label: Text(
-                  s.busy.contains('analyze') ? 'Finding…' : 'Find highlights',
+              Tooltip(
+                message: project.hasTranscript
+                    ? 'AI picks the most shareable moments'
+                    : 'Transcribe first',
+                child: GradientButton(
+                  label: s.busy.contains('analyze')
+                      ? 'Finding…'
+                      : 'Find highlights',
+                  icon: Icons.auto_awesome,
+                  busy: s.busy.contains('analyze'),
+                  onPressed: !project.hasTranscript
+                      ? null
+                      : () => _analyze(context, ctl),
                 ),
               ),
               OutlinedButton.icon(
@@ -73,6 +96,49 @@ class ClipsPane extends ConsumerWidget {
             ],
           ),
         ),
+        if (project.clips.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              HkTokens.s4,
+              0,
+              HkTokens.s2,
+              HkTokens.s1,
+            ),
+            child: Row(
+              children: [
+                Text(
+                  '${project.clips.length} CLIPS',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+                const Spacer(),
+                PopupMenuButton<String>(
+                  tooltip: 'Sort',
+                  initialValue: sort,
+                  onSelected: ref.read(_clipSortProvider.notifier).set,
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'time', child: Text('By time')),
+                    PopupMenuItem(value: 'score', child: Text('By virality')),
+                    PopupMenuItem(value: 'length', child: Text('By length')),
+                  ],
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.sort, size: 15, color: hk.textMuted),
+                        const SizedBox(width: 4),
+                        Text(switch (sort) {
+                          'score' => 'Virality',
+                          'length' => 'Length',
+                          _ => 'Time',
+                        }, style: TextStyle(fontSize: 12, color: hk.textMuted)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         Divider(height: 1, color: hk.border),
         Expanded(
           child: project.clips.isEmpty
@@ -81,7 +147,7 @@ class ClipsPane extends ConsumerWidget {
                     padding: const EdgeInsets.all(HkTokens.s4),
                     child: Text(
                       project.hasTranscript
-                          ? 'No clips yet. Edit the whole video, find highlights, or long-press the timeline to add one.'
+                          ? 'No clips yet. Find highlights, edit the whole video, or double-click the source bar to add one.'
                           : 'Edit the whole video now, or transcribe it first so the AI can find the best moments and you can edit by text.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: hk.textMuted),
@@ -89,25 +155,29 @@ class ClipsPane extends ConsumerWidget {
                   ),
                 )
               : ListView.builder(
-                  itemCount: project.clips.length,
+                  itemCount: clips.length,
                   itemBuilder: (context, i) => _ClipTile(
-                    clip: project.clips[i],
-                    selected: project.clips[i].id == s.selectedClip,
-                    rendering: s.renderProgress[project.clips[i].id],
-                    rendered: s.rendered.containsKey(project.clips[i].id),
+                    clip: clips[i],
+                    selected: clips[i].id == s.selectedClip,
+                    rendering: s.renderProgress[clips[i].id],
+                    rendered: s.rendered.containsKey(clips[i].id),
                     onTap: () {
-                      ctl.selectClip(project.clips[i].id);
+                      ctl.selectClip(clips[i].id);
                       onPicked?.call();
                     },
                     onRename: (t) => ctl.edit([
+                      {'op': 'rename_clip', 'clip': clips[i].id, 'title': t},
+                    ]),
+                    onDuplicate: () => ctl.edit([
                       {
-                        'op': 'rename_clip',
-                        'clip': project.clips[i].id,
-                        'title': t,
+                        'op': 'add_clip',
+                        'title': '${clips[i].title} (copy)',
+                        'start': clips[i].start,
+                        'end': clips[i].end,
                       },
                     ]),
                     onRemove: () => ctl.edit([
-                      {'op': 'remove_clip', 'clip': project.clips[i].id},
+                      {'op': 'remove_clip', 'clip': clips[i].id},
                     ]),
                   ),
                 ),
@@ -198,6 +268,7 @@ class _ClipTile extends StatelessWidget {
     required this.rendered,
     required this.onTap,
     required this.onRename,
+    required this.onDuplicate,
     required this.onRemove,
   });
 
@@ -207,6 +278,7 @@ class _ClipTile extends StatelessWidget {
   final bool rendered;
   final VoidCallback onTap;
   final void Function(String) onRename;
+  final VoidCallback onDuplicate;
   final VoidCallback onRemove;
 
   @override
@@ -257,6 +329,7 @@ class _ClipTile extends StatelessWidget {
                   tooltip: 'Clip actions',
                   onSelected: (v) async {
                     if (v == 'delete') onRemove();
+                    if (v == 'duplicate') onDuplicate();
                     if (v == 'rename') {
                       final c = TextEditingController(text: clip.title);
                       final t = await showDialog<String>(
@@ -282,6 +355,7 @@ class _ClipTile extends StatelessWidget {
                   },
                   itemBuilder: (_) => const [
                     PopupMenuItem(value: 'rename', child: Text('Rename')),
+                    PopupMenuItem(value: 'duplicate', child: Text('Duplicate')),
                     PopupMenuItem(value: 'delete', child: Text('Delete clip')),
                   ],
                 ),
@@ -336,6 +410,84 @@ class ScoreBadge extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Guided workflow: where the project is and what comes next.
+class _Steps extends StatelessWidget {
+  const _Steps({required this.current});
+
+  final int current;
+
+  static const _labels = ['Transcribe', 'Find clips', 'Edit', 'Export'];
+
+  @override
+  Widget build(BuildContext context) {
+    final hk = context.hk;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        HkTokens.s3,
+        HkTokens.s3,
+        HkTokens.s3,
+        0,
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < _labels.length; i++) ...[
+            if (i > 0)
+              Expanded(
+                child: Container(
+                  height: 2,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  color: i <= current ? hk.accent : hk.border,
+                ),
+              ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 20,
+                  height: 20,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: i < current ? hk.gradient : null,
+                    color: i < current
+                        ? null
+                        : (i == current ? hk.surface3 : hk.surface2),
+                    border: Border.all(
+                      color: i == current ? hk.accent : Colors.transparent,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: i < current
+                      ? Icon(Icons.check, size: 12, color: hk.onAccent)
+                      : Text(
+                          '${i + 1}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: i == current ? hk.text : hk.textFaint,
+                          ),
+                        ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _labels[i],
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: i == current ? hk.text : hk.textFaint,
+                    fontWeight: i == current
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../theme/tokens.dart';
+import '../../widgets/hk_ui.dart';
+import '../ai/ai_common.dart' show guarded;
 import 'agent_panel.dart';
 import 'clips_pane.dart';
 import 'player_backends.dart';
@@ -92,6 +94,33 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
     super.dispose();
   }
 
+  /// New 30 s clip at `at` (source seconds), then select it.
+  Future<void> _addClipAt(double at) async {
+    final ctl = ref.read(studioControllerProvider(widget.projectId).notifier);
+    final dur =
+        ref
+            .read(studioControllerProvider(widget.projectId))
+            .project
+            ?.source
+            .duration ??
+        0;
+    final ok = await ctl.edit([
+      {
+        'op': 'add_clip',
+        'title': 'New clip',
+        'start': at,
+        'end': (at + 30).clamp(0, dur),
+      },
+    ]);
+    if (!ok) return;
+    final last = ref
+        .read(studioControllerProvider(widget.projectId))
+        .project
+        ?.clips
+        .lastOrNull;
+    if (last != null) await ctl.selectClip(last.id);
+  }
+
   Future<void> _openSource(String path) async {
     if (_opened == path) return;
     _opened = path;
@@ -170,6 +199,11 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
     final ctl = ref.read(studioControllerProvider(id).notifier);
     final project = s.project;
     final hk = context.hk;
+    // Re-entering a project whose state is already loaded never fires the listener above.
+    final src = project?.source.path;
+    if (src != null && _opened != src) {
+      Future.microtask(() => _openSource(src));
+    }
     if (s.loading && project == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -189,7 +223,13 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
       );
     }
     final wide = MediaQuery.sizeOf(context).width >= 1000;
-    final header = _Header(projectId: id, project: project, state: s, ctl: ctl);
+    final header = _Header(
+      projectId: id,
+      project: project,
+      state: s,
+      ctl: ctl,
+      onExport: wide ? () => setState(() => _tool = 'export') : null,
+    );
     final center = _Center(
       projectId: id,
       player: _player,
@@ -227,33 +267,22 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  Padding(
-                                    padding: const EdgeInsets.all(HkTokens.s2),
-                                    child: Row(
-                                      children: [
-                                        FilledButton.tonalIcon(
-                                          onPressed: () =>
-                                              setState(() => _tool = 'enhance'),
-                                          icon: const Icon(
-                                            Icons.auto_fix_high,
-                                            size: 18,
-                                          ),
-                                          label: const Text('Speech cleanup'),
+                                  PanelHeader(
+                                    title: s.clip == null
+                                        ? 'Transcript'
+                                        : 'Transcript · ${s.clip!.title}',
+                                    icon: Icons.notes,
+                                    actions: [
+                                      TextButton.icon(
+                                        onPressed: () =>
+                                            setState(() => _tool = 'enhance'),
+                                        icon: const Icon(
+                                          Icons.auto_fix_high,
+                                          size: 16,
                                         ),
-                                        const Spacer(),
-                                        if (s.clip != null)
-                                          Flexible(
-                                            child: Text(
-                                              s.clip!.title,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: hk.textMuted,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
+                                        label: const Text('Clean up'),
+                                      ),
+                                    ],
                                   ),
                                   Expanded(
                                     child: TranscriptEditor(
@@ -275,15 +304,36 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
                                         HkTokens.s2,
                                       ),
                                       child: s.clip == null
-                                          ? Center(
-                                              child: FilledButton.icon(
-                                                onPressed: ctl.addWholeVideo,
-                                                icon: const Icon(
-                                                  Icons.movie_edit,
-                                                ),
-                                                label: const Text(
-                                                  'Edit the whole video',
-                                                ),
+                                          ? EmptyState(
+                                              icon: Icons.movie_filter_outlined,
+                                              title: 'No clip selected',
+                                              message: project.hasTranscript
+                                                  ? 'Let AI find the best moments, edit the whole video, or double-click the source bar below to add a clip.'
+                                                  : 'Transcribe first (Clips panel) so AI can find highlights, or edit the whole video.',
+                                              action: Wrap(
+                                                spacing: HkTokens.s2,
+                                                runSpacing: HkTokens.s2,
+                                                alignment: WrapAlignment.center,
+                                                children: [
+                                                  GradientButton(
+                                                    label: 'Find highlights',
+                                                    icon: Icons.auto_awesome,
+                                                    onPressed: () => setState(
+                                                      () => _tool = 'clips',
+                                                    ),
+                                                  ),
+                                                  OutlinedButton.icon(
+                                                    onPressed:
+                                                        ctl.addWholeVideo,
+                                                    icon: const Icon(
+                                                      Icons.movie_edit,
+                                                      size: 18,
+                                                    ),
+                                                    label: const Text(
+                                                      'Edit whole video',
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             )
                                           : _playerError != null
@@ -310,10 +360,25 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
                             ),
                             VerticalDivider(width: 1, color: hk.border),
                             SizedBox(
-                              width: 340,
-                              child: KeyedSubtree(
-                                key: ValueKey(_tool),
-                                child: _panel(id),
+                              width: 360,
+                              child: ColoredBox(
+                                color: hk.surface,
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    PanelHeader(
+                                      title: _ToolRail.label(_tool),
+                                      icon: _ToolRail.icon(_tool),
+                                    ),
+                                    Expanded(
+                                      child: KeyedSubtree(
+                                        key: ValueKey(_tool),
+                                        child: _panel(id),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                             VerticalDivider(width: 1, color: hk.border),
@@ -336,42 +401,64 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
                           ),
                         ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: HkTokens.s3,
-                          vertical: HkTokens.s2,
+                        padding: const EdgeInsets.fromLTRB(
+                          HkTokens.s3,
+                          HkTokens.s1,
+                          HkTokens.s3,
+                          HkTokens.s2,
                         ),
-                        child: _StripHost(
-                          player: _player,
-                          plan: s.plan,
-                          source: project.source,
-                          clips: project.clips,
-                          selected: s.selectedClip,
-                          onSelect: ctl.selectClip,
-                          onBounds: (cid, a, b) => ctl.edit([
-                            {
-                              'op': 'set_bounds',
-                              'clip': cid,
-                              'start': a,
-                              'end': b,
-                            },
-                          ]),
-                          onAddAt: (at) => ctl.edit([
-                            {
-                              'op': 'add_clip',
-                              'title': 'New clip',
-                              'start': at,
-                              'end': (at + 30).clamp(
-                                0,
-                                project.source.duration,
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 84,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.movie_outlined,
+                                    size: 14,
+                                    color: hk.textFaint,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      'Source',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: hk.textMuted,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            },
-                          ]),
+                            ),
+                            Expanded(
+                              child: _StripHost(
+                                player: _player,
+                                plan: s.plan,
+                                source: project.source,
+                                clips: project.clips,
+                                selected: s.selectedClip,
+                                onSelect: ctl.selectClip,
+                                onBounds: (cid, a, b) => ctl.edit([
+                                  {
+                                    'op': 'set_bounds',
+                                    'clip': cid,
+                                    'start': a,
+                                    'end': b,
+                                  },
+                                ]),
+                                onAddAt: _addClipAt,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   )
                 : DefaultTabController(
-                    length: 10,
+                    length: 13,
                     child: Column(
                       children: [
                         const TabBar(
@@ -412,6 +499,15 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
                               icon: Icon(Icons.file_download_outlined),
                               text: 'Export',
                             ),
+                            Tab(
+                              icon: Icon(Icons.collections_outlined),
+                              text: 'B-roll',
+                            ),
+                            Tab(icon: Icon(Icons.animation), text: 'Motion'),
+                            Tab(
+                              icon: Icon(Icons.insights_outlined),
+                              text: 'Analytics',
+                            ),
                           ],
                         ),
                         Expanded(
@@ -434,6 +530,9 @@ class _ProjectViewState extends ConsumerState<ProjectView> {
                               BrandPanel(projectId: id),
                               ThumbnailsPanel(projectId: id),
                               ExportPanel(projectId: id),
+                              _BrollPanel(projectId: id),
+                              _MotionPanel(projectId: id),
+                              AnalyticsPanel(projectId: id),
                             ],
                           ),
                         ),
@@ -453,18 +552,23 @@ class _Header extends ConsumerWidget {
     required this.project,
     required this.state,
     required this.ctl,
+    this.onExport,
   });
 
   final String projectId;
   final StudioProjectData project;
   final StudioState state;
   final StudioController ctl;
+  final VoidCallback? onExport;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hk = context.hk;
-    return SizedBox(
+    final clips = project.clips.length;
+    return Container(
       height: 52,
+      padding: const EdgeInsets.only(right: HkTokens.s2),
+      color: hk.surface,
       child: Row(
         children: [
           IconButton(
@@ -474,11 +578,31 @@ class _Header extends ConsumerWidget {
             icon: const Icon(Icons.arrow_back),
           ),
           Expanded(
-            child: Text(
-              project.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  project.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  [
+                    formatTime(project.source.duration),
+                    '${project.source.width}×${project.source.height}',
+                    '$clips clip${clips == 1 ? '' : 's'}',
+                    if (!project.hasTranscript) 'not transcribed',
+                  ].join('  ·  '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11, color: hk.textFaint),
+                ),
+              ],
             ),
           ),
           if (state.lastEditBy == 'agent')
@@ -522,14 +646,93 @@ class _Header extends ConsumerWidget {
             icon: const Icon(Icons.redo),
           ),
           IconButton(
+            tooltip: 'Keyboard shortcuts',
+            onPressed: () => _showShortcuts(context),
+            icon: const Icon(Icons.keyboard_outlined),
+          ),
+          IconButton(
             tooltip: 'Studio settings',
             onPressed: () => showStudioSettings(context),
             icon: const Icon(Icons.tune),
           ),
+          if (onExport != null) ...[
+            const SizedBox(width: HkTokens.s2),
+            GradientButton(
+              label: 'Export',
+              icon: Icons.file_upload_outlined,
+              height: 34,
+              onPressed: state.clip == null ? null : onExport,
+            ),
+          ],
         ],
       ),
     );
   }
+}
+
+void _showShortcuts(BuildContext context) {
+  const rows = [
+    ('Space', 'Play / pause'),
+    ('J  /  L', 'Back 5 s  /  play, again: forward 5 s'),
+    ('K', 'Pause'),
+    ('←  /  →', 'Step 1 s'),
+    ('Ctrl+Z  /  Ctrl+Shift+Z', 'Undo / redo'),
+    ('Delete', 'Cut selected words (transcript)'),
+    ('Double-click source bar', 'Add a clip there'),
+  ];
+  showDialog<void>(
+    context: context,
+    builder: (ctx) {
+      final hk = ctx.hk;
+      return AlertDialog(
+        title: const Text('Keyboard shortcuts'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (k, v) in rows)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: hk.surface3,
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(color: hk.borderStrong),
+                        ),
+                        child: Text(
+                          k,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontFamily: HkTokens.fontMono,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: HkTokens.s3),
+                      Expanded(
+                        child: Text(v, style: const TextStyle(fontSize: 13)),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 class _Center extends ConsumerWidget {
@@ -710,58 +913,90 @@ class _ToolRail extends StatelessWidget {
   final String selected;
   final void Function(String) onSelect;
 
-  static const _items = <(String, String, IconData)>[
+  /// Grouped like an editor: edit, enhance, deliver; `null` = divider.
+  static const _items = <(String, String, IconData)?>[
     ('clips', 'Clips', Icons.video_library_outlined),
-    ('enhance', 'AI enhance', Icons.auto_awesome),
     ('captions', 'Captions', Icons.closed_caption_outlined),
-    ('brand', 'Brand', Icons.verified_outlined),
     ('broll', 'B-roll', Icons.collections_outlined),
     ('motion', 'Motion', Icons.animation),
-    ('text', 'Text', Icons.text_fields),
+    null,
+    ('enhance', 'AI enhance', Icons.auto_awesome),
+    ('brand', 'Brand', Icons.verified_outlined),
+    ('text', 'Write', Icons.text_fields),
     ('thumbs', 'Thumbs', Icons.photo_library_outlined),
-    ('publish', 'Publish', Icons.ios_share),
-    ('stats', 'Analytics', Icons.insights_outlined),
-    ('export', 'Export', Icons.file_download_outlined),
     ('agent', 'Agent', Icons.smart_toy_outlined),
+    null,
+    ('publish', 'Publish', Icons.ios_share),
+    ('export', 'Export', Icons.file_download_outlined),
+    ('stats', 'Analytics', Icons.insights_outlined),
   ];
+
+  static (String, String, IconData) _find(String k) => _items
+      .whereType<(String, String, IconData)>()
+      .firstWhere((e) => e.$1 == k, orElse: () => _items.first!);
+  static String label(String k) => _find(k).$2;
+  static IconData icon(String k) => _find(k).$3;
 
   @override
   Widget build(BuildContext context) {
     final hk = context.hk;
-    return SizedBox(
-      width: 84,
+    return Container(
+      width: 76,
+      color: hk.surface,
       child: ListView(
         padding: const EdgeInsets.symmetric(vertical: HkTokens.s2),
         children: [
-          for (final (k, label, icon) in _items)
-            InkWell(
-              onTap: () => onSelect(k),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: selected == k
-                      ? hk.accent.withValues(alpha: 0.15)
-                      : null,
-                  borderRadius: BorderRadius.circular(10),
+          for (final item in _items)
+            if (item == null)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 6,
                 ),
-                child: Column(
-                  children: [
-                    Icon(icon, color: selected == k ? hk.accent : hk.text),
-                    const SizedBox(height: 4),
-                    Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: selected == k ? hk.accent : hk.textMuted,
-                      ),
-                    ),
-                  ],
+                child: Divider(height: 1, color: hk.border),
+              )
+            else
+              _railButton(context, item),
+        ],
+      ),
+    );
+  }
+
+  Widget _railButton(BuildContext context, (String, String, IconData) item) {
+    final hk = context.hk;
+    final (k, label, icon) = item;
+    final sel = selected == k;
+    return Tooltip(
+      message: label,
+      waitDuration: const Duration(milliseconds: 600),
+      child: InkWell(
+        onTap: () => onSelect(k),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          decoration: BoxDecoration(
+            color: sel ? hk.accent.withValues(alpha: 0.16) : null,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, size: 20, color: sel ? hk.text : hk.textMuted),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: sel ? FontWeight.w600 : FontWeight.w500,
+                  color: sel ? hk.text : hk.textMuted,
                 ),
               ),
-            ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -783,7 +1018,7 @@ class _PreviewToolbar extends ConsumerWidget {
       'vertical' => '9:16',
       'square' => '1:1',
       null => 'Original',
-      _ => 'Custom',
+      final o => o,
     };
     return SizedBox(
       height: 44,
@@ -800,13 +1035,22 @@ class _PreviewToolbar extends ConsumerWidget {
                   {'op': 'set_reframe', 'clip': clip.id, 'reframe': null},
                 ]);
               } else {
-                ctl.reframe(clip.id, square: v == 'square');
+                ctl.reframe(clip.id, aspect: v);
               }
             },
             itemBuilder: (_) => const [
-              PopupMenuItem(value: 'vertical', child: Text('9:16 vertical')),
-              PopupMenuItem(value: 'square', child: Text('1:1 square')),
-              PopupMenuItem(value: 'original', child: Text('Original')),
+              PopupMenuItem(
+                value: '9:16',
+                child: Text('9:16  ·  Shorts, Reels, TikTok'),
+              ),
+              PopupMenuItem(value: '1:1', child: Text('1:1  ·  Square')),
+              PopupMenuItem(
+                value: '4:5',
+                child: Text('4:5  ·  Instagram feed'),
+              ),
+              PopupMenuItem(value: '16:9', child: Text('16:9  ·  YouTube')),
+              PopupMenuDivider(),
+              PopupMenuItem(value: 'original', child: Text('Original framing')),
             ],
             child: Chip(
               avatar: const Icon(Icons.crop_portrait, size: 16),
@@ -850,49 +1094,122 @@ class _PreviewToolbar extends ConsumerWidget {
   }
 }
 
+/// B-roll placements as `set_broll` JSON (output seconds, as the plan holds them).
+List<Map<String, Object?>> brollJson(Iterable<BrollItem> items) => [
+  for (final b in items)
+    {
+      'start': b.start,
+      'end': b.end,
+      'query': b.query,
+      'asset': b.asset,
+      'kind': b.isImage ? 'image' : 'video',
+    },
+];
+
 class _BrollPanel extends ConsumerWidget {
   const _BrollPanel({required this.projectId});
   final String projectId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final hk = context.hk;
     final s = ref.watch(studioControllerProvider(projectId));
     final ctl = ref.read(studioControllerProvider(projectId).notifier);
     final clip = s.clip;
+    final items = s.plan?.broll ?? const <BrollItem>[];
+    final busy = s.busy.contains('broll');
     return ListView(
-      padding: const EdgeInsets.all(HkTokens.s3),
+      padding: const EdgeInsets.all(HkTokens.s4),
       children: [
-        const Text(
-          'B-roll',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-        ),
-        const SizedBox(height: 4),
         Text(
-          'Stock footage at the sentences that need it (Pexels, Pixabay or your folders — set in Studio settings).',
-          style: TextStyle(fontSize: 12, color: context.hk.textMuted),
+          'Stock footage over the sentences that need it. Sources: Pexels, Pixabay or your own folders (Studio settings).',
+          style: TextStyle(fontSize: 12, color: hk.textMuted),
         ),
-        const SizedBox(height: HkTokens.s3),
-        if (clip == null) const Text('Select a clip.'),
-        if (clip != null) ...[
-          Text('${clip.brollCount} overlays on this clip'),
-          const SizedBox(height: 8),
-          FilledButton.icon(
-            onPressed: s.busy.contains('broll')
+        const SizedBox(height: HkTokens.s4),
+        if (clip == null)
+          const EmptyState(
+            icon: Icons.collections_outlined,
+            title: 'No clip selected',
+            message: 'Pick a clip to add B-roll.',
+          )
+        else ...[
+          GradientButton(
+            label: busy
+                ? 'Finding footage…'
+                : (items.isEmpty ? 'Auto B-roll' : 'Find more B-roll'),
+            icon: Icons.auto_awesome,
+            busy: busy,
+            expand: true,
+            onPressed: () => ctl.broll(clip.id),
+          ),
+          SectionLabel(
+            '${items.length} overlay${items.length == 1 ? '' : 's'}',
+            trailing: items.isEmpty
                 ? null
-                : () => ctl.broll(clip.id),
-            icon: const Icon(Icons.auto_awesome),
-            label: Text(
-              s.busy.contains('broll') ? 'Finding footage…' : 'Auto B-roll',
+                : TextButton(
+                    onPressed: () => ctl.edit([
+                      {
+                        'op': 'set_broll',
+                        'clip': clip.id,
+                        'broll': <Object?>[],
+                      },
+                    ]),
+                    child: const Text('Remove all'),
+                  ),
+          ),
+          for (var i = 0; i < items.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: HkTokens.s2),
+              child: HoverCard(
+                padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      items[i].isImage
+                          ? Icons.image_outlined
+                          : Icons.movie_outlined,
+                      size: 18,
+                      color: HkTokens.nodeData,
+                    ),
+                    const SizedBox(width: HkTokens.s3),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            items[i].query.isEmpty ? 'B-roll' : items[i].query,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Text(
+                            '${formatTime(items[i].start)} – ${formatTime(items[i].end)}',
+                            style: TextStyle(fontSize: 11, color: hk.textFaint),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Remove',
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      onPressed: () => ctl.edit([
+                        {
+                          'op': 'set_broll',
+                          'clip': clip.id,
+                          'broll': brollJson([
+                            for (var k = 0; k < items.length; k++)
+                              if (k != i) items[k],
+                          ]),
+                        },
+                      ]),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-          TextButton(
-            onPressed: clip.brollCount == 0
-                ? null
-                : () => ctl.edit([
-                    {'op': 'set_broll', 'clip': clip.id, 'broll': <Object?>[]},
-                  ]),
-            child: const Text('Remove all B-roll'),
-          ),
         ],
       ],
     );
@@ -909,83 +1226,130 @@ class _MotionPanel extends ConsumerStatefulWidget {
 class _MotionPanelState extends ConsumerState<_MotionPanel> {
   double _zoom = 1.15;
   double _hold = 0.8;
+  double _perMin = 6;
+  bool _busy = false;
+
+  Future<void> _punch(String clip, Map<String, Object?>? spec) async {
+    setState(() => _busy = true);
+    final ctl = ref.read(studioControllerProvider(widget.projectId).notifier);
+    await guarded(
+      context,
+      () => studioCall('set_punch_in', {
+        'id': widget.projectId,
+        'clip': clip,
+        'punch_in': spec,
+      }),
+      ok: spec == null ? 'Auto zoom off' : 'Auto zoom applied',
+    );
+    await ctl.reload();
+    if (mounted) setState(() => _busy = false);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final hk = context.hk;
     final s = ref.watch(studioControllerProvider(widget.projectId));
     final ctl = ref.read(studioControllerProvider(widget.projectId).notifier);
     final clip = s.clip;
+    final tracking = s.busy.contains('reframe');
     return ListView(
-      padding: const EdgeInsets.all(HkTokens.s3),
+      padding: const EdgeInsets.all(HkTokens.s4),
       children: [
-        const Text(
-          'Motion',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-        ),
-        const SizedBox(height: 4),
         Text(
-          'Follow the speaker and punch in on emphasised words.',
-          style: TextStyle(fontSize: 12, color: context.hk.textMuted),
+          'Keep the speaker in frame and punch in on emphasised words.',
+          style: TextStyle(fontSize: 12, color: hk.textMuted),
         ),
-        const SizedBox(height: HkTokens.s3),
-        if (clip == null) const Text('Select a clip.'),
-        if (clip != null) ...[
+        const SizedBox(height: HkTokens.s4),
+        if (clip == null)
+          const EmptyState(
+            icon: Icons.animation,
+            title: 'No clip selected',
+            message: 'Pick a clip to add motion.',
+          )
+        else ...[
+          const SectionLabel('1 · Reframe'),
           OutlinedButton.icon(
-            onPressed: () => ctl.reframe(clip.id),
-            icon: const Icon(Icons.center_focus_strong),
-            label: const Text('Track speaker (9:16)'),
+            onPressed: tracking ? null : () => ctl.reframe(clip.id),
+            icon: tracking
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.center_focus_strong, size: 18),
+            label: Text(
+              tracking
+                  ? 'Tracking speaker…'
+                  : (clip.reframe == null
+                        ? 'Track speaker (9:16)'
+                        : 'Re-track speaker'),
+            ),
           ),
-          const SizedBox(height: HkTokens.s3),
-          Text('Punch-in zoom ${_zoom.toStringAsFixed(2)}×'),
-          Slider(
+          if (clip.reframe != null)
+            Padding(
+              padding: const EdgeInsets.only(top: HkTokens.s2),
+              child: Pill('Reframed', icon: Icons.check, color: hk.ok),
+            ),
+          const SectionLabel('2 · Auto zoom'),
+          SliderRow(
+            label: 'Punch-in zoom',
             value: _zoom,
             min: 1.05,
             max: 1.4,
-            onChanged: (v) => setState(() => _zoom = v),
+            divisions: 35,
+            format: (v) => '${v.toStringAsFixed(2)}×',
+            onChanged: (v) => setState(() => _zoom = v ?? 1.15),
           ),
-          Text('Hold ${_hold.toStringAsFixed(1)} s'),
-          Slider(
+          SliderRow(
+            label: 'Hold',
             value: _hold,
             min: 0.3,
             max: 2.0,
-            onChanged: (v) => setState(() => _hold = v),
+            divisions: 17,
+            format: (v) => '${v.toStringAsFixed(1)} s',
+            onChanged: (v) => setState(() => _hold = v ?? 0.8),
           ),
+          SliderRow(
+            label: 'Max zooms per minute',
+            value: _perMin,
+            min: 1,
+            max: 12,
+            divisions: 11,
+            onChanged: (v) => setState(() => _perMin = v ?? 6),
+          ),
+          const SizedBox(height: HkTokens.s2),
+          if (clip.reframe == null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: HkTokens.s2),
+              child: Text(
+                'Auto zoom needs a reframe first (step 1).',
+                style: TextStyle(fontSize: 12, color: hk.warn),
+              ),
+            ),
           Row(
             children: [
-              FilledButton(
-                onPressed: () async {
-                  await studioCall('set_punch_in', {
-                    'id': widget.projectId,
-                    'clip': clip.id,
-                    'punch_in': {
-                      'zoom': _zoom,
-                      'hold': _hold,
-                      'max_per_minute': 6,
-                    },
-                  });
-                  await ctl.reload();
-                },
-                child: const Text('Apply auto zoom'),
+              Expanded(
+                child: GradientButton(
+                  label: 'Apply auto zoom',
+                  icon: Icons.zoom_in,
+                  busy: _busy,
+                  expand: true,
+                  onPressed: clip.reframe == null
+                      ? null
+                      : () => _punch(clip.id, {
+                          'zoom': _zoom,
+                          'hold': _hold,
+                          'max_per_minute': _perMin.round(),
+                        }),
+                ),
               ),
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: () async {
-                  await studioCall('set_punch_in', {
-                    'id': widget.projectId,
-                    'clip': clip.id,
-                    'punch_in': null,
-                  });
-                  await ctl.reload();
-                },
+              const SizedBox(width: HkTokens.s2),
+              OutlinedButton(
+                onPressed: _busy ? null : () => _punch(clip.id, null),
                 child: const Text('Off'),
               ),
             ],
           ),
-          if (clip.reframe == null)
-            Text(
-              'Auto zoom needs a reframe (Track speaker) first.',
-              style: TextStyle(fontSize: 12, color: context.hk.warn),
-            ),
         ],
       ],
     );

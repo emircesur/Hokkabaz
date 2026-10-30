@@ -152,7 +152,7 @@ class StudioClip {
     if (a == null || a.length != 2) return 'custom';
     if (a[0] == 9 && a[1] == 16) return 'vertical';
     if (a[0] == a[1]) return 'square';
-    return 'custom';
+    return '${a[0]}:${a[1]}';
   }
 
   bool get tracked => ((reframe?['focus'] as List?) ?? const []).isNotEmpty;

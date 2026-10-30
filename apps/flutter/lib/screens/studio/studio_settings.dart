@@ -139,7 +139,8 @@ class _State extends ConsumerState<_StudioSettingsDialog> {
         final gd = w['gpu_devices'];
         if (gd is Map && gd['devices'] is List) {
           _gpuDevices = [
-            for (final d in gd['devices'] as List) (d as Map).cast<String, dynamic>(),
+            for (final d in gd['devices'] as List)
+              (d as Map).cast<String, dynamic>(),
           ];
         }
       });

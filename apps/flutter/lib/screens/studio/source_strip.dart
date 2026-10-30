@@ -36,6 +36,8 @@ class _SourceStripState extends State<SourceStrip> {
   _Edge? _drag;
   double? _dragStart;
   double? _dragEnd;
+  double _doubleAt = 0;
+  bool _overEdge = false;
 
   double _t(double dx, double w) =>
       (dx / w * widget.duration).clamp(0.0, widget.duration);
@@ -59,8 +61,10 @@ class _SourceStripState extends State<SourceStrip> {
     return LayoutBuilder(
       builder: (context, box) {
         final w = box.maxWidth;
-        return GestureDetector(
+        final strip = GestureDetector(
           behavior: HitTestBehavior.opaque,
+          onDoubleTapDown: (d) => _doubleAt = d.localPosition.dx,
+          onDoubleTap: () => widget.onAddAt(_t(_doubleAt, w)),
           onTapUp: (d) {
             final t = _t(d.localPosition.dx, w);
             final hit = widget.clips
@@ -125,6 +129,20 @@ class _SourceStripState extends State<SourceStrip> {
                 ),
               ),
             ),
+          ),
+        );
+        return Tooltip(
+          message: 'Whole source video. Drag the selected clip\'s edges to trim; double-click or long-press empty space to add a clip.',
+          waitDuration: const Duration(milliseconds: 900),
+          child: MouseRegion(
+            cursor: _overEdge || _drag != null
+                ? SystemMouseCursors.resizeLeftRight
+                : SystemMouseCursors.click,
+            onHover: (e) {
+              final over = _edgeAt(e.localPosition.dx, w) != null;
+              if (over != _overEdge) setState(() => _overEdge = over);
+            },
+            child: strip,
           ),
         );
       },

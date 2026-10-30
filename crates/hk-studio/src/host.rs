@@ -597,10 +597,14 @@ impl StudioHost {
             }
             "reframe" => {
                 let square: bool = opt(&p, "square")?.unwrap_or(false);
-                let base = if square {
-                    crate::reframe::ReframeSpec::square()
-                } else {
-                    crate::reframe::ReframeSpec::vertical()
+                let named: Option<String> = opt(&p, "aspect")?;
+                let base = match named
+                    .as_deref()
+                    .and_then(crate::reframe::ReframeSpec::named)
+                {
+                    Some(b) => b,
+                    None if square => crate::reframe::ReframeSpec::square(),
+                    None => crate::reframe::ReframeSpec::vertical(),
                 };
                 let n = svc
                     .track(

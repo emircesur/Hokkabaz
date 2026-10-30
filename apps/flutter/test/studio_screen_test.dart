@@ -166,7 +166,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(app(const Size(1500, 900)));
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('Style'));
+    await tester.tap(find.text('Captions').first);
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.widgetWithText(ActionChip, 'pop'));
@@ -180,12 +180,12 @@ void main() {
   });
 
   testWidgets('publish panel shows the score and post copy', (tester) async {
-    tester.view.physicalSize = const Size(1500, 900);
+    tester.view.physicalSize = const Size(1500, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(app(const Size(1500, 900)));
+    await tester.pumpWidget(app(const Size(1500, 1400)));
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('Publish'));
+    await tester.tap(find.text('Publish').last);
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Strong cold open.'), findsOneWidget);

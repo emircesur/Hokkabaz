@@ -166,7 +166,9 @@ impl LocalRuntime {
         {
             let mut map = lock(&self.0.live);
             if map.get(id).is_some_and(|l| l.handle.is_running()) {
-                return Err(ApiError::BadRequest("stop the session before deleting it".into()));
+                return Err(ApiError::BadRequest(
+                    "stop the session before deleting it".into(),
+                ));
             }
             map.remove(id);
         }

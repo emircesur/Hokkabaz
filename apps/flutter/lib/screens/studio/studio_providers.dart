@@ -353,11 +353,19 @@ class StudioController extends Notifier<StudioState> {
     return (jsonDecode(raw) as List).cast<String>();
   }, done: 'Highlights added');
 
-  Future<void> reframe(String clip, {bool square = false}) => _job(
-    'reframe',
-    () => api.studioReframe(id: projectId, clip: clip, square: square),
-    done: 'Subject tracked',
-  );
+  /// Track the subject into `aspect` (`9:16`, `1:1`, `4:5`, `16:9`).
+  Future<void> reframe(String clip, {bool square = false, String? aspect}) =>
+      _job(
+        'reframe',
+        () => aspect == null
+            ? api.studioReframe(id: projectId, clip: clip, square: square)
+            : hk('studio.reframe', {
+                'id': projectId,
+                'clip': clip,
+                'aspect': aspect,
+              }),
+        done: 'Subject tracked',
+      );
 
   Future<void> broll(String clip, {int max = 4}) => _job(
     'broll',

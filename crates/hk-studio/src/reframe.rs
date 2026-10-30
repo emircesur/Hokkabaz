@@ -66,6 +66,22 @@ impl ReframeSpec {
             ..Self::vertical()
         }
     }
+
+    /// Spec for `"9:16"`, `"1:1"`, `"4:5"` (Instagram feed) or `"16:9"`; `None` if unknown.
+    pub fn named(aspect: &str) -> Option<Self> {
+        let (aspect, size) = match aspect {
+            "9:16" => ((9, 16), (1080, 1920)),
+            "1:1" => ((1, 1), (1080, 1080)),
+            "4:5" => ((4, 5), (1080, 1350)),
+            "16:9" => ((16, 9), (1920, 1080)),
+            _ => return None,
+        };
+        Some(Self {
+            aspect,
+            size,
+            ..Self::vertical()
+        })
+    }
 }
 
 /// Finds subjects in a video. Implementations: face detector (feature `vision`
