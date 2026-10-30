@@ -44,6 +44,32 @@ class SettingsScreen extends ConsumerWidget {
               onSelectionChanged: (s) => ref.read(themeModeProvider.notifier).set(s.first),
             ),
             const SizedBox(height: HkTokens.s6),
+            Text('Text size', style: text.titleSmall),
+            const SizedBox(height: HkTokens.s2),
+            Consumer(
+              builder: (context, ref, _) {
+                final v = ref.watch(uiScaleProvider);
+                return Row(
+                  children: [
+                    const Icon(Icons.text_decrease, size: 18),
+                    Expanded(
+                      child: Slider(
+                        value: v,
+                        min: 0.85,
+                        max: 1.4,
+                        divisions: 11,
+                        label: '${(v * 100).round()}%',
+                        onChanged: ref.read(uiScaleProvider.notifier).set,
+                      ),
+                    ),
+                    const Icon(Icons.text_increase, size: 18),
+                    const SizedBox(width: HkTokens.s2),
+                    Text('${(v * 100).round()}%'),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: HkTokens.s4),
             Text('Updates', style: text.titleSmall),
             const SizedBox(height: HkTokens.s1),
             Text('Version $hkVersion', style: text.bodySmall?.copyWith(color: hk.textMuted)),

@@ -24,5 +24,29 @@ pub use catalog::{CatalogEntry, Device, Fit};
 pub use error::{LocalError, Result};
 pub use store::{DownloadProgress, InstalledModel, ModelStore};
 
+/// Free the loaded on-device model(s); returns how many were unloaded.
+pub fn unload_all() -> usize {
+    #[cfg(feature = "llama")]
+    {
+        engine::unload_all()
+    }
+    #[cfg(not(feature = "llama"))]
+    {
+        0
+    }
+}
+
+/// Ids of on-device models currently in memory.
+pub fn loaded_models() -> Vec<String> {
+    #[cfg(feature = "llama")]
+    {
+        engine::loaded_models()
+    }
+    #[cfg(not(feature = "llama"))]
+    {
+        Vec::new()
+    }
+}
+
 /// Provider id registered with the router; model refs look like `local/<model id>`.
 pub const PROVIDER_ID: &str = "local";

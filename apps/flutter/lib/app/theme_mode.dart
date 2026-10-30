@@ -73,3 +73,48 @@ IconData themeModeIcon(ThemeMode m) => switch (m) {
   ThemeMode.light => Icons.light_mode_outlined,
   ThemeMode.system => Icons.brightness_auto_outlined,
 };
+
+/// Text size multiplier (accessibility / dense screens), persisted like the theme.
+class UiScaleController extends Notifier<double> {
+  bool _touched = false;
+
+  @override
+  double build() {
+    unawaited(_load());
+    return 1.0;
+  }
+
+  Future<File?> _file() async {
+    try {
+      final dir = await getApplicationSupportDirectory();
+      return File('${dir.path}${Platform.pathSeparator}ui_scale');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _load() async {
+    try {
+      final f = await _file();
+      if (f == null || !await f.exists()) return;
+      final v = double.tryParse((await f.readAsString()).trim());
+      if (v != null && !_touched) state = v.clamp(0.85, 1.4);
+    } catch (_) {
+      // Keep the default.
+    }
+  }
+
+  Future<void> set(double v) async {
+    _touched = true;
+    state = v.clamp(0.85, 1.4);
+    try {
+      await (await _file())?.writeAsString('$state');
+    } catch (_) {
+      // In-memory only this time.
+    }
+  }
+}
+
+final uiScaleProvider = NotifierProvider<UiScaleController, double>(
+  UiScaleController.new,
+);

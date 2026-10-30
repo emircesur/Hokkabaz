@@ -98,6 +98,18 @@ final composerModelProvider = NotifierProvider<ComposerModel, String?>(
   ComposerModel.new,
 );
 
+/// Text pushed into a chat's composer (edit & resend, prompt library), keyed by session.
+class ComposerDraft extends Notifier<(String, String)?> {
+  @override
+  (String, String)? build() => null;
+
+  void put(String sessionId, String text) => state = (sessionId, text);
+  void clear() => state = null;
+}
+
+final composerDraftProvider =
+    NotifierProvider<ComposerDraft, (String, String)?>(ComposerDraft.new);
+
 /// One open conversation: history + live feed + actions.
 class ChatController extends Notifier<ChatState> {
   ChatController(this.sessionId);
@@ -252,6 +264,37 @@ class ChatController extends Notifier<ChatState> {
     } catch (e) {
       _notice(describeError(e));
     }
+  }
+
+  /// Last user prompt, for regenerate / edit.
+  String? get lastPrompt =>
+      state.items.whereType<UserItem>().lastOrNull?.text;
+
+  /// Ask again with the last prompt (the model sees the previous answer too).
+  Future<void> regenerate(ModeDto mode, {String? model}) async {
+    final p = lastPrompt;
+    if (p == null || state.running) return;
+    await send(p, mode, model: model);
+  }
+
+  /// Conversation as Markdown (user / assistant turns, tool calls as one-liners).
+  String toMarkdown(String title) {
+    final b = StringBuffer('# $title\n\n');
+    for (final it in state.items) {
+      switch (it) {
+        case UserItem():
+          b.writeln('**You:**\n\n${it.text}\n');
+        case AssistantItem() when it.text.isNotEmpty:
+          b.writeln('**Assistant:**\n\n${it.text}\n');
+        case ToolItem():
+          b.writeln('> tool `${it.name}` ${it.argsJson}\n');
+        case NoticeItem():
+          b.writeln('> ${it.text}\n');
+        default:
+          break;
+      }
+    }
+    return b.toString();
   }
 
   Future<void> cancel() async {

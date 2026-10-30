@@ -12,43 +12,92 @@ import 'chat_model.dart';
 /// Max reading width for the message column (long lines are hard to read).
 const double kMessageMaxWidth = 860;
 
-class UserBubble extends StatelessWidget {
-  const UserBubble({super.key, required this.item});
+class UserBubble extends StatefulWidget {
+  const UserBubble({super.key, required this.item, this.onEdit});
 
   final UserItem item;
+
+  /// Puts the text back into the composer.
+  final VoidCallback? onEdit;
+
+  @override
+  State<UserBubble> createState() => _UserBubbleState();
+}
+
+class _UserBubbleState extends State<UserBubble> {
+  bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
     final hk = context.hk;
-    return Align(
-      alignment: Alignment.centerRight,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: kMessageMaxWidth * 0.75),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: hk.surface3,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(16),
-              topRight: Radius.circular(16),
-              bottomLeft: Radius.circular(16),
-              bottomRight: Radius.circular(4),
+    Widget act(IconData i, String tip, VoidCallback f) => IconButton(
+      tooltip: tip,
+      iconSize: 14,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+      icon: Icon(i, color: hk.textFaint),
+      onPressed: f,
+    );
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 120),
+            opacity: _hover ? 1 : 0,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                act(Icons.copy_rounded, 'Copy', () {
+                  Clipboard.setData(ClipboardData(text: widget.item.text));
+                }),
+                if (widget.onEdit != null)
+                  act(Icons.edit_outlined, 'Edit & resend', widget.onEdit!),
+              ],
             ),
           ),
-          child: SelectableText(
-            item.text,
-            style: const TextStyle(fontSize: 14, height: 1.5),
+          Flexible(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: kMessageMaxWidth * 0.75,
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: hk.surface3,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                    bottomLeft: Radius.circular(16),
+                    bottomRight: Radius.circular(4),
+                  ),
+                ),
+                child: SelectableText(
+                  widget.item.text,
+                  style: const TextStyle(fontSize: 14, height: 1.5),
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
 class AssistantBlock extends StatelessWidget {
-  const AssistantBlock({super.key, required this.item});
+  const AssistantBlock({super.key, required this.item, this.onRegenerate});
 
   final AssistantItem item;
+
+  /// Set on the latest answer only.
+  final VoidCallback? onRegenerate;
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +127,7 @@ class AssistantBlock extends StatelessWidget {
               if (item.streaming && item.text.isEmpty && item.reasoning.isEmpty)
                 const _Typing(),
               if (item.text.isNotEmpty && !item.streaming)
-                _Actions(text: item.text),
+                _Actions(text: item.text, onRegenerate: onRegenerate),
             ],
           ),
         ),
@@ -89,9 +138,10 @@ class AssistantBlock extends StatelessWidget {
 
 /// Copy / read aloud under a finished answer.
 class _Actions extends StatelessWidget {
-  const _Actions({required this.text});
+  const _Actions({required this.text, this.onRegenerate});
 
   final String text;
+  final VoidCallback? onRegenerate;
 
   @override
   Widget build(BuildContext context) {
@@ -123,6 +173,8 @@ class _Actions extends StatelessWidget {
               }
             }),
           ),
+          if (onRegenerate != null)
+            btn(Icons.refresh_rounded, 'Regenerate', onRegenerate!),
         ],
       ),
     );

@@ -59,6 +59,40 @@ struct Shared {
 
 pub struct LlamaProvider(Arc<Shared>);
 
+/// Every provider built in this process, for [`unload_all`] / [`loaded_models`].
+static PROVIDERS: Mutex<Vec<std::sync::Weak<Shared>>> = Mutex::new(Vec::new());
+
+/// Drop the loaded weights of every local provider (frees RAM / VRAM); the next request
+/// loads again.
+pub fn unload_all() -> usize {
+    let mut n = 0;
+    for p in PROVIDERS.lock().unwrap_or_else(PoisonError::into_inner).iter() {
+        if let Some(p) = p.upgrade()
+            && p.loaded.lock().unwrap_or_else(PoisonError::into_inner).take().is_some()
+        {
+            n += 1;
+        }
+    }
+    n
+}
+
+/// Ids of the models currently in memory.
+pub fn loaded_models() -> Vec<String> {
+    PROVIDERS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .iter()
+        .filter_map(|p| p.upgrade())
+        .filter_map(|p| {
+            p.loaded
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .as_ref()
+                .map(|l| l.id.clone())
+        })
+        .collect()
+}
+
 impl std::fmt::Debug for LlamaProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LlamaProvider")
@@ -78,12 +112,17 @@ impl LlamaProvider {
         };
         // Leave a core for the UI; at least two threads.
         let threads = i32::try_from(dev.cores.saturating_sub(1).clamp(2, 8)).unwrap_or(4);
-        Self(Arc::new(Shared {
+        let shared = Arc::new(Shared {
             store,
             loaded: Mutex::new(None),
             threads,
             max_ctx,
-        }))
+        });
+        let mut all = PROVIDERS.lock().unwrap_or_else(PoisonError::into_inner);
+        all.retain(|w| w.strong_count() > 0);
+        all.push(Arc::downgrade(&shared));
+        drop(all);
+        Self(shared)
     }
 }
 

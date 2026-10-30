@@ -183,6 +183,7 @@ pub(crate) async fn call(c: &Ctx<'_>, method: &str, p: Value) -> Result<Value, H
                 apply_ai_defaults(c.runtime, c.store).await;
                 Ok(v)
             }
+            "local.unload" => Ok(json!(hk_local::unload_all())),
             "local.get" => Ok(json!(local_profiles(
                 &doc_get(c.store, "local_runtime_profiles").await?
             ))),

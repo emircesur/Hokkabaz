@@ -162,6 +162,7 @@ impl Ctx {
             "models": models,
             "custom": custom,
             "fallback": self.fallback.read().unwrap_or_else(PoisonError::into_inner).clone(),
+            "loaded": hk_local::loaded_models(),
             "gpu": {"backend": hk_local::gpu::BACKEND, "settings": hk_local::gpu::get(), "devices": hk_local::gpu::devices()},
         })
     }

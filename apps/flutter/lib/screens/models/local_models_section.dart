@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ffi/ffi.dart' show rustInitErrorProvider;
 import '../../src/rust/api/local_models.dart' as api;
+import '../../ffi/hk_gate.dart' as gate;
 import '../../theme/tokens.dart';
 import '../chat/chat_providers.dart' show describeError;
 
@@ -36,8 +37,12 @@ class LocalOverview {
       custom = (j['custom'] as List).map((m) => (m as Map).cast<String, dynamic>()).toList(),
       gpuBackend = (j['gpu'] as Map?)?['backend'] as String?,
       gpu = (((j['gpu'] as Map?)?['settings'] as Map?) ?? const {'enabled': true, 'device': 0}).cast<String, dynamic>(),
-      gpuDevices = [for (final d in ((j['gpu'] as Map?)?['devices'] as List? ?? const [])) (d as Map).cast<String, dynamic>()];
+      gpuDevices = [for (final d in ((j['gpu'] as Map?)?['devices'] as List? ?? const [])) (d as Map).cast<String, dynamic>()],
+      loaded = [for (final m in (j['loaded'] as List? ?? const [])) '$m'];
   final bool engine;
+
+  /// Models currently in memory.
+  final List<String> loaded;
 
   /// `vulkan` | `cuda` | `metal`, or null when local models run on the CPU only.
   final String? gpuBackend;
@@ -75,6 +80,8 @@ class LocalModelsNotifier extends AsyncNotifier<LocalOverview> {
   }
 
   Future<LocalOverview> _load() async => LocalOverview(jsonDecode(await api.localModelsOverview()) as Map<String, dynamic>);
+
+  Future<void> refresh() async => state = await AsyncValue.guard(_load);
 
   Future<void> reload() async => state = AsyncData(await _load());
 
@@ -211,6 +218,38 @@ class LocalModelsSection extends ConsumerWidget {
                   ),
                 ),
               Text('This device has ${formatBytes(o.totalRam)} of RAM.', style: text.bodySmall),
+              const SizedBox(height: HkTokens.s2),
+              Container(
+                padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+                decoration: BoxDecoration(
+                  color: hk.surface2,
+                  borderRadius: BorderRadius.circular(HkTokens.radiusCard),
+                  border: Border.all(color: hk.border),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.memory, size: 18, color: o.loaded.isEmpty ? hk.textFaint : hk.ok),
+                    const SizedBox(width: HkTokens.s2),
+                    Expanded(
+                      child: Text(
+                        o.loaded.isEmpty ? 'No model in memory' : 'In memory: ${o.loaded.join(', ')}',
+                        style: text.bodySmall,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: o.loaded.isEmpty
+                          ? null
+                          : () async {
+                              await gate.hk('local.unload').catchError((_) => 0);
+                              await notifier.refresh();
+                              if (context.mounted) toast('Model unloaded; memory freed');
+                            },
+                      icon: const Icon(Icons.eject_outlined, size: 16),
+                      label: const Text('Unload'),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: HkTokens.s2),
               DropdownButtonFormField<String?>(
                 key: ValueKey('fb-${o.fallback}-${o.installedChoices.length}'),

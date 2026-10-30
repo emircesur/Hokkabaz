@@ -216,6 +216,13 @@ class _ComposerState extends ConsumerState<Composer> {
   @override
   Widget build(BuildContext context) {
     final hk = context.hk;
+    ref.listen(composerDraftProvider, (_, d) {
+      if (d == null || d.$1 != widget.sessionId) return;
+      _text.text = d.$2;
+      _text.selection = TextSelection.collapsed(offset: d.$2.length);
+      _focus.requestFocus();
+      ref.read(composerDraftProvider.notifier).clear();
+    });
     final mode = ref.watch(chatModeProvider);
     final menu = _menu();
     final entries = menu.entries;

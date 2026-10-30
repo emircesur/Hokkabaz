@@ -1,9 +1,15 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/activity.dart';
 import '../../ffi/hk_gate.dart' as gate;
 
+import '../../ffi/settings_providers.dart';
 import '../../src/rust/dto.dart';
 import '../../theme/tokens.dart';
 import 'chat_model.dart';
@@ -178,6 +184,41 @@ class _Header extends ConsumerWidget {
             ),
             const SizedBox(width: HkTokens.s2),
           ],
+          _ContextMeter(sessionId: sessionId, state: state, info: info),
+          PopupMenuButton<String>(
+            tooltip: 'Export',
+            icon: const Icon(Icons.ios_share, size: 19),
+            onSelected: (v) async {
+              final md = ref
+                  .read(chatControllerProvider(sessionId).notifier)
+                  .toMarkdown(
+                    (title == null || title.isEmpty) ? 'Chat' : title,
+                  );
+              if (v == 'copy') {
+                await Clipboard.setData(ClipboardData(text: md));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Copied as Markdown')),
+                  );
+                }
+              } else {
+                final path = await FilePicker.saveFile(
+                  dialogTitle: 'Save chat',
+                  fileName: 'chat.md',
+                  bytes: Uint8List.fromList(utf8.encode(md)),
+                );
+                if (path != null && context.mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('Chat saved')));
+                }
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'copy', child: Text('Copy as Markdown')),
+              PopupMenuItem(value: 'save', child: Text('Save as .md…')),
+            ],
+          ),
           IconButton(
             tooltip: 'Run settings & inspector',
             icon: Icon(
@@ -306,6 +347,8 @@ class _MessageList extends ConsumerWidget {
         ),
       );
     }
+    final lastAnswer = items.lastIndexWhere((e) => e is AssistantItem);
+    final ctl = ref.read(chatControllerProvider(sessionId).notifier);
     // Reversed list: offset 0 is the newest item, so new content stays in
     // view while streaming without any scroll bookkeeping.
     return ListView.separated(
@@ -320,8 +363,22 @@ class _MessageList extends ConsumerWidget {
       itemBuilder: (context, i) {
         final item = items[items.length - 1 - i];
         final w = switch (item) {
-          UserItem() => UserBubble(item: item),
-          AssistantItem() => AssistantBlock(item: item),
+          UserItem() => UserBubble(
+            item: item,
+            onEdit: () => ref
+                .read(composerDraftProvider.notifier)
+                .put(sessionId, item.text),
+          ),
+          AssistantItem() => AssistantBlock(
+            item: item,
+            onRegenerate:
+                items.length - 1 - i == lastAnswer && !state.running
+                ? () => ctl.regenerate(
+                    ref.read(chatModeProvider),
+                    model: ref.read(composerModelProvider),
+                  )
+                : null,
+          ),
           ToolItem() => Padding(
             padding: const EdgeInsets.only(left: 38),
             child: ToolCard(
@@ -339,6 +396,54 @@ class _MessageList extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// How full the model's context window was on the last request.
+class _ContextMeter extends ConsumerWidget {
+  const _ContextMeter({
+    required this.sessionId,
+    required this.state,
+    required this.info,
+  });
+
+  final String sessionId;
+  final ChatState state;
+  final SessionInfoDto? info;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hk = context.hk;
+    final model = ref.watch(composerModelProvider) ?? info?.model;
+    final models = ref.watch(modelListProvider).value?.models ?? const [];
+    final window = models
+        .where((m) => m.reference == model)
+        .firstOrNull
+        ?.contextWindow
+        .toInt();
+    final used = state.lastInputTokens;
+    if (window == null || window <= 0 || used <= 0) {
+      return const SizedBox.shrink();
+    }
+    final f = (used / window).clamp(0.0, 1.0);
+    final color = f > 0.85 ? hk.err : (f > 0.6 ? hk.warn : hk.accent);
+    return Tooltip(
+      message:
+          'Context: ${_k(used)} of ${_k(window)} tokens (${(f * 100).round()}%)',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: HkTokens.s2),
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            value: f,
+            strokeWidth: 3,
+            color: color,
+            backgroundColor: hk.surface3,
+          ),
+        ),
+      ),
     );
   }
 }

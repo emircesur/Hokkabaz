@@ -45,6 +45,15 @@ class HokkabazApp extends ConsumerWidget {
       darkTheme: buildTheme(Brightness.dark),
       themeMode: ref.watch(themeModeProvider),
       routerConfig: ref.watch(routerProvider),
+      builder: (context, child) {
+        final scale = ref.watch(uiScaleProvider);
+        if (scale == 1.0) return child!;
+        final mq = MediaQuery.of(context);
+        return MediaQuery(
+          data: mq.copyWith(textScaler: TextScaler.linear(scale)),
+          child: child!,
+        );
+      },
     );
   }
 }
